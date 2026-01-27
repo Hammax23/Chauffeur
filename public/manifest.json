@@ -1,0 +1,25 @@
+{
+  "name": "LuxRide Chauffeur Services",
+  "short_name": "LuxRide",
+  "description": "Premium luxury chauffeur services - Airport transfers, corporate travel, weddings & VIP transport",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#C9A063",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["transportation", "travel", "business"]
+}
