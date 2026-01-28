@@ -23,7 +23,7 @@ const Companies = () => {
             <span className="text-gray-800 text-[13px] sm:text-[14px] font-bold tracking-[0.2em] uppercase">OUR PARTNERS</span>
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4 tracking-tight">Premium Luxury Brands</h2>
-          <p className="text-gray-600 text-[16px] font-light">Experience excellence with the world's most prestigious automotive brands</p>
+          <p className="text-gray-600 text-[16px] font-light">Experience excellence with the world&apos;s most prestigious automotive brands</p>
         </div>
 
         <div className="relative">

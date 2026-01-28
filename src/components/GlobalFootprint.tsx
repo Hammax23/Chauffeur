@@ -38,7 +38,7 @@ const GlobalFootprint = () => {
             Worldwide Excellence
           </h2>
           <p className="text-gray-600 text-[15px] sm:text-[16px] md:text-[17px] tracking-wide font-light max-w-3xl mx-auto leading-relaxed">
-            There's a reason for our elevated reputation worldwide. Experience luxury chauffeur services across major cities globally.
+            There&apos;s a reason for our elevated reputation worldwide. Experience luxury chauffeur services across major cities globally.
           </p>
         </div>
 
