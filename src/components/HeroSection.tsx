@@ -79,7 +79,7 @@ const HeroSection = () => {
                   <span className="text-[12px] sm:text-[13px] md:text-[14px] font-semibold text-gray-900 mb-0.5 sm:mb-1">Date</span>
                   <DatePicker
                     selected={selectedDate}
-                    onChange={(date) => setSelectedDate(date as Date)}
+                    onChange={(date: Date | null) => setSelectedDate(date as Date)}
                     showTimeSelect
                     timeFormat="h:mm aa"
                     timeIntervals={15}
