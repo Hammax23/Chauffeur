@@ -23,7 +23,7 @@ const Navbar = () => {
         : 'bg-black/60 backdrop-blur-xl'
     }`}>
       <div className="max-w-[1600px] mx-auto px-8">
-        <div className="flex items-center justify-between h-[85px]">
+        <div className="flex items-center justify-between h-[85px] md:h-[100px]">
           <div className="flex items-center gap-12">
             <div className="flex items-center">
               <img 

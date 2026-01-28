@@ -15,7 +15,7 @@ const GlobalFootprint = () => {
   ];
 
   return (
-    <section className="relative py-20 sm:py-24 md:py-28 lg:py-36 bg-white overflow-hidden">
+    <section className="relative py-12 sm:py-14 md:py-16 lg:py-18 bg-white overflow-hidden">
       {/* Animated background gradient */}
       <div className="absolute inset-0">
         <div className="absolute inset-0 bg-gradient-to-br from-[#C9A063]/2 via-transparent to-[#C9A063]/1"></div>
@@ -26,9 +26,9 @@ const GlobalFootprint = () => {
         <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-[#C9A063]/10 to-transparent"></div>
       </div>
 
-      <div className="max-w-[1600px] mx-auto px-6 sm:px-8 md:px-12 relative z-10">
+      <div className="max-w-[1800px] mx-auto px-2 sm:px-4 md:px-6 lg:px-8 relative z-10">
         {/* Header */}
-        <div className="text-center mb-16 sm:mb-20 md:mb-24">
+        <div className="text-center mb-6 sm:mb-7 md:mb-8">
           <div className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-white backdrop-blur-xl border border-[#C9A063]/30 shadow-xl shadow-[#C9A063]/10 mb-6 sm:mb-8 hover:shadow-2xl hover:shadow-[#C9A063]/20 transition-all duration-300">
             <div className="w-2 h-2 rounded-full bg-gradient-to-r from-[#C9A063] to-[#B8935A] animate-pulse shadow-lg shadow-[#C9A063]/50"></div>
             <span className="text-gray-800 text-[13px] sm:text-[14px] font-bold tracking-[0.2em] uppercase">GLOBAL FOOTPRINT</span>

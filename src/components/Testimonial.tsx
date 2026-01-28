@@ -72,7 +72,7 @@ const Testimonial = () => {
   const visibleTestimonials = testimonials.slice(currentIndex, currentIndex + itemsPerPage);
 
   return (
-    <section className="relative py-16 sm:py-20 md:py-24 lg:py-32 bg-gradient-to-b from-black via-[#0a0a0a] to-black overflow-hidden">
+    <section className="relative py-12 sm:py-14 md:py-16 lg:py-20 bg-gradient-to-b from-black via-[#0a0a0a] to-black overflow-hidden">
       {/* Enhanced Background Effects */}
       <div className="absolute inset-0 opacity-30">
         <div className="absolute inset-0 bg-gradient-to-br from-[#C9A063]/10 via-transparent to-transparent animate-pulse"></div>
