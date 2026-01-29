@@ -55,7 +55,7 @@ const HeroSection = () => {
           </div>
         </div>
 
-        <div className="w-full max-w-[1300px] mt-4 sm:mt-6 md:mt-8 lg:mt-10 mb-12 sm:mb-16 md:mb-20 lg:mb-24 mx-auto px-4 sm:px-6 md:px-8">
+        <div id="book" className="w-full max-w-[1300px] mt-4 sm:mt-6 md:mt-8 lg:mt-10 mb-12 sm:mb-16 md:mb-20 lg:mb-24 mx-auto px-4 sm:px-6 md:px-8">
           <div className="bg-white rounded-3xl md:rounded-full shadow-2xl px-4 py-4 sm:px-6 sm:py-5 md:px-8 md:py-5 lg:px-10 lg:py-5">
             <div className="flex flex-col md:flex-row md:flex-wrap lg:flex-nowrap lg:items-center lg:justify-between gap-3 sm:gap-4">
               <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-[200px]">

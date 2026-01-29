@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { Crown, Instagram, Facebook, Linkedin } from 'lucide-react';
 
 const Footer = () => {
@@ -53,40 +54,40 @@ const Footer = () => {
                 </a>
               </li>
               <li>
-                <a 
-                  href="#fleet" 
+                <Link 
+                  href="/fleet" 
                   className="group inline-flex items-center gap-2 text-gray-400 text-[14px] font-light hover:text-[#C9A063] transition-all duration-300"
                 >
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   Fleet
-                </a>
+                </Link>
               </li>
               <li>
-                <a 
-                  href="#services" 
+                <Link 
+                  href="/services" 
                   className="group inline-flex items-center gap-2 text-gray-400 text-[14px] font-light hover:text-[#C9A063] transition-all duration-300"
                 >
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   Services
-                </a>
+                </Link>
               </li>
               <li>
-                <a 
-                  href="#about" 
+                <Link 
+                  href="/about" 
                   className="group inline-flex items-center gap-2 text-gray-400 text-[14px] font-light hover:text-[#C9A063] transition-all duration-300"
                 >
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   About Us
-                </a>
+                </Link>
               </li>
               <li>
-                <a 
-                  href="#contact" 
+                <Link 
+                  href="/contact" 
                   className="group inline-flex items-center gap-2 text-gray-400 text-[14px] font-light hover:text-[#C9A063] transition-all duration-300"
                 >
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   Contact
-                </a>
+                </Link>
               </li>
             </ul>
           </div>

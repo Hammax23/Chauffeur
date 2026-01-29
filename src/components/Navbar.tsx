@@ -1,6 +1,12 @@
 "use client";
+import Link from "next/link";
 import { Search, Phone, ChevronDown, Menu, X, Plane, Briefcase, MapPin, Clock, Heart, Camera, Shield, Car, Sparkles, Headphones } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { services, type ServiceIconKey } from '@/data/services';
+
+const iconMap: Record<ServiceIconKey, React.ElementType> = {
+  Plane, Briefcase, MapPin, Clock, Heart, Camera, Shield, Car, Sparkles, Headphones,
+};
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -25,26 +31,26 @@ const Navbar = () => {
       <div className="max-w-[1600px] mx-auto px-8">
         <div className="flex items-center justify-between h-[85px] md:h-[100px]">
           <div className="flex items-center gap-12">
-            <div className="flex items-center">
+            <Link href="/" className="flex items-center">
               <img 
                 src="/logo.png" 
                 alt="LuxRide Logo" 
                 className="h-[70px] sm:h-[90px] w-auto lg:w-[200px] object-contain drop-shadow-lg"
               />
-            </div>
+            </Link>
 
             <div className="hidden lg:flex items-center gap-1">
-              <button className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
+              <Link href="/" className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
                 HOME
-              </button>
+              </Link>
               
-              <button className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
+              <Link href="/about" className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
                 ABOUT
-              </button>
+              </Link>
               
-              <button className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
+              <Link href="/fleet" className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
                 FLEET
-              </button>
+              </Link>
               
               <div className="relative"
                 onMouseEnter={() => setServicesOpen(true)}
@@ -63,127 +69,40 @@ const Navbar = () => {
                     <div className="relative bg-white/90 backdrop-blur-3xl rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.4)] border border-white/30 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-500">
                     <div className="grid grid-cols-2 divide-x divide-gray-100/50">
                       <div className="p-10 space-y-3">
-                        <div className="group/item hover:bg-white/70 hover:backdrop-blur-sm p-4 rounded-2xl transition-all duration-500 cursor-pointer border border-transparent hover:border-white/40 hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-                          <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 bg-gradient-to-br from-gray-700 to-gray-800 group-hover/item:from-[#C9A063] group-hover/item:to-[#A68B5B] rounded-xl flex items-center justify-center flex-shrink-0 shadow-md shadow-gray-800/15 group-hover/item:shadow-[#C9A063]/30 group-hover/item:scale-110 transition-all duration-500">
-                              <Plane className="w-6 h-6 text-white" strokeWidth={1.5} />
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="text-gray-900 font-semibold text-[15px] mb-1.5 tracking-tight">Airport Transfer Services</h3>
-                              <p className="text-gray-600 text-[12px] leading-relaxed font-light">Pickup & drop-off, flight tracking, meet & greet</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="group/item hover:bg-white/70 hover:backdrop-blur-sm p-4 rounded-2xl transition-all duration-500 cursor-pointer border border-transparent hover:border-white/40 hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-                          <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 bg-gradient-to-br from-gray-700 to-gray-800 group-hover/item:from-[#C9A063] group-hover/item:to-[#A68B5B] rounded-xl flex items-center justify-center flex-shrink-0 shadow-md shadow-gray-800/15 group-hover/item:shadow-[#C9A063]/30 group-hover/item:scale-110 transition-all duration-500">
-                              <Briefcase className="w-6 h-6 text-white" strokeWidth={1.5} />
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="text-gray-900 font-semibold text-[15px] mb-1.5 tracking-tight">Corporate / Business Travel</h3>
-                              <p className="text-gray-600 text-[12px] leading-relaxed font-light">Executive chauffeur for meetings & conferences</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="group/item hover:bg-white/70 hover:backdrop-blur-sm p-4 rounded-2xl transition-all duration-500 cursor-pointer border border-transparent hover:border-white/40 hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-                          <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 bg-gradient-to-br from-gray-700 to-gray-800 group-hover/item:from-[#C9A063] group-hover/item:to-[#A68B5B] rounded-xl flex items-center justify-center flex-shrink-0 shadow-md shadow-gray-800/15 group-hover/item:shadow-[#C9A063]/30 group-hover/item:scale-110 transition-all duration-500">
-                              <MapPin className="w-6 h-6 text-white" strokeWidth={1.5} />
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="text-gray-900 font-semibold text-[15px] mb-1.5 tracking-tight">Point-to-Point Transfers</h3>
-                              <p className="text-gray-600 text-[12px] leading-relaxed font-light">Luxury rides between hotels, offices & restaurants</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="group/item hover:bg-white/70 hover:backdrop-blur-sm p-4 rounded-2xl transition-all duration-500 cursor-pointer border border-transparent hover:border-white/40 hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-                          <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 bg-gradient-to-br from-gray-700 to-gray-800 group-hover/item:from-[#C9A063] group-hover/item:to-[#A68B5B] rounded-xl flex items-center justify-center flex-shrink-0 shadow-md shadow-gray-800/15 group-hover/item:shadow-[#C9A063]/30 group-hover/item:scale-110 transition-all duration-500">
-                              <Clock className="w-6 h-6 text-white" strokeWidth={1.5} />
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="text-gray-900 font-semibold text-[15px] mb-1.5 tracking-tight">Hourly / As-Directed Chauffeur</h3>
-                              <p className="text-gray-600 text-[12px] leading-relaxed font-light">Flexible booking with multiple stops</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="group/item hover:bg-white/70 hover:backdrop-blur-sm p-4 rounded-2xl transition-all duration-500 cursor-pointer border border-transparent hover:border-white/40 hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-                          <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 bg-gradient-to-br from-gray-700 to-gray-800 group-hover/item:from-[#C9A063] group-hover/item:to-[#A68B5B] rounded-xl flex items-center justify-center flex-shrink-0 shadow-md shadow-gray-800/15 group-hover/item:shadow-[#C9A063]/30 group-hover/item:scale-110 transition-all duration-500">
-                              <Heart className="w-6 h-6 text-white" strokeWidth={1.5} />
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="text-gray-900 font-semibold text-[15px] mb-1.5 tracking-tight">Wedding & Special Events</h3>
-                              <p className="text-gray-600 text-[12px] leading-relaxed font-light">Wedding cars, VIP transport, red carpet arrivals</p>
-                            </div>
-                          </div>
-                        </div>
+                        {services.slice(0, 5).map((s) => {
+                          const Icon = iconMap[s.icon];
+                          return (
+                            <Link key={s.slug} href={`/services/${s.slug}`} className="block group/item hover:bg-white/70 hover:backdrop-blur-sm p-4 rounded-2xl transition-all duration-500 cursor-pointer border border-transparent hover:border-white/40 hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+                              <div className="flex items-start gap-4">
+                                <div className="w-12 h-12 bg-gradient-to-br from-gray-700 to-gray-800 group-hover/item:from-[#C9A063] group-hover/item:to-[#A68B5B] rounded-xl flex items-center justify-center flex-shrink-0 shadow-md shadow-gray-800/15 group-hover/item:shadow-[#C9A063]/30 group-hover/item:scale-110 transition-all duration-500">
+                                  <Icon className="w-6 h-6 text-white" strokeWidth={1.5} />
+                                </div>
+                                <div className="flex-1">
+                                  <h3 className="text-gray-900 font-semibold text-[15px] mb-1.5 tracking-tight">{s.title}</h3>
+                                  <p className="text-gray-600 text-[12px] leading-relaxed font-light">{s.shortDesc}</p>
+                                </div>
+                              </div>
+                            </Link>
+                          );
+                        })}
                       </div>
-
                       <div className="p-10 space-y-3 bg-gradient-to-br from-gray-50/50 to-white/30">
-                        <div className="group/item hover:bg-white/70 hover:backdrop-blur-sm p-4 rounded-2xl transition-all duration-500 cursor-pointer border border-transparent hover:border-white/40 hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-                          <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 bg-gradient-to-br from-gray-700 to-gray-800 group-hover/item:from-[#C9A063] group-hover/item:to-[#A68B5B] rounded-xl flex items-center justify-center flex-shrink-0 shadow-md shadow-gray-800/15 group-hover/item:shadow-[#C9A063]/30 group-hover/item:scale-110 transition-all duration-500">
-                              <Camera className="w-6 h-6 text-white" strokeWidth={1.5} />
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="text-gray-900 font-semibold text-[15px] mb-1.5 tracking-tight">City Tours & Sightseeing</h3>
-                              <p className="text-gray-600 text-[12px] leading-relaxed font-light">Guided luxury tours with flexible packages</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="group/item hover:bg-white/70 hover:backdrop-blur-sm p-4 rounded-2xl transition-all duration-500 cursor-pointer border border-transparent hover:border-white/40 hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-                          <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 bg-gradient-to-br from-gray-700 to-gray-800 group-hover/item:from-[#C9A063] group-hover/item:to-[#A68B5B] rounded-xl flex items-center justify-center flex-shrink-0 shadow-md shadow-gray-800/15 group-hover/item:shadow-[#C9A063]/30 group-hover/item:scale-110 transition-all duration-500">
-                              <Shield className="w-6 h-6 text-white" strokeWidth={1.5} />
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="text-gray-900 font-semibold text-[15px] mb-1.5 tracking-tight">VIP & Celebrity Transport</h3>
-                              <p className="text-gray-600 text-[12px] leading-relaxed font-light">Discreet service with privacy & security focus</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="group/item hover:bg-white/70 hover:backdrop-blur-sm p-4 rounded-2xl transition-all duration-500 cursor-pointer border border-transparent hover:border-white/40 hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-                          <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 bg-gradient-to-br from-gray-700 to-gray-800 group-hover/item:from-[#C9A063] group-hover/item:to-[#A68B5B] rounded-xl flex items-center justify-center flex-shrink-0 shadow-md shadow-gray-800/15 group-hover/item:shadow-[#C9A063]/30 group-hover/item:scale-110 transition-all duration-500">
-                              <Car className="w-6 h-6 text-white" strokeWidth={1.5} />
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="text-gray-900 font-semibold text-[15px] mb-1.5 tracking-tight">Long-Distance / Intercity Travel</h3>
-                              <p className="text-gray-600 text-[12px] leading-relaxed font-light">Comfortable door-to-door luxury rides</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="group/item hover:bg-white/70 hover:backdrop-blur-sm p-4 rounded-2xl transition-all duration-500 cursor-pointer border border-transparent hover:border-white/40 hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-                          <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 bg-gradient-to-br from-gray-700 to-gray-800 group-hover/item:from-[#C9A063] group-hover/item:to-[#A68B5B] rounded-xl flex items-center justify-center flex-shrink-0 shadow-md shadow-gray-800/15 group-hover/item:shadow-[#C9A063]/30 group-hover/item:scale-110 transition-all duration-500">
-                              <Sparkles className="w-6 h-6 text-white" strokeWidth={1.5} />
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="text-gray-900 font-semibold text-[15px] mb-1.5 tracking-tight">Luxury Fleet Options</h3>
-                              <p className="text-gray-600 text-[12px] leading-relaxed font-light">Mercedes, BMW, Range Rover & Limousines</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="group/item hover:bg-white/70 hover:backdrop-blur-sm p-4 rounded-2xl transition-all duration-500 cursor-pointer border border-transparent hover:border-white/40 hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-                          <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 bg-gradient-to-br from-gray-700 to-gray-800 group-hover/item:from-[#C9A063] group-hover/item:to-[#A68B5B] rounded-xl flex items-center justify-center flex-shrink-0 shadow-md shadow-gray-800/15 group-hover/item:shadow-[#C9A063]/30 group-hover/item:scale-110 transition-all duration-500">
-                              <Headphones className="w-6 h-6 text-white" strokeWidth={1.5} />
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="text-gray-900 font-semibold text-[15px] mb-1.5 tracking-tight">Premium Services</h3>
-                              <p className="text-gray-600 text-[12px] leading-relaxed font-light">WiFi, refreshments, child seats, 24/7 support</p>
-                            </div>
-                          </div>
-                        </div>
+                        {services.slice(5, 10).map((s) => {
+                          const Icon = iconMap[s.icon];
+                          return (
+                            <Link key={s.slug} href={`/services/${s.slug}`} className="block group/item hover:bg-white/70 hover:backdrop-blur-sm p-4 rounded-2xl transition-all duration-500 cursor-pointer border border-transparent hover:border-white/40 hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+                              <div className="flex items-start gap-4">
+                                <div className="w-12 h-12 bg-gradient-to-br from-gray-700 to-gray-800 group-hover/item:from-[#C9A063] group-hover/item:to-[#A68B5B] rounded-xl flex items-center justify-center flex-shrink-0 shadow-md shadow-gray-800/15 group-hover/item:shadow-[#C9A063]/30 group-hover/item:scale-110 transition-all duration-500">
+                                  <Icon className="w-6 h-6 text-white" strokeWidth={1.5} />
+                                </div>
+                                <div className="flex-1">
+                                  <h3 className="text-gray-900 font-semibold text-[15px] mb-1.5 tracking-tight">{s.title}</h3>
+                                  <p className="text-gray-600 text-[12px] leading-relaxed font-light">{s.shortDesc}</p>
+                                </div>
+                              </div>
+                            </Link>
+                          );
+                        })}
                       </div>
                     </div>
                     </div>
@@ -192,17 +111,17 @@ const Navbar = () => {
                 )}
               </div>
               
-              <button className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
+              <Link href="/news" className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
                 NEWS
-              </button>
+              </Link>
               
-              <button className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
-                PARTNERS
-              </button>
+              <Link href="/quote" className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
+                ONLINE QUOTE
+              </Link>
               
-              <button className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
+              <Link href="/contact" className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
                 CONTACT
-              </button>
+              </Link>
             </div>
           </div>
 
@@ -249,17 +168,17 @@ const Navbar = () => {
       {isMenuOpen && (
         <div className="lg:hidden bg-black border-t border-gray-800">
           <div className="px-4 pt-2 pb-4 space-y-2">
-            <button className="w-full text-white px-4 py-2.5 text-sm font-medium text-left">
+            <Link href="/" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-sm font-medium text-left">
               HOME
-            </button>
+            </Link>
             
-            <button className="w-full text-white px-4 py-2.5 text-sm font-medium text-left">
+            <Link href="/about" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-sm font-medium text-left">
               ABOUT
-            </button>
+            </Link>
             
-            <button className="w-full text-white px-4 py-2.5 text-sm font-medium text-left">
+            <Link href="/fleet" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-sm font-medium text-left">
               FLEET
-            </button>
+            </Link>
             
             <div>
               <button 
@@ -273,91 +192,38 @@ const Navbar = () => {
               {mobileServicesOpen && (
                 <div className="mt-3 space-y-1 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-lg rounded-2xl p-4 border border-white/20 shadow-xl">
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="flex flex-col items-center gap-2 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300 cursor-pointer border border-white/10">
-                      <div className="w-10 h-10 bg-gradient-to-br from-gray-700 to-gray-800 rounded-xl flex items-center justify-center shadow-lg">
-                        <Plane className="w-5 h-5 text-white" strokeWidth={1.5} />
-                      </div>
-                      <span className="text-white text-[10px] font-medium text-center leading-tight">Airport Transfer</span>
-                    </div>
-                    
-                    <div className="flex flex-col items-center gap-2 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300 cursor-pointer border border-white/10">
-                      <div className="w-10 h-10 bg-gradient-to-br from-gray-700 to-gray-800 rounded-xl flex items-center justify-center shadow-lg">
-                        <Briefcase className="w-5 h-5 text-white" strokeWidth={1.5} />
-                      </div>
-                      <span className="text-white text-[10px] font-medium text-center leading-tight">Corporate Travel</span>
-                    </div>
-                    
-                    <div className="flex flex-col items-center gap-2 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300 cursor-pointer border border-white/10">
-                      <div className="w-10 h-10 bg-gradient-to-br from-gray-700 to-gray-800 rounded-xl flex items-center justify-center shadow-lg">
-                        <MapPin className="w-5 h-5 text-white" strokeWidth={1.5} />
-                      </div>
-                      <span className="text-white text-[10px] font-medium text-center leading-tight">Point-to-Point</span>
-                    </div>
-                    
-                    <div className="flex flex-col items-center gap-2 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300 cursor-pointer border border-white/10">
-                      <div className="w-10 h-10 bg-gradient-to-br from-gray-700 to-gray-800 rounded-xl flex items-center justify-center shadow-lg">
-                        <Clock className="w-5 h-5 text-white" strokeWidth={1.5} />
-                      </div>
-                      <span className="text-white text-[10px] font-medium text-center leading-tight">Hourly Chauffeur</span>
-                    </div>
-                    
-                    <div className="flex flex-col items-center gap-2 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300 cursor-pointer border border-white/10">
-                      <div className="w-10 h-10 bg-gradient-to-br from-gray-700 to-gray-800 rounded-xl flex items-center justify-center shadow-lg">
-                        <Heart className="w-5 h-5 text-white" strokeWidth={1.5} />
-                      </div>
-                      <span className="text-white text-[10px] font-medium text-center leading-tight">Wedding & Events</span>
-                    </div>
-                    
-                    <div className="flex flex-col items-center gap-2 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300 cursor-pointer border border-white/10">
-                      <div className="w-10 h-10 bg-gradient-to-br from-gray-700 to-gray-800 rounded-xl flex items-center justify-center shadow-lg">
-                        <Camera className="w-5 h-5 text-white" strokeWidth={1.5} />
-                      </div>
-                      <span className="text-white text-[10px] font-medium text-center leading-tight">City Tours</span>
-                    </div>
-                    
-                    <div className="flex flex-col items-center gap-2 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300 cursor-pointer border border-white/10">
-                      <div className="w-10 h-10 bg-gradient-to-br from-gray-700 to-gray-800 rounded-xl flex items-center justify-center shadow-lg">
-                        <Shield className="w-5 h-5 text-white" strokeWidth={1.5} />
-                      </div>
-                      <span className="text-white text-[10px] font-medium text-center leading-tight">VIP Transport</span>
-                    </div>
-                    
-                    <div className="flex flex-col items-center gap-2 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300 cursor-pointer border border-white/10">
-                      <div className="w-10 h-10 bg-gradient-to-br from-gray-700 to-gray-800 rounded-xl flex items-center justify-center shadow-lg">
-                        <Car className="w-5 h-5 text-white" strokeWidth={1.5} />
-                      </div>
-                      <span className="text-white text-[10px] font-medium text-center leading-tight">Intercity Travel</span>
-                    </div>
-                    
-                    <div className="flex flex-col items-center gap-2 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300 cursor-pointer border border-white/10">
-                      <div className="w-10 h-10 bg-gradient-to-br from-gray-700 to-gray-800 rounded-xl flex items-center justify-center shadow-lg">
-                        <Sparkles className="w-5 h-5 text-white" strokeWidth={1.5} />
-                      </div>
-                      <span className="text-white text-[10px] font-medium text-center leading-tight">Luxury Fleet</span>
-                    </div>
-                    
-                    <div className="flex flex-col items-center gap-2 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300 cursor-pointer border border-white/10">
-                      <div className="w-10 h-10 bg-gradient-to-br from-gray-700 to-gray-800 rounded-xl flex items-center justify-center shadow-lg">
-                        <Headphones className="w-5 h-5 text-white" strokeWidth={1.5} />
-                      </div>
-                      <span className="text-white text-[10px] font-medium text-center leading-tight">Premium Services</span>
-                    </div>
+                    {services.map((s) => {
+                      const Icon = iconMap[s.icon];
+                      return (
+                        <Link
+                          key={s.slug}
+                          href={`/services/${s.slug}`}
+                          onClick={() => setMobileServicesOpen(false)}
+                          className="flex flex-col items-center gap-2 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300 border border-white/10"
+                        >
+                          <div className="w-10 h-10 bg-gradient-to-br from-gray-700 to-gray-800 rounded-xl flex items-center justify-center shadow-lg">
+                            <Icon className="w-5 h-5 text-white" strokeWidth={1.5} />
+                          </div>
+                          <span className="text-white text-[10px] font-medium text-center leading-tight line-clamp-2">{s.title}</span>
+                        </Link>
+                      );
+                    })}
                   </div>
                 </div>
               )}
             </div>
             
-            <button className="w-full text-white px-4 py-2.5 text-sm font-medium text-left">
+            <Link href="/news" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-sm font-medium text-left">
               NEWS
-            </button>
+            </Link>
             
-            <button className="w-full text-white px-4 py-2.5 text-sm font-medium text-left">
-              PARTNERS
-            </button>
+            <Link href="/quote" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-sm font-medium text-left">
+              ONLINE QUOTE
+            </Link>
             
-            <button className="w-full text-white px-4 py-2.5 text-sm font-medium text-left">
+            <Link href="/contact" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-sm font-medium text-left">
               CONTACT
-            </button>
+            </Link>
 
             <div className="pt-3 mt-3 border-t border-gray-800 space-y-2">
               <div className="flex items-center gap-2 text-white px-4">
