@@ -11,8 +11,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "LuxRide Chauffeur Services | Premium Luxury Transportation",
-    template: "%s | LuxRide Chauffeur"
+    default: "SARJ Worldwide Chauffeur Services | Premium Luxury Transportation",
+    template: "%s | SARJ Worldwide Chauffeur"
   },
   description: "Experience world-class luxury chauffeur services. Airport transfers, corporate travel, weddings, VIP transport & city tours. Professional drivers, premium vehicles. Book your ride today!",
   keywords: [
@@ -33,9 +33,9 @@ export const metadata: Metadata = {
     "London chauffeur",
     "UK chauffeur service"
   ],
-  authors: [{ name: "LuxRide Chauffeur Services" }],
-  creator: "LuxRide",
-  publisher: "LuxRide Chauffeur Services",
+  authors: [{ name: "SARJ Worldwide Chauffeur Services" }],
+  creator: "SARJ Worldwide",
+  publisher: "SARJ Worldwide Chauffeur Services",
   robots: {
     index: true,
     follow: true,
@@ -51,24 +51,24 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_GB",
     url: "https://luxride-chauffeur.vercel.app",
-    siteName: "LuxRide Chauffeur Services",
-    title: "LuxRide Chauffeur Services | Premium Luxury Transportation",
+    siteName: "SARJ Worldwide Chauffeur Services",
+    title: "SARJ Worldwide Chauffeur Services | Premium Luxury Transportation",
     description: "Experience world-class luxury chauffeur services. Airport transfers, corporate travel, weddings & VIP transport. Book your premium ride today!",
     images: [
       {
         url: "/og-image.jpg",
         width: 1200,
         height: 630,
-        alt: "LuxRide Luxury Chauffeur Services",
+        alt: "SARJ Worldwide Luxury Chauffeur Services",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "LuxRide Chauffeur Services | Premium Luxury Transportation",
+    title: "SARJ Worldwide Chauffeur Services | Premium Luxury Transportation",
     description: "Experience world-class luxury chauffeur services. Airport transfers, corporate travel, weddings & VIP transport.",
     images: ["/og-image.jpg"],
-    creator: "@luxride",
+    creator: "@sarjworldwide",
   },
   viewport: {
     width: "device-width",
@@ -88,7 +88,7 @@ export const metadata: Metadata = {
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "LocalBusiness",
-  "name": "LuxRide Chauffeur Services",
+  "name": "SARJ Worldwide Chauffeur Services",
   "image": "https://luxride-chauffeur.vercel.app/logo.png",
   "description": "Premium luxury chauffeur services offering airport transfers, corporate travel, wedding transportation, and VIP services.",
   "@id": "https://luxride-chauffeur.vercel.app",
@@ -153,6 +153,7 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="manifest" href="/manifest.json" />
+        <link rel="preload" href="/cover.mp4" as="video" type="video/mp4" />
         <meta name="theme-color" content="#C9A063" />
         <script
           type="application/ld+json"

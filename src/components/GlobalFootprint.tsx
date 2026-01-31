@@ -1,17 +1,18 @@
 "use client";
 
+import Link from "next/link";
+
 const GlobalFootprint = () => {
+  // Spread-out points with city names (akhatay removed – only these on map)
   const cities = [
-    { name: "New York", left: "22%", top: "28%" },
-    { name: "Los Angeles", left: "12%", top: "35%" },
-    { name: "Toronto", left: "24%", top: "25%" },
-    { name: "London", left: "48%", top: "22%" },
-    { name: "Paris", left: "50%", top: "25%" },
-    { name: "Dubai", left: "62%", top: "35%" },
-    { name: "Tokyo", left: "82%", top: "30%" },
-    { name: "Singapore", left: "75%", top: "48%" },
-    { name: "Sydney", left: "88%", top: "62%" },
-    { name: "Mumbai", left: "68%", top: "38%" },
+    { name: "Toronto Pearson", left: "80%", top: "26%" },
+    { name: "Hamilton", left: "68%", top: "26%" },
+    { name: "London", left: "21%", top: "51%" },
+    { name: "Ottawa", left: "62%", top: "48%" },
+    { name: "Montreal", left: "86%", top: "68%" },
+    { name: "Niagara/Buffalo", left: "75%", top: "65%" },
+    { name: "Ottawa/Montreal", left: "58%", top: "44%" },
+    { name: "Greater Toronto Area", left: "74%", top: "58%" },
   ];
 
   return (
@@ -31,15 +32,35 @@ const GlobalFootprint = () => {
         <div className="text-center mb-6 sm:mb-7 md:mb-8">
           <div className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-white backdrop-blur-xl border border-[#C9A063]/30 shadow-xl shadow-[#C9A063]/10 mb-6 sm:mb-8 hover:shadow-2xl hover:shadow-[#C9A063]/20 transition-all duration-300">
             <div className="w-2 h-2 rounded-full bg-gradient-to-r from-[#C9A063] to-[#B8935A] animate-pulse shadow-lg shadow-[#C9A063]/50"></div>
-            <span className="text-gray-800 text-[13px] sm:text-[14px] font-bold tracking-[0.2em] uppercase">GLOBAL FOOTPRINT</span>
+            <span className="text-gray-800 text-[13px] sm:text-[14px] font-bold tracking-[0.2em] uppercase">Cities We Serve</span>
           </div>
           
-          <h2 className="text-gray-800 text-2xl sm:text-3xl md:text-4xl font-bold mb-4 tracking-tight">
-            Worldwide Excellence
-          </h2>
+          {/* <h2 className="text-gray-800 text-2xl sm:text-3xl md:text-4xl font-bold mb-4 tracking-tight">
+           Cities We Serve
+          </h2> */}
           <p className="text-gray-600 text-[15px] sm:text-[16px] md:text-[17px] tracking-wide font-light max-w-3xl mx-auto leading-relaxed">
             There&apos;s a reason for our elevated reputation worldwide. Experience luxury chauffeur services across major cities globally.
           </p>
+
+          {/* Prominent CTA button - SS style, site colours + iOS effects */}
+          <div className="mt-6 sm:mt-8 flex justify-center">
+            <Link
+              href="/cities-we-serve"
+              className="relative block w-full max-w-xl py-3 sm:py-3.5 rounded-lg overflow-hidden text-center
+                bg-gradient-to-b from-[#9A8059] via-[#8B7355] to-[#6B5644]
+                hover:from-[#8B7355] hover:via-[#7A6549] hover:to-[#5C4A3A]
+                active:scale-[0.98] active:shadow-[0_2px_12px_rgba(139,115,85,0.3)]
+                text-white text-[12px] sm:text-[13px] md:text-[14px] font-semibold tracking-[0.12em] uppercase underline underline-offset-4 decoration-2
+                transition-all duration-300 ease-out
+                border border-[#A68B5B]/40 border-t-white/20
+                shadow-[0_1px_0_0_rgba(255,255,255,0.15)_inset,0_4px_16px_rgba(139,115,85,0.25),0_8px_24px_-4px_rgba(0,0,0,0.15)]
+                hover:shadow-[0_1px_0_0_rgba(255,255,255,0.2)_inset,0_6px_24px_rgba(139,115,85,0.35),0_12px_32px_-6px_rgba(0,0,0,0.12)]"
+            >
+              {/* Top-edge highlight - iOS style */}
+              <span className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none" aria-hidden />
+              <span className="relative">SERVICES IN OVER 1000 CITIES WORLDWIDE</span>
+            </Link>
+          </div>
         </div>
 
         {/* World Map Container with iOS Effects */}
@@ -99,15 +120,15 @@ const GlobalFootprint = () => {
             ))}
           </div>
           
-          {/* Scattered diamond accents with glow */}
+          {/* Scattered diamond accents – on land only (within mask blobs) */}
           <div className="absolute inset-0">
             {[
-              { left: '18%', top: '32%' },
-              { left: '28%', top: '48%' },
-              { left: '42%', top: '27%' },
-              { left: '54%', top: '42%' },
-              { left: '72%', top: '36%' },
-              { left: '85%', top: '55%' },
+              { left: '16%', top: '30%' },
+              { left: '24%', top: '26%' },
+              { left: '52%', top: '28%' },
+              { left: '62%', top: '32%' },
+              { left: '78%', top: '30%' },
+              { left: '88%', top: '72%' },
             ].map((pos, i) => (
               <div
                 key={i}
@@ -138,13 +159,26 @@ const GlobalFootprint = () => {
                 </feMerge>
               </filter>
             </defs>
-            <line x1="22%" y1="28%" x2="48%" y2="22%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
+            {/* Lines connecting spread-out city points */}
+            <line x1="80%" y1="26%" x2="68%" y2="26%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
               <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
             </line>
-            <line x1="48%" y1="22%" x2="62%" y2="35%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
+            <line x1="68%" y1="26%" x2="62%" y2="48%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
               <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
             </line>
-            <line x1="62%" y1="35%" x2="82%" y2="30%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
+            <line x1="62%" y1="48%" x2="21%" y2="51%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
+              <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
+            </line>
+            <line x1="21%" y1="51%" x2="74%" y2="58%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
+              <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
+            </line>
+            <line x1="62%" y1="48%" x2="75%" y2="65%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
+              <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
+            </line>
+            <line x1="75%" y1="65%" x2="86%" y2="68%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
+              <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
+            </line>
+            <line x1="80%" y1="26%" x2="62%" y2="48%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
               <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
             </line>
           </svg>

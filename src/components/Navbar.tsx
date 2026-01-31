@@ -33,9 +33,9 @@ const Navbar = () => {
           <div className="flex items-center gap-12">
             <Link href="/" className="flex items-center">
               <img 
-                src="/logo.png" 
+                src="/logo1.png" 
                 alt="LuxRide Logo" 
-                className="h-[70px] sm:h-[90px] w-auto lg:w-[200px] object-contain drop-shadow-lg"
+                className="h-[75px] sm:h-[75px] w-auto object-contain drop-shadow-lg"
               />
             </Link>
 
@@ -166,8 +166,8 @@ const Navbar = () => {
       </div>
 
       {isMenuOpen && (
-        <div className="lg:hidden bg-black border-t border-gray-800">
-          <div className="px-4 pt-2 pb-4 space-y-2">
+        <div className="lg:hidden bg-black border-t border-gray-800 max-h-[calc(100vh-110px)] overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y">
+          <div className="px-4 pt-2 pb-[calc(4rem+env(safe-area-inset-bottom,0px))] space-y-2 min-h-0">
             <Link href="/" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-sm font-medium text-left">
               HOME
             </Link>
@@ -180,37 +180,50 @@ const Navbar = () => {
               FLEET
             </Link>
             
-            <div>
+            <div className="border-b border-white/10 pb-5">
               <button 
-                className="flex items-center justify-between w-full text-white px-4 py-2.5 text-sm font-medium"
+                className="flex items-center justify-between w-full text-white px-4 py-3 text-sm font-semibold tracking-wide rounded-xl hover:bg-white/5 active:bg-white/10 transition-colors duration-200"
                 onClick={() => setMobileServicesOpen(!mobileServicesOpen)}
+                aria-expanded={mobileServicesOpen}
+                aria-haspopup="true"
               >
                 <span>SERVICES</span>
-                <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${mobileServicesOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-4 h-4 transition-transform duration-300 flex-shrink-0 ml-2 ${mobileServicesOpen ? 'rotate-180' : ''}`} strokeWidth={2.5} />
               </button>
               
-              {mobileServicesOpen && (
-                <div className="mt-3 space-y-1 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-lg rounded-2xl p-4 border border-white/20 shadow-xl">
-                  <div className="grid grid-cols-2 gap-3">
-                    {services.map((s) => {
-                      const Icon = iconMap[s.icon];
-                      return (
-                        <Link
-                          key={s.slug}
-                          href={`/services/${s.slug}`}
-                          onClick={() => setMobileServicesOpen(false)}
-                          className="flex flex-col items-center gap-2 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300 border border-white/10"
-                        >
-                          <div className="w-10 h-10 bg-gradient-to-br from-gray-700 to-gray-800 rounded-xl flex items-center justify-center shadow-lg">
-                            <Icon className="w-5 h-5 text-white" strokeWidth={1.5} />
-                          </div>
-                          <span className="text-white text-[10px] font-medium text-center leading-tight line-clamp-2">{s.title}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
+              <div 
+                className={`overflow-hidden transition-all duration-300 ease-out ${mobileServicesOpen ? 'max-h-[min(58vh,620px)] opacity-100 mt-2' : 'max-h-0 opacity-0 mt-0'}`}
+                role="region"
+                aria-label="Services menu"
+              >
+                <div className={`space-y-1.5 pl-1 pr-2 pb-6 ${mobileServicesOpen ? 'max-h-[min(54vh,580px)] overflow-y-auto overscroll-contain' : ''}`}>
+                  {services.map((s) => {
+                    const Icon = iconMap[s.icon];
+                    return (
+                      <Link
+                        key={s.slug}
+                        href={`/services/${s.slug}`}
+                        onClick={() => setMobileServicesOpen(false)}
+                        className="flex items-center gap-3 py-3 px-3 rounded-xl bg-white/5 hover:bg-white/10 active:bg-white/15 border border-white/10 hover:border-[#C9A063]/40 transition-all duration-200 group"
+                      >
+                        <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-gray-700 to-gray-800 group-hover:from-[#C9A063] group-hover:to-[#A68B5B] rounded-xl flex items-center justify-center shadow-md transition-all duration-200">
+                          <Icon className="w-5 h-5 text-white" strokeWidth={1.5} />
+                        </div>
+                        <span className="text-white text-[13px] font-medium leading-snug flex-1 min-w-0">{s.title}</span>
+                        <ChevronDown className="w-4 h-4 text-white/50 -rotate-90 flex-shrink-0 group-hover:text-[#C9A063] transition-colors" strokeWidth={2} />
+                      </Link>
+                    );
+                  })}
+                  <Link
+                    href="/services"
+                    onClick={() => setMobileServicesOpen(false)}
+                    className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-[#C9A063]/20 hover:bg-[#C9A063]/30 border border-[#C9A063]/30 text-[#C9A063] text-[13px] font-semibold mt-3 transition-all duration-200"
+                  >
+                    View all services
+                    <ChevronDown className="w-4 h-4 -rotate-90" strokeWidth={2} />
+                  </Link>
                 </div>
-              )}
+              </div>
             </div>
             
             <Link href="/news" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-sm font-medium text-left">
@@ -225,7 +238,7 @@ const Navbar = () => {
               CONTACT
             </Link>
 
-            <div className="pt-3 mt-3 border-t border-gray-800 space-y-2">
+            <div className="pt-3 mt-3 pb-2 border-t border-gray-800 space-y-2">
               <div className="flex items-center gap-2 text-white px-4">
                 <Phone className="w-4 h-4" />
                 <span className="text-sm">+1800900122</span>

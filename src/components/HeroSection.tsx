@@ -1,10 +1,19 @@
 "use client";
 import { Mail, Calendar, MapPin } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
 const HeroSection = () => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Force video to load immediately on mount (mobile + desktop)
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.load();
+    }
+  }, []);
+
   // Initial date with no time selected
   const getInitialDate = () => {
     const date = new Date();
@@ -31,10 +40,12 @@ const HeroSection = () => {
   return (
     <section className="relative min-h-screen w-full overflow-hidden">
       <video
+        ref={videoRef}
         autoPlay
         loop
         muted
         playsInline
+        preload="auto"
         className="absolute inset-0 w-full h-full object-cover"
       >
         <source src="/cover.mp4" type="video/mp4" />
