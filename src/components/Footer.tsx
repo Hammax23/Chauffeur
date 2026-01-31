@@ -24,7 +24,7 @@ const Footer = () => {
               <div className="relative inline-block">
                 <div className="absolute inset-0 bg-[#C9A063]/20 rounded-lg blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 <img 
-                  src="/logo.png" 
+                  src="/logo1.png" 
                   alt="Logo" 
                   className="h-[60px] sm:h-[70px] w-auto relative z-10 group-hover:scale-105 transition-transform duration-300"
                 />

@@ -28,13 +28,13 @@ const ContactInfo = () => {
               {/* Text Content */}
               <div className="flex-1">
                 <h3 className="text-white text-[16px] sm:text-[18px] font-semibold mb-2 tracking-wide">
-                  Call us
+                  Phone Number
                 </h3>
                 <a 
                   href="tel:+97152-333-4444" 
                   className="text-gray-300 text-[14px] sm:text-[15px] font-light hover:text-[#C9A063] transition-colors duration-300"
                 >
-                  +971 52-333-4444
+                  416-893-5779
                 </a>
               </div>
             </div>
@@ -81,7 +81,7 @@ const ContactInfo = () => {
                   Address
                 </h3>
                 <p className="text-gray-300 text-[14px] sm:text-[15px] font-light leading-relaxed">
-                  Dubai, Water Tower, Office 123
+                  231 Oak Park Blvd, Oakville, ON L6H 7S8
                 </p>
               </div>
             </div>

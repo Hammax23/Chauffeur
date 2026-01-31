@@ -30,7 +30,7 @@ const LuxuryRide = () => {
 
         {/* CTA Button */}
         <button className="group relative px-8 py-3.5 bg-white text-black text-[15px] sm:text-[16px] font-semibold rounded-lg hover:bg-gray-100 transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl">
-          Start Booking
+          Start Reservation
         </button>
       </div>
     </section>
