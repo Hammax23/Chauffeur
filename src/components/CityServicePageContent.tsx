@@ -11,19 +11,12 @@ interface CityServicePageContentProps {
 const CityServicePageContent = ({ name, slug }: CityServicePageContentProps) => {
   return (
     <section className="bg-black text-white">
-      {/* Hero - video background (HowItWorks video from public) */}
-      <div className="relative w-full min-h-[320px] sm:min-h-[380px] md:min-h-[420px] flex items-center justify-center overflow-hidden">
-        <video
-          autoPlay
-          muted
-          loop
-          playsInline
-          className="absolute inset-0 w-full h-full object-cover brightness-[0.5]"
-          aria-hidden
-        >
-          <source src="/howitswork.mp4" type="video/mp4" />
-        </video>
-        <div className="absolute inset-0 bg-black/50" />
+      {/* Hero - areaserve image background */}
+      <div
+        className="relative w-full min-h-[320px] sm:min-h-[380px] md:min-h-[420px] flex items-center justify-center overflow-hidden bg-cover bg-center"
+        style={{ backgroundImage: "url(/areaserve.png)" }}
+      >
+        <div className="absolute inset-0 bg-black/40" />
         <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
           <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight uppercase drop-shadow-lg">
             Best Luxury Limo Service in {name}

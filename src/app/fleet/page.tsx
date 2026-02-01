@@ -55,13 +55,13 @@ export default function FleetPage() {
                 key={vehicle.id}
                 className="group rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden hover:shadow-xl hover:border-[#C9A063]/30 transition-all duration-300"
               >
-                <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
+                <div className="relative aspect-[4/3] overflow-hidden bg-gray-100 flex items-center justify-center">
                   <Image
                     src={vehicle.image}
                     alt={vehicle.name}
                     fill
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                    className="object-cover transition-transform duration-500 group-hover:scale-105"
+                    className="object-contain transition-transform duration-500 group-hover:scale-105"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-60" />
                   <span className="absolute top-4 left-4 px-3 py-1 rounded-full bg-[#C9A063]/90 text-white text-[11px] sm:text-[12px] font-semibold tracking-wide uppercase backdrop-blur-sm">
@@ -77,22 +77,24 @@ export default function FleetPage() {
                     {vehicle.description}
                   </p>
 
-                  <div className="flex items-center gap-6 text-gray-600 mb-5">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-[#C9A063]/10 flex items-center justify-center">
+                  <div className="space-y-3 text-gray-600 mb-4">
+                    <div className="flex items-start gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-[#C9A063]/10 flex items-center justify-center flex-shrink-0">
                         <Users className="w-4 h-4 text-[#C9A063]" strokeWidth={2} />
                       </div>
-                      <span className="text-[13px] sm:text-[14px] font-medium text-gray-700">
-                        {vehicle.passengers} passengers
-                      </span>
+                      <div>
+                        <span className="text-[11px] font-semibold text-[#8B7355] uppercase tracking-wide">Seating</span>
+                        <p className="text-[13px] sm:text-[14px] font-medium text-gray-700">{vehicle.seating}</p>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-[#C9A063]/10 flex items-center justify-center">
+                    <div className="flex items-start gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-[#C9A063]/10 flex items-center justify-center flex-shrink-0">
                         <Briefcase className="w-4 h-4 text-[#C9A063]" strokeWidth={2} />
                       </div>
-                      <span className="text-[13px] sm:text-[14px] font-medium text-gray-700">
-                        {vehicle.luggage} luggage
-                      </span>
+                      <div>
+                        <span className="text-[11px] font-semibold text-[#8B7355] uppercase tracking-wide">Luggage</span>
+                        <p className="text-[13px] sm:text-[14px] font-medium text-gray-700">{vehicle.luggage}</p>
+                      </div>
                     </div>
                   </div>
 
@@ -115,10 +117,10 @@ export default function FleetPage() {
             <div className="flex flex-wrap items-center justify-center gap-4">
               <Link
                 href="/#book"
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-[#C9A063] to-[#A68B5B] text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-[#C9A063]/30 transition-all duration-300"
+                className="group inline-flex items-center justify-center gap-2 px-10 py-4 rounded-full bg-[#C9A063] text-white font-semibold shadow-sm hover:bg-[#B8935A] active:scale-[0.98] transition-all duration-200"
               >
                 Book a ride
-                <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform duration-200" strokeWidth={2.5} />
               </Link>
               <Link
                 href="/services"
