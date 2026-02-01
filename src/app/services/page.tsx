@@ -32,10 +32,22 @@ const iconMap: Record<ServiceIconKey, React.ElementType> = {
   Headphones,
 };
 
+const BASE_URL = "https://luxride-chauffeur.vercel.app";
+
 export const metadata: Metadata = {
   title: "Our Services",
   description:
-    "Luxury chauffeur services: airport transfers, corporate travel, weddings, city tours, VIP transport & more. Premium vehicles, professional drivers.",
+    "SARJ Worldwide chauffeur services: airport transfers, corporate travel, weddings, city tours, VIP transport & more. Premium vehicles, professional chauffeurs.",
+  keywords: ["SARJ Worldwide chauffeur services", "chauffeur services", "airport transfer chauffeur", "corporate chauffeur", "wedding chauffeur", "VIP chauffeur transport"],
+  openGraph: {
+    title: "Our Services | SARJ Worldwide Chauffeur Services",
+    description: "Chauffeur services: airport transfers, corporate travel, weddings, city tours, VIP transport. Premium vehicles, professional chauffeurs.",
+    url: `${BASE_URL}/services`,
+    siteName: "SARJ Worldwide Chauffeur Services",
+    type: "website",
+  },
+  twitter: { card: "summary_large_image", title: "Our Services | SARJ Worldwide Chauffeur Services" },
+  alternates: { canonical: `${BASE_URL}/services` },
 };
 
 export default function ServicesIndexPage() {

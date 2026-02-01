@@ -40,7 +40,7 @@ export default function NewsPage() {
             <div className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-white border border-[#C9A063]/30 shadow-lg shadow-[#C9A063]/10 mb-6">
               <div className="w-2 h-2 rounded-full bg-gradient-to-r from-[#C9A063] to-[#B8935A] animate-pulse" />
               <span className="text-gray-800 text-[13px] sm:text-[14px] font-bold tracking-[0.2em] uppercase">
-                LuxRide News
+                SARJ Worldwide News
               </span>
             </div>
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 tracking-tight mb-5">
@@ -48,7 +48,7 @@ export default function NewsPage() {
             </h1>
             <p className="text-gray-600 text-[15px] sm:text-[17px] md:text-[18px] max-w-2xl mx-auto leading-relaxed font-light">
               Stay updated with fleet additions, travel tips, company updates, and industry trends
-              from the LuxRide team.
+              from the SARJ Worldwide team.
             </p>
           </div>
         </div>
@@ -59,7 +59,7 @@ export default function NewsPage() {
         <div className="max-w-[1100px] mx-auto px-6 sm:px-8 md:px-12">
           <div className="rounded-2xl bg-white border border-gray-100 shadow-md shadow-gray-200/50 p-6 sm:p-8 md:p-10">
             <p className="text-gray-700 text-[15px] sm:text-[16px] leading-relaxed mb-4">
-              Welcome to the LuxRide News hub. Here we share updates on our luxury fleet, practical
+              Welcome to the SARJ Worldwide News hub. Here we share updates on our chauffeur fleet, practical
               advice for stress-free travel, and insights from the world of premium ground
               transportation. Whether you are planning an airport transfer, a corporate trip, or a
               wedding, our aim is to keep you informed and ready for every journey.

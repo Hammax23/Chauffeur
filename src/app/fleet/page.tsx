@@ -7,10 +7,22 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import type { Metadata } from "next";
 
+const BASE_URL = "https://luxride-chauffeur.vercel.app";
+
 export const metadata: Metadata = {
   title: "Our Fleet",
   description:
-    "Explore our curated luxury fleet: Mercedes-Benz, BMW, Cadillac, Range Rover & more. Executive sedans, SUVs, and premium vans for every occasion.",
+    "SARJ Worldwide chauffeur fleet: Mercedes-Benz, BMW, Cadillac, Range Rover & more. Executive sedans, SUVs, premium vans for every chauffeur occasion.",
+  keywords: ["SARJ Worldwide fleet", "chauffeur fleet", "Mercedes chauffeur", "Cadillac chauffeur", "executive chauffeur car", "premium chauffeur vehicles"],
+  openGraph: {
+    title: "Our Fleet | SARJ Worldwide Chauffeur Services",
+    description: "Chauffeur fleet: Mercedes-Benz, BMW, Cadillac, Range Rover. Executive sedans, SUVs, premium vans.",
+    url: `${BASE_URL}/fleet`,
+    siteName: "SARJ Worldwide Chauffeur Services",
+    type: "website",
+  },
+  twitter: { card: "summary_large_image", title: "Our Fleet | SARJ Worldwide Chauffeur Services" },
+  alternates: { canonical: `${BASE_URL}/fleet` },
 };
 
 export default function FleetPage() {

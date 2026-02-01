@@ -20,7 +20,7 @@ export const newsArticles: NewsArticle[] = [
     excerpt:
       "We are excited to announce the addition of the all-electric Mercedes-Benz EQS to our premium fleet. Experience silent, sustainable luxury with cutting-edge technology and zero emissions on your next airport transfer or corporate journey.",
     content:
-      "The Mercedes-Benz EQS represents the pinnacle of electric luxury sedans. With its sleek design, expansive Hyperscreen display, and whisper-quiet cabin, it is the perfect choice for executives and discerning travellers who value both comfort and sustainability. Our chauffeurs have completed comprehensive training to ensure every EQS ride meets the same impeccable standards you expect from LuxRide. Book an EQS for your next airport transfer, corporate meeting, or special occasion.",
+      "The Mercedes-Benz EQS represents the pinnacle of electric luxury sedans. With its sleek design, expansive Hyperscreen display, and whisper-quiet cabin, it is the perfect choice for executives and discerning travellers who value both comfort and sustainability. Our chauffeurs have completed comprehensive training to ensure every EQS ride meets the same impeccable standards you expect from SARJ Worldwide. Book an EQS for your next airport transfer, corporate meeting, or special occasion.",
     category: "Fleet",
     date: "2026-01-15",
     image: "https://images.unsplash.com/photo-1617814076367-b759c7d7e738?w=800&auto=format&fit=crop",
@@ -41,12 +41,12 @@ export const newsArticles: NewsArticle[] = [
   },
   {
     id: "3",
-    slug: "luxride-expands-global-footprint",
-    title: "LuxRide Expands Global Footprint to 12 Major Cities",
+    slug: "sarj-worldwide-expands-global-footprint",
+    title: "SARJ Worldwide Expands Global Footprint to 12 Major Cities",
     excerpt:
-      "LuxRide is proud to announce the expansion of our luxury chauffeur services to 12 major cities across North America, Europe, and Asia. Whether you are in London, Dubai, or New York, the same premium experience awaits.",
+      "SARJ Worldwide is proud to announce the expansion of our chauffeur services to 12 major cities across North America, Europe, and Asia. Whether you are in London, Dubai, or New York, the same premium chauffeur experience awaits.",
     content:
-      "Our expansion reflects growing demand for reliable, elegant chauffeur services worldwide. Each new city is supported by a curated local fleet, rigorously trained chauffeurs, and the same 24/7 concierge support our clients depend on. From airport transfers and corporate travel to weddings and VIP events, LuxRide now offers a consistent, premium experience wherever you go. We look forward to serving you in more destinations in the years ahead.",
+      "Our expansion reflects growing demand for reliable, elegant chauffeur services worldwide. Each new city is supported by a curated local fleet, rigorously trained chauffeurs, and the same 24/7 concierge support our clients depend on. From airport transfers and corporate travel to weddings and VIP events, SARJ Worldwide now offers a consistent, premium chauffeur experience wherever you go. We look forward to serving you in more destinations in the years ahead.",
     category: "Company",
     date: "2026-01-10",
     image: "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&auto=format&fit=crop",
@@ -70,9 +70,9 @@ export const newsArticles: NewsArticle[] = [
     slug: "luxury-travel-trends-2026",
     title: "Luxury Travel Trends Shaping 2026",
     excerpt:
-      "From electric vehicles and sustainability to personalised experiences and seamless tech integration—explore the key trends defining luxury ground transportation in 2026 and how LuxRide is staying ahead.",
+      "From electric vehicles and sustainability to personalised experiences and seamless tech integration—explore the key trends defining luxury chauffeur services in 2026 and how SARJ Worldwide is staying ahead.",
     content:
-      "Sustainability continues to drive fleet decisions, with more clients choosing electric and hybrid options for corporate and leisure travel. Personalisation is also front and centre: custom itineraries, preferred vehicles, and bespoke amenities are now standard expectations. Technology plays a bigger role than ever—real-time tracking, seamless booking, and integrated travel management systems make luxury chauffeur services more accessible and reliable. At LuxRide, we are investing in each of these areas to ensure our clients enjoy the best of what modern luxury travel has to offer.",
+      "Sustainability continues to drive fleet decisions, with more clients choosing electric and hybrid options for corporate and leisure travel. Personalisation is also front and centre: custom itineraries, preferred vehicles, and bespoke amenities are now standard expectations. Technology plays a bigger role than ever—real-time tracking, seamless booking, and integrated travel management systems make chauffeur services more accessible and reliable. At SARJ Worldwide, we are investing in each of these areas to ensure our clients enjoy the best of what modern luxury chauffeur travel has to offer.",
     category: "Industry",
     date: "2026-01-05",
     image: "https://images.unsplash.com/photo-1445019980597-93fa8acb246c?w=800&auto=format&fit=crop",
@@ -83,7 +83,7 @@ export const newsArticles: NewsArticle[] = [
     slug: "corporate-travel-best-practices",
     title: "Corporate Travel Best Practices: Why Chauffeurs Matter",
     excerpt:
-      "Executive travel is more than getting from A to B. Discover how professional chauffeur services support productivity, confidentiality, and first impressions—and why leading firms choose LuxRide for their teams.",
+      "Executive travel is more than getting from A to B. Discover how professional chauffeur services support productivity, confidentiality, and first impressions—and why leading firms choose SARJ Worldwide chauffeur services for their teams.",
     content:
       "Time spent in transit can be productive when you have a dedicated chauffeur. Prepare for meetings, take calls, or simply recharge in a quiet, premium environment. Discretion and professionalism are non-negotiable for C-suite and high-profile travellers; our drivers are trained in corporate etiquette and confidentiality. Consistent, branded transport also reinforces your company's image when picking up clients or partners. Multi-stop itineraries, corporate billing, and last-minute changes are all part of our corporate offering—designed to make business travel as smooth and efficient as possible.",
     category: "Travel Tips",

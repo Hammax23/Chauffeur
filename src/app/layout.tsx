@@ -14,24 +14,22 @@ export const metadata: Metadata = {
     default: "SARJ Worldwide Chauffeur Services | Premium Luxury Transportation",
     template: "%s | SARJ Worldwide Chauffeur"
   },
-  description: "Experience world-class luxury chauffeur services. Airport transfers, corporate travel, weddings, VIP transport & city tours. Professional drivers, premium vehicles. Book your ride today!",
+  description: "SARJ Worldwide chauffeur services. Airport transfers, corporate travel, weddings, VIP transport & city tours. Professional chauffeurs, premium vehicles. Book your chauffeur today!",
   keywords: [
+    "SARJ Worldwide chauffeur",
+    "SARJ Worldwide chauffeur services",
     "chauffeur service",
-    "luxury car hire",
-    "airport transfer",
-    "corporate transportation",
-    "VIP transport",
-    "wedding car service",
+    "luxury chauffeur",
+    "airport transfer chauffeur",
+    "corporate chauffeur",
+    "VIP chauffeur transport",
+    "wedding chauffeur service",
     "executive chauffeur",
-    "private driver",
-    "limousine service",
-    "business travel",
-    "Mercedes chauffeur",
-    "BMW chauffeur",
-    "Rolls Royce hire",
-    "premium car service",
-    "London chauffeur",
-    "UK chauffeur service"
+    "private chauffeur",
+    "limousine chauffeur",
+    "business travel chauffeur",
+    "premium chauffeur service",
+    "worldwide chauffeur services"
   ],
   authors: [{ name: "SARJ Worldwide Chauffeur Services" }],
   creator: "SARJ Worldwide",
@@ -56,7 +54,7 @@ export const metadata: Metadata = {
     description: "Experience world-class luxury chauffeur services. Airport transfers, corporate travel, weddings & VIP transport. Book your premium ride today!",
     images: [
       {
-        url: "/og-image.jpg",
+        url: "https://luxride-chauffeur.vercel.app/logo1.png",
         width: 1200,
         height: 630,
         alt: "SARJ Worldwide Luxury Chauffeur Services",
@@ -67,7 +65,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "SARJ Worldwide Chauffeur Services | Premium Luxury Transportation",
     description: "Experience world-class luxury chauffeur services. Airport transfers, corporate travel, weddings & VIP transport.",
-    images: ["/og-image.jpg"],
+    images: ["https://luxride-chauffeur.vercel.app/logo1.png"],
     creator: "@sarjworldwide",
   },
   viewport: {
@@ -75,24 +73,23 @@ export const metadata: Metadata = {
     initialScale: 1,
     maximumScale: 5,
   },
-  verification: {
-    google: "your-google-verification-code",
-  },
   alternates: {
     canonical: "https://luxride-chauffeur.vercel.app",
   },
   category: "transportation",
 };
 
-// JSON-LD Structured Data
-const jsonLd = {
+// JSON-LD Structured Data - Organization & WebSite
+const baseUrl = "https://luxride-chauffeur.vercel.app";
+const jsonLdOrg = {
   "@context": "https://schema.org",
   "@type": "LocalBusiness",
+  "@id": `${baseUrl}/#organization`,
   "name": "SARJ Worldwide Chauffeur Services",
-  "image": "https://luxride-chauffeur.vercel.app/logo.png",
-  "description": "Premium luxury chauffeur services offering airport transfers, corporate travel, wedding transportation, and VIP services.",
-  "@id": "https://luxride-chauffeur.vercel.app",
-  "url": "https://luxride-chauffeur.vercel.app",
+  "alternateName": "SARJ Worldwide",
+  "image": `${baseUrl}/logo1.png`,
+  "description": "SARJ Worldwide provides premium chauffeur services: airport transfers, corporate travel, wedding transportation, and VIP services worldwide.",
+  "url": baseUrl,
   "telephone": "+1800900122",
   "priceRange": "$$$",
   "address": {
@@ -113,33 +110,28 @@ const jsonLd = {
     "closes": "23:59"
   },
   "sameAs": [
-    "https://facebook.com/luxride",
-    "https://twitter.com/luxride",
-    "https://instagram.com/luxride",
-    "https://linkedin.com/company/luxride"
+    "https://facebook.com/sarjworldwide",
+    "https://twitter.com/sarjworldwide",
+    "https://instagram.com/sarjworldwide",
+    "https://linkedin.com/company/sarjworldwide"
   ],
   "service": [
-    {
-      "@type": "Service",
-      "name": "Airport Transfer",
-      "description": "Luxury airport pickup and drop-off services"
-    },
-    {
-      "@type": "Service",
-      "name": "Corporate Travel",
-      "description": "Executive chauffeur for business meetings and conferences"
-    },
-    {
-      "@type": "Service",
-      "name": "Wedding Transportation",
-      "description": "Elegant wedding car services"
-    },
-    {
-      "@type": "Service",
-      "name": "VIP Transport",
-      "description": "Discreet and secure VIP transportation"
-    }
+    { "@type": "Service", "name": "Airport Transfer", "description": "Luxury airport pickup and drop-off with meet & greet" },
+    { "@type": "Service", "name": "Corporate Travel", "description": "Executive chauffeur for business meetings and conferences" },
+    { "@type": "Service", "name": "Wedding Transportation", "description": "Elegant wedding car and bridal services" },
+    { "@type": "Service", "name": "VIP Transport", "description": "Discreet and secure VIP transportation" },
+    { "@type": "Service", "name": "Point-to-Point Transfers", "description": "Door-to-door luxury between any destinations" },
+    { "@type": "Service", "name": "City Tours", "description": "Luxury sightseeing and guided tours" }
   ]
+};
+const jsonLdWebSite = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "@id": `${baseUrl}/#website`,
+  "url": baseUrl,
+  "name": "SARJ Worldwide Chauffeur Services",
+  "description": "SARJ Worldwide chauffeur services worldwide",
+  "publisher": { "@id": `${baseUrl}/#organization` }
 };
 
 export default function RootLayout({
@@ -157,7 +149,11 @@ export default function RootLayout({
         <meta name="theme-color" content="#C9A063" />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdOrg) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdWebSite) }}
         />
       </head>
       <body

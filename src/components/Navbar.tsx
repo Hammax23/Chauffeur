@@ -34,7 +34,7 @@ const Navbar = () => {
             <Link href="/" className="flex items-center">
               <img 
                 src="/logo1.png" 
-                alt="LuxRide Logo" 
+                alt="SARJ Worldwide Chauffeur Services Logo" 
                 className="h-[50px] sm:h-[50px] w-auto object-contain drop-shadow-lg"
               />
             </Link>
