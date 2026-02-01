@@ -44,17 +44,26 @@ export async function generateStaticParams() {
   return getAllServiceSlugs().map((slug) => ({ slug }));
 }
 
+const BASE_URL = "https://luxride-chauffeur.vercel.app";
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const service = getServiceBySlug(slug);
   if (!service) return { title: "Service Not Found" };
+  const url = `${BASE_URL}/services/${slug}`;
   return {
     title: service.title,
     description: service.shortDesc,
+    keywords: [service.title, "SARJ Worldwide chauffeur", "chauffeur service", "premium chauffeur"],
     openGraph: {
-      title: `${service.title} | LuxRide Chauffeur`,
+      title: `${service.title} | SARJ Worldwide Chauffeur Services`,
       description: service.shortDesc,
+      url,
+      siteName: "SARJ Worldwide Chauffeur Services",
+      type: "website",
     },
+    twitter: { card: "summary_large_image", title: `${service.title} | SARJ Worldwide Chauffeur Services` },
+    alternates: { canonical: url },
   };
 }
 
@@ -64,9 +73,31 @@ export default async function ServicePage({ params }: Props) {
   if (!service) notFound();
 
   const Icon = iconMap[service.icon];
+  const serviceUrl = `${BASE_URL}/services/${slug}`;
+
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": BASE_URL },
+      { "@type": "ListItem", "position": 2, "name": "Services", "item": `${BASE_URL}/services` },
+      { "@type": "ListItem", "position": 3, "name": service.title, "item": serviceUrl },
+    ],
+  };
+
+  const serviceJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": service.title,
+    "description": service.description,
+    "provider": { "@type": "LocalBusiness", "name": "SARJ Worldwide Chauffeur Services" },
+    "url": serviceUrl,
+  };
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(serviceJsonLd) }} />
       <TopNav />
       <Navbar />
 

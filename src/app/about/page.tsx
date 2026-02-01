@@ -6,10 +6,22 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import type { Metadata } from "next";
 
+const BASE_URL = "https://luxride-chauffeur.vercel.app";
+
 export const metadata: Metadata = {
   title: "About Us",
   description:
-    "LuxRide Chauffeur—premium luxury transportation. Our story, mission, and commitment to elegance, reliability, and world-class chauffeur service.",
+    "SARJ Worldwide—premium chauffeur services. Our story, mission, and commitment to elegance, reliability, and world-class chauffeur service.",
+  keywords: ["about SARJ Worldwide", "SARJ Worldwide chauffeur", "chauffeur company", "luxury chauffeur services", "professional chauffeurs"],
+  openGraph: {
+    title: "About Us | SARJ Worldwide Chauffeur Services",
+    description: "Our story, mission, and commitment to world-class chauffeur services.",
+    url: `${BASE_URL}/about`,
+    siteName: "SARJ Worldwide Chauffeur Services",
+    type: "website",
+  },
+  twitter: { card: "summary_large_image", title: "About Us | SARJ Worldwide Chauffeur Services", description: "Our story, mission & world-class chauffeur service." },
+  alternates: { canonical: `${BASE_URL}/about` },
 };
 
 const stats = [
@@ -57,7 +69,7 @@ export default function AboutPage() {
             <div className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-white border border-[#C9A063]/30 shadow-lg shadow-[#C9A063]/10 mb-6">
               <div className="w-2 h-2 rounded-full bg-gradient-to-r from-[#C9A063] to-[#B8935A] animate-pulse" />
               <span className="text-gray-800 text-[13px] sm:text-[14px] font-bold tracking-[0.2em] uppercase">
-                About LuxRide
+                About SARJ Worldwide
               </span>
             </div>
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 tracking-tight mb-5">
@@ -105,7 +117,7 @@ export default function AboutPage() {
                   Built on a belief that every journey deserves to be exceptional
                 </h2>
               <p className="text-gray-600 text-[15px] sm:text-[16px] leading-relaxed">
-                LuxRide was founded on a simple idea: whether you&apos;re heading to the airport, a
+                SARJ Worldwide was founded on a simple idea: whether you&apos;re heading to the airport, a
                 critical business meeting, or your wedding, you deserve luxury chauffeur services
                 that combine elegance, punctuality, and discretion. Our curated fleet and
                 professional drivers have served clients across major cities worldwide, earning a
@@ -150,12 +162,12 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Why LuxRide — Values */}
+      {/* Why SARJ Worldwide — Values */}
       <section className="py-14 sm:py-16 md:py-20">
         <div className="max-w-[1100px] mx-auto px-6 sm:px-8 md:px-12">
           <div className="text-center mb-12 sm:mb-14">
             <span className="inline-block text-[12px] sm:text-[13px] font-bold tracking-[0.2em] uppercase text-[#C9A063] mb-3">
-              Why LuxRide
+              Why SARJ Worldwide
             </span>
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 tracking-tight">
               What sets us apart

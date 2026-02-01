@@ -49,7 +49,7 @@ const CityServicePageContent = ({ name, slug }: CityServicePageContentProps) => 
       {/* First content block */}
       <div className="max-w-[900px] mx-auto px-4 sm:px-6 md:px-8 py-12 sm:py-16 md:py-20">
         <p className="text-white/95 text-[15px] sm:text-[16px] md:text-[17px] leading-relaxed mb-5">
-          If LuxRide knows anything about {name}, it&apos;s that this region deserves nothing less than
+          If SARJ Worldwide knows anything about {name}, it&apos;s that this region deserves nothing less than
           world-class luxury chauffeured transportation—whether you&apos;re here for business, breathtaking
           scenery, major events, or simply the finest in hospitality. We bring the same premium fleet,
           professional chauffeurs, and seamless service that define us globally.

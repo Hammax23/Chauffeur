@@ -1,16 +1,13 @@
-# Robots.txt for LuxRide Chauffeur Services
+# Robots.txt - SARJ Worldwide Chauffeur Services
 # https://luxride-chauffeur.vercel.app
 
 User-agent: *
 Allow: /
 
-# Sitemaps
+# Sitemap
 Sitemap: https://luxride-chauffeur.vercel.app/sitemap.xml
 
-# Crawl-delay
-Crawl-delay: 1
-
-# Block admin or private pages (if any)
+# Block internal/private paths
 Disallow: /api/
 Disallow: /_next/
 Disallow: /admin/
