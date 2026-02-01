@@ -26,7 +26,7 @@ const Footer = () => {
                 <img 
                   src="/logo1.png" 
                   alt="Logo" 
-                  className="h-[60px] sm:h-[70px] w-auto relative z-10 group-hover:scale-105 transition-transform duration-300"
+                  className="h-[50px] sm:h-[50px] w-auto relative z-10 group-hover:scale-105 transition-transform duration-300"
                 />
               </div>
             </div>
@@ -136,7 +136,7 @@ const Footer = () => {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             {/* Copyright */}
             <p className="text-gray-400 text-[13px] font-light">
-              © 2026 – All rights reserved by <span className="text-[#C9A063] font-normal">LuxRide</span>
+              © 2026 – All rights reserved by <span className="text-[#C9A063] font-normal">SARJ Worldwide</span>
             </p>
 
             {/* Links */}

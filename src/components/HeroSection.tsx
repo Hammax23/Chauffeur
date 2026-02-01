@@ -1,5 +1,5 @@
 "use client";
-import { Mail, Calendar, MapPin } from 'lucide-react';
+import { User, Mail, Calendar, MapPin } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -67,12 +67,27 @@ const HeroSection = () => {
         </div>
 
         <div id="book" className="w-full max-w-[1300px] mt-4 sm:mt-6 md:mt-8 lg:mt-10 mb-12 sm:mb-16 md:mb-20 lg:mb-24 mx-auto px-4 sm:px-6 md:px-8">
-          <div className="bg-white rounded-3xl md:rounded-full shadow-2xl px-4 py-4 sm:px-6 sm:py-5 md:px-8 md:py-5 lg:px-10 lg:py-5">
-            <div className="flex flex-col md:flex-row md:flex-wrap lg:flex-nowrap lg:items-center lg:justify-between gap-3 sm:gap-4">
-              <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-[200px]">
+          <div className="bg-white rounded-3xl md:rounded-full shadow-2xl px-4 py-4 sm:px-6 sm:py-5 md:px-8 md:py-5 lg:px-8 lg:py-5">
+            <div className="flex flex-col md:flex-row md:flex-wrap lg:flex-nowrap lg:items-center gap-3 sm:gap-4 lg:gap-5 overflow-hidden">
+              <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 lg:min-w-[140px] lg:max-w-[200px]">
+                <User className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 flex-shrink-0" strokeWidth={1.5} />
+                <div className="flex flex-col flex-1 min-w-0">
+                  <span className="text-[12px] sm:text-[13px] md:text-[14px] font-semibold text-gray-900 mb-0.5 sm:mb-1">Name</span>
+                  <input
+                    type="text"
+                    placeholder="Your name"
+                    className="text-[13px] sm:text-[14px] md:text-[15px] text-gray-600 outline-none bg-transparent w-full"
+                  />
+                </div>
+              </div>
+
+              <div className="hidden md:block w-px h-10 md:h-12 bg-gray-300"></div>
+              <div className="md:hidden h-px w-full bg-gray-200"></div>
+
+              <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 lg:min-w-[140px] lg:max-w-[200px]">
                 <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 flex-shrink-0" strokeWidth={1.5} />
-                <div className="flex flex-col flex-1">
-                  <span className="text-[12px] sm:text-[13px] md:text-[14px] font-semibold text-gray-900 mb-0.5 sm:mb-1">Mailid</span>
+                <div className="flex flex-col flex-1 min-w-0">
+                  <span className="text-[12px] sm:text-[13px] md:text-[14px] font-semibold text-gray-900 mb-0.5 sm:mb-1">Email</span>
                   <input
                     type="email"
                     placeholder="example@gmail.com"
@@ -84,9 +99,9 @@ const HeroSection = () => {
               <div className="hidden md:block w-px h-10 md:h-12 bg-gray-300"></div>
               <div className="md:hidden h-px w-full bg-gray-200"></div>
 
-              <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-[200px] datepicker-container">
+              <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 lg:min-w-[160px] lg:max-w-[220px] datepicker-container">
                 <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 flex-shrink-0" strokeWidth={1.5} />
-                <div className="flex flex-col flex-1">
+                <div className="flex flex-col flex-1 min-w-0">
                   <span className="text-[12px] sm:text-[13px] md:text-[14px] font-semibold text-gray-900 mb-0.5 sm:mb-1">Date</span>
                   <DatePicker
                     selected={selectedDate}
@@ -107,9 +122,9 @@ const HeroSection = () => {
               <div className="hidden md:block w-px h-10 md:h-12 bg-gray-300"></div>
               <div className="md:hidden h-px w-full bg-gray-200"></div>
 
-              <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-[200px]">
+              <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 lg:min-w-[140px] lg:max-w-[200px]">
                 <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 flex-shrink-0" strokeWidth={1.5} />
-                <div className="flex flex-col flex-1">
+                <div className="flex flex-col flex-1 min-w-0">
                   <span className="text-[12px] sm:text-[13px] md:text-[14px] font-semibold text-gray-900 mb-0.5 sm:mb-1">Pickup Location</span>
                   <input
                     type="text"
@@ -122,10 +137,10 @@ const HeroSection = () => {
               <div className="hidden md:block w-px h-10 md:h-12 bg-gray-300"></div>
               <div className="md:hidden h-px w-full bg-gray-200"></div>
 
-              <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-[200px]">
+              <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 lg:min-w-[140px] lg:max-w-[200px]">
                 <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 flex-shrink-0" strokeWidth={1.5} />
-                <div className="flex flex-col flex-1">
-                  <span className="text-[12px] sm:text-[13px] md:text-[14px] font-semibold text-gray-900 mb-0.5 sm:mb-1">Drop Location</span>
+                <div className="flex flex-col flex-1 min-w-0">
+                  <span className="text-[12px] sm:text-[13px] md:text-[14px] font-semibold text-gray-900 mb-0.5 sm:mb-1">Drop off Location</span>
                   <input
                     type="text"
                     defaultValue="London City Blackheath"
@@ -134,9 +149,11 @@ const HeroSection = () => {
                 </div>
               </div>
 
-              <button className="bg-gradient-to-r from-black via-gray-900 to-black text-white px-6 py-3 sm:px-8 sm:py-3.5 md:px-10 md:py-3.5 lg:px-12 lg:py-4 rounded-full text-[13px] sm:text-[14px] md:text-[15px] font-semibold hover:from-gray-900 hover:via-black hover:to-gray-900 hover:scale-105 hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-all duration-300 w-full md:w-auto md:flex-shrink-0 mt-3 md:mt-0 min-w-[100px] backdrop-blur-sm border border-white/10">
-                Submit
-              </button>
+              <div className="w-full md:w-auto flex-shrink-0 mt-3 md:mt-0 lg:ml-2">
+                <button className="w-full md:w-auto bg-gradient-to-r from-black via-gray-900 to-black text-white px-6 py-3 sm:px-8 sm:py-3.5 md:px-10 md:py-3.5 rounded-full text-[13px] sm:text-[14px] md:text-[15px] font-semibold hover:from-gray-900 hover:via-black hover:to-gray-900 hover:scale-105 hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-all duration-300 backdrop-blur-sm border border-white/10 whitespace-nowrap min-h-[44px]">
+                  Submit
+                </button>
+              </div>
             </div>
           </div>
         </div>
