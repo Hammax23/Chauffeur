@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Wifi, MapPin } from "lucide-react";
 
 const GlobalFootprint = () => {
   // Spread-out points with city names (akhatay removed – only these on map)
@@ -58,7 +59,7 @@ const GlobalFootprint = () => {
             >
               {/* Top-edge highlight - iOS style */}
               <span className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none" aria-hidden />
-              <span className="relative">SERVICES IN OVER 1000 CITIES WORLDWIDE</span>
+              <span className="relative">SERVICES AVAILABLE IN ALL CITIES</span>
             </Link>
           </div>
         </div>
@@ -182,6 +183,40 @@ const GlobalFootprint = () => {
               <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
             </line>
           </svg>
+        </div>
+
+        {/* Technology Section */}
+        <div className="-mt-6 sm:-mt-5 md:-mt-4 lg:-mt-3 max-w-[1100px] mx-auto">
+          <h3 className="text-gray-500 text-xl sm:text-2xl md:text-3xl font-light tracking-[0.25em] uppercase mb-4 text-center">
+            Technology
+          </h3>
+          <div className="w-16 h-px bg-gray-300 mx-auto mb-10 sm:mb-12" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+            {/* WIFI */}
+            <div className="flex flex-col items-center text-center p-6 sm:p-8 rounded-2xl bg-white border border-gray-100 shadow-lg shadow-gray-100/80 hover:shadow-xl hover:shadow-[#C9A063]/10 hover:border-[#C9A063]/20 transition-all duration-300">
+              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-[#C9A063]/10 to-[#8B7355]/5 border border-gray-200 flex items-center justify-center mb-5 sm:mb-6">
+                <Wifi className="w-12 h-12 sm:w-14 sm:h-14 text-[#8B7355]" strokeWidth={1.5} />
+              </div>
+              <h4 className="text-[#8B7355] text-[15px] sm:text-[16px] font-bold tracking-[0.15em] uppercase mb-3">
+                Wifi
+              </h4>
+              <p className="text-gray-500 text-[14px] sm:text-[15px] leading-relaxed max-w-sm mx-auto font-light">
+                Enjoy use of WiFi to check your emails or browse the internet while traveling to your destination in our vehicles. Ask your chauffeur for more details.
+              </p>
+            </div>
+            {/* Vehicle Tracking */}
+            <div className="flex flex-col items-center text-center p-6 sm:p-8 rounded-2xl bg-white border border-gray-100 shadow-lg shadow-gray-100/80 hover:shadow-xl hover:shadow-[#C9A063]/10 hover:border-[#C9A063]/20 transition-all duration-300">
+              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-[#C9A063]/10 to-[#8B7355]/5 border border-gray-200 flex items-center justify-center mb-5 sm:mb-6">
+                <MapPin className="w-12 h-12 sm:w-14 sm:h-14 text-[#8B7355]" strokeWidth={1.5} />
+              </div>
+              <h4 className="text-[#8B7355] text-[15px] sm:text-[16px] font-bold tracking-[0.15em] uppercase mb-3">
+                Vehicle Tracking
+              </h4>
+              <p className="text-gray-500 text-[14px] sm:text-[15px] leading-relaxed max-w-sm mx-auto font-light">
+                Each vehicle in our fleet is GPS tracked for safety and security.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </section>

@@ -35,7 +35,7 @@ const Navbar = () => {
               <img 
                 src="/logo1.png" 
                 alt="LuxRide Logo" 
-                className="h-[75px] sm:h-[75px] w-auto object-contain drop-shadow-lg"
+                className="h-[60px] sm:h-[60px] w-auto object-contain drop-shadow-lg"
               />
             </Link>
 
