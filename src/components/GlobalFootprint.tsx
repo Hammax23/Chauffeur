@@ -188,7 +188,7 @@ const GlobalFootprint = () => {
         {/* Technology Section */}
         <div className="-mt-6 sm:-mt-5 md:-mt-4 lg:-mt-3 max-w-[1100px] mx-auto">
           <h3 className="text-gray-500 text-xl sm:text-2xl md:text-3xl font-light tracking-[0.25em] uppercase mb-4 text-center">
-            Technology
+           SARJ Worldwide Technology
           </h3>
           <div className="w-16 h-px bg-gray-300 mx-auto mb-10 sm:mb-12" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">

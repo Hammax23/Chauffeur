@@ -10,7 +10,7 @@ import {
   Video,
   Car,
   Handshake,
-  Plane,
+  UserCheck,
 } from "lucide-react";
 
 const features = [
@@ -39,8 +39,8 @@ const features = [
     text: "Chauffeurs receive real-time updates through smartphones. Itinerary change? We react immediately",
   },
   {
-    icon: Video,
-    text: "Onboard DriveCam and Silent Passenger for quality control and passenger safety",
+    icon: Shield,
+    text: "Your Safety and privacy is our top priority",
   },
   {
     icon: Car,
@@ -51,8 +51,8 @@ const features = [
     text: "Partnerships with leaders in the hospitality, airline & private aviation industries",
   },
   {
-    icon: Plane,
-    text: "Airport Concierge Service provides white-glove, expedited escort through security, boarding (additional charges apply)",
+    icon: UserCheck,
+    text: "Meet & Greet & Luggage Assistance: A dedicated agent meets you at the gate (arrivals), curb (departures) point with displayed name and assist you with your bags.",
   },
 ];
 

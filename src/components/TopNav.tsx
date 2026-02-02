@@ -38,7 +38,7 @@ const TopNav = () => {
               className="flex items-center gap-2 text-white/90 hover:text-[#C9A063] transition-all duration-300 group"
             >
               <Phone className="w-4 h-4 sm:w-3.5 sm:h-3.5 flex-shrink-0" strokeWidth={2} />
-              <span className="text-[25px] sm:text-[25px] font-light tracking-wide">+1 (800) 900-122</span>
+              <span className="text-[25px] sm:text-[25px] font-light tracking-wide"> 416-893-5779</span>
             </a>
 
 
