@@ -1,8 +1,8 @@
 export const REGIONS = [
-  { label: "TORONTO PEARSON", slug: "toronto-pearson" },
-  { label: "HAMILTON", slug: "hamilton" },
-  { label: "LONDON", slug: "london" },
-  { label: "OTTAWA", slug: "ottawa" },
+  { label: "TORONTO PEARSON AIRPORT", slug: "toronto-pearson" },
+  { label: "HAMILTON Airport", slug: "hamilton" },
+  { label: "LONDON AIRPORT", slug: "london" },
+  { label: "OTTAWA AIRPORT", slug: "ottawa" },
   { label: "MONTREAL", slug: "montreal" },
   { label: "NIAGARA/BUFFALO", slug: "niagara-buffalo" },
   { label: "OTTAWA/MONTREAL", slug: "ottawa-montreal" },

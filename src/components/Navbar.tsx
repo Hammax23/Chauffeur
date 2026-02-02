@@ -40,15 +40,15 @@ const Navbar = () => {
             </Link>
 
             <div className="hidden lg:flex items-center gap-1">
-              <Link href="/" className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
+              <Link href="/" className="text-white/90 px-5 py-2.5 text-[16px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
                 HOME
               </Link>
               
-              <Link href="/about" className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
+              <Link href="/about" className="text-white/90 px-5 py-2.5 text-[16px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
                 ABOUT
               </Link>
               
-              <Link href="/fleet" className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
+              <Link href="/fleet" className="text-white/90 px-5 py-2.5 text-[16px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
                 FLEET
               </Link>
               
@@ -56,7 +56,7 @@ const Navbar = () => {
                 onMouseEnter={() => setServicesOpen(true)}
                 onMouseLeave={() => setServicesOpen(false)}
               >
-                <button className="flex items-center gap-1 text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap group">
+                <button className="flex items-center gap-1 text-white/90 px-5 py-2.5 text-[16px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap group">
                   <span>SERVICES</span>
                   <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${servicesOpen ? 'rotate-180' : ''}`} strokeWidth={2.5} />
                 </button>
@@ -111,54 +111,20 @@ const Navbar = () => {
                 )}
               </div>
               
-              <Link href="/news" className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
-                NEWS
-              </Link>
-              
-              <Link href="/quote" className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
+              <Link href="/quote" className="text-white/90 px-5 py-2.5 text-[16px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
                 ONLINE QUOTE
               </Link>
               
-              <Link href="/contact" className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
+              <Link href="/contact" className="text-white/90 px-5 py-2.5 text-[16px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
                 CONTACT
               </Link>
               
-              <Link href="/quote" className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
+              <Link href="/quote" className="text-white/90 px-5 py-2.5 text-[16px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
                 ONLINE RESERVATION
               </Link>
             </div>
           </div>
 
-          <div className="hidden lg:flex items-center gap-4">
-            {/* <button className="text-white hover:bg-white/10 p-2 rounded-lg transition-all duration-300 hover:scale-110">
-              <Search className="w-5 h-5" strokeWidth={2} />
-            </button> */}
-            
-            {/* <div className="flex items-center gap-1.5 text-white whitespace-nowrap px-3 py-2 rounded-lg hover:bg-white/10 transition-all duration-300 cursor-pointer">
-              <Phone className="w-[17px] h-[17px]" strokeWidth={2} />
-              <span className="text-[16px] font-medium">+1800900122</span>
-            </div> */}
-            
-            {/* <button className="flex items-center gap-1.5 text-white text-[16px] font-medium hover:bg-white/10 px-3 py-2 rounded-lg transition-all duration-300 whitespace-nowrap">
-              <div className="w-6 h-4 rounded-sm overflow-hidden shadow-md">
-                <img
-                  src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 30'%3E%3Crect width='60' height='30' fill='%23012169'/%3E%3Cpath d='M0,0 L60,30 M60,0 L0,30' stroke='%23FFF' stroke-width='6'/%3E%3Cpath d='M0,0 L60,30 M60,0 L0,30' stroke='%23C8102E' stroke-width='4' clip-path='inset(0)'/%3E%3Cpath d='M30,0 v30 M0,15 h60' stroke='%23FFF' stroke-width='10'/%3E%3Cpath d='M30,0 v30 M0,15 h60' stroke='%23C8102E' stroke-width='6'/%3E%3C/svg%3E"
-                  alt="UK Flag"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <span>En</span>
-              <ChevronDown className="w-3.5 h-3.5" strokeWidth={2.5} />
-            </button> */}
-            
-            <button className="text-white/90 px-6 py-2.5 text-[16px] font-medium hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap border border-transparent hover:border-white/20">
-              Login
-            </button>
-            
-            <button className="bg-gradient-to-r from-white to-gray-100 text-black px-7 py-2.5 rounded-full text-[16px] font-semibold hover:from-gray-100 hover:to-white hover:scale-105 transition-all duration-300 whitespace-nowrap shadow-[0_4px_20px_rgba(255,255,255,0.3)] hover:shadow-[0_6px_30px_rgba(255,255,255,0.4)]">
-              Register
-            </button>
-          </div>
 
           <button
             className="lg:hidden text-white"
@@ -172,21 +138,21 @@ const Navbar = () => {
       {isMenuOpen && (
         <div className="lg:hidden bg-black border-t border-gray-800 max-h-[calc(100vh-110px)] overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y">
           <div className="px-4 pt-2 pb-[calc(4rem+env(safe-area-inset-bottom,0px))] space-y-2 min-h-0">
-            <Link href="/" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-sm font-medium text-left">
+            <Link href="/" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-base font-medium text-left">
               HOME
             </Link>
             
-            <Link href="/about" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-sm font-medium text-left">
+            <Link href="/about" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-base font-medium text-left">
               ABOUT
             </Link>
             
-            <Link href="/fleet" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-sm font-medium text-left">
+            <Link href="/fleet" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-base font-medium text-left">
               FLEET
             </Link>
             
             <div className="border-b border-white/10 pb-5">
               <button 
-                className="flex items-center justify-between w-full text-white px-4 py-3 text-sm font-semibold tracking-wide rounded-xl hover:bg-white/5 active:bg-white/10 transition-colors duration-200"
+                className="flex items-center justify-between w-full text-white px-4 py-3 text-base font-semibold tracking-wide rounded-xl hover:bg-white/5 active:bg-white/10 transition-colors duration-200"
                 onClick={() => setMobileServicesOpen(!mobileServicesOpen)}
                 aria-expanded={mobileServicesOpen}
                 aria-haspopup="true"
@@ -230,35 +196,23 @@ const Navbar = () => {
               </div>
             </div>
             
-            <Link href="/news" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-sm font-medium text-left">
-              NEWS
-            </Link>
-            
-            <Link href="/quote" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-sm font-medium text-left">
+            <Link href="/quote" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-base font-medium text-left">
               ONLINE QUOTE
             </Link>
             
-            <Link href="/contact" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-sm font-medium text-left">
+            <Link href="/contact" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-base font-medium text-left">
               CONTACT
             </Link>
             
-            <Link href="/quote" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-sm font-medium text-left">
+            <Link href="/quote" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-base font-medium text-left">
               ONLINE RESERVATION
             </Link>
 
-            <div className="pt-3 mt-3 pb-2 border-t border-gray-800 space-y-2">
+            <div className="pt-3 mt-3 pb-2 border-t border-gray-800">
               <div className="flex items-center gap-2 text-white px-4">
                 <Phone className="w-4 h-4" />
                 <span className="text-sm">+1800900122</span>
               </div>
-              
-              <button className="w-full text-white px-4 py-2.5 text-sm font-medium">
-                Login
-              </button>
-              
-              <button className="w-full bg-white text-black px-4 py-2.5 rounded-md text-sm font-semibold">
-                Sign Up
-              </button>
             </div>
           </div>
         </div>

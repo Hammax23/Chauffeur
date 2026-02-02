@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { User, Users, Phone, Mail, Clock, MapPin, ChevronDown, Plus } from "lucide-react";
 import TopNav from "@/components/TopNav";
@@ -9,12 +9,42 @@ import Footer from "@/components/Footer";
 import { services } from "@/data/services";
 import { fleetData } from "@/data/fleet";
 
-// Canada only for Online Quote phone
-const CANADA_PHONE = { code: "+1", label: "CA" };
+// Country codes: Canada first. flagCode = ISO code for flag image (flagcdn.com).
+const COUNTRY_CODES = [
+  { code: "+1", label: "CA", name: "Canada", flagCode: "ca" },
+  { code: "+1", label: "US", name: "United States", flagCode: "us" },
+  { code: "+44", label: "UK", name: "United Kingdom", flagCode: "gb" },
+  { code: "+33", label: "FR", name: "France", flagCode: "fr" },
+  { code: "+49", label: "DE", name: "Germany", flagCode: "de" },
+  { code: "+39", label: "IT", name: "Italy", flagCode: "it" },
+  { code: "+34", label: "ES", name: "Spain", flagCode: "es" },
+  { code: "+31", label: "NL", name: "Netherlands", flagCode: "nl" },
+  { code: "+41", label: "CH", name: "Switzerland", flagCode: "ch" },
+  { code: "+32", label: "BE", name: "Belgium", flagCode: "be" },
+  { code: "+43", label: "AT", name: "Austria", flagCode: "at" },
+  { code: "+353", label: "IE", name: "Ireland", flagCode: "ie" },
+];
+
+const FLAG_CDN = "https://flagcdn.com";
 
 export default function QuotePage() {
   const [stops, setStops] = useState<string[]>([]);
   const [agree, setAgree] = useState(false);
+  const [countryCode, setCountryCode] = useState(COUNTRY_CODES[0].code);
+  const [countryLabel, setCountryLabel] = useState(COUNTRY_CODES[0].label);
+  const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
+  const countryDropdownRef = useRef<HTMLDivElement>(null);
+  const selectedCountry = COUNTRY_CODES.find((c) => c.code === countryCode && c.label === countryLabel) ?? COUNTRY_CODES[0];
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (countryDropdownRef.current && !countryDropdownRef.current.contains(e.target as Node)) {
+        setCountryDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const addStop = () => setStops((s) => [...s, ""]);
   const updateStop = (i: number, v: string) =>
@@ -74,24 +104,69 @@ export default function QuotePage() {
             {/* Row 2: Phone | Email */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <div>
-                <label className="block text-gray-800 text-[14px] font-medium mb-2">Phone (Canada only)</label>
-                <div className="flex rounded-xl overflow-hidden border border-gray-300 focus-within:ring-2 focus-within:ring-[#C9A063]/30 focus-within:border-[#C9A063] transition-all">
-                  <div className="px-3 py-3 pl-4 pr-4 bg-gray-100 border-r border-gray-300 text-[15px] text-gray-700 font-medium min-w-[90px] flex items-center justify-center shrink-0">
-                    {CANADA_PHONE.code} {CANADA_PHONE.label}
+                <label className="block text-gray-800 text-[14px] font-medium mb-2">Phone</label>
+                <div className="flex rounded-xl border border-gray-300 focus-within:ring-2 focus-within:ring-[#C9A063]/30 focus-within:border-[#C9A063] transition-all">
+                  <div className="relative flex-shrink-0 w-[100px] rounded-l-xl overflow-visible" ref={countryDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setCountryDropdownOpen((o) => !o)}
+                      className="w-full flex items-center justify-center gap-1 px-2 py-3 bg-gray-50 border-r border-gray-300 text-[13px] text-gray-800 font-medium focus:outline-none cursor-pointer hover:bg-gray-100/80 transition-colors"
+                      aria-haspopup="listbox"
+                      aria-expanded={countryDropdownOpen}
+                      aria-label="Country code"
+                    >
+                      <img
+                        src={`${FLAG_CDN}/w40/${selectedCountry.flagCode}.png`}
+                        alt=""
+                        width={20}
+                        height={15}
+                        className="w-5 h-[15px] object-cover rounded-sm shrink-0"
+                      />
+                      <span className="whitespace-nowrap">{selectedCountry.code} {selectedCountry.label}</span>
+                      <ChevronDown className={`w-3.5 h-3.5 text-gray-500 shrink-0 transition-transform ${countryDropdownOpen ? "rotate-180" : ""}`} strokeWidth={2.5} />
+                    </button>
+                    {countryDropdownOpen && (
+                      <ul
+                        role="listbox"
+                        className="absolute left-0 top-full z-[100] mt-1 w-[180px] max-h-[240px] overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl py-1"
+                      >
+                        {COUNTRY_CODES.map((c) => (
+                          <li key={`${c.code}-${c.label}`} role="option" aria-selected={c.label === selectedCountry.label && c.code === selectedCountry.code}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCountryCode(c.code);
+                                setCountryLabel(c.label);
+                                setCountryDropdownOpen(false);
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-800 hover:bg-[#C9A063]/10 focus:bg-[#C9A063]/10 focus:outline-none"
+                            >
+                              <img
+                                src={`${FLAG_CDN}/w40/${c.flagCode}.png`}
+                                alt=""
+                                width={20}
+                                height={15}
+                                className="w-5 h-[15px] object-cover rounded-sm shrink-0"
+                              />
+                              <span>{c.code} {c.label}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
-                  <div className="relative flex-1 flex items-center">
+                  <div className="relative flex-1 flex items-center min-w-0 rounded-r-xl overflow-hidden">
                     <input
                       type="tel"
-                      placeholder="e.g. 416-555-1234"
-                      maxLength={14}
-                      inputMode="numeric"
-                      pattern="[0-9\-\(\)\s]*"
+                      placeholder={countryLabel === "CA" || countryLabel === "US" ? "e.g. 416-555-1234" : "Phone number"}
+                      maxLength={18}
+                      inputMode="tel"
                       className="w-full px-4 py-3 pr-11 border-0 focus:ring-0 focus:outline-none text-[15px] text-gray-800 placeholder-gray-400"
                     />
                     <Phone className="absolute right-3 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
                   </div>
                 </div>
-                <p className="mt-1 text-gray-500 text-[12px]">Canadian numbers only (+1)</p>
+                <p className="mt-1 text-gray-500 text-[12px]">Canada, US, UK & Europe supported</p>
               </div>
               <div>
                 <label className="block text-gray-800 text-[14px] font-medium mb-2">Email</label>

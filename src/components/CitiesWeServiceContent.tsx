@@ -34,8 +34,8 @@ const CitiesWeServiceContent = () => {
             Cities We Service
           </h1>
           <p className="text-gray-600 text-sm sm:text-base md:text-lg font-medium tracking-[0.15em] uppercase">
-            Available in over{" "}
-            <span className="text-[#C9A063] font-semibold">1000</span> cities
+            Available in {" "}
+            <span className="text-[#C9A063] font-semibold">all</span> cities
             worldwide
           </p>
         </div>
