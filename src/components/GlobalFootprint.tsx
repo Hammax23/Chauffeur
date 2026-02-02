@@ -201,7 +201,7 @@ const GlobalFootprint = () => {
                 Wifi
               </h4>
               <p className="text-gray-500 text-[14px] sm:text-[15px] leading-relaxed max-w-sm mx-auto font-light">
-                Enjoy use of WiFi to check your emails or browse the internet while traveling to your destination in our vehicles. Ask your chauffeur for more details.
+              Enjoy WIFI in our vehicles to check your emails/browse internet while traveling to your destination. Ask your chauffeur for more info.
               </p>
             </div>
             {/* Vehicle Tracking */}
@@ -213,7 +213,7 @@ const GlobalFootprint = () => {
                 Vehicle Tracking
               </h4>
               <p className="text-gray-500 text-[14px] sm:text-[15px] leading-relaxed max-w-sm mx-auto font-light">
-                Each vehicle in our fleet is GPS tracked for safety and security.
+              For safety and security each vehicle in our fleet is GPS tracked.
               </p>
             </div>
           </div>
