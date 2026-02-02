@@ -17,10 +17,10 @@ const DiscoverFleet = () => {
   const activeCar = fleetData.find(car => car.name === activeTab);
 
   return (
-    <section className="py-16 sm:py-20 md:py-24 lg:py-28 bg-gradient-to-b from-white to-gray-50">
+    <section className="py-10 sm:py-12 md:py-14 lg:py-16 bg-gradient-to-b from-white to-gray-50">
       <div className="max-w-[1400px] mx-auto px-6 sm:px-8 md:px-12">
         {/* Header */}
-        <div className="text-center mb-12 sm:mb-16">
+        <div className="text-center mb-8 sm:mb-10">
           <h2 className="text-gray-800 text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4 tracking-tight">
             DISCOVER YOUR FLEET
           </h2>
@@ -30,17 +30,17 @@ const DiscoverFleet = () => {
         </div>
 
         {/* Car buttons (left) + Car Image (right) */}
-        <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-center md:items-stretch mb-8 sm:mb-12">
+        <div className="flex flex-col md:flex-row gap-6 md:gap-4 lg:gap-5 items-center md:items-stretch mb-6 sm:mb-8">
           {/* Car name buttons - LEFT side */}
-          <div className="flex flex-wrap md:flex-col justify-center md:justify-start gap-2 sm:gap-4 order-2 md:order-1 w-full md:w-auto md:min-w-[200px]">
+          <div className="flex flex-wrap md:flex-col justify-center md:justify-start gap-2 sm:gap-3 order-2 md:order-1 w-full md:w-[190px] lg:w-[200px]">
             {fleetData.map((car) => (
               <button
                 key={car.name}
                 onClick={() => setActiveTab(car.name)}
-                className={`px-6 sm:px-8 py-3 sm:py-3.5 text-[13px] sm:text-[14px] md:text-[15px] font-medium rounded-xl transition-all duration-500 backdrop-blur-sm border ${
+                className={`w-full md:w-full min-w-0 px-5 py-2.5 text-[12px] sm:text-[13px] font-medium rounded-lg transition-all duration-300 text-center border ${
                   activeTab === car.name
-                    ? 'bg-gradient-to-r from-[#8B7355] to-[#6B5644] text-white shadow-[0_8px_30px_rgba(139,115,85,0.4)] border-[#8B7355]/30 scale-105'
-                    : 'bg-white/80 text-gray-700 hover:bg-white hover:text-[#8B7355] hover:border-[#8B7355]/30 hover:shadow-[0_4px_20px_rgba(0,0,0,0.1)] border-gray-200'
+                    ? 'bg-gradient-to-r from-[#8B7355] to-[#6B5644] text-white shadow-md border-[#8B7355]/40'
+                    : 'bg-white text-gray-700 hover:bg-gray-50 hover:text-[#8B7355] hover:border-[#8B7355]/40 border-gray-200'
                 }`}
               >
                 {car.name}
@@ -48,32 +48,32 @@ const DiscoverFleet = () => {
             ))}
           </div>
           {/* Car image - RIGHT side */}
-          <div className="flex-1 relative group order-1 md:order-2 w-full">
-            <div className="aspect-[16/9] sm:aspect-[21/9] relative">
+          <div className="flex-1 relative group order-1 md:order-2 w-full max-w-[680px] lg:max-w-[750px] md:ml-12 lg:ml-20">
+            <div className="w-full h-[260px] sm:h-[300px] md:h-[320px] relative overflow-hidden rounded-lg bg-gray-50/50">
               <img
                 src={activeCar?.image}
                 alt={activeTab}
-                className="w-full h-full object-contain transition-all duration-700 group-hover:scale-105 drop-shadow-2xl"
+                className="w-full h-full object-contain object-center transition-all duration-500 group-hover:scale-[1.02] drop-shadow-xl"
               />
             </div>
             {/* Seating & Luggage Capacity - responsive: centered on mobile, left shift on desktop */}
-            <div className="mt-4 md:mt-2 flex flex-col sm:flex-row flex-wrap justify-center items-center gap-3 sm:gap-6 translate-x-0 md:-translate-x-40">
-              <div className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-xl bg-gray-50/90 border border-gray-100 shadow-sm w-full sm:w-auto max-w-[280px] sm:max-w-none">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
-                  <Users className="w-4 h-4 sm:w-5 sm:h-5 text-[#8B7355]" strokeWidth={1.5} />
+            <div className="mt-4 md:mt-2 flex flex-col sm:flex-row flex-wrap justify-center items-center gap-3 sm:gap-5 translate-x-0 md:-translate-x-24">
+              <div className="flex items-center gap-2 p-2 sm:p-2.5 rounded-lg bg-gray-50/90 border border-gray-100 shadow-sm w-full sm:w-auto max-w-[220px] sm:max-w-none">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                  <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#8B7355]" strokeWidth={1.5} />
                 </div>
                 <div className="min-w-0">
-                  <span className="text-[#8B7355] text-[12px] sm:text-[14px] font-semibold block">Seating Capacity</span>
-                  <span className="text-gray-900 text-[13px] sm:text-[15px] font-medium">{activeCar?.seating}</span>
+                  <span className="text-[#8B7355] text-[11px] sm:text-[12px] font-semibold block">Seating Capacity</span>
+                  <span className="text-gray-900 text-[12px] sm:text-[13px] font-medium">{activeCar?.seating}</span>
                 </div>
               </div>
-              <div className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-xl bg-gray-50/90 border border-gray-100 shadow-sm w-full sm:w-auto max-w-[280px] sm:max-w-none">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
-                  <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 text-[#8B7355]" strokeWidth={1.5} />
+              <div className="flex items-center gap-2 p-2 sm:p-2.5 rounded-lg bg-gray-50/90 border border-gray-100 shadow-sm w-full sm:w-auto max-w-[220px] sm:max-w-none">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                  <Briefcase className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#8B7355]" strokeWidth={1.5} />
                 </div>
                 <div className="min-w-0">
-                  <span className="text-[#8B7355] text-[12px] sm:text-[14px] font-semibold block">Luggage Capacity</span>
-                  <span className="text-gray-900 text-[13px] sm:text-[15px] font-medium">{activeCar?.luggage}</span>
+                  <span className="text-[#8B7355] text-[11px] sm:text-[12px] font-semibold block">Luggage Capacity</span>
+                  <span className="text-gray-900 text-[12px] sm:text-[13px] font-medium">{activeCar?.luggage}</span>
                 </div>
               </div>
             </div>
