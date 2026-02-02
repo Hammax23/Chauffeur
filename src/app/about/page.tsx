@@ -28,10 +28,10 @@ export const metadata: Metadata = {
 };
 
 const stats = [
-  { value: "10+", label: "Years of excellence", icon: Trophy },
-  { value: "50K+", label: "Rides completed", icon: Sparkles },
+  { value: "12+", label: "Years of excellence", icon: Trophy },
+  { value: "10K+", label: "Rides completed", icon: Sparkles },
   { value: "24/7", label: "Concierge support", icon: Headphones },
-  { value: "Global", label: "Major cities served", icon: Globe2 },
+  { value: "Worlwide", label: "Major cities served", icon: Globe2 },
 ];
 
 export default function AboutPage() {

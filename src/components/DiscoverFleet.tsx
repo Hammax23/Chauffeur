@@ -1,20 +1,34 @@
 "use client";
-import { useState } from 'react';
-import { ChevronRight, Users, Briefcase } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ChevronRight, ChevronLeft, Users, Briefcase } from 'lucide-react';
 
 const fleetData = [
-  { name: 'CHEVROLET SUBURBAN', image: '/fleet/suburban.png', seating: '6 maximum, 5 comfortable', luggage: '4 large, 2 medium' },
-  { name: 'CADILLAC XTS', image: '/fleet/xts.png', seating: '4 maximum, 3 comfortable', luggage: '2 large, 2 medium' },
-  { name: 'CADILLAC LYRIQ', image: '/fleet/lyric.png', seating: '4 maximum, 4 comfortable', luggage: '2 large, 2 medium' },
-  { name: 'CADILLAC ESCALADE', image: '/fleet/escalade.png', seating: '6 maximum, 5 comfortable', luggage: '4 large, 2 medium' },
-  { name: 'MERCEDES S-CLASS ', image: '/fleet/mercedesS1.png', seating: '4 maximum, 3 comfortable', luggage: '2 large, 2 medium' },
-  { name: 'SPRINTER VAN', image: '/fleet/sprinter.png', seating: '8 maximum, 7 comfortable', luggage: '6 large, 4 medium' },
+  { name: 'CADILLAC XTS', images: ['/fleet/xts.png', '/fleet/xts.png', '/fleet/xts.png'], seating: '4 maximum, 3 comfortable', luggage: '2 large, 2 medium' },
+  { name: 'CADILLAC LYRIQ', images: ['/fleet/lyric.png', '/fleet/lyric.png', '/fleet/lyric.png'], seating: '4 maximum, 4 comfortable', luggage: '2 large, 2 medium' },
+  { name: 'MERCEDES S-CLASS ', images: ['/fleet/mercedesS1.png', '/fleet/mercedesS1.png', '/fleet/mercedesS1.png'], seating: '4 maximum, 3 comfortable', luggage: '2 large, 2 medium' },
+  { name: 'CHEVROLET SUBURBAN', images: ['/fleet/suburban.png', '/fleet/suburban.png', '/fleet/suburban.png'], seating: '6 maximum, 5 comfortable', luggage: '4 large, 2 medium' },
+  { name: 'CADILLAC ESCALADE', images: ['/fleet/escalade.png', '/fleet/escalade.png', '/fleet/escalade.png'], seating: '6 maximum, 5 comfortable', luggage: '4 large, 2 medium' },
+  { name: 'SPRINTER VAN', images: ['/fleet/sprinter.png', '/fleet/sprinter.png', '/fleet/sprinter.png'], seating: '8 maximum, 7 comfortable', luggage: '6 large, 4 medium' },
 ];
 
 const DiscoverFleet = () => {
   const [activeTab, setActiveTab] = useState(fleetData[0].name);
+  const [imageIndex, setImageIndex] = useState(0);
 
   const activeCar = fleetData.find(car => car.name === activeTab);
+  const images = activeCar?.images ?? [];
+  const currentImage = images[imageIndex] ?? images[0];
+
+  useEffect(() => {
+    setImageIndex(0);
+  }, [activeTab]);
+
+  const goPrev = () => {
+    setImageIndex((i) => (i <= 0 ? images.length - 1 : i - 1));
+  };
+  const goNext = () => {
+    setImageIndex((i) => (i >= images.length - 1 ? 0 : i + 1));
+  };
 
   return (
     <section className="py-10 sm:py-12 md:py-14 lg:py-16 bg-gradient-to-b from-white to-gray-50">
@@ -47,14 +61,51 @@ const DiscoverFleet = () => {
               </button>
             ))}
           </div>
-          {/* Car image - RIGHT side */}
+          {/* Car image - RIGHT side with left/right arrows */}
           <div className="flex-1 relative group order-1 md:order-2 w-full max-w-[680px] lg:max-w-[750px] md:ml-12 lg:ml-20">
             <div className="w-full h-[260px] sm:h-[300px] md:h-[320px] relative overflow-hidden rounded-lg bg-gray-50/50">
               <img
-                src={activeCar?.image}
-                alt={activeTab}
+                key={`${activeTab}-${imageIndex}`}
+                src={currentImage}
+                alt={`${activeTab} - view ${imageIndex + 1}`}
                 className="w-full h-full object-contain object-center transition-all duration-500 group-hover:scale-[1.02] drop-shadow-xl"
               />
+              {/* Left arrow */}
+              {images.length > 1 && (
+                <button
+                  type="button"
+                  onClick={goPrev}
+                  aria-label="Previous image"
+                  className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white/95 hover:bg-white shadow-lg border border-gray-200/80 flex items-center justify-center text-gray-700 hover:text-[#8B7355] transition-all duration-300 hover:scale-105 active:scale-95"
+                >
+                  <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={2.5} />
+                </button>
+              )}
+              {/* Right arrow */}
+              {images.length > 1 && (
+                <button
+                  type="button"
+                  onClick={goNext}
+                  aria-label="Next image"
+                  className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white/95 hover:bg-white shadow-lg border border-gray-200/80 flex items-center justify-center text-gray-700 hover:text-[#8B7355] transition-all duration-300 hover:scale-105 active:scale-95"
+                >
+                  <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={2.5} />
+                </button>
+              )}
+              {/* Dot indicators */}
+              {images.length > 1 && (
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                  {images.map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setImageIndex(i)}
+                      aria-label={`Go to image ${i + 1}`}
+                      className={`w-2 h-2 rounded-full transition-all duration-300 ${i === imageIndex ? 'bg-[#8B7355] scale-110' : 'bg-white/80 hover:bg-white/90'}`}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
             {/* Seating & Luggage Capacity - responsive: centered on mobile, left shift on desktop */}
             <div className="mt-4 md:mt-2 flex flex-col sm:flex-row flex-wrap justify-center items-center gap-3 sm:gap-5 translate-x-0 md:-translate-x-24">

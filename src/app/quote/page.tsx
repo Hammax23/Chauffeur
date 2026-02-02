@@ -9,15 +9,8 @@ import Footer from "@/components/Footer";
 import { services } from "@/data/services";
 import { fleetData } from "@/data/fleet";
 
-const countryCodes = [
-  { code: "+92", label: "PK" },
-  { code: "+1", label: "US" },
-  { code: "+44", label: "UK" },
-  { code: "+971", label: "AE" },
-  { code: "+91", label: "IN" },
-  { code: "+49", label: "DE" },
-  { code: "+33", label: "FR" },
-];
+// Canada only for Online Quote phone
+const CANADA_PHONE = { code: "+1", label: "CA" };
 
 export default function QuotePage() {
   const [stops, setStops] = useState<string[]>([]);
@@ -81,22 +74,24 @@ export default function QuotePage() {
             {/* Row 2: Phone | Email */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <div>
-                <label className="block text-gray-800 text-[14px] font-medium mb-2">Phone</label>
+                <label className="block text-gray-800 text-[14px] font-medium mb-2">Phone (Canada only)</label>
                 <div className="flex rounded-xl overflow-hidden border border-gray-300 focus-within:ring-2 focus-within:ring-[#C9A063]/30 focus-within:border-[#C9A063] transition-all">
-                  <select className="px-3 py-3 pl-4 pr-8 bg-gray-50 border-r border-gray-300 text-[15px] text-gray-800 focus:outline-none appearance-none cursor-pointer min-w-[110px]">
-                    {countryCodes.map((c) => (
-                      <option key={c.code} value={c.code}>{c.code} {c.label}</option>
-                    ))}
-                  </select>
+                  <div className="px-3 py-3 pl-4 pr-4 bg-gray-100 border-r border-gray-300 text-[15px] text-gray-700 font-medium min-w-[90px] flex items-center justify-center shrink-0">
+                    {CANADA_PHONE.code} {CANADA_PHONE.label}
+                  </div>
                   <div className="relative flex-1 flex items-center">
                     <input
                       type="tel"
-                      placeholder="Phone"
+                      placeholder="e.g. 416-555-1234"
+                      maxLength={14}
+                      inputMode="numeric"
+                      pattern="[0-9\-\(\)\s]*"
                       className="w-full px-4 py-3 pr-11 border-0 focus:ring-0 focus:outline-none text-[15px] text-gray-800 placeholder-gray-400"
                     />
                     <Phone className="absolute right-3 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
                   </div>
                 </div>
+                <p className="mt-1 text-gray-500 text-[12px]">Canadian numbers only (+1)</p>
               </div>
               <div>
                 <label className="block text-gray-800 text-[14px] font-medium mb-2">Email</label>

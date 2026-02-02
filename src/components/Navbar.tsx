@@ -122,6 +122,10 @@ const Navbar = () => {
               <Link href="/contact" className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
                 CONTACT
               </Link>
+              
+              <Link href="/quote" className="text-white/90 px-5 py-2.5 text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
+                ONLINE RESERVATION
+              </Link>
             </div>
           </div>
 
@@ -236,6 +240,10 @@ const Navbar = () => {
             
             <Link href="/contact" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-sm font-medium text-left">
               CONTACT
+            </Link>
+            
+            <Link href="/quote" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-sm font-medium text-left">
+              ONLINE RESERVATION
             </Link>
 
             <div className="pt-3 mt-3 pb-2 border-t border-gray-800 space-y-2">

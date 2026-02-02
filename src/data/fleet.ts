@@ -56,15 +56,7 @@ export const fleetData: FleetVehicle[] = [
     seating: "16 maximum, 16 comfortable",
     luggage: "16 large",
   },
-  {
-    id: "minicoach-31",
-    name: "31 Pax MiniCoach",
-    description: "Full-size coach for larger groups. Perfect for corporate events and airport shuttles.",
-    image: "https://adventlimo.com/assets/31-pax.jpg",
-    category: "Coach",
-    seating: "31 maximum, 27 comfortable",
-    luggage: "30 pieces with 28 passengers",
-  },
+  
 ];
 
 export const fleetCategories: FleetCategory[] = ["Sedan", "Executive", "SUV", "Van", "Coach"];
