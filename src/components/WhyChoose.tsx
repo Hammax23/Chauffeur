@@ -1,63 +1,29 @@
 "use client";
 
 import Link from "next/link";
+import { ShieldCheck, Headphones, Clock, Calendar } from "lucide-react";
 
 const WhyChoose = () => {
   const features = [
     {
-      icon: (
-        <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
-        </svg>
-      ),
-      title: 'Luxury Fleet',
-      description: 'Enjoy a hand-selected collection of premium cars, maintained to perfection and ready for every occasion.',
+      icon: Clock,
+      title: 'On-Time',
+      description: 'We guarantee punctual service and professional time management for every ride.',
     },
     {
-      icon: (
-        <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
-        </svg>
-      ),
-      title: 'Professional Chauffeurs',
-      description: 'Travel with chauffeurs trained in hospitality, discretion, and world-class service standards.',
+      icon: ShieldCheck,
+      title: 'Safety & Privacy',
+      description: 'Professional chauffeurs ensure your safety and complete privacy throughout your journey.',
     },
     {
-      icon: (
-        <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
-        </svg>
-      ),
-      title: 'Fair Pricing',
-      description: 'Luxury service without hidden surprises—clear rates and full visibility from the start.',
+      icon: Calendar,
+      title: 'Flexible Bookings',
+      description: 'Flexible booking options that adapt to your schedule and changing needs.',
     },
     {
-      icon: (
-        <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-      title: '24/7 Support',
-      description: 'Your dedicated support team is always ready to assist with bookings, changes, or special arrangements.',
-    },
-    {
-      icon: (
-        <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-        </svg>
-      ),
-      title: 'Safety & Security',
-      description: 'Every vehicle and ride is protected under comprehensive insurance for absolute peace of mind.',
-    },
-    {
-      icon: (
-        <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-      title: 'On-Time Guarantee',
-      description: 'Timing is everything—our team ensures every pick-up and drop-off happens exactly when needed.',
+      icon: Headphones,
+      title: 'Customer Service',
+      description: '24/7 support available whenever you need assistance, day or night.',
     },
   ];
 
@@ -73,26 +39,26 @@ const WhyChoose = () => {
             </div>
           </div>
           
-          <h5 className="text-gray-400 text-[20px] sm:text-[22px] md:text-[24px] font-normal leading-relaxed text-center max-w-3xl mx-auto mb-6 sm:mb-8">
-            SARJ Worldwide owned vehicles, range from Sedans, SUVs, Sprinters and Limousines. All vehicle are equipped with cell phone chargers, WIFI, & bottled water.
-          </h5>
-          <div className="flex justify-center">
+          <h5 className="text-gray-400 text-[20px] sm:text-[22px] md:text-[24px] font-normal leading-relaxed text-center max-w-4xl mx-auto">
+            SARJ Worldwide owned vehicles, range from Sedans, SUVs, Sprinters and Limousines. All vehicle are equipped with cell phone chargers, WIFI, & bottled water.{" "}
             <Link
               href="/fleet"
-              className="inline-flex items-center justify-center px-8 py-4 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 text-white text-[15px] sm:text-[16px] font-semibold shadow-lg shadow-black/20 hover:bg-white/15 hover:shadow-xl hover:shadow-black/30 hover:scale-105 active:scale-95 transition-all duration-300"
+              className="text-[#C9A063] underline underline-offset-4 decoration-2 hover:text-white hover:decoration-white transition-colors duration-200 font-medium ml-1"
             >
               Our Fleets
             </Link>
-          </div>
+          </h5>
         </div>
 
-        {/* Features Grid - 2 rows x 3 columns */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-10 sm:gap-y-12">
-          {features.map((feature, index) => (
+        {/* Features Grid - 1 row x 4 columns */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-8">
+          {features.map((feature, index) => {
+            const Icon = feature.icon;
+            return (
             <div key={index} className="group">
               {/* Icon */}
               <div className="mb-6 text-white">
-                {feature.icon}
+                <Icon className="w-10 h-10" strokeWidth={1.5} />
               </div>
 
               {/* Title */}
@@ -105,7 +71,8 @@ const WhyChoose = () => {
                 {feature.description}
               </p>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
