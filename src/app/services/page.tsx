@@ -34,6 +34,9 @@ const iconMap: Record<ServiceIconKey, React.ElementType> = {
 
 const BASE_URL = "https://luxride-chauffeur.vercel.app";
 
+const HIDDEN_SERVICE_SLUGS = ["point-to-point-transfers", "vip-transport", "luxury-fleet", "premium-services"];
+const visibleServices = services.filter((s) => !HIDDEN_SERVICE_SLUGS.includes(s.slug));
+
 export const metadata: Metadata = {
   title: "Our Services",
   description:
@@ -81,7 +84,7 @@ export default function ServicesIndexPage() {
             Select a service to view full details, features, and how to book.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
-            {services.map((service) => {
+            {visibleServices.map((service) => {
               const Icon = iconMap[service.icon];
               return (
                 <Link

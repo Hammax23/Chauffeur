@@ -22,8 +22,8 @@ export interface Service {
 export const services: Service[] = [
   {
     slug: "airport-transfers",
-    title: "Airport Transfer Services",
-    shortDesc: "Stress-free arrivals & departures with meet & greet, flight tracking & premium comfort",
+    title: "Airport Transfer",
+    shortDesc: "Premium comfort for arrivals and departures.",
     description:
       "Skip the queues and chaos—arrive or depart in complete comfort with our premium airport transfer service. We monitor your flight in real time, so whether you land early or late, your chauffeur is ready. Enjoy meet & greet at arrivals, seamless luggage handling, and a relaxed ride in our luxury fleet. Perfect for business travellers, families, and anyone who values a flawless start or end to their journey.",
     features: [
@@ -39,7 +39,7 @@ export const services: Service[] = [
   {
     slug: "corporate-travel",
     title: "Corporate / Business Travel",
-    shortDesc: "Executive chauffeur service for meetings, conferences & impeccable first impressions",
+    shortDesc: "Executive chauffeur service for impeccable first impressions",
     description:
       "Make every business trip count with our executive chauffeur service. Arrive at meetings, conferences, and client sites in style—our professional drivers understand that punctuality and discretion are non-negotiable. Work, prepare, or simply relax in our premium vehicles while we handle traffic and logistics. Corporate billing, multi-stop itineraries, and last-minute bookings are all part of our commitment to supporting your success.",
     features: [
@@ -71,7 +71,7 @@ export const services: Service[] = [
   {
     slug: "hourly-chauffeur",
     title: "Hourly / As-Directed Chauffeur",
-    shortDesc: "Flexible chauffeur hire by the hour—multiple stops, errands, meetings & sightseeing",
+    shortDesc: "Flexible routing & sightseeing",
     description:
       "Need a chauffeur for a few hours or the full day? Our hourly and as-directed service puts you in control. Run errands, hit multiple meetings, explore the city, or simply enjoy having a dedicated driver at your disposal. Your chauffeur stays with you for the entire booking—no rush, no extra per-stop charges. Ideal for busy professionals, special outings, and anyone who values flexibility without compromising on luxury.",
     features: [
@@ -87,7 +87,7 @@ export const services: Service[] = [
   {
     slug: "wedding-events",
     title: "Wedding & Special Events",
-    shortDesc: "Bridal cars, red-carpet arrivals & flawless transport for your big day",
+    shortDesc: "Red-carpet arrivals & flawless transport for your big day",
     description:
       "Your wedding and special events deserve nothing less than perfection. From the bridal car to groom transport, guest shuttles, and red-carpet arrivals—we provide luxury vehicles and seamless coordination so you can focus on the moment. Decorative options, ribbon colours, and chauffeur attire can be tailored to match your theme. Our team works closely with planners and venues to ensure every pickup and drop-off runs like clockwork.",
     features: [
@@ -103,7 +103,7 @@ export const services: Service[] = [
   {
     slug: "city-tours",
     title: "City Tours & Sightseeing",
-    shortDesc: "Luxury guided tours—custom routes, photo stops & half or full-day packages",
+    shortDesc: "Half or full-day packages",
     description:
       "Discover the city in comfort and style with our luxury sightseeing tours. Customisable itineraries, photo stops at iconic landmarks, and the flexibility to go at your pace—all from the comfort of our premium vehicles. Whether you are a first-time visitor or hosting VIP guests, our experienced drivers know the best routes and hidden gems. Half-day, full-day, and multi-day packages are available, with optional multi-language support.",
     features: [
@@ -135,7 +135,7 @@ export const services: Service[] = [
   {
     slug: "intercity-travel",
     title: "Long-Distance / Intercity Travel",
-    shortDesc: "Comfortable door-to-door luxury between cities—business, relocation & leisure",
+    shortDesc: "Business, relocation & leisure",
     description:
       "Travel between cities without the hassle of flights or trains. Our long-distance chauffeur service offers door-to-door luxury for business trips, relocations, weekend getaways, or special occasions. Relax in our premium vehicles with ample luggage space, climate control, and optional WiFi. Rest stops are arranged as needed, and we ensure you reach your destination refreshed and on time. Cross-city and interstate journeys are our specialty.",
     features: [
