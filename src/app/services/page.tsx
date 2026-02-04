@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { services, type ServiceIconKey } from "@/data/services";
 import {
-  Plane,
-  Briefcase,
-  MapPin,
-  Clock,
-  Heart,
-  Camera,
-  Shield,
+  PlaneTakeoff,
+  Building2,
+  Route,
+  Timer,
+  Gem,
+  Landmark,
+  ShieldCheck,
   Car,
-  Sparkles,
-  Headphones,
+  CarFront,
+  PhoneCall,
   ArrowUpRight,
   ArrowRight,
 } from "lucide-react";
@@ -20,16 +20,16 @@ import Footer from "@/components/Footer";
 import type { Metadata } from "next";
 
 const iconMap: Record<ServiceIconKey, React.ElementType> = {
-  Plane,
-  Briefcase,
-  MapPin,
-  Clock,
-  Heart,
-  Camera,
-  Shield,
+  PlaneTakeoff,
+  Building2,
+  Route,
+  Timer,
+  Gem,
+  Landmark,
+  ShieldCheck,
   Car,
-  Sparkles,
-  Headphones,
+  CarFront,
+  PhoneCall,
 };
 
 const BASE_URL = "https://luxride-chauffeur.vercel.app";
@@ -52,68 +52,62 @@ export const metadata: Metadata = {
 
 export default function ServicesIndexPage() {
   return (
-    <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+    <main className="min-h-screen bg-[#fafafa]">
       <TopNav />
       <Navbar />
 
       {/* Hero */}
-      <section className="pt-[130px] md:pt-[145px] relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#C9A063]/[0.03] via-transparent to-[#C9A063]/[0.05]" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-px bg-gradient-to-r from-transparent via-[#C9A063]/20 to-transparent" />
-        <div className="max-w-[1200px] mx-auto px-6 sm:px-8 md:px-12 py-14 sm:py-16 md:py-20 relative z-10">
+      <section className="pt-[155px] md:pt-[175px] relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-transparent to-transparent" />
+        <div className="max-w-[1000px] mx-auto px-6 sm:px-8 md:px-12 py-16 sm:py-20 md:py-24 relative z-10">
           <div className="text-center">
-            <div className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-white border border-[#C9A063]/30 shadow-lg shadow-[#C9A063]/10 mb-6">
-              <div className="w-2 h-2 rounded-full bg-gradient-to-r from-[#C9A063] to-[#B8935A] animate-pulse" />
-              <span className="text-gray-800 text-[13px] sm:text-[14px] font-bold tracking-[0.2em] uppercase">
-                Our Services
-              </span>
-            </div>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 tracking-tight mb-5">
-              Luxury Chauffeur Services
+            <p className="text-[#C9A063] text-[12px] sm:text-[13px] font-semibold tracking-[0.2em] uppercase mb-3">
+              What we offer
+            </p>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 tracking-tight mb-4">
+              Our Services
             </h1>
-            <p className="text-gray-600 text-[15px] sm:text-[17px] md:text-[18px] max-w-2xl mx-auto leading-relaxed font-light">
-              From airport transfers to corporate travel, weddings, and VIP transport—every journey
-              is crafted with elegance and reliability.
+            <p className="text-gray-600 text-[15px] sm:text-[16px] max-w-xl mx-auto leading-relaxed">
+              From airport transfers to corporate travel, weddings, and VIP transport—every journey is crafted with elegance and reliability.
             </p>
           </div>
         </div>
       </section>
 
       {/* Services grid */}
-      <section className="relative pb-14 sm:pb-16 md:pb-20">
-        <div className="max-w-[1200px] mx-auto px-6 sm:px-8 md:px-12">
-          <p className="text-center text-gray-600 text-[14px] sm:text-[15px] mb-10 max-w-2xl mx-auto">
-            Click any service below to view full details, features &amp; how to book.
+      <section className="relative pb-16 sm:pb-20 md:pb-24">
+        <div className="max-w-[1100px] mx-auto px-6 sm:px-8 md:px-12">
+          <p className="text-center text-gray-500 text-[14px] sm:text-[15px] mb-12 max-w-lg mx-auto">
+            Select a service to view full details, features, and how to book.
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
             {services.map((service) => {
               const Icon = iconMap[service.icon];
               return (
                 <Link
                   key={service.slug}
                   href={`/services/${service.slug}`}
-                  className="group relative block rounded-2xl bg-white border border-gray-200/80 shadow-lg shadow-gray-200/40 hover:shadow-xl hover:shadow-[#C9A063]/15 hover:border-[#C9A063]/40 hover:-translate-y-1 transition-all duration-300 overflow-hidden"
+                  className="group relative block rounded-2xl bg-white border border-gray-100 shadow-[0_4px_20px_rgba(0,0,0,0.05)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)] hover:shadow-[#C9A063]/10 hover:border-[#C9A063]/30 hover:-translate-y-1.5 transition-all duration-500 ease-out overflow-hidden"
                 >
-                  {/* Top accent */}
-                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#C9A063]/0 via-[#C9A063]/30 to-[#C9A063]/0 group-hover:from-[#C9A063] group-hover:via-[#C9A063] group-hover:to-[#C9A063] transition-all duration-300" />
-                  <div className="p-6 sm:p-8">
-                    <div className="flex items-start gap-5">
-                      <div className="flex-shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-br from-[#C9A063] to-[#A68B5B] flex items-center justify-center shadow-md shadow-[#C9A063]/25 group-hover:shadow-lg group-hover:shadow-[#C9A063]/30 group-hover:scale-105 transition-all duration-300">
-                        <Icon className="w-8 h-8 text-white" strokeWidth={1.5} />
+                  <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#C9A063]/30 via-[#C9A063] to-[#C9A063]/30 origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out" />
+                  <div className="p-6 sm:p-7">
+                    <div className="flex items-start gap-4">
+                      <div className="flex-shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-[#C9A063] to-[#A68B5B] flex items-center justify-center shadow-md shadow-[#C9A063]/20 border border-[#C9A063]/20 group-hover:shadow-lg group-hover:shadow-[#C9A063]/25 group-hover:scale-110 group-hover:border-[#C9A063]/30 group-hover:rotate-3 transition-all duration-500 ease-out">
+                        <Icon className="w-7 h-7 text-white drop-shadow-sm" strokeWidth={1.75} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h2 className="text-gray-900 font-bold text-[17px] sm:text-[18px] mb-2.5 tracking-tight leading-snug group-hover:text-[#C9A063] transition-colors">
+                        <h2 className="text-gray-900 font-bold text-[16px] sm:text-[17px] mb-2 tracking-tight leading-snug group-hover:text-[#C9A063] transition-colors duration-300">
                           {service.title}
                         </h2>
-                        <p className="text-gray-600 text-[14px] sm:text-[15px] leading-relaxed">
+                        <p className="text-gray-600 text-[14px] leading-relaxed group-hover:text-gray-700 transition-colors duration-300">
                           {service.shortDesc}
                         </p>
                       </div>
                     </div>
-                    <div className="mt-6 pt-5 border-t border-gray-100 flex items-center justify-between">
-                      <span className="text-[#C9A063] text-[14px] font-semibold">View details</span>
-                      <span className="w-9 h-9 rounded-full bg-[#C9A063]/10 flex items-center justify-center group-hover:bg-[#C9A063] transition-colors duration-300">
-                        <ArrowUpRight className="w-4 h-4 text-[#C9A063] group-hover:text-white transition-colors duration-300" strokeWidth={2.5} />
+                    <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between">
+                      <span className="text-[#C9A063] text-[13px] font-semibold group-hover:tracking-wide transition-all duration-300">View details</span>
+                      <span className="w-8 h-8 rounded-full bg-[#C9A063]/10 flex items-center justify-center group-hover:bg-[#C9A063] group-hover:shadow-md group-hover:shadow-[#C9A063]/20 group-hover:scale-110 group-hover:rotate-12 transition-all duration-500 ease-out">
+                        <ArrowUpRight className="w-3.5 h-3.5 text-[#C9A063] group-hover:text-white group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all duration-300" strokeWidth={2.25} />
                       </span>
                     </div>
                   </div>
@@ -124,31 +118,34 @@ export default function ServicesIndexPage() {
         </div>
       </section>
 
-      {/* CTA strip */}
-      <section className="py-14 sm:py-16 md:py-20">
-        <div className="max-w-[1200px] mx-auto px-6 sm:px-8 md:px-12">
-          <div className="relative rounded-2xl overflow-hidden border border-[#C9A063]/20 bg-gradient-to-br from-[#C9A063]/[0.06] via-white to-[#C9A063]/[0.04] shadow-lg shadow-[#C9A063]/10">
-            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#C9A063]/40 to-transparent" />
-            <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#C9A063]/40 to-transparent" />
-            <div className="relative py-12 sm:py-14 md:py-16 text-center px-6">
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 tracking-tight mb-4">
+      {/* CTA strip - with book cover */}
+      <section className="py-16 sm:py-20 md:py-24">
+        <div className="max-w-[1100px] mx-auto px-6 sm:px-8 md:px-12">
+          <div className="relative rounded-2xl overflow-hidden border border-gray-100 shadow-[0_4px_24px_rgba(0,0,0,0.08)] min-h-[280px] sm:min-h-[320px]">
+            <div
+              className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+              style={{ backgroundImage: "url(/book.png)" }}
+            />
+            <div className="absolute inset-0 bg-black/50" />
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#C9A063] to-[#A68B5B]" />
+            <div className="relative py-14 sm:py-16 text-center px-6 sm:px-10">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-white tracking-tight mb-3 drop-shadow-sm">
                 Ready to book your ride?
               </h2>
-              <p className="text-gray-600 text-[15px] sm:text-[16px] max-w-xl mx-auto mb-8">
-                Choose a service above or head straight to booking. Our team is available 24/7 to
-                assist you.
+              <p className="text-white/90 text-[14px] sm:text-[15px] max-w-lg mx-auto mb-8 drop-shadow-sm">
+                Choose a service above or go straight to booking. Our team is available 24/7 to assist you.
               </p>
-              <div className="flex flex-wrap items-center justify-center gap-4">
+              <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
                 <Link
                   href="/#book"
-                  className="group inline-flex items-center justify-center gap-2 px-10 py-4 rounded-full bg-[#C9A063] text-white font-semibold shadow-sm hover:bg-[#B8935A] active:scale-[0.98] transition-all duration-200"
+                  className="group inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-[#C9A063] text-white text-[15px] font-semibold shadow-md hover:bg-[#B8935A] hover:shadow-lg hover:shadow-[#C9A063]/25 active:scale-[0.98] transition-all duration-200"
                 >
                   Book a ride
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform duration-200" strokeWidth={2} />
                 </Link>
                 <Link
                   href="/fleet"
-                  className="inline-flex items-center justify-center gap-2 px-8 py-4 border-2 border-gray-300 text-gray-700 font-semibold rounded-xl hover:border-[#C9A063] hover:text-[#C9A063] transition-all duration-300"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-white/95 text-gray-800 text-[15px] font-medium border border-white/50 hover:bg-white hover:text-[#C9A063] transition-all duration-200"
                 >
                   View our fleet
                 </Link>

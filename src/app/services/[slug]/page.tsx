@@ -6,16 +6,16 @@ import {
   type ServiceIconKey,
 } from "@/data/services";
 import {
-  Plane,
-  Briefcase,
-  MapPin,
-  Clock,
-  Heart,
-  Camera,
-  Shield,
+  PlaneTakeoff,
+  Building2,
+  Route,
+  Timer,
+  Gem,
+  Landmark,
+  ShieldCheck,
   Car,
-  Sparkles,
-  Headphones,
+  CarFront,
+  PhoneCall,
   ArrowLeft,
   ArrowRight,
   Check,
@@ -26,16 +26,16 @@ import Footer from "@/components/Footer";
 import type { Metadata } from "next";
 
 const iconMap: Record<ServiceIconKey, React.ElementType> = {
-  Plane,
-  Briefcase,
-  MapPin,
-  Clock,
-  Heart,
-  Camera,
-  Shield,
+  PlaneTakeoff,
+  Building2,
+  Route,
+  Timer,
+  Gem,
+  Landmark,
+  ShieldCheck,
   Car,
-  Sparkles,
-  Headphones,
+  CarFront,
+  PhoneCall,
 };
 
 type Props = { params: Promise<{ slug: string }> };
@@ -121,8 +121,8 @@ export default async function ServicePage({ params }: Props) {
         <div className="max-w-[1100px] mx-auto px-6 sm:px-8 md:px-12 py-10 sm:py-14 md:py-16 relative z-10">
           <div className="flex flex-col md:flex-row md:items-start gap-8 md:gap-12">
             <div className="flex-shrink-0">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#C9A063] to-[#A68B5B] flex items-center justify-center shadow-xl shadow-[#C9A063]/25">
-                <Icon className="w-10 h-10 text-white" strokeWidth={1.5} />
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#C9A063] to-[#A68B5B] flex items-center justify-center shadow-lg shadow-[#C9A063]/25 border border-[#C9A063]/20">
+                <Icon className="w-10 h-10 text-white drop-shadow-sm" strokeWidth={1.75} />
               </div>
             </div>
             <div className="flex-1">
@@ -160,8 +160,8 @@ export default async function ServicePage({ params }: Props) {
                 key={i}
                 className="group flex items-center gap-4 p-5 sm:p-6 rounded-2xl bg-white border border-gray-100 shadow-md shadow-gray-200/50 hover:shadow-lg hover:shadow-[#C9A063]/10 hover:border-[#C9A063]/30 transition-all duration-300"
               >
-                <span className="flex-shrink-0 w-10 h-10 rounded-xl bg-[#C9A063]/10 flex items-center justify-center group-hover:bg-[#C9A063]/20 transition-colors duration-300">
-                  <Check className="w-5 h-5 text-[#C9A063]" strokeWidth={2.5} />
+                <span className="flex-shrink-0 w-10 h-10 rounded-xl bg-[#C9A063]/10 border border-[#C9A063]/15 flex items-center justify-center group-hover:bg-[#C9A063]/15 group-hover:border-[#C9A063]/25 transition-all duration-300">
+                  <Check className="w-5 h-5 text-[#C9A063]" strokeWidth={2.25} />
                 </span>
                 <span className="text-gray-800 text-[15px] sm:text-[16px] font-medium">
                   {feature}

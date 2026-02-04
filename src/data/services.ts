@@ -1,14 +1,14 @@
 export type ServiceIconKey =
-  | "Plane"
-  | "Briefcase"
-  | "MapPin"
-  | "Clock"
-  | "Heart"
-  | "Camera"
-  | "Shield"
+  | "PlaneTakeoff"
+  | "Building2"
+  | "Route"
+  | "Timer"
+  | "Gem"
+  | "Landmark"
+  | "ShieldCheck"
   | "Car"
-  | "Sparkles"
-  | "Headphones";
+  | "CarFront"
+  | "PhoneCall";
 
 export interface Service {
   slug: string;
@@ -34,7 +34,7 @@ export const services: Service[] = [
       "24/7 availability at all major airports",
       "Premium sedans, SUVs & executive vans",
     ],
-    icon: "Plane",
+    icon: "PlaneTakeoff",
   },
   {
     slug: "corporate-travel",
@@ -50,7 +50,7 @@ export const services: Service[] = [
       "Last-minute & recurring bookings welcomed",
       "Complimentary WiFi & charging on request",
     ],
-    icon: "Briefcase",
+    icon: "Building2",
   },
   {
     slug: "point-to-point-transfers",
@@ -66,7 +66,7 @@ export const services: Service[] = [
       "Punctual pickups with live driver tracking",
       "Luggage space & comfort amenities included",
     ],
-    icon: "MapPin",
+    icon: "Route",
   },
   {
     slug: "hourly-chauffeur",
@@ -82,7 +82,7 @@ export const services: Service[] = [
       "Ideal for meetings, errands, tours & events",
       "Premium vehicles with WiFi & charging",
     ],
-    icon: "Clock",
+    icon: "Timer",
   },
   {
     slug: "wedding-events",
@@ -98,7 +98,7 @@ export const services: Service[] = [
       "Guest shuttle & multi-vehicle packages",
       "Flexible timings aligned with your schedule",
     ],
-    icon: "Heart",
+    icon: "Gem",
   },
   {
     slug: "city-tours",
@@ -114,7 +114,7 @@ export const services: Service[] = [
       "Knowledgeable chauffeurs with local insight",
       "Luxury sedans & SUVs for small groups",
     ],
-    icon: "Camera",
+    icon: "Landmark",
   },
   {
     slug: "vip-transport",
@@ -130,7 +130,7 @@ export const services: Service[] = [
       "Flexible pick-up and drop-off for privacy",
       "24/7 availability for last-minute requirements",
     ],
-    icon: "Shield",
+    icon: "ShieldCheck",
   },
   {
     slug: "intercity-travel",
@@ -162,7 +162,7 @@ export const services: Service[] = [
       "Child seats & accessibility options on request",
       "Tailored to group size and occasion",
     ],
-    icon: "Sparkles",
+    icon: "CarFront",
   },
   {
     slug: "premium-services",
@@ -178,7 +178,7 @@ export const services: Service[] = [
       "Special requests considered—just ask",
       "Consistent luxury across every ride",
     ],
-    icon: "Headphones",
+    icon: "PhoneCall",
   },
 ];
 

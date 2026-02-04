@@ -52,49 +52,53 @@ export default function QuotePage() {
   const removeStop = (i: number) => setStops((s) => s.filter((_, j) => j !== i));
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+    <main className="min-h-screen bg-[#fafafa]">
       <TopNav />
       <Navbar />
 
-      <section className="pt-[130px] md:pt-[145px] py-12 sm:py-16 md:py-20">
-        <div className="max-w-[720px] mx-auto px-6 sm:px-8 md:px-12">
-          <div className="mb-8 sm:mb-10">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 tracking-tight mb-2">
-              ONLINE QUOTE
+      <section className="pt-[155px] md:pt-[175px] py-12 sm:py-16 md:py-20">
+        <div className="max-w-[680px] mx-auto px-5 sm:px-8 md:px-10">
+          {/* Page header */}
+          <div className="mb-8 sm:mb-10 text-center sm:text-left">
+            <p className="text-[#C9A063] text-[12px] sm:text-[13px] font-semibold tracking-[0.2em] uppercase mb-2">
+              Request a quote
+            </p>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 tracking-tight">
+              Online Quote
             </h1>
-            <p className="text-[#C9A063] text-[14px] sm:text-[15px] font-semibold tracking-wide uppercase">
-              REQUEST A QUOTE
+            <p className="mt-3 text-gray-500 text-[14px] sm:text-[15px] max-w-xl">
+              Fill in the details below and we&apos;ll get back to you with a personalized quote.
             </p>
           </div>
 
           <form
             onSubmit={(e) => e.preventDefault()}
-            className="rounded-2xl bg-white border border-gray-200 shadow-lg shadow-gray-200/50 p-6 sm:p-8 md:p-10 space-y-6"
+            className="rounded-2xl bg-white border border-gray-100 shadow-[0_4px_24px_rgba(0,0,0,0.06)] overflow-hidden p-6 sm:p-8 md:p-10 space-y-6 relative before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-gradient-to-r before:from-[#C9A063] before:to-[#A68B5B]"
           >
             {/* Row 1: Passenger Name | Passengers */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
               <div>
-                <label className="block text-gray-800 text-[14px] font-medium mb-2">
+                <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">
                   Passenger Name
                 </label>
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="First and Last name"
-                    className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all"
+                    placeholder="First and last name"
+                    className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 placeholder-gray-400 bg-gray-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200"
                   />
                   <User className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
                 </div>
               </div>
               <div>
-                <label className="block text-gray-800 text-[14px] font-medium mb-2">
+                <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">
                   Passengers
                 </label>
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="# of passengers"
-                    className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all"
+                    placeholder="Number of passengers"
+                    className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 placeholder-gray-400 bg-gray-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200"
                   />
                   <Users className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
                 </div>
@@ -102,15 +106,15 @@ export default function QuotePage() {
             </div>
 
             {/* Row 2: Phone | Email */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
               <div>
-                <label className="block text-gray-800 text-[14px] font-medium mb-2">Phone</label>
-                <div className="flex rounded-xl border border-gray-300 focus-within:ring-2 focus-within:ring-[#C9A063]/30 focus-within:border-[#C9A063] transition-all">
+                <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Phone</label>
+                <div className="flex rounded-xl border border-gray-200 bg-gray-50/50 focus-within:bg-white focus-within:ring-2 focus-within:ring-[#C9A063]/20 focus-within:border-[#C9A063] transition-all duration-200">
                   <div className="relative flex-shrink-0 w-[100px] rounded-l-xl overflow-visible" ref={countryDropdownRef}>
                     <button
                       type="button"
                       onClick={() => setCountryDropdownOpen((o) => !o)}
-                      className="w-full flex items-center justify-center gap-1 px-2 py-3 bg-gray-50 border-r border-gray-300 text-[13px] text-gray-800 font-medium focus:outline-none cursor-pointer hover:bg-gray-100/80 transition-colors"
+                      className="w-full flex items-center justify-center gap-1 px-2 py-3 bg-gray-100/80 border-r border-gray-200 text-[13px] text-gray-800 font-medium focus:outline-none cursor-pointer hover:bg-gray-100 transition-colors duration-200"
                       aria-haspopup="listbox"
                       aria-expanded={countryDropdownOpen}
                       aria-label="Country code"
@@ -128,7 +132,7 @@ export default function QuotePage() {
                     {countryDropdownOpen && (
                       <ul
                         role="listbox"
-                        className="absolute left-0 top-full z-[100] mt-1 w-[180px] max-h-[240px] overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl py-1"
+                        className="absolute left-0 top-full z-[100] mt-1 w-[200px] max-h-[260px] overflow-y-auto rounded-xl border border-gray-100 bg-white shadow-[0_10px_40px_rgba(0,0,0,0.1)] py-1.5"
                       >
                         {COUNTRY_CODES.map((c) => (
                           <li key={`${c.code}-${c.label}`} role="option" aria-selected={c.label === selectedCountry.label && c.code === selectedCountry.code}>
@@ -139,7 +143,7 @@ export default function QuotePage() {
                                 setCountryLabel(c.label);
                                 setCountryDropdownOpen(false);
                               }}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-left text-[13px] text-gray-800 hover:bg-[#C9A063]/10 focus:bg-[#C9A063]/10 focus:outline-none"
+                              className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-[14px] text-gray-800 hover:bg-[#C9A063]/10 focus:bg-[#C9A063]/10 focus:outline-none transition-colors duration-150 rounded-lg mx-1"
                             >
                               <img
                                 src={`${FLAG_CDN}/w40/${c.flagCode}.png`}
@@ -161,20 +165,20 @@ export default function QuotePage() {
                       placeholder={countryLabel === "CA" || countryLabel === "US" ? "e.g. 416-555-1234" : "Phone number"}
                       maxLength={18}
                       inputMode="tel"
-                      className="w-full px-4 py-3 pr-11 border-0 focus:ring-0 focus:outline-none text-[15px] text-gray-800 placeholder-gray-400"
+                      className="w-full px-4 py-3 pr-11 border-0 bg-transparent focus:ring-0 focus:outline-none text-[15px] text-gray-900 placeholder-gray-400"
                     />
                     <Phone className="absolute right-3 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
                   </div>
                 </div>
-                <p className="mt-1 text-gray-500 text-[12px]">Canada, US, UK & Europe supported</p>
+                <p className="mt-1.5 text-gray-400 text-[12px]">Canada, US, UK & Europe</p>
               </div>
               <div>
-                <label className="block text-gray-800 text-[14px] font-medium mb-2">Email</label>
+                <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Email</label>
                 <div className="relative">
                   <input
                     type="email"
-                    placeholder="Email"
-                    className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all"
+                    placeholder="your@email.com"
+                    className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 placeholder-gray-400 bg-gray-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200"
                   />
                   <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
                 </div>
@@ -182,13 +186,11 @@ export default function QuotePage() {
             </div>
 
             {/* Row 3: Service Type | Vehicle */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
               <div>
-                <label className="block text-gray-800 text-[14px] font-medium mb-2">
-                  Service Type
-                </label>
+                <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Service Type</label>
                 <div className="relative">
-                  <select className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-xl text-[15px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] appearance-none cursor-pointer bg-white">
+                  <select className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] appearance-none cursor-pointer bg-gray-50/50 focus:bg-white transition-all duration-200">
                     <option value="">Select service type</option>
                     {services.map((s) => (
                       <option key={s.slug} value={s.slug}>{s.title}</option>
@@ -198,9 +200,9 @@ export default function QuotePage() {
                 </div>
               </div>
               <div>
-                <label className="block text-gray-800 text-[14px] font-medium mb-2">Vehicle</label>
+                <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Vehicle</label>
                 <div className="relative">
-                  <select className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-xl text-[15px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] appearance-none cursor-pointer bg-white">
+                  <select className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] appearance-none cursor-pointer bg-gray-50/50 focus:bg-white transition-all duration-200">
                     <option value="">Select vehicle</option>
                     {fleetData.map((v) => (
                       <option key={v.id} value={v.id}>{v.name}</option>
@@ -213,13 +215,11 @@ export default function QuotePage() {
 
             {/* Row 4: Pick-up time */}
             <div>
-              <label className="block text-gray-800 text-[14px] font-medium mb-2">
-                Pick-up time
-              </label>
+              <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Pick-up time</label>
               <div className="relative">
                 <input
                   type="datetime-local"
-                  className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-xl text-[15px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all"
+                  className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 bg-gray-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200"
                 />
                 <Clock className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
               </div>
@@ -227,22 +227,20 @@ export default function QuotePage() {
 
             {/* Row 5: Pick-up location + Add Stop */}
             <div>
-              <label className="block text-gray-800 text-[14px] font-medium mb-2">
-                Pick-up location
-              </label>
+              <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Pick-up location</label>
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-1">
                   <input
                     type="text"
-                    placeholder="Pick-up location"
-                    className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all"
+                    placeholder="Address or landmark"
+                    className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 placeholder-gray-400 bg-gray-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200"
                   />
                   <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
                 </div>
                 <button
                   type="button"
                   onClick={addStop}
-                  className="inline-flex items-center justify-center gap-2 px-5 py-3 border-2 border-[#C9A063] text-[#C9A063] font-semibold rounded-xl hover:bg-[#C9A063]/10 transition-all whitespace-nowrap"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-3 border border-[#C9A063]/40 text-[#C9A063] text-[14px] font-medium rounded-xl hover:bg-[#C9A063]/10 transition-all duration-200 whitespace-nowrap"
                 >
                   <Plus className="w-4 h-4" strokeWidth={2.5} />
                   Add Stop
@@ -253,9 +251,7 @@ export default function QuotePage() {
             {/* Dynamic stops */}
             {stops.map((stop, i) => (
               <div key={i}>
-                <label className="block text-gray-800 text-[14px] font-medium mb-2">
-                  Stop {i + 1}
-                </label>
+                <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Stop {i + 1}</label>
                 <div className="flex gap-3">
                   <div className="relative flex-1">
                     <input
@@ -263,14 +259,14 @@ export default function QuotePage() {
                       placeholder="Stop location"
                       value={stop}
                       onChange={(e) => updateStop(i, e.target.value)}
-                      className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all"
+                      className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 placeholder-gray-400 bg-gray-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200"
                     />
                     <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
                   </div>
                   <button
                     type="button"
                     onClick={() => removeStop(i)}
-                    className="px-4 py-3 text-gray-500 hover:text-red-600 font-medium rounded-xl border border-gray-300 hover:border-red-300 transition-all"
+                    className="px-4 py-3 text-[13px] text-gray-500 hover:text-red-600 font-medium rounded-xl border border-gray-200 hover:border-red-200 hover:bg-red-50/50 transition-all duration-200"
                   >
                     Remove
                   </button>
@@ -280,14 +276,12 @@ export default function QuotePage() {
 
             {/* Row 6: Drop-off location */}
             <div>
-              <label className="block text-gray-800 text-[14px] font-medium mb-2">
-                Drop-off location
-              </label>
+              <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Drop-off location</label>
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Drop-off location"
-                  className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all"
+                  placeholder="Address or landmark"
+                  className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 placeholder-gray-400 bg-gray-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200"
                 />
                 <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
               </div>
@@ -295,39 +289,39 @@ export default function QuotePage() {
 
             {/* Row 7: Notes */}
             <div>
-              <label className="block text-gray-800 text-[14px] font-medium mb-2">Notes:</label>
+              <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Additional notes</label>
               <textarea
-                placeholder="Additional Notes"
+                placeholder="Special requests, accessibility needs, etc."
                 rows={4}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all resize-y min-h-[100px]"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-[15px] text-gray-900 placeholder-gray-400 bg-gray-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200 resize-y min-h-[100px]"
               />
             </div>
 
             {/* Checkbox + Submit */}
-            <div className="pt-4 space-y-6">
-              <label className="flex items-start gap-3 cursor-pointer">
+            <div className="pt-2 pb-1 space-y-5">
+              <label className="flex items-start gap-3 cursor-pointer group">
                 <input
                   type="checkbox"
                   checked={agree}
                   onChange={(e) => setAgree(e.target.checked)}
-                  className="mt-1 w-4 h-4 rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063]"
+                  className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063] focus:ring-offset-0"
                 />
-                <span className="text-gray-700 text-[14px] sm:text-[15px]">
-                  I agree to receive email and SMS communication regarding my quote request.
+                <span className="text-gray-600 text-[13px] sm:text-[14px] leading-snug group-hover:text-gray-700">
+                  I agree to receive email and SMS updates about my quote request.
                 </span>
               </label>
               <button
                 type="submit"
-                className="w-full sm:w-auto inline-flex items-center justify-center px-10 py-4 bg-gradient-to-r from-[#C9A063] to-[#A68B5B] text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-[#C9A063]/30 transition-all duration-300"
+                className="w-full sm:w-auto inline-flex items-center justify-center px-8 py-3.5 bg-[#C9A063] text-white text-[15px] font-semibold rounded-xl hover:bg-[#B89552] shadow-md hover:shadow-lg hover:shadow-[#C9A063]/25 transition-all duration-200"
               >
                 Get My Quote
               </button>
             </div>
           </form>
 
-          <p className="mt-6 text-center text-gray-500 text-[14px]">
+          <p className="mt-8 text-center text-gray-500 text-[14px]">
             Prefer to book directly?{" "}
-            <Link href="/#book" className="text-[#C9A063] font-medium hover:underline">
+            <Link href="/#book" className="text-[#C9A063] font-semibold hover:underline underline-offset-2">
               Go to booking
             </Link>
           </p>
