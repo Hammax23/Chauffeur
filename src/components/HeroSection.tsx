@@ -33,9 +33,9 @@ const HeroSection = () => {
             Where Would You Like To Go?
           </p>
           <h1 className="text-white text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-medium leading-tight">
-            Your Personal
+            Your Personal Certified
             <br />
-            Chauffeur Services
+            Chauffeurd Services
           </h1>
           </div>
         </div>
