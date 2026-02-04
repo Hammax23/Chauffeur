@@ -1,6 +1,6 @@
 "use client";
 import { User, Mail, Phone } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
 const HeroSection = () => {
@@ -9,12 +9,33 @@ const HeroSection = () => {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [videoLoaded, setVideoLoaded] = useState(false);
+  const [videoError, setVideoError] = useState(false);
+
+  const handleVideoLoad = useCallback(() => {
+    setVideoLoaded(true);
+  }, []);
+
+  const handleVideoError = useCallback(() => {
+    setVideoError(true);
+  }, []);
 
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.load();
+    const video = videoRef.current;
+    if (video) {
+      // Set up optimized loading
+      video.addEventListener('loadeddata', handleVideoLoad);
+      video.addEventListener('error', handleVideoError);
+      
+      // Try to load the video
+      video.load();
+      
+      return () => {
+        video.removeEventListener('loadeddata', handleVideoLoad);
+        video.removeEventListener('error', handleVideoError);
+      };
     }
-  }, []);
+  }, [handleVideoLoad, handleVideoError]);
 
   const handleNext = () => {
     const params = new URLSearchParams();
@@ -26,18 +47,37 @@ const HeroSection = () => {
 
   return (
     <section className="relative min-h-screen w-full overflow-hidden">
+      {/* Fallback background image while video loads */}
+      <div 
+        className="absolute inset-0 w-full h-full bg-cover bg-center bg-no-repeat"
+        style={{
+          backgroundImage: 'url(/cover-poster.jpg)',
+          opacity: videoLoaded ? 0 : 1,
+          transition: 'opacity 0.5s ease-in-out'
+        }}
+      />
+      
+      {/* Optimized video loading */}
       <video
         ref={videoRef}
         autoPlay
         loop
         muted
         playsInline
-        preload="metadata"
+        preload="none"
         poster="/cover-poster.jpg"
-        className="absolute inset-0 w-full h-full object-cover"
+        onLoadedData={handleVideoLoad}
+        onError={handleVideoError}
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+          videoLoaded ? 'opacity-100' : 'opacity-0'
+        }`}
+        style={{
+          willChange: 'opacity'
+        }}
       >
         <source src="/cover.mp4" type="video/mp4" />
       </video>
+      
       <div className="absolute inset-0 bg-black/40"></div>
 
       <div className="relative z-10 flex flex-col min-h-screen pt-[130px] sm:pt-[145px]">
