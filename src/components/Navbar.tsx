@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { Phone, Menu, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -26,10 +27,13 @@ const Navbar = () => {
         <div className="flex items-center justify-between h-[85px] md:h-[100px]">
           <div className="flex items-center gap-12">
             <Link href="/" className="flex items-center">
-              <img 
+              <Image 
                 src="/logo1.png" 
                 alt="SARJ Worldwide Chauffeur Services Logo" 
-                className="h-[50px] sm:h-[50px] w-auto object-contain drop-shadow-lg"
+                width={250}
+                height={100}
+                className="object-contain object-left"
+                style={{ width: '300px', height: '100px' }}
               />
             </Link>
 

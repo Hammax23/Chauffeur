@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { Crown, Instagram, Facebook, Linkedin } from 'lucide-react';
 
 const Footer = () => {
@@ -20,16 +21,19 @@ const Footer = () => {
           {/* Left Section - Brand */}
           <div className="space-y-5">
             {/* Logo with iOS effect */}
-            <div className="group cursor-pointer">
+            <Link href="/" className="group block">
               <div className="relative inline-block">
                 <div className="absolute inset-0 bg-[#C9A063]/20 rounded-lg blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                <img 
+                <Image 
                   src="/logo1.png" 
-                  alt="Logo" 
-                  className="h-[45px] sm:h-[45px] w-auto relative z-10 group-hover:scale-105 transition-transform duration-300"
+                  alt="SARJ Worldwide Logo" 
+                  width={160}
+                  height={45}
+                  className="h-[45px] w-auto relative z-10 group-hover:scale-105 transition-transform duration-300"
+                  unoptimized
                 />
               </div>
-            </div>
+            </Link>
             
             {/* Description */}
             <p className="text-gray-400 text-[14px] leading-relaxed max-w-[280px] font-light">
