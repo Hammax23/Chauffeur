@@ -109,11 +109,11 @@ export default function QuotePage() {
               <div>
                 <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Phone</label>
                 <div className="flex rounded-xl border border-gray-200 bg-gray-50/50 focus-within:bg-white focus-within:ring-2 focus-within:ring-[#C9A063]/20 focus-within:border-[#C9A063] transition-all duration-200">
-                  <div className="relative flex-shrink-0 w-[100px] rounded-l-xl overflow-visible" ref={countryDropdownRef}>
+                  <div className="relative flex-shrink-0 w-[75px] rounded-l-xl overflow-visible" ref={countryDropdownRef}>
                     <button
                       type="button"
                       onClick={() => setCountryDropdownOpen((o) => !o)}
-                      className="w-full flex items-center justify-center gap-1 px-2 py-3 bg-gray-100/80 border-r border-gray-200 text-[13px] text-gray-800 font-medium focus:outline-none cursor-pointer hover:bg-gray-100 transition-colors duration-200"
+                      className="w-full flex items-center justify-center gap-1 px-2 py-3 bg-gray-100/80 border-r border-gray-200 text-[12px] text-gray-800 font-medium focus:outline-none cursor-pointer hover:bg-gray-100 transition-colors duration-200"
                       aria-haspopup="listbox"
                       aria-expanded={countryDropdownOpen}
                       aria-label="Country code"
@@ -121,17 +121,17 @@ export default function QuotePage() {
                       <img
                         src={`${FLAG_CDN}/w40/${selectedCountry.flagCode}.png`}
                         alt=""
-                        width={20}
-                        height={15}
-                        className="w-5 h-[15px] object-cover rounded-sm shrink-0"
+                        width={18}
+                        height={13}
+                        className="w-[18px] h-[13px] object-cover rounded-sm shrink-0"
                       />
-                      <span className="whitespace-nowrap">{selectedCountry.code} {selectedCountry.label}</span>
-                      <ChevronDown className={`w-3.5 h-3.5 text-gray-500 shrink-0 transition-transform ${countryDropdownOpen ? "rotate-180" : ""}`} strokeWidth={2.5} />
+                      <span className="whitespace-nowrap font-semibold">{selectedCountry.code}</span>
+                      <ChevronDown className={`w-3 h-3 text-gray-500 shrink-0 transition-transform ${countryDropdownOpen ? "rotate-180" : ""}`} strokeWidth={2.5} />
                     </button>
                     {countryDropdownOpen && (
                       <ul
                         role="listbox"
-                        className="absolute left-0 top-full z-[100] mt-1 w-[200px] max-h-[260px] overflow-y-auto rounded-xl border border-gray-100 bg-white shadow-[0_10px_40px_rgba(0,0,0,0.1)] py-1.5"
+                        className="absolute left-0 top-full z-[100] mt-1 w-[180px] max-h-[260px] overflow-y-auto overflow-x-hidden rounded-xl border border-gray-100 bg-white shadow-[0_10px_40px_rgba(0,0,0,0.1)] py-1.5"
                       >
                         {COUNTRY_CODES.map((c) => (
                           <li key={`${c.code}-${c.label}`} role="option" aria-selected={c.label === selectedCountry.label && c.code === selectedCountry.code}>
@@ -142,16 +142,16 @@ export default function QuotePage() {
                                 setCountryLabel(c.label);
                                 setCountryDropdownOpen(false);
                               }}
-                              className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-[14px] text-gray-800 hover:bg-[#C9A063]/10 focus:bg-[#C9A063]/10 focus:outline-none transition-colors duration-150 rounded-lg mx-1"
+                              className="w-full flex items-center gap-2 px-2 py-2 text-left text-[13px] text-gray-800 hover:bg-[#C9A063]/10 focus:bg-[#C9A063]/10 focus:outline-none transition-colors duration-150 rounded-lg mx-1 min-w-0"
                             >
                               <img
                                 src={`${FLAG_CDN}/w40/${c.flagCode}.png`}
                                 alt=""
-                                width={20}
-                                height={15}
-                                className="w-5 h-[15px] object-cover rounded-sm shrink-0"
+                                width={18}
+                                height={13}
+                                className="w-[18px] h-[13px] object-cover rounded-sm shrink-0"
                               />
-                              <span>{c.code} {c.label}</span>
+                              <span className="font-medium truncate">{c.code} {c.label}</span>
                             </button>
                           </li>
                         ))}

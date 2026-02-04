@@ -143,8 +143,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="icon" href="/logo1.png" type="image/png" sizes="any" />
+        <link rel="apple-touch-icon" href="/logo1.png" />
         <link rel="manifest" href="/manifest.json" />
         <link rel="preload" href="/cover.mp4" as="video" type="video/mp4" />
         <meta name="theme-color" content="#C9A063" />
