@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 const WhyChoose = () => {
   const features = [
     {
@@ -63,24 +65,24 @@ const WhyChoose = () => {
     <section className="py-10 sm:py-12 md:py-14 lg:py-16 bg-[#0a0a0a] relative overflow-hidden">
       <div className="max-w-[1400px] mx-auto px-6 sm:px-8 md:px-12 relative z-10">
         {/* Header Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 mb-10 sm:mb-12 md:mb-14">
-          {/* Left: Badge and Heading */}
-          <div>
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/30 mb-4 sm:mb-5">
+        <div className="mb-10 sm:mb-12 md:mb-14">
+          <div className="flex justify-center mb-4 sm:mb-5">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/30">
               <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
               <span className="text-white text-[12px] sm:text-[13px] font-normal tracking-widest uppercase">WHY CHOOSE US</span>
             </div>
-            
-            <h5 className="text-gray-400 text-[25px] sm:text-[23px] font-normal leading-relaxed">
-            SARJ Worldwide owned vehicles, range from Sedans, SUVs, Sprinters and Limousines. All vehicle are equipped with cell phone chargers, WIFI, & bottled water.
-            </h5>
           </div>
-
-          {/* Right: Description */}
-          <div className="flex items-end lg:items-center">
-            {/* <p className="text-gray-400 text-[15px] sm:text-[16px] leading-relaxed max-w-[500px]">
-              Our commitment to excellence ensures a smooth, elegant, and worry-free experience from start to finish.
-            </p> */}
+          
+          <h5 className="text-gray-400 text-[20px] sm:text-[22px] md:text-[24px] font-normal leading-relaxed text-center max-w-3xl mx-auto mb-6 sm:mb-8">
+            SARJ Worldwide owned vehicles, range from Sedans, SUVs, Sprinters and Limousines. All vehicle are equipped with cell phone chargers, WIFI, & bottled water.
+          </h5>
+          <div className="flex justify-center">
+            <Link
+              href="/fleet"
+              className="inline-flex items-center justify-center px-8 py-4 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 text-white text-[15px] sm:text-[16px] font-semibold shadow-lg shadow-black/20 hover:bg-white/15 hover:shadow-xl hover:shadow-black/30 hover:scale-105 active:scale-95 transition-all duration-300"
+            >
+              Our Fleets
+            </Link>
           </div>
         </div>
 
