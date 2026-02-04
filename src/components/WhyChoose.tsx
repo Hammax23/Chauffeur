@@ -60,34 +60,32 @@ const WhyChoose = () => {
   ];
 
   return (
-    <section className="py-16 sm:py-20 md:py-24 lg:py-32 bg-[#0a0a0a] relative overflow-hidden">
+    <section className="py-10 sm:py-12 md:py-14 lg:py-16 bg-[#0a0a0a] relative overflow-hidden">
       <div className="max-w-[1400px] mx-auto px-6 sm:px-8 md:px-12 relative z-10">
         {/* Header Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 mb-16 sm:mb-20 md:mb-24">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 mb-10 sm:mb-12 md:mb-14">
           {/* Left: Badge and Heading */}
           <div>
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/30 mb-6 sm:mb-8">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/30 mb-4 sm:mb-5">
               <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
               <span className="text-white text-[12px] sm:text-[13px] font-normal tracking-widest uppercase">WHY CHOOSE US</span>
             </div>
             
-            <h2 className="text-white text-4xl sm:text-5xl md:text-6xl lg:text-[4rem] font-bold leading-[1.1] tracking-tight">
-              Exceptional Service<br />
-              Designed Around<br />
-              Your Comfort
-            </h2>
+            <h5 className="text-gray-400 text-[25px] sm:text-[23px] font-normal leading-relaxed">
+            SARJ Worldwide owned vehicles, range from Sedans, SUVs, Sprinters and Limousines. All vehicle are equipped with cell phone chargers, WIFI, & bottled water.
+            </h5>
           </div>
 
           {/* Right: Description */}
           <div className="flex items-end lg:items-center">
-            <p className="text-gray-400 text-[15px] sm:text-[16px] leading-relaxed max-w-[500px]">
+            {/* <p className="text-gray-400 text-[15px] sm:text-[16px] leading-relaxed max-w-[500px]">
               Our commitment to excellence ensures a smooth, elegant, and worry-free experience from start to finish.
-            </p>
+            </p> */}
           </div>
         </div>
 
         {/* Features Grid - 2 rows x 3 columns */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-16 sm:gap-y-20">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-10 sm:gap-y-12">
           {features.map((feature, index) => (
             <div key={index} className="group">
               {/* Icon */}

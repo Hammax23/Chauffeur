@@ -9,7 +9,7 @@ const DiscoverFleet = dynamic(() => import("@/components/DiscoverFleet"), {
 });
 const WhyChoose = dynamic(() => import("@/components/WhyChoose"));
 const GlobalFootprint = dynamic(() => import("@/components/GlobalFootprint"));
-const LuxuryRide = dynamic(() => import("@/components/LuxuryRide"));
+// const LuxuryRide = dynamic(() => import("@/components/LuxuryRide"));
 const ContactInfo = dynamic(() => import("@/components/ContactInfo"));
 const Footer = dynamic(() => import("@/components/Footer"));
 const FloatingContact = dynamic(() => import("@/components/FloatingContact"));
@@ -23,7 +23,7 @@ export default function Home() {
       <DiscoverFleet />
       <WhyChoose />
       <GlobalFootprint />
-      <LuxuryRide />
+      {/* <LuxuryRide /> */}
       <ContactInfo />
       <Footer />
       <FloatingContact />
