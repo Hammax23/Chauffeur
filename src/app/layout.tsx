@@ -6,7 +6,8 @@ const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
   display: "swap",
-  weight: ["300", "400", "500", "600", "700", "800"],
+  weight: ["400", "500", "600", "700"], // Reduced weights for faster loading
+  preload: true,
 });
 
 export const metadata: Metadata = {

@@ -137,7 +137,7 @@ export default function ServicesIndexPage() {
               </p>
               <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
                 <Link
-                  href="/#book"
+                  href="/reservation"
                   className="group inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-[#C9A063] text-white text-[15px] font-semibold shadow-md hover:bg-[#B8935A] hover:shadow-lg hover:shadow-[#C9A063]/25 active:scale-[0.98] transition-all duration-200"
                 >
                   Book a ride

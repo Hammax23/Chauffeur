@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Phone,
@@ -11,7 +12,6 @@ import {
   Send,
   MessageCircle,
   Headphones,
-  ChevronLeft,
 } from "lucide-react";
 import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
@@ -21,22 +21,22 @@ const contactCards = [
   {
     icon: Phone,
     title: "Call us",
-    value: "+1 (800) 900-122",
-    href: "tel:+1800900122",
+    value: "416-893-5779",
+    href: "tel:+14168935779",
     sub: "24/7 available",
   },
   {
     icon: Mail,
     title: "Email us",
-    value: "info@luxride.com",
-    href: "mailto:info@luxride.com",
+    value: "reserve@sarjworldwide.com",
+    href: "mailto:reserve@sarjworldwide.com",
     sub: "We respond within 24 hours",
   },
   {
     icon: MapPin,
     title: "Visit us",
-    value: "Dubai, Water Tower, Office 123",
-    href: "https://maps.google.com",
+    value: "231 Oak Park Blvd, Oakville, ON L6H 7S8",
+    href: "https://maps.google.com/?q=231+Oak+Park+Blvd+Oakville+ON+L6H+7S8",
     sub: "By appointment",
   },
   {
@@ -46,8 +46,6 @@ const contactCards = [
     sub: "Bookings, changes & enquiries",
   },
 ];
-
-const PROGRESS = { 1: 33, 2: 67, 3: 100 } as const;
 
 const countryCodes = [
   { code: "+1", label: "US" },
@@ -98,47 +96,48 @@ const countryCodes = [
   { code: "+213", label: "DZ" },
 ];
 
+// Separate component to handle search params
+function ContactFormWithParams({ 
+  setFullName, 
+  setEmail, 
+  setPhone 
+}: { 
+  setFullName: (v: string) => void; 
+  setEmail: (v: string) => void; 
+  setPhone: (v: string) => void; 
+}) {
+  const searchParams = useSearchParams();
+  
+  useEffect(() => {
+    const name = searchParams.get("name");
+    const emailParam = searchParams.get("email");
+    const phoneParam = searchParams.get("phone");
+    if (name) setFullName(name);
+    if (emailParam) setEmail(emailParam);
+    if (phoneParam) setPhone(phoneParam);
+  }, [searchParams, setFullName, setEmail, setPhone]);
+  
+  return null;
+}
+
 export default function ContactPage() {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [emailTouched, setEmailTouched] = useState(false);
-  const [name, setName] = useState("");
-  const [nameTouched, setNameTouched] = useState(false);
   const [phone, setPhone] = useState("");
-  const [phoneCode, setPhoneCode] = useState("+92");
-  const [phoneTouched, setPhoneTouched] = useState(false);
-  const [recaptchaDone, setRecaptchaDone] = useState(false);
-
-  const percent = PROGRESS[step];
-  const emailInvalid = emailTouched && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const nameInvalid = nameTouched && !name.trim();
-  const phoneInvalid = phoneTouched && !/^[\d\s+\-()]{8,}$/.test(phone);
-
-  const handleNext = () => {
-    if (step === 1) {
-      setEmailTouched(true);
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
-      setStep(2);
-    }
-    if (step === 2) {
-      setNameTouched(true);
-      setPhoneTouched(true);
-      if (!name.trim() || !/^[\d\s+\-()]{8,}$/.test(phone)) return;
-      setStep(3);
-    }
-  };
-
-  const handleBack = () => {
-    if (step === 2) setStep(1);
-    if (step === 3) {
-      setRecaptchaDone(false);
-      setStep(2);
-    }
-  };
-
+  const [phoneCode, setPhoneCode] = useState("+1");
+  const [pickup, setPickup] = useState("");
+  const [dropoff, setDropoff] = useState("");
+  const [additionalNotes, setAdditionalNotes] = useState("");
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+      <Suspense fallback={null}>
+        <ContactFormWithParams 
+          setFullName={setFullName} 
+          setEmail={setEmail} 
+          setPhone={setPhone} 
+        />
+      </Suspense>
       <TopNav />
       <Navbar />
 
@@ -146,7 +145,7 @@ export default function ContactPage() {
       <section className="pt-[130px] md:pt-[145px] relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-[#C9A063]/[0.03] via-transparent to-[#C9A063]/[0.05]" />
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-px bg-gradient-to-r from-transparent via-[#C9A063]/20 to-transparent" />
-        <div className="max-w-[1100px] mx-auto px-6 sm:px-8 md:px-12 py-14 sm:py-16 md:py-20 relative z-10">
+        <div className="max-w-[1100px] mx-auto px-6 sm:px-8 md:px-12 pt-10 pb-8 sm:pt-12 sm:pb-10 md:pt-14 md:pb-12 relative z-10">
           <div className="text-center">
             <div className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-white border border-[#C9A063]/30 shadow-lg shadow-[#C9A063]/10 mb-6">
               <div className="w-2 h-2 rounded-full bg-gradient-to-r from-[#C9A063] to-[#B8935A] animate-pulse" />
@@ -166,7 +165,7 @@ export default function ContactPage() {
       </section>
 
       {/* Contact cards + Form */}
-      <section className="py-10 sm:py-14 md:py-20">
+      <section className="pt-4 pb-10 sm:pt-6 sm:pb-14 md:pt-8 md:pb-20">
         <div className="max-w-[1100px] mx-auto px-6 sm:px-8 md:px-12">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-14">
             {/* Left on desktop: Contact info + trust — Right on mobile (order 2) */}
@@ -241,221 +240,105 @@ export default function ContactPage() {
                         Send a message
                       </h2>
                       <p className="text-gray-500 text-[14px]">
-                        Complete the steps below—we&apos;ll get back to you shortly.
+                        Fill in the details below—we&apos;ll get back to you shortly.
                       </p>
                     </div>
                   </div>
                 </div>
 
                 <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (step === 3) {
-                      // Submit logic (e.g. API call) can go here
-                    }
-                  }}
-                  className="p-6 sm:p-8"
+                  onSubmit={(e) => e.preventDefault()}
+                  className="p-6 sm:p-8 space-y-5"
                 >
-                  {/* Step label */}
-                  <p className="text-gray-500 text-[14px] font-medium mb-3">
-                    Step {step} of 3
-                  </p>
+                  <div>
+                    <label className="block text-gray-800 text-[14px] font-medium mb-2">Full name <span className="text-red-500">*</span></label>
+                    <input
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="First and last name"
+                      className="w-full px-4 py-3.5 border border-gray-300 rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all"
+                    />
+                  </div>
 
-                  {/* Progress bar */}
-                  <div className="h-2.5 sm:h-3 w-full bg-gray-200 rounded-full overflow-hidden mb-6 sm:mb-8">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-[#C9A063] to-[#A68B5B] transition-all duration-500 ease-out flex items-center justify-end pr-1.5 sm:pr-2"
-                      style={{ width: `${percent}%` }}
-                    >
-                      {percent >= 15 && (
-                        <span className="text-[10px] sm:text-[11px] font-bold text-white drop-shadow-sm">
-                          {percent}%
-                        </span>
-                      )}
+                  <div>
+                    <label className="block text-gray-800 text-[14px] font-medium mb-2">Email <span className="text-red-500">*</span></label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="info@example.com"
+                      className="w-full px-4 py-3.5 border border-gray-300 rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-800 text-[14px] font-medium mb-2">Phone <span className="text-red-500">*</span></label>
+                    <div className="flex rounded-xl overflow-hidden border border-gray-300 focus-within:ring-2 focus-within:ring-[#C9A063]/30 focus-within:border-[#C9A063] transition-all">
+                      <select
+                        value={phoneCode}
+                        onChange={(e) => setPhoneCode(e.target.value)}
+                        className="px-3 py-3.5 pl-4 pr-8 bg-gray-50 border-r border-gray-300 text-[15px] text-gray-800 focus:outline-none appearance-none cursor-pointer min-w-[115px]"
+                      >
+                        {countryCodes.map((c) => (
+                          <option key={`${c.code}-${c.label}`} value={c.code}>
+                            {c.code} {c.label}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="relative flex-1 flex items-center">
+                        <input
+                          type="tel"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                          placeholder="300 1234567"
+                          className="w-full px-4 py-3.5 pr-11 border-0 focus:ring-0 focus:outline-none bg-transparent text-[15px] text-gray-800 placeholder-gray-400"
+                        />
+                        <Phone className="absolute right-3 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
+                      </div>
                     </div>
                   </div>
 
-                  {/* Step 1: Email + Next */}
-                  {step === 1 && (
-                    <div className="space-y-5 animate-in fade-in duration-300">
-                      <div>
-                        <label className="block text-gray-800 text-[14px] font-medium mb-2">
-                          Email <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          onBlur={() => setEmailTouched(true)}
-                          placeholder="info@example.com"
-                          className={`w-full px-4 py-3.5 border rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all ${
-                            emailInvalid ? "border-red-400 bg-red-50/50" : "border-gray-300"
-                          }`}
-                        />
-                        {emailInvalid && (
-                          <p className="mt-1.5 text-red-500 text-[13px]">Please enter a valid email address.</p>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleNext}
-                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-[#C9A063] to-[#A68B5B] text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-[#C9A063]/30 transition-all duration-300"
-                      >
-                        Next
-                      </button>
-                    </div>
-                  )}
+                  <div>
+                    <label className="block text-gray-800 text-[14px] font-medium mb-2">Pickup</label>
+                    <input
+                      type="text"
+                      value={pickup}
+                      onChange={(e) => setPickup(e.target.value)}
+                      placeholder="Pickup address or location"
+                      className="w-full px-4 py-3.5 border border-gray-300 rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all"
+                    />
+                  </div>
 
-                  {/* Step 2: Name + Phone + Next */}
-                  {step === 2 && (
-                    <div className="space-y-5 animate-in fade-in duration-300">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                        <div>
-                          <label className="block text-gray-800 text-[14px] font-medium mb-2">
-                            Name <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            onBlur={() => setNameTouched(true)}
-                            placeholder="First and last name"
-                            className={`w-full px-4 py-3.5 border rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all ${
-                              nameInvalid ? "border-red-400 bg-red-50/50" : "border-gray-300"
-                            }`}
-                          />
-                          {nameInvalid && (
-                            <p className="mt-1.5 text-red-500 text-[13px]">Please enter your name.</p>
-                          )}
-                        </div>
-                        <div>
-                          <label className="block text-gray-800 text-[14px] font-medium mb-2">
-                            Phone <span className="text-red-500">*</span>
-                          </label>
-                          <div
-                            className={`flex rounded-xl overflow-hidden border focus-within:ring-2 focus-within:ring-[#C9A063]/30 focus-within:border-[#C9A063] transition-all ${
-                              phoneInvalid ? "border-red-400 bg-red-50/50" : "border-gray-300"
-                            }`}
-                          >
-                            <select
-                              value={phoneCode}
-                              onChange={(e) => setPhoneCode(e.target.value)}
-                              className="px-3 py-3.5 pl-4 pr-8 bg-gray-50 border-r border-gray-300 text-[15px] text-gray-800 focus:outline-none appearance-none cursor-pointer min-w-[115px]"
-                            >
-                              {countryCodes.map((c) => (
-                                <option key={c.code} value={c.code}>
-                                  {c.code} {c.label}
-                                </option>
-                              ))}
-                            </select>
-                            <div className="relative flex-1 flex items-center">
-                              <input
-                                type="tel"
-                                value={phone}
-                                onChange={(e) => setPhone(e.target.value)}
-                                onBlur={() => setPhoneTouched(true)}
-                                placeholder="300 1234567"
-                                className="w-full px-4 py-3.5 pr-11 border-0 focus:ring-0 focus:outline-none bg-transparent text-[15px] text-gray-800 placeholder-gray-400"
-                              />
-                              <Phone className="absolute right-3 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
-                            </div>
-                          </div>
-                          {phoneInvalid && (
-                            <p className="mt-1.5 text-red-500 text-[13px]">Please enter a valid phone number.</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-3">
-                        <button
-                          type="button"
-                          onClick={handleBack}
-                          className="inline-flex items-center gap-2 px-5 py-3 text-gray-600 font-medium rounded-xl border border-gray-300 hover:border-gray-400 hover:bg-gray-50 transition-all"
-                        >
-                          <ChevronLeft className="w-4 h-4" strokeWidth={2.5} />
-                          Back
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleNext}
-                          className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-[#C9A063] to-[#A68B5B] text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-[#C9A063]/30 transition-all duration-300"
-                        >
-                          Next
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  <div>
+                    <label className="block text-gray-800 text-[14px] font-medium mb-2">Dropoff</label>
+                    <input
+                      type="text"
+                      value={dropoff}
+                      onChange={(e) => setDropoff(e.target.value)}
+                      placeholder="Dropoff address or location"
+                      className="w-full px-4 py-3.5 border border-gray-300 rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all"
+                    />
+                  </div>
 
-                  {/* Step 3: reCAPTCHA + Submit */}
-                  {step === 3 && (
-                    <div className="space-y-5 animate-in fade-in duration-300">
-                      <div>
-                        <p className="text-gray-700 text-[14px] font-medium mb-3">
-                          Verify you&apos;re not a robot
-                        </p>
-                        <div
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => setRecaptchaDone((d) => !d)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              setRecaptchaDone((d) => !d);
-                            }
-                          }}
-                          className={`inline-flex items-center gap-4 px-4 py-3 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
-                            recaptchaDone
-                              ? "border-[#C9A063]/50 bg-[#C9A063]/5"
-                              : "border-gray-300 hover:border-[#C9A063]/40 hover:bg-gray-50/80"
-                          }`}
-                        >
-                          <div
-                            className={`w-6 h-6 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                              recaptchaDone ? "border-[#C9A063] bg-[#C9A063]" : "border-gray-400"
-                            }`}
-                          >
-                            {recaptchaDone && (
-                              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </div>
-                          <span className="text-gray-700 text-[15px] font-medium">I&apos;m not a robot</span>
-                          <div className="flex items-center gap-1.5 ml-auto">
-                            <svg className="w-8 h-8" viewBox="0 0 32 32" fill="none">
-                              <rect width="32" height="32" rx="4" fill="#1A73E8" />
-                              <path d="M12 16l3 3 6-6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                            </svg>
-                            <span className="text-[10px] text-gray-500">reCAPTCHA</span>
-                          </div>
-                        </div>
-                        <p className="mt-2 text-[11px] text-gray-400">
-                          Protected by reCAPTCHA —{" "}
-                          <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-[#1A73E8] hover:underline">Privacy</a>
-                          {" · "}
-                          <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer" className="text-[#1A73E8] hover:underline">Terms</a>
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-3">
-                        <button
-                          type="button"
-                          onClick={handleBack}
-                          className="inline-flex items-center gap-2 px-5 py-3 text-gray-600 font-medium rounded-xl border border-gray-300 hover:border-gray-400 hover:bg-gray-50 transition-all"
-                        >
-                          <ChevronLeft className="w-4 h-4" strokeWidth={2.5} />
-                          Back
-                        </button>
-                        {recaptchaDone ? (
-                          <button
-                            type="submit"
-                            className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-[#C9A063] to-[#A68B5B] text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-[#C9A063]/30 transition-all duration-300"
-                          >
-                            <Send className="w-4 h-4" strokeWidth={2.5} />
-                            Submit
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  )}
+                  <div>
+                    <label className="block text-gray-800 text-[14px] font-medium mb-2">Additional notes</label>
+                    <textarea
+                      value={additionalNotes}
+                      onChange={(e) => setAdditionalNotes(e.target.value)}
+                      placeholder="Special requests, questions, or additional information..."
+                      rows={4}
+                      className="w-full px-4 py-3.5 border border-gray-300 rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all resize-y"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-[#C9A063] to-[#A68B5B] text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-[#C9A063]/30 transition-all duration-300"
+                  >
+                    <Send className="w-4 h-4" strokeWidth={2.5} />
+                    Send message
+                  </button>
                 </form>
               </div>
             </div>
@@ -478,7 +361,7 @@ export default function ContactPage() {
               </p>
               <div className="flex flex-wrap items-center justify-center gap-4">
                 <Link
-                  href="/#book"
+                  href="/reservation"
                   className="group inline-flex items-center justify-center gap-2 px-10 py-4 rounded-full bg-[#C9A063] text-white font-semibold shadow-sm hover:bg-[#B8935A] active:scale-[0.98] transition-all duration-200"
                 >
                   Book a ride

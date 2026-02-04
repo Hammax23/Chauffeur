@@ -7,7 +7,6 @@ import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { services } from "@/data/services";
-import { fleetData } from "@/data/fleet";
 
 // Country codes: Canada first. flagCode = ISO code for flag image (flagcdn.com).
 const COUNTRY_CODES = [
@@ -192,7 +191,7 @@ export default function QuotePage() {
                 <div className="relative">
                   <select className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] appearance-none cursor-pointer bg-gray-50/50 focus:bg-white transition-all duration-200">
                     <option value="">Select service type</option>
-                    {services.map((s) => (
+                    {services.filter((s) => s.slug !== "premium-services").map((s) => (
                       <option key={s.slug} value={s.slug}>{s.title}</option>
                     ))}
                   </select>
@@ -204,9 +203,12 @@ export default function QuotePage() {
                 <div className="relative">
                   <select className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] appearance-none cursor-pointer bg-gray-50/50 focus:bg-white transition-all duration-200">
                     <option value="">Select vehicle</option>
-                    {fleetData.map((v) => (
-                      <option key={v.id} value={v.id}>{v.name}</option>
-                    ))}
+                    <option value="sedan">SEDAN</option>
+                    <option value="mercedes">MERCEDES</option>
+                    <option value="escalade">ESCALADE</option>
+                    <option value="suv">SUV</option>
+                    <option value="executive-van">EXECUTIVE VAN</option>
+                    <option value="sprinter">SPRINTER</option>
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={2} />
                 </div>

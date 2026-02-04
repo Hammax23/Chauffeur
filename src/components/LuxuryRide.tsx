@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 const LuxuryRide = () => {
   return (
     <section className="relative w-full h-[500px] sm:h-[600px] md:h-[700px] overflow-hidden">
@@ -29,9 +31,12 @@ const LuxuryRide = () => {
         </p>
 
         {/* CTA Button */}
-        <button className="group relative px-8 py-3.5 bg-white text-black text-[15px] sm:text-[16px] font-semibold rounded-lg hover:bg-gray-100 transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl">
+        <Link
+          href="/reservation"
+          className="group relative inline-flex px-8 py-3.5 bg-white text-black text-[15px] sm:text-[16px] font-semibold rounded-lg hover:bg-gray-100 transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl"
+        >
           Start Reservation
-        </button>
+        </Link>
       </div>
     </section>
   );

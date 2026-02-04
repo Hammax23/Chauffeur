@@ -97,14 +97,6 @@ export default function FleetPage() {
                       </div>
                     </div>
                   </div>
-
-                  <Link
-                    href="/#book"
-                    className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-3 bg-gradient-to-r from-[#C9A063] to-[#A68B5B] text-white text-[14px] font-semibold rounded-xl hover:shadow-lg hover:shadow-[#C9A063]/30 transition-all duration-300"
-                  >
-                    Book this vehicle
-                    <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
-                  </Link>
                 </div>
               </article>
             ))}
@@ -116,7 +108,7 @@ export default function FleetPage() {
             </p>
             <div className="flex flex-wrap items-center justify-center gap-4">
               <Link
-                href="/#book"
+                href="/reservation"
                 className="group inline-flex items-center justify-center gap-2 px-10 py-4 rounded-full bg-[#C9A063] text-white font-semibold shadow-sm hover:bg-[#B8935A] active:scale-[0.98] transition-all duration-200"
               >
                 Book a ride

@@ -1,9 +1,10 @@
 "use client";
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { ChevronRight, ChevronLeft, Users, Briefcase } from 'lucide-react';
 
 const fleetData = [
-  { name: 'CADILLAC XTS', images: ['/fleet/xts.png', '/fleet/xts.png', '/fleet/xts.png'], seating: '4 maximum, 3 comfortable', luggage: '2 large, 2 medium' },
+  { name: 'CADILLAC XTS', images: ['/fleet/xts1.png', '/fleet/xts2.png', '/fleet/xts3.png'], seating: '4 maximum, 3 comfortable', luggage: '2 large, 2 medium' },
   { name: 'CADILLAC LYRIQ', images: ['/fleet/lyric.png', '/fleet/lyric.png', '/fleet/lyric.png'], seating: '4 maximum, 4 comfortable', luggage: '2 large, 2 medium' },
   { name: 'MERCEDES S-CLASS ', images: ['/fleet/mercedesS1.png', '/fleet/mercedesS1.png', '/fleet/mercedesS1.png'], seating: '4 maximum, 3 comfortable', luggage: '2 large, 2 medium' },
   { name: 'CHEVROLET SUBURBAN', images: ['/fleet/suburban.png', '/fleet/suburban.png', '/fleet/suburban.png'], seating: '6 maximum, 5 comfortable', luggage: '4 large, 2 medium' },
@@ -133,10 +134,13 @@ const DiscoverFleet = () => {
 
         {/* Discover More - neeche center */}
         <div className="flex justify-center">
-          <button className="group flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-3.5 text-[13px] sm:text-[14px] md:text-[15px] font-medium rounded-xl transition-all duration-500 bg-gradient-to-r from-[#8B7355] to-[#6B5644] text-white hover:from-[#6B5644] hover:to-[#8B7355] shadow-[0_8px_30px_rgba(139,115,85,0.4)] hover:shadow-[0_12px_40px_rgba(139,115,85,0.5)] hover:scale-105 backdrop-blur-sm border border-[#8B7355]/30">
+          <Link
+            href="/fleet"
+            className="group inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-3.5 text-[13px] sm:text-[14px] md:text-[15px] font-medium rounded-xl transition-all duration-500 bg-gradient-to-r from-[#8B7355] to-[#6B5644] text-white hover:from-[#6B5644] hover:to-[#8B7355] shadow-[0_8px_30px_rgba(139,115,85,0.4)] hover:shadow-[0_12px_40px_rgba(139,115,85,0.5)] hover:scale-105 backdrop-blur-sm border border-[#8B7355]/30"
+          >
             DISCOVER MORE
             <ChevronRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" strokeWidth={2.5} />
-          </button>
+          </Link>
         </div>
       </div>
     </section>

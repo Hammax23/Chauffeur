@@ -1,15 +1,28 @@
 "use client";
 import { User, Mail, Phone } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 const HeroSection = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const router = useRouter();
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
 
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.load();
     }
   }, []);
+
+  const handleNext = () => {
+    const params = new URLSearchParams();
+    if (fullName.trim()) params.set("name", fullName.trim());
+    if (email.trim()) params.set("email", email.trim());
+    if (phone.trim()) params.set("phone", phone.trim());
+    router.push(`/contact${params.toString() ? "?" + params.toString() : ""}`);
+  };
 
   return (
     <section className="relative min-h-screen w-full overflow-hidden">
@@ -19,7 +32,8 @@ const HeroSection = () => {
         loop
         muted
         playsInline
-        preload="auto"
+        preload="metadata"
+        poster="/cover-poster.jpg"
         className="absolute inset-0 w-full h-full object-cover"
       >
         <source src="/cover.mp4" type="video/mp4" />
@@ -49,6 +63,8 @@ const HeroSection = () => {
                   <label className="text-[12px] sm:text-[13px] md:text-[14px] font-semibold text-gray-900 mb-1 block">Full Name</label>
                   <input
                     type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
                     placeholder="Your name"
                     className="text-[13px] sm:text-[14px] md:text-[15px] text-gray-700 placeholder:text-gray-400 outline-none bg-transparent w-full min-h-[36px] py-1 border-0 focus:ring-0"
                   />
@@ -64,6 +80,8 @@ const HeroSection = () => {
                   <label className="text-[12px] sm:text-[13px] md:text-[14px] font-semibold text-gray-900 mb-1 block">Email</label>
                   <input
                     type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     placeholder="example@gmail.com"
                     className="text-[13px] sm:text-[14px] md:text-[15px] text-gray-700 placeholder:text-gray-400 outline-none bg-transparent w-full min-h-[36px] py-1 border-0 focus:ring-0"
                   />
@@ -79,15 +97,21 @@ const HeroSection = () => {
                   <label className="text-[12px] sm:text-[13px] md:text-[14px] font-semibold text-gray-900 mb-1 block">Phone</label>
                   <input
                     type="tel"
-                    placeholder="+1 (800) 900-122"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="416-893-5779"
                     className="text-[13px] sm:text-[14px] md:text-[15px] text-gray-700 placeholder:text-gray-400 outline-none bg-transparent w-full min-h-[36px] py-1 border-0 focus:ring-0"
                   />
                 </div>
               </div>
 
               <div className="w-full md:w-auto flex-shrink-0 mt-3 md:mt-0 lg:ml-0 flex items-center justify-center md:justify-end">
-                <button className="w-full md:w-auto bg-gradient-to-r from-black via-gray-900 to-black text-white px-5 py-2.5 sm:px-5 sm:py-3 md:px-6 md:py-3 rounded-full text-[13px] sm:text-[14px] font-semibold hover:from-gray-900 hover:via-black hover:to-gray-900 hover:scale-105 hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-all duration-300 backdrop-blur-sm border border-white/10 whitespace-nowrap min-h-[40px]">
-                 NEXT
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  className="w-full md:w-auto bg-gradient-to-r from-black via-gray-900 to-black text-white px-5 py-2.5 sm:px-5 sm:py-3 md:px-6 md:py-3 rounded-full text-[13px] sm:text-[14px] font-semibold hover:from-gray-900 hover:via-black hover:to-gray-900 hover:scale-105 hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-all duration-300 backdrop-blur-sm border border-white/10 whitespace-nowrap min-h-[40px]"
+                >
+                  NEXT
                 </button>
               </div>
             </div>

@@ -1,13 +1,18 @@
+import dynamic from "next/dynamic";
 import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import HeroSection from "@/components/HeroSection";
-import DiscoverFleet from "@/components/DiscoverFleet";
-import WhyChoose from "@/components/WhyChoose";
-import GlobalFootprint from "@/components/GlobalFootprint";
-import LuxuryRide from "@/components/LuxuryRide";
-import ContactInfo from "@/components/ContactInfo";
-import Footer from "@/components/Footer";
-import FloatingContact from "@/components/FloatingContact";
+
+// Lazy load below-the-fold components for faster initial load
+const DiscoverFleet = dynamic(() => import("@/components/DiscoverFleet"), {
+  loading: () => <div className="min-h-[400px]" />,
+});
+const WhyChoose = dynamic(() => import("@/components/WhyChoose"));
+const GlobalFootprint = dynamic(() => import("@/components/GlobalFootprint"));
+const LuxuryRide = dynamic(() => import("@/components/LuxuryRide"));
+const ContactInfo = dynamic(() => import("@/components/ContactInfo"));
+const Footer = dynamic(() => import("@/components/Footer"));
+const FloatingContact = dynamic(() => import("@/components/FloatingContact"));
 
 export default function Home() {
   return (
