@@ -19,7 +19,7 @@ import {
 import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import RouteMap from "@/components/RouteMap";
+// import RouteMap from "@/components/RouteMap";
 import { fleetData } from "@/data/fleet";
 
 const COUNTRY_CODES = [
@@ -551,12 +551,13 @@ export default function ReservationPage() {
                       <h3 className="text-lg font-semibold text-white">Route Preview</h3>
                       <p className="text-gray-400 text-sm mt-0.5">Your journey visualization</p>
                     </div>
-                    <div className="h-64 sm:h-80 lg:h-96 relative">
-                      <RouteMap
+                    <div className="h-64 sm:h-80 lg:h-96 relative bg-gray-200 flex items-center justify-center">
+                      <p className="text-gray-500 text-sm">Map preview temporarily unavailable</p>
+                      {/* <RouteMap
                         pickupLocation={pickupLocation}
                         dropoffLocation={dropoffLocation}
                         onRouteCalculated={handleRouteCalculated}
-                      />
+                      /> */}
                     </div>
                     <div className="p-4 sm:p-5 bg-[#f2f2f7]">
                       <div className="space-y-2">
