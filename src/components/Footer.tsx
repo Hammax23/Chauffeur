@@ -45,13 +45,22 @@ const Footer = () => {
             </h3>
             <ul className="space-y-3">
               <li>
-                <a 
-                  href="#home" 
+                <Link 
+                  href="/" 
                   className="group inline-flex items-center gap-2 text-gray-400 text-[14px] font-light hover:text-[#C9A063] transition-all duration-300"
                 >
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   Home
-                </a>
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  href="/about" 
+                  className="group inline-flex items-center gap-2 text-gray-400 text-[14px] font-light hover:text-[#C9A063] transition-all duration-300"
+                >
+                  <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
+                  About
+                </Link>
               </li>
               <li>
                 <Link 
@@ -73,11 +82,11 @@ const Footer = () => {
               </li>
               <li>
                 <Link 
-                  href="/about" 
+                  href="/quote" 
                   className="group inline-flex items-center gap-2 text-gray-400 text-[14px] font-light hover:text-[#C9A063] transition-all duration-300"
                 >
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
-                  About Us
+                  Online Quote
                 </Link>
               </li>
               <li>
@@ -87,6 +96,15 @@ const Footer = () => {
                 >
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   Contact
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  href="/reservation" 
+                  className="group inline-flex items-center gap-2 text-gray-400 text-[14px] font-light hover:text-[#C9A063] transition-all duration-300"
+                >
+                  <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
+                  Online Reservation
                 </Link>
               </li>
             </ul>

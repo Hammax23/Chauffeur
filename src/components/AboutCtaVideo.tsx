@@ -47,7 +47,7 @@ export default function AboutCtaVideo() {
             </p>
             <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-5">
               <Link
-                href="/#book"
+                href="/reservation"
                 className="group inline-flex items-center justify-center gap-2.5 px-10 py-4 rounded-full bg-[#C9A063] text-white font-semibold shadow-sm hover:bg-[#B8935A] active:scale-[0.98] transition-all duration-200"
               >
                 Book a ride
