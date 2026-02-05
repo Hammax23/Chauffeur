@@ -20,7 +20,7 @@ import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import RouteMap from "@/components/RouteMap";
-import StripePayment from "@/components/StripePayment";
+// import StripePayment from "@/components/StripePayment";
 import { fleetData } from "@/data/fleet";
 
 const COUNTRY_CODES = [
@@ -50,11 +50,11 @@ export default function ReservationPage() {
   const [routeDuration, setRouteDuration] = useState("--");
   const [routePrice, setRoutePrice] = useState(0);
   
-  // Payment states
-  const [showPayment, setShowPayment] = useState(false);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
-  const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [termsAccepted, setTermsAccepted] = useState(false);
+  // Payment states (STRIPE - uncomment when needed)
+  // const [showPayment, setShowPayment] = useState(false);
+  // const [paymentSuccess, setPaymentSuccess] = useState(false);
+  // const [paymentError, setPaymentError] = useState<string | null>(null);
+  // const [termsAccepted, setTermsAccepted] = useState(false);
 
   // Calculate price based on distance (e.g., $3 per km)
   const handleRouteCalculated = (distance: string, duration: string, distanceValue: number) => {
@@ -508,65 +508,15 @@ export default function ReservationPage() {
                         </div>
                       </div>
 
-                      <label className="flex items-start gap-3 cursor-pointer p-4 bg-white rounded-xl border border-gray-200/60">
-                        <input
-                          type="checkbox"
-                          id="terms"
-                          checked={termsAccepted}
-                          onChange={(e) => setTermsAccepted(e.target.checked)}
-                          className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#007AFF] focus:ring-[#007AFF]"
-                        />
-                        <span className="text-[13px] text-gray-600">
-                          I agree to the{" "}
-                          <Link href="/terms" className="text-[#007AFF] font-medium">Terms of Service</Link>
-                          {" "}and{" "}
-                          <Link href="/privacy" className="text-[#007AFF] font-medium">Privacy Policy</Link>
-                        </span>
-                      </label>
-
-                      {/* Stripe Payment Section */}
-                      {showPayment && !paymentSuccess && (
-                        <div className="mt-6">
-                          <StripePayment
-                            amount={routePrice > 0 ? routePrice : 50}
-                            onSuccess={(paymentIntentId) => {
-                              setPaymentSuccess(true);
-                              setPaymentError(null);
-                              console.log("Payment successful:", paymentIntentId);
-                            }}
-                            onError={(error) => {
-                              setPaymentError(error);
-                            }}
-                            metadata={{
-                              pickup: pickupLocation,
-                              dropoff: dropoffLocation,
-                              vehicle: selectedVehicle,
-                              passengers: String(passengersCount),
-                              date: serviceDate,
-                              time: serviceTime,
-                            }}
-                          />
-                        </div>
-                      )}
-
-                      {/* Payment Success Message */}
-                      {paymentSuccess && (
-                        <div className="mt-6 p-6 bg-green-50 border border-green-200 rounded-xl text-center">
-                          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-                            <CheckCircle className="w-8 h-8 text-green-600" />
-                          </div>
-                          <h3 className="text-[18px] font-bold text-green-800 mb-2">Payment Successful!</h3>
-                          <p className="text-[14px] text-green-700 mb-4">
-                            Your reservation has been confirmed. You will receive a confirmation email shortly.
-                          </p>
-                          <Link
-                            href="/"
-                            className="inline-flex items-center justify-center gap-2 bg-green-600 text-white px-6 py-3 rounded-xl text-[15px] font-semibold hover:bg-green-700 transition-colors"
-                          >
-                            Back to Home
-                          </Link>
-                        </div>
-                      )}
+{/* STRIPE PAYMENT SECTION - Uncomment when needed
+                      
+                      To enable Stripe payment:
+                      1. Uncomment import: import StripePayment from "@/components/StripePayment";
+                      2. Uncomment payment states in component
+                      3. Uncomment this JSX block
+                      4. Uncomment the payment button in Navigation Buttons section
+                      
+                      */}
                     </div>
                   )}
 
@@ -583,6 +533,14 @@ export default function ReservationPage() {
                     >
                       Previous
                     </button>
+                    <button
+                      onClick={() => setCurrentStep(Math.min(4, currentStep + 1))}
+                      className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#1C1C1E] text-white px-6 py-2.5 rounded-xl text-[15px] font-medium active:bg-[#2C2C2E] transition-colors"
+                    >
+                      {currentStep === 4 ? "Confirm Reservation" : "Continue"}
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                    {/* STRIPE - Payment button (uncomment when needed)
                     {currentStep === 4 ? (
                       !showPayment && !paymentSuccess && (
                         <button
@@ -609,6 +567,7 @@ export default function ReservationPage() {
                         <ArrowRight className="w-4 h-4" />
                       </button>
                     )}
+                    */}
                   </div>
                 </div>
               </div>
