@@ -45,7 +45,7 @@ const WhyChoose = () => {
               href="/fleet"
               className="text-[#C9A063] underline underline-offset-4 decoration-2 hover:text-white hover:decoration-white transition-colors duration-200 font-medium ml-1"
             >
-              Our Fleets
+              Our Fleet
             </Link>
           </h5>
         </div>

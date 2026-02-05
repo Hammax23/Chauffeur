@@ -33,11 +33,11 @@ const CitiesWeServiceContent = () => {
           <h1 className="text-gray-900 text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight uppercase mb-3 sm:mb-4">
             Cities We Service
           </h1>
-          <p className="text-gray-600 text-sm sm:text-base md:text-lg font-medium tracking-[0.15em] uppercase">
+          {/* <p className="text-gray-600 text-sm sm:text-base md:text-lg font-medium tracking-[0.15em] uppercase">
             Available in {" "}
             <span className="text-[#C9A063] font-semibold">all</span> cities
             worldwide
-          </p>
+          </p> */}
         </div>
 
         {/* Region buttons grid */}
