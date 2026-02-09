@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { 
   MapPin, 
@@ -14,13 +14,15 @@ import {
   X,
   ChevronDown,
   ChevronUp,
-  Pencil
+  Pencil,
+  AlertCircle,
+  Loader2
 } from "lucide-react";
 import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import RouteMap from "@/components/RouteMap";
-// import StripePayment from "@/components/StripePayment";
+import StripePayment from "@/components/StripePayment";
 import { fleetData } from "@/data/fleet";
 
 const COUNTRY_CODES = [
@@ -44,17 +46,61 @@ export default function ReservationPage() {
   const [dropoffLocation, setDropoffLocation] = useState("");
   const [serviceDate, setServiceDate] = useState("");
   const [serviceTime, setServiceTime] = useState("");
+
+  // Contact Info states
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [specialRequirements, setSpecialRequirements] = useState("");
+
+  // Validation state
+  const [stepError, setStepError] = useState("");
   
   // Route calculation states
   const [routeDistance, setRouteDistance] = useState("--");
   const [routeDuration, setRouteDuration] = useState("--");
   const [routePrice, setRoutePrice] = useState(0);
   
-  // Payment states (STRIPE - uncomment when needed)
-  // const [showPayment, setShowPayment] = useState(false);
-  // const [paymentSuccess, setPaymentSuccess] = useState(false);
-  // const [paymentError, setPaymentError] = useState<string | null>(null);
-  // const [termsAccepted, setTermsAccepted] = useState(false);
+  // Payment states
+  const [showPayment, setShowPayment] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+
+  // Email states
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailError, setEmailError] = useState("");
+
+  const sendReservationEmails = useCallback(async () => {
+    setEmailSending(true);
+    setEmailError("");
+    try {
+      const vehicleName = fleetData.find((v) => v.id === selectedVehicle)?.name || selectedVehicle;
+      const res = await fetch("/api/reservation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName, lastName, email, phone, phoneCode: countryCode,
+          pickupLocation, dropoffLocation,
+          stops: stops.filter((s) => s.trim() !== ""),
+          serviceDate, serviceTime,
+          vehicle: vehicleName,
+          passengers: passengersCount,
+          specialRequirements,
+          routeDistance, routeDuration, routePrice,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.details || data.error || "Failed to send emails");
+      setEmailSent(true);
+    } catch (err: any) {
+      setEmailError(err.message || "Failed to send confirmation emails.");
+    } finally {
+      setEmailSending(false);
+    }
+  }, [firstName, lastName, email, phone, countryCode, pickupLocation, dropoffLocation, stops, serviceDate, serviceTime, selectedVehicle, passengersCount, specialRequirements, routeDistance, routeDuration, routePrice]);
 
   // Calculate price based on distance (e.g., $3 per km)
   const handleRouteCalculated = (distance: string, duration: string, distanceValue: number) => {
@@ -65,6 +111,33 @@ export default function ReservationPage() {
     const baseFare = 50;
     const calculatedPrice = baseFare + (distanceValue / 1000) * pricePerKm;
     setRoutePrice(calculatedPrice);
+  };
+
+  // Step validation
+  const validateStep = (step: number): boolean => {
+    setStepError("");
+    if (step === 1) {
+      if (!pickupLocation.trim()) { setStepError("Please enter a pickup location."); return false; }
+      if (!dropoffLocation.trim()) { setStepError("Please enter a drop-off location."); return false; }
+      if (!serviceDate) { setStepError("Please select a date."); return false; }
+      if (!serviceTime) { setStepError("Please select a time."); return false; }
+    } else if (step === 2) {
+      if (!selectedVehicle) { setStepError("Please select a vehicle."); return false; }
+    } else if (step === 3) {
+      if (!firstName.trim()) { setStepError("Please enter your first name."); return false; }
+      if (!lastName.trim()) { setStepError("Please enter your last name."); return false; }
+      if (!email.trim()) { setStepError("Please enter your email address."); return false; }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) { setStepError("Please enter a valid email address."); return false; }
+      if (!phone.trim()) { setStepError("Please enter your phone number."); return false; }
+    }
+    return true;
+  };
+
+  const handleNext = () => {
+    if (validateStep(currentStep)) {
+      setCurrentStep(Math.min(4, currentStep + 1));
+    }
   };
 
   const steps = [
@@ -181,8 +254,9 @@ export default function ReservationPage() {
                           </div>
                           <input
                             type="text"
+                            required
                             value={pickupLocation}
-                            onChange={(e) => setPickupLocation(e.target.value)}
+                            onChange={(e) => { setPickupLocation(e.target.value); setStepError(""); }}
                             placeholder="Address or airport code (e.g. YYZ)"
                             className="w-full py-1.5 -mt-1 bg-transparent text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none"
                           />
@@ -196,8 +270,9 @@ export default function ReservationPage() {
                           </div>
                           <input
                             type="text"
+                            required
                             value={dropoffLocation}
-                            onChange={(e) => setDropoffLocation(e.target.value)}
+                            onChange={(e) => { setDropoffLocation(e.target.value); setStepError(""); }}
                             placeholder="Destination address"
                             className="w-full py-1.5 -mt-1 bg-transparent text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none"
                           />
@@ -246,8 +321,9 @@ export default function ReservationPage() {
                           <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">Date</label>
                           <input
                             type="date"
+                            required
                             value={serviceDate}
-                            onChange={(e) => setServiceDate(e.target.value)}
+                            onChange={(e) => { setServiceDate(e.target.value); setStepError(""); }}
                             className="w-full py-1.5 bg-transparent text-[15px] text-gray-900 focus:outline-none"
                           />
                         </div>
@@ -255,8 +331,9 @@ export default function ReservationPage() {
                           <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">Time</label>
                           <input
                             type="time"
+                            required
                             value={serviceTime}
-                            onChange={(e) => setServiceTime(e.target.value)}
+                            onChange={(e) => { setServiceTime(e.target.value); setStepError(""); }}
                             className="w-full py-1.5 bg-transparent text-[15px] text-gray-900 focus:outline-none"
                           />
                         </div>
@@ -301,7 +378,7 @@ export default function ReservationPage() {
                           {fleetData.map((vehicle) => (
                             <button
                               key={vehicle.id}
-                              onClick={() => setSelectedVehicle(vehicle.id)}
+                              onClick={() => { setSelectedVehicle(vehicle.id); setStepError(""); }}
                               className={`p-4 sm:p-6 rounded-xl sm:rounded-2xl border-2 text-left transition-all duration-300 group ${
                                 selectedVehicle === vehicle.id
                                   ? 'border-[#C9A063] bg-[#C9A063]/5 shadow-xl shadow-[#C9A063]/20'
@@ -349,7 +426,10 @@ export default function ReservationPage() {
                             <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#C9A063]" />
                             <input
                               type="text"
+                              required
                               placeholder="John"
+                              value={firstName}
+                              onChange={(e) => { setFirstName(e.target.value); setStepError(""); }}
                               className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
                             />
                           </div>
@@ -362,7 +442,10 @@ export default function ReservationPage() {
                             <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#C9A063]" />
                             <input
                               type="text"
+                              required
                               placeholder="Smith"
+                              value={lastName}
+                              onChange={(e) => { setLastName(e.target.value); setStepError(""); }}
                               className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
                             />
                           </div>
@@ -377,7 +460,10 @@ export default function ReservationPage() {
                           <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#C9A063]" />
                           <input
                             type="email"
+                            required
                             placeholder="john.smith@example.com"
+                            value={email}
+                            onChange={(e) => { setEmail(e.target.value); setStepError(""); }}
                             className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
                           />
                         </div>
@@ -428,7 +514,10 @@ export default function ReservationPage() {
                             <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#C9A063]" />
                             <input
                               type="tel"
+                              required
                               placeholder="123-456-7890"
+                              value={phone}
+                              onChange={(e) => { setPhone(e.target.value); setStepError(""); }}
                               className="w-full pl-12 pr-4 py-4 bg-transparent text-gray-900 placeholder-gray-500 focus:outline-none"
                             />
                           </div>
@@ -442,6 +531,8 @@ export default function ReservationPage() {
                         <textarea
                           placeholder="Any special requests, dietary requirements, or additional information..."
                           rows={4}
+                          value={specialRequirements}
+                          onChange={(e) => setSpecialRequirements(e.target.value)}
                           className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300 resize-none"
                         />
                       </div>
@@ -508,22 +599,84 @@ export default function ReservationPage() {
                         </div>
                       </div>
 
-{/* STRIPE PAYMENT SECTION - Uncomment when needed
-                      
-                      To enable Stripe payment:
-                      1. Uncomment import: import StripePayment from "@/components/StripePayment";
-                      2. Uncomment payment states in component
-                      3. Uncomment this JSX block
-                      4. Uncomment the payment button in Navigation Buttons section
-                      
-                      */}
+                      {/* Terms checkbox */}
+                      <label className="flex items-start gap-3 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={termsAccepted}
+                          onChange={(e) => setTermsAccepted(e.target.checked)}
+                          className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063] focus:ring-offset-0"
+                        />
+                        <span className="text-gray-600 text-[13px] leading-snug group-hover:text-gray-700">
+                          I agree to the <a href="/terms" className="text-[#C9A063] underline">Terms of Service</a> and <a href="/privacy" className="text-[#C9A063] underline">Privacy Policy</a>
+                        </span>
+                      </label>
+
+                      {showPayment && !paymentSuccess && (
+                        <StripePayment
+                          amount={Math.round(routePrice * 100)}
+                          onSuccess={async (id) => {
+                            setPaymentSuccess(true);
+                            setShowPayment(false);
+                            await sendReservationEmails();
+                          }}
+                          onError={(err) => setPaymentError(err)}
+                          metadata={{
+                            pickup: pickupLocation,
+                            dropoff: dropoffLocation,
+                            date: serviceDate,
+                            time: serviceTime,
+                            vehicle: selectedVehicle,
+                            passengers: String(passengersCount),
+                          }}
+                        />
+                      )}
+
+                      {paymentSuccess && (
+                        <div className="flex flex-col items-center justify-center py-8 text-center">
+                          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
+                            <CheckCircle className="w-8 h-8 text-green-600" />
+                          </div>
+                          <h3 className="text-[17px] font-bold text-gray-900 mb-1">Payment Successful!</h3>
+                          {emailSending && (
+                            <div className="flex items-center gap-2 mt-2">
+                              <Loader2 className="w-4 h-4 animate-spin text-[#C9A063]" />
+                              <p className="text-[13px] text-gray-500">Sending confirmation emails...</p>
+                            </div>
+                          )}
+                          {emailSent && (
+                            <p className="text-[13px] text-green-600 mt-2">Confirmation emails sent! Check your inbox.</p>
+                          )}
+                          {emailError && (
+                            <p className="text-[13px] text-red-500 mt-2">Email error: {emailError}</p>
+                          )}
+                          {!emailSending && !emailSent && !emailError && (
+                            <p className="text-[13px] text-gray-500">Your reservation has been confirmed.</p>
+                          )}
+                        </div>
+                      )}
+
+                      {paymentError && (
+                        <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-xl">
+                          <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                          <span className="text-red-700 text-[13px]">{paymentError}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Validation Error */}
+                  {stepError && (
+                    <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5">
+                      <AlertCircle className="w-4.5 h-4.5 text-red-500 flex-shrink-0" strokeWidth={2} />
+                      <p className="text-red-700 text-[13px] font-medium">{stepError}</p>
                     </div>
                   )}
 
                   {/* Navigation Buttons */}
                   <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 mt-6 pt-4 border-t border-gray-200/60">
                     <button
-                      onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
+                      onClick={() => { setCurrentStep(Math.max(1, currentStep - 1)); setStepError(""); }}
                       disabled={currentStep === 1}
                       className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-[15px] font-medium transition-colors ${
                         currentStep === 1
@@ -533,22 +686,15 @@ export default function ReservationPage() {
                     >
                       Previous
                     </button>
-                    <button
-                      onClick={() => setCurrentStep(Math.min(4, currentStep + 1))}
-                      className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#1C1C1E] text-white px-6 py-2.5 rounded-xl text-[15px] font-medium active:bg-[#2C2C2E] transition-colors"
-                    >
-                      {currentStep === 4 ? "Confirm Reservation" : "Continue"}
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
-                    {/* STRIPE - Payment button (uncomment when needed)
                     {currentStep === 4 ? (
                       !showPayment && !paymentSuccess && (
                         <button
                           onClick={() => {
                             if (!termsAccepted) {
-                              alert("Please accept the Terms of Service and Privacy Policy");
+                              setStepError("Please accept the Terms of Service and Privacy Policy.");
                               return;
                             }
+                            setStepError("");
                             setShowPayment(true);
                           }}
                           disabled={!termsAccepted}
@@ -560,14 +706,13 @@ export default function ReservationPage() {
                       )
                     ) : (
                       <button
-                        onClick={() => setCurrentStep(Math.min(4, currentStep + 1))}
+                        onClick={handleNext}
                         className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#1C1C1E] text-white px-6 py-2.5 rounded-xl text-[15px] font-medium active:bg-[#2C2C2E] transition-colors"
                       >
                         Continue
                         <ArrowRight className="w-4 h-4" />
                       </button>
                     )}
-                    */}
                   </div>
                 </div>
               </div>
