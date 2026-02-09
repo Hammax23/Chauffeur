@@ -31,7 +31,7 @@ const stats = [
   { value: "12+", label: "Years of excellence", icon: Trophy },
   { value: "10K+", label: "Rides completed", icon: Sparkles },
   { value: "24/7", label: "Concierge support", icon: Headphones },
-  { value: "Worlwide", label: "Major cities served", icon: Globe2 },
+  { value: "Worldwide", label: "Major cities served", icon: Globe2 },
 ];
 
 export default function AboutPage() {

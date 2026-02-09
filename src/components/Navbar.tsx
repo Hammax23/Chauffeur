@@ -30,10 +30,10 @@ const Navbar = () => {
               <Image 
                 src="/logo1.png" 
                 alt="SARJ Worldwide Chauffeur Services Logo" 
-                width={250}
-                height={100}
+                width={190}
+                height={90}
                 className="object-contain object-left"
-                style={{ width: '300px', height: '100px' }}
+                style={{ width: '190px', height: '90px' }}
               />
             </Link>
 

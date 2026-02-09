@@ -12,6 +12,9 @@ import {
   Send,
   MessageCircle,
   Headphones,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
 import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
@@ -125,9 +128,49 @@ export default function ContactPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [phoneCode, setPhoneCode] = useState("+1");
-  const [pickup, setPickup] = useState("");
-  const [dropoff, setDropoff] = useState("");
   const [additionalNotes, setAdditionalNotes] = useState("");
+  
+  // Form submission states
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName,
+          email,
+          phone,
+          phoneCode,
+          additionalNotes,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.details || data.error || "Failed to send message");
+      }
+
+      setSubmitSuccess(true);
+      // Reset form
+      setFullName("");
+      setEmail("");
+      setPhone("");
+      setAdditionalNotes("");
+    } catch (error: any) {
+      setSubmitError(error.message || "Something went wrong. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
@@ -211,7 +254,7 @@ export default function ContactPage() {
                   </div>
                 ))}
               </div>
-              <div className="rounded-2xl bg-gradient-to-br from-[#C9A063]/[0.08] to-[#C9A063]/[0.04] border border-[#C9A063]/20 p-6">
+              {/* <div className="rounded-2xl bg-gradient-to-br from-[#C9A063]/[0.08] to-[#C9A063]/[0.04] border border-[#C9A063]/20 p-6">
                 <div className="flex items-start gap-4">
                   <Headphones className="w-10 h-10 text-[#C9A063] flex-shrink-0" strokeWidth={1.5} />
                   <div>
@@ -224,7 +267,7 @@ export default function ContactPage() {
                     </p>
                   </div>
                 </div>
-              </div>
+              </div> */}
             </div>
 
             {/* Right on desktop: 3-step form — First on mobile (order 1) */}
@@ -247,9 +290,34 @@ export default function ContactPage() {
                 </div>
 
                 <form
-                  onSubmit={(e) => e.preventDefault()}
+                  onSubmit={handleSubmit}
                   className="p-6 sm:p-8 space-y-5"
                 >
+                  {/* Success Message */}
+                  {submitSuccess && (
+                    <div className="flex items-start gap-4 p-5 bg-green-50 border border-green-200 rounded-xl">
+                      <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-green-800 font-semibold text-[15px] mb-1">Message Sent Successfully!</h3>
+                        <p className="text-green-700 text-[14px]">Your booking form has been submitted to SARJ WORLDWIDE. We&apos;ll get back to you within 24 hours. A confirmation email has been sent to your email address.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error Message */}
+                  {submitError && (
+                    <div className="flex items-start gap-4 p-5 bg-red-50 border border-red-200 rounded-xl">
+                      <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                        <AlertCircle className="w-5 h-5 text-red-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-red-800 font-semibold text-[15px] mb-1">Failed to Send</h3>
+                        <p className="text-red-700 text-[14px]">{submitError}</p>
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-gray-800 text-[14px] font-medium mb-2">Full name <span className="text-red-500">*</span></label>
                     <input
@@ -257,6 +325,7 @@ export default function ContactPage() {
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       placeholder="First and last name"
+                      required
                       className="w-full px-4 py-3.5 border border-gray-300 rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all"
                     />
                   </div>
@@ -268,6 +337,7 @@ export default function ContactPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="info@example.com"
+                      required
                       className="w-full px-4 py-3.5 border border-gray-300 rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all"
                     />
                   </div>
@@ -292,33 +362,12 @@ export default function ContactPage() {
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
                           placeholder="300 1234567"
+                          required
                           className="w-full px-4 py-3.5 pr-11 border-0 focus:ring-0 focus:outline-none bg-transparent text-[15px] text-gray-800 placeholder-gray-400"
                         />
                         <Phone className="absolute right-3 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
                       </div>
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-800 text-[14px] font-medium mb-2">Pickup</label>
-                    <input
-                      type="text"
-                      value={pickup}
-                      onChange={(e) => setPickup(e.target.value)}
-                      placeholder="Pickup address or location"
-                      className="w-full px-4 py-3.5 border border-gray-300 rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-800 text-[14px] font-medium mb-2">Dropoff</label>
-                    <input
-                      type="text"
-                      value={dropoff}
-                      onChange={(e) => setDropoff(e.target.value)}
-                      placeholder="Dropoff address or location"
-                      className="w-full px-4 py-3.5 border border-gray-300 rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all"
-                    />
                   </div>
 
                   <div>
@@ -334,10 +383,20 @@ export default function ContactPage() {
 
                   <button
                     type="submit"
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-[#C9A063] to-[#A68B5B] text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-[#C9A063]/30 transition-all duration-300"
+                    disabled={isSubmitting}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-[#C9A063] to-[#A68B5B] text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-[#C9A063]/30 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    <Send className="w-4 h-4" strokeWidth={2.5} />
-                    Send message
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" strokeWidth={2.5} />
+                        Send message
+                      </>
+                    )}
                   </button>
                 </form>
               </div>
