@@ -11,6 +11,7 @@ import {
   ArrowRight, 
   CheckCircle,
   Plus,
+  Minus,
   X,
   ChevronDown,
   ChevronUp,
@@ -22,7 +23,8 @@ import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import RouteMap from "@/components/RouteMap";
-import StripePayment from "@/components/StripePayment";
+// import StripePayment from "@/components/StripePayment";
+import Turnstile from "@/components/Turnstile";
 import { fleetData } from "@/data/fleet";
 
 const COUNTRY_CODES = [
@@ -42,10 +44,12 @@ export default function ReservationPage() {
   const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
   
   // Dynamic location states
+  const [serviceType, setServiceType] = useState("");
   const [pickupLocation, setPickupLocation] = useState("");
   const [dropoffLocation, setDropoffLocation] = useState("");
   const [serviceDate, setServiceDate] = useState("");
   const [serviceTime, setServiceTime] = useState("");
+  const [childSeatCount, setChildSeatCount] = useState(0);
 
   // Contact Info states
   const [firstName, setFirstName] = useState("");
@@ -54,6 +58,26 @@ export default function ReservationPage() {
   const [phone, setPhone] = useState("");
   const [specialRequirements, setSpecialRequirements] = useState("");
 
+  // Flight Info states
+  const [airlineName, setAirlineName] = useState("");
+  const [flightNumber, setFlightNumber] = useState("");
+  const [flightNote, setFlightNote] = useState("");
+
+  // Gratuity
+  const [gratuityPercent, setGratuityPercent] = useState(15);
+
+  // Payment states (card info)
+  const [cardType, setCardType] = useState("");
+  const [nameOnCard, setNameOnCard] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [expirationYear, setExpirationYear] = useState("");
+  const [expirationMonth, setExpirationMonth] = useState("");
+  const [cvv, setCvv] = useState("");
+  const [billingAddress, setBillingAddress] = useState("");
+  const [zipCode, setZipCode] = useState("");
+  const [purchaseOrder, setPurchaseOrder] = useState("");
+  const [deptNumber, setDeptNumber] = useState("");
+
   // Validation state
   const [stepError, setStepError] = useState("");
   
@@ -61,17 +85,22 @@ export default function ReservationPage() {
   const [routeDistance, setRouteDistance] = useState("--");
   const [routeDuration, setRouteDuration] = useState("--");
   const [routePrice, setRoutePrice] = useState(0);
+  const [routeDistanceValue, setRouteDistanceValue] = useState(0);
+  const [routeDurationValue, setRouteDurationValue] = useState(0);
   
-  // Payment states
-  const [showPayment, setShowPayment] = useState(false);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
-  const [paymentError, setPaymentError] = useState<string | null>(null);
+  // Payment states (Stripe - commented out)
+  // const [showPayment, setShowPayment] = useState(false);
+  // const [paymentSuccess, setPaymentSuccess] = useState(false);
+  // const [paymentError, setPaymentError] = useState<string | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
   // Email states
   const [emailSending, setEmailSending] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [emailError, setEmailError] = useState("");
+
+  // Turnstile
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   const sendReservationEmails = useCallback(async () => {
     setEmailSending(true);
@@ -83,6 +112,7 @@ export default function ReservationPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           firstName, lastName, email, phone, phoneCode: countryCode,
+          serviceType,
           pickupLocation, dropoffLocation,
           stops: stops.filter((s) => s.trim() !== ""),
           serviceDate, serviceTime,
@@ -90,6 +120,7 @@ export default function ReservationPage() {
           passengers: passengersCount,
           specialRequirements,
           routeDistance, routeDuration, routePrice,
+          turnstileToken,
         }),
       });
       const data = await res.json();
@@ -100,23 +131,35 @@ export default function ReservationPage() {
     } finally {
       setEmailSending(false);
     }
-  }, [firstName, lastName, email, phone, countryCode, pickupLocation, dropoffLocation, stops, serviceDate, serviceTime, selectedVehicle, passengersCount, specialRequirements, routeDistance, routeDuration, routePrice]);
+  }, [firstName, lastName, email, phone, countryCode, serviceType, pickupLocation, dropoffLocation, stops, serviceDate, serviceTime, selectedVehicle, passengersCount, specialRequirements, routeDistance, routeDuration, routePrice, turnstileToken]);
 
-  // Calculate price based on distance (e.g., $3 per km)
-  const handleRouteCalculated = (distance: string, duration: string, distanceValue: number) => {
+  // Store route data; price is recalculated via useEffect when vehicle or route changes
+  const handleRouteCalculated = useCallback((distance: string, duration: string, distanceValue: number, durationValue: number) => {
     setRouteDistance(distance);
     setRouteDuration(duration);
-    // Calculate price: base fare $50 + $3 per km
-    const pricePerKm = 3;
-    const baseFare = 50;
-    const calculatedPrice = baseFare + (distanceValue / 1000) * pricePerKm;
+    setRouteDistanceValue(distanceValue);
+    setRouteDurationValue(durationValue);
+  }, []);
+
+  // Recalculate price whenever vehicle selection or route data changes
+  useEffect(() => {
+    if (routeDistanceValue <= 0 || routeDurationValue <= 0) {
+      setRoutePrice(0);
+      return;
+    }
+    const vehicle = fleetData.find((v) => v.id === selectedVehicle);
+    const hourlyRate = vehicle ? vehicle.price : 0;
+    // Duration in hours (minimum 1 hour)
+    const durationHours = Math.max(1, Math.ceil(routeDurationValue / 3600));
+    const calculatedPrice = hourlyRate * durationHours;
     setRoutePrice(calculatedPrice);
-  };
+  }, [selectedVehicle, routeDistanceValue, routeDurationValue]);
 
   // Step validation
   const validateStep = (step: number): boolean => {
     setStepError("");
     if (step === 1) {
+      if (!serviceType) { setStepError("Please select a service type."); return false; }
       if (!pickupLocation.trim()) { setStepError("Please enter a pickup location."); return false; }
       if (!dropoffLocation.trim()) { setStepError("Please enter a drop-off location."); return false; }
       if (!serviceDate) { setStepError("Please select a date."); return false; }
@@ -243,6 +286,21 @@ export default function ReservationPage() {
                   {/* Step 1: Ride Details */}
                   {currentStep === 1 && (
                     <div className="space-y-5">
+                      {/* Service Type */}
+                      <div className="bg-white rounded-xl border border-gray-200/60 px-4 py-3">
+                        <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">Service Type</label>
+                        <select
+                          value={serviceType}
+                          onChange={(e) => { setServiceType(e.target.value); setStepError(""); }}
+                          className="w-full py-1.5 bg-transparent text-[15px] text-gray-900 focus:outline-none"
+                        >
+                          <option value="">Select service type</option>
+                          <option value="Airport pick-up/drop-off">Airport pick-up/drop-off</option>
+                          <option value="Point-to-Point transportation">Point-to-Point transportation</option>
+                          <option value="Hourly ride">Hourly ride</option>
+                        </select>
+                      </div>
+
                       {/* Trip Route - iOS grouped style */}
                       <div className="bg-white rounded-xl overflow-hidden border border-gray-200/60 divide-y divide-gray-100">
                         <div className="px-4 py-3">
@@ -315,6 +373,33 @@ export default function ReservationPage() {
                         Add Stop
                       </button>
 
+                      {/* Child Seat */}
+                      <div className="bg-white rounded-xl border border-gray-200/60 px-4 py-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider">Child Seat</label>
+                            <span className="text-[13px] text-gray-600">$25 per child seat</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setChildSeatCount(Math.max(0, childSeatCount - 1))}
+                              className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:border-[#C9A063] hover:text-[#C9A063] transition-colors"
+                            >
+                              <Minus className="w-4 h-4" />
+                            </button>
+                            <span className="text-[15px] font-semibold text-gray-900 w-6 text-center">{childSeatCount}</span>
+                            <button
+                              type="button"
+                              onClick={() => setChildSeatCount(childSeatCount + 1)}
+                              className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:border-[#C9A063] hover:text-[#C9A063] transition-colors"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Date & Time */}
                       <div className="grid grid-cols-2 gap-3">
                         <div className="bg-white rounded-xl border border-gray-200/60 px-4 py-3">
@@ -375,7 +460,10 @@ export default function ReservationPage() {
                       <div>
                         <h3 className="text-lg font-semibold text-gray-900 mb-6">Choose Your Luxury Vehicle</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {fleetData.map((vehicle) => (
+                          {fleetData.filter((vehicle) => {
+                            const maxSeats = parseInt(vehicle.seating);
+                            return !isNaN(maxSeats) && maxSeats >= passengersCount;
+                          }).map((vehicle) => (
                             <button
                               key={vehicle.id}
                               onClick={() => { setSelectedVehicle(vehicle.id); setStepError(""); }}
@@ -393,19 +481,19 @@ export default function ReservationPage() {
                                 />
                               </div>
                               <div className="font-bold text-gray-900 text-base sm:text-lg mb-2">{vehicle.name}</div>
-                              <div className="text-gray-600 text-sm mb-3 sm:mb-4 line-clamp-2">{vehicle.description}</div>
+                              <div className="text-gray-700 text-sm mb-3 sm:mb-4 line-clamp-2">{vehicle.description}</div>
                               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 text-sm">
                                 <div className="flex items-center gap-3 sm:gap-4">
                                   <div className="flex items-center gap-1">
                                     <Users className="w-4 h-4 text-[#C9A063]" />
-                                    <span className="text-xs sm:text-sm">{vehicle.seating}</span>
+                                    <span className="text-xs sm:text-sm font-medium text-gray-800">{vehicle.seating}</span>
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <span className="w-4 h-4 text-[#C9A063] text-xs">🧳</span>
-                                    <span className="text-xs sm:text-sm">{vehicle.luggage}</span>
+                                    <span className="text-xs sm:text-sm font-medium text-gray-800">{vehicle.luggage}</span>
                                   </div>
                                 </div>
-                                <span className="font-bold text-[#C9A063] text-sm">From $150/hr</span>
+                                <span className="font-bold text-[#C9A063] text-sm">From ${vehicle.price}/hr</span>
                               </div>
                             </button>
                           ))}
@@ -536,6 +624,47 @@ export default function ReservationPage() {
                           className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300 resize-none"
                         />
                       </div>
+
+                      {/* Flight Info Section */}
+                      <div className="pt-6 border-t border-gray-200">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Flight Info (YYZ - Pearson International Airport-Toronto):</h3>
+                        
+                        <div className="space-y-4">
+                          <div>
+                            <input
+                              type="text"
+                              placeholder="Start typing airline name and select from list"
+                              value={airlineName}
+                              onChange={(e) => setAirlineName(e.target.value)}
+                              className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
+                            />
+                          </div>
+
+                          <div>
+                            <input
+                              type="text"
+                              placeholder="Flight or Tail Number"
+                              value={flightNumber}
+                              onChange={(e) => setFlightNumber(e.target.value)}
+                              className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
+                            />
+                          </div>
+
+                          <div>
+                            <select
+                              value={flightNote}
+                              onChange={(e) => setFlightNote(e.target.value)}
+                              className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
+                            >
+                              <option value="">See Note</option>
+                              <option value="Domestic Flight">Domestic Flight</option>
+                              <option value="International Flight">International Flight</option>
+                              <option value="Private Flight">Private Flight</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
                     </div>
                   )}
 
@@ -573,48 +702,104 @@ export default function ReservationPage() {
                               {routeDistance !== "--" && routeDuration !== "--" ? `${routeDistance} / ${routeDuration}` : "--"}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between p-4 bg-[#f2f2f7]">
-                            <span className="text-[15px] font-semibold text-gray-900">Total</span>
-                            <span className="text-[17px] font-bold text-[#1C1C1E]">
-                              ${routePrice > 0 ? routePrice.toFixed(2) : "0.00"}
+                          <div className="flex items-center justify-between p-4">
+                            <span className="text-[13px] font-medium text-gray-600">Rate</span>
+                            <span className="text-[13px] font-semibold text-gray-900">
+                              ${fleetData.find((v) => v.id === selectedVehicle)?.price ?? 0}/hr
                             </span>
                           </div>
+                          <div className="flex items-center justify-between p-4">
+                            <span className="text-[13px] font-medium text-gray-600">Duration (billable)</span>
+                            <span className="text-[13px] font-semibold text-gray-900">
+                              {routeDurationValue > 0 ? `${Math.max(1, Math.ceil(routeDurationValue / 3600))} hr` : "--"}
+                            </span>
+                          </div>
+                          {stops.filter((s) => s.trim() !== "").length > 0 && (
+                            <div className="flex items-center justify-between p-4">
+                              <span className="text-[13px] font-medium text-gray-600">
+                                Stops ({stops.filter((s) => s.trim() !== "").length} × $20)
+                              </span>
+                              <span className="text-[13px] font-semibold text-gray-900">
+                                ${(stops.filter((s) => s.trim() !== "").length * 20).toFixed(2)}
+                              </span>
+                            </div>
+                          )}
+                          {childSeatCount > 0 && (
+                            <div className="flex items-center justify-between p-4">
+                              <span className="text-[13px] font-medium text-gray-600">
+                                Child Seat ({childSeatCount} × $25)
+                              </span>
+                              <span className="text-[13px] font-semibold text-gray-900">
+                                ${(childSeatCount * 25).toFixed(2)}
+                              </span>
+                            </div>
+                          )}
+                          {(() => {
+                            const activeStops = stops.filter((s) => s.trim() !== "").length;
+                            const stopCharge = activeStops * 20;
+                            const childSeatCharge = childSeatCount * 25;
+                            const subtotal = routePrice + stopCharge + childSeatCharge;
+                            const hst = subtotal * 0.13;
+                            const gratuity = subtotal * gratuityPercent / 100;
+                            const total = subtotal + hst + gratuity;
+                            return (
+                              <>
+                                <div className="flex items-center justify-between p-4">
+                                  <span className="text-[13px] font-medium text-gray-600">Subtotal</span>
+                                  <span className="text-[13px] font-semibold text-gray-900">
+                                    ${subtotal > 0 ? subtotal.toFixed(2) : "0.00"}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between p-4">
+                                  <span className="text-[13px] font-medium text-gray-600">HST (13%)</span>
+                                  <span className="text-[13px] font-semibold text-gray-900">
+                                    ${subtotal > 0 ? hst.toFixed(2) : "0.00"}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between p-4">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[13px] font-medium text-gray-600">Gratuity</span>
+                                    <select
+                                      value={gratuityPercent}
+                                      onChange={(e) => setGratuityPercent(Number(e.target.value))}
+                                      className="text-[13px] font-semibold text-gray-900 bg-transparent border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-[#C9A063]"
+                                    >
+                                      <option value={15}>15%</option>
+                                      <option value={18}>18%</option>
+                                      <option value={25}>25%</option>
+                                    </select>
+                                  </div>
+                                  <span className="text-[13px] font-semibold text-gray-900">
+                                    ${subtotal > 0 ? gratuity.toFixed(2) : "0.00"}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between p-4 bg-[#f2f2f7]">
+                                  <span className="text-[15px] font-semibold text-gray-900">Total</span>
+                                  <span className="text-[17px] font-bold text-[#1C1C1E]">
+                                    ${total > 0 ? total.toFixed(2) : "0.00"} CAD
+                                  </span>
+                                </div>
+                              </>
+                            );
+                          })()}
                         </div>
                       </div>
 
-                      <div className="bg-[#e8f4fd] rounded-xl border border-[#007AFF]/20 p-4">
-                        <div className="flex gap-3">
-                          <div className="w-8 h-8 rounded-full bg-[#007AFF]/20 flex items-center justify-center flex-shrink-0">
-                            <span className="text-[#007AFF] text-xs font-bold">i</span>
-                          </div>
-                          <div>
-                            <h4 className="text-[13px] font-semibold text-gray-900 mb-1">Before you pay</h4>
-                            <ul className="text-[12px] text-gray-600 space-y-1">
-                              <li>• Flight tracking included for airport transfers</li>
-                              <li>• 60-minute complimentary wait time</li>
-                              <li>• Meet & greet service with name board</li>
-                              <li>• 24/7 customer support</li>
-                            </ul>
-                          </div>
-                        </div>
-                      </div>
+                      
+                      {/* Turnstile CAPTCHA */}
+                      <Turnstile
+                        onVerify={(token) => setTurnstileToken(token)}
+                        onExpire={() => setTurnstileToken("")}
+                        onError={() => setTurnstileToken("")}
+                      />
 
-                      {/* Terms checkbox */}
-                      <label className="flex items-start gap-3 cursor-pointer group">
-                        <input
-                          type="checkbox"
-                          checked={termsAccepted}
-                          onChange={(e) => setTermsAccepted(e.target.checked)}
-                          className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063] focus:ring-offset-0"
-                        />
-                        <span className="text-gray-600 text-[13px] leading-snug group-hover:text-gray-700">
-                          I agree to the <a href="/terms" className="text-[#C9A063] underline">Terms of Service</a> and <a href="/privacy" className="text-[#C9A063] underline">Privacy Policy</a>
-                        </span>
-                      </label>
-
-                      {showPayment && !paymentSuccess && (
+                      
+                      {/* Stripe Payment - Commented Out */}
+                      {/* {showPayment && !paymentSuccess && (
                         <StripePayment
                           amount={Math.round(routePrice * 100)}
+                          vehicleId={selectedVehicle}
+                          durationValue={routeDurationValue}
                           onSuccess={async (id) => {
                             setPaymentSuccess(true);
                             setShowPayment(false);
@@ -661,7 +846,193 @@ export default function ReservationPage() {
                           <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
                           <span className="text-red-700 text-[13px]">{paymentError}</span>
                         </div>
+                      )} */}
+
+                      {/* Payment Section */}
+                      <div className="pt-4 border-t border-gray-200">
+                        <h3 className="text-lg font-semibold text-[#007AFF] mb-4">Payment</h3>
+                        
+                        <div className="space-y-4">
+                          <div>
+                            <select
+                              value={cardType}
+                              onChange={(e) => setCardType(e.target.value)}
+                              className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
+                            >
+                              <option value="">Select Card Type</option>
+                              <option value="American Express">American Express</option>
+                              <option value="Visa">Visa</option>
+                              <option value="Mastercard">Mastercard</option>
+                              <option value="Discover">Discover</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <input
+                              type="text"
+                              placeholder="Name on Card"
+                              value={nameOnCard}
+                              onChange={(e) => setNameOnCard(e.target.value)}
+                              className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
+                            />
+                          </div>
+
+                          <div>
+                            <input
+                              type="text"
+                              placeholder="Card Number"
+                              value={cardNumber}
+                              onChange={(e) => setCardNumber(e.target.value)}
+                              className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <select
+                                value={expirationYear}
+                                onChange={(e) => setExpirationYear(e.target.value)}
+                                className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
+                              >
+                                <option value="">Select Expiration Year</option>
+                                <option value="2024">2024</option>
+                                <option value="2025">2025</option>
+                                <option value="2026">2026</option>
+                                <option value="2027">2027</option>
+                                <option value="2028">2028</option>
+                                <option value="2029">2029</option>
+                                <option value="2030">2030</option>
+                              </select>
+                            </div>
+                            <div>
+                              <select
+                                value={expirationMonth}
+                                onChange={(e) => setExpirationMonth(e.target.value)}
+                                className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
+                              >
+                                <option value="">Select Expiration Month</option>
+                                <option value="01">01 - January</option>
+                                <option value="02">02 - February</option>
+                                <option value="03">03 - March</option>
+                                <option value="04">04 - April</option>
+                                <option value="05">05 - May</option>
+                                <option value="06">06 - June</option>
+                                <option value="07">07 - July</option>
+                                <option value="08">08 - August</option>
+                                <option value="09">09 - September</option>
+                                <option value="10">10 - October</option>
+                                <option value="11">11 - November</option>
+                                <option value="12">12 - December</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div>
+                            <input
+                              type="text"
+                              placeholder="CVV (Secret Code)"
+                              value={cvv}
+                              onChange={(e) => setCvv(e.target.value)}
+                              maxLength={4}
+                              className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
+                            />
+                          </div>
+
+                          <div>
+                            <input
+                              type="text"
+                              placeholder="Card Billing Street Address"
+                              value={billingAddress}
+                              onChange={(e) => setBillingAddress(e.target.value)}
+                              className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
+                            />
+                          </div>
+
+                          <div>
+                            <input
+                              type="text"
+                              placeholder="Zip/Postal Code"
+                              value={zipCode}
+                              onChange={(e) => setZipCode(e.target.value)}
+                              className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
+                            />
+                          </div>
+
+                        </div>
+                      </div>
+
+                      {/* Before you pay - Information Section */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
+                        <div className="flex items-start gap-3">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <span className="text-blue-600 font-semibold text-sm">i</span>
+                          </div>
+                          <div>
+                            <h4 className="text-gray-900 font-semibold text-[15px] mb-3">Before you pay</h4>
+                            <ul className="space-y-2 text-gray-700 text-[13px]">
+                              <li className="flex items-start gap-2">
+                                <span className="text-gray-400 mt-0.5">•</span>
+                                <span>Flight tracking included for airport transfers</span>
+                              </li>
+                              <li className="flex items-start gap-2">
+                                <span className="text-gray-400 mt-0.5">•</span>
+                                <span>15 minutes complimentary wait time</span>
+                              </li>
+                              <li className="flex items-start gap-2">
+                                <span className="text-gray-400 mt-0.5">•</span>
+                                <span>Meet & greet service with name board (extra charge applies)</span>
+                              </li>
+                              <li className="flex items-start gap-2">
+                                <span className="text-gray-400 mt-0.5">•</span>
+                                <span>For Wi-Fi access, please ask your chauffeur</span>
+                              </li>
+                              <li className="flex items-start gap-2">
+                                <span className="text-gray-400 mt-0.5">•</span>
+                                <span>24/7 customer support</span>
+                              </li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Success Message (if email sent) */}
+                      {emailSent && (
+                        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                          <div className="flex items-center gap-3">
+                            <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0" />
+                            <div>
+                              <h4 className="text-green-900 font-semibold text-[15px]">Success!</h4>
+                              <p className="text-green-700 text-[13px] mt-0.5">Your reservation has been confirmed. Check your email for details.</p>
+                            </div>
+                          </div>
+                        </div>
                       )}
+
+                      {/* Email Error */}
+                      {emailError && (
+                        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                          <div className="flex items-center gap-3">
+                            <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0" />
+                            <div>
+                              <h4 className="text-red-900 font-semibold text-[15px]">Error</h4>
+                              <p className="text-red-700 text-[13px] mt-0.5">{emailError}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Terms & Conditions Checkbox */}
+                      <label className="flex items-start gap-3 p-4 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors group">
+                        <input
+                          type="checkbox"
+                          checked={termsAccepted}
+                          onChange={(e) => setTermsAccepted(e.target.checked)}
+                          className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063] focus:ring-offset-0"
+                        />
+                        <span className="text-gray-600 text-[13px] leading-snug group-hover:text-gray-700">
+                          I agree to the <a href="/terms" className="text-[#C9A063] underline">Terms of Service</a> and <a href="/privacy" className="text-[#C9A063] underline">Privacy Policy</a>
+                        </span>
+                      </label>
                     </div>
                   )}
 
@@ -687,23 +1058,38 @@ export default function ReservationPage() {
                       Previous
                     </button>
                     {currentStep === 4 ? (
-                      !showPayment && !paymentSuccess && (
-                        <button
-                          onClick={() => {
-                            if (!termsAccepted) {
-                              setStepError("Please accept the Terms of Service and Privacy Policy.");
-                              return;
-                            }
-                            setStepError("");
-                            setShowPayment(true);
-                          }}
-                          disabled={!termsAccepted}
-                          className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#C9A063] text-white px-6 py-2.5 rounded-xl text-[15px] font-medium hover:bg-[#B8935A] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          Proceed to Payment
-                          <ArrowRight className="w-4 h-4" />
-                        </button>
-                      )
+                      <button
+                        onClick={async () => {
+                          if (!cardType) { setStepError("Please select a card type."); return; }
+                          if (!nameOnCard.trim()) { setStepError("Please enter the name on card."); return; }
+                          if (!cardNumber.trim()) { setStepError("Please enter the card number."); return; }
+                          if (!expirationYear) { setStepError("Please select the expiration year."); return; }
+                          if (!expirationMonth) { setStepError("Please select the expiration month."); return; }
+                          if (!cvv.trim()) { setStepError("Please enter the CVV."); return; }
+                          if (!billingAddress.trim()) { setStepError("Please enter the billing address."); return; }
+                          if (!zipCode.trim()) { setStepError("Please enter the zip/postal code."); return; }
+                          if (!termsAccepted) {
+                            setStepError("Please accept the Terms of Service and Privacy Policy.");
+                            return;
+                          }
+                          setStepError("");
+                          await sendReservationEmails();
+                        }}
+                        disabled={!termsAccepted || emailSending}
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#C9A063] text-white px-6 py-2.5 rounded-xl text-[15px] font-medium hover:bg-[#B8935A] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {emailSending ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Submitting...
+                          </>
+                        ) : (
+                          <>
+                            Submit Reservation
+                            <ArrowRight className="w-4 h-4" />
+                          </>
+                        )}
+                      </button>
                     ) : (
                       <button
                         onClick={handleNext}
@@ -788,7 +1174,7 @@ export default function ReservationPage() {
                           <div className="p-4 space-y-3">
                             <div>
                               <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Service Type</div>
-                              <div className="text-[13px] text-gray-900">Chauffeur Service</div>
+                              <div className="text-[13px] text-gray-900">{serviceType || "--"}</div>
                             </div>
                             <div>
                               <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Passengers</div>

@@ -5,7 +5,7 @@ import { MessageCircle, Phone } from "lucide-react";
 
 const PHONE_NUMBER = "4168935779";
 const PHONE_DISPLAY = "416-893-5779";
-const WHATSAPP_NUMBER = "14168935779"; // country code + number for wa.me
+const WHATSAPP_NUMBER = "+14168935779"; // country code + number for wa.me
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (

@@ -19,6 +19,7 @@ import {
 import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import Turnstile from "@/components/Turnstile";
 
 const contactCards = [
   {
@@ -134,6 +135,7 @@ export default function ContactPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,6 +152,7 @@ export default function ContactPage() {
           phone,
           phoneCode,
           additionalNotes,
+          turnstileToken,
         }),
       });
 
@@ -380,6 +383,12 @@ export default function ContactPage() {
                       className="w-full px-4 py-3.5 border border-gray-300 rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all resize-y"
                     />
                   </div>
+
+                  <Turnstile
+                    onVerify={(token) => setTurnstileToken(token)}
+                    onExpire={() => setTurnstileToken("")}
+                    onError={() => setTurnstileToken("")}
+                  />
 
                   <button
                     type="submit"

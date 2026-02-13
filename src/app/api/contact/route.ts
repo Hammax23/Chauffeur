@@ -1,9 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
+import { sanitizeInput } from "@/lib/sanitize";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { verifyTurnstile } from "@/lib/turnstile";
 
 export async function POST(request: NextRequest) {
   try {
-    const { fullName, email, phone, phoneCode, pickup, dropoff, additionalNotes } = await request.json();
+    // Rate limiting: 5 requests per minute per IP
+    const clientIp = getClientIp(request);
+    const rateLimit = checkRateLimit(`contact:${clientIp}`, { maxRequests: 5, windowMs: 60 * 1000 });
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: `Too many requests. Please try again in ${rateLimit.resetIn} seconds.` },
+        { status: 429 }
+      );
+    }
+
+    const body = await request.json();
+
+    // Turnstile verification
+    const turnstileResult = await verifyTurnstile(body.turnstileToken, clientIp);
+    if (!turnstileResult.success) {
+      return NextResponse.json({ error: turnstileResult.error }, { status: 403 });
+    }
+
+    // Sanitize all inputs
+    const fullName = sanitizeInput(body.fullName);
+    const email = sanitizeInput(body.email);
+    const phone = sanitizeInput(body.phone);
+    const phoneCode = sanitizeInput(body.phoneCode);
+    const pickup = sanitizeInput(body.pickup);
+    const dropoff = sanitizeInput(body.dropoff);
+    const additionalNotes = sanitizeInput(body.additionalNotes);
 
     // Validate required fields
     if (!fullName || !email || !phone) {

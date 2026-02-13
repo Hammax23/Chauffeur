@@ -27,9 +27,9 @@ const Footer = () => {
                 <Image 
                   src="/logo1.png" 
                   alt="SARJ Worldwide Logo" 
-                  width={160}
-                  height={45}
-                  className="h-[45px] w-auto relative z-10 group-hover:scale-105 transition-transform duration-300"
+                  width={180}
+                  height={80}
+                  className="h-[80px] w-auto relative z-10 group-hover:scale-105 transition-transform duration-300"
                   unoptimized
                 />
               </div>
@@ -163,25 +163,25 @@ const Footer = () => {
 
             {/* Links */}
             <div className="flex items-center gap-5">
-              <a 
-                href="#terms" 
+              <Link 
+                href="/terms-of-service" 
                 className="group relative text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-colors duration-300"
               >
                 <span className="relative">
                   Terms of Service
                   <span className="absolute -bottom-1 left-0 w-0 h-[1px] bg-[#C9A063] group-hover:w-full transition-all duration-300"></span>
                 </span>
-              </a>
+              </Link>
               <span className="text-gray-600 text-[13px]">•</span>
-              <a 
-                href="#privacy" 
+              <Link 
+                href="/privacy-policy" 
                 className="group relative text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-colors duration-300"
               >
                 <span className="relative">
                   Privacy Policy
                   <span className="absolute -bottom-1 left-0 w-0 h-[1px] bg-[#C9A063] group-hover:w-full transition-all duration-300"></span>
                 </span>
-              </a>
+              </Link>
             </div>
           </div>
         </div>

@@ -110,6 +110,8 @@ function PaymentForm({ onSuccess, onError }: PaymentFormProps) {
 
 interface StripePaymentProps {
   amount: number;
+  vehicleId: string;
+  durationValue: number;
   onSuccess: (paymentIntentId: string) => void;
   onError: (error: string) => void;
   metadata?: Record<string, string>;
@@ -117,6 +119,8 @@ interface StripePaymentProps {
 
 export default function StripePayment({
   amount,
+  vehicleId,
+  durationValue,
   onSuccess,
   onError,
   metadata,
@@ -135,7 +139,7 @@ export default function StripePayment({
     fetch("/api/create-payment-intent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amount, currency: "cad", metadata }),
+      body: JSON.stringify({ amount, vehicleId, durationValue, currency: "cad", metadata }),
     })
       .then((res) => res.json())
       .then((data) => {
@@ -150,7 +154,7 @@ export default function StripePayment({
         setError("Failed to initialize payment");
         setLoading(false);
       });
-  }, [amount, metadata]);
+  }, [amount, vehicleId, durationValue, metadata]);
 
   if (loading) {
     return (
