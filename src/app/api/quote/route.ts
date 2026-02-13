@@ -1,9 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
+import { sanitizeInput, sanitizeArray } from "@/lib/sanitize";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { verifyTurnstile } from "@/lib/turnstile";
 
 export async function POST(request: NextRequest) {
   try {
-    const { passengerName, passengers, phone, phoneCode, email, serviceType, vehicle, pickupTime, pickupLocation, stops, dropoffLocation, additionalNotes } = await request.json();
+    // Rate limiting: 5 requests per minute per IP
+    const clientIp = getClientIp(request);
+    const rateLimit = checkRateLimit(`quote:${clientIp}`, { maxRequests: 5, windowMs: 60 * 1000 });
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: `Too many requests. Please try again in ${rateLimit.resetIn} seconds.` },
+        { status: 429 }
+      );
+    }
+
+    const body = await request.json();
+
+    // Turnstile verification
+    const turnstileResult = await verifyTurnstile(body.turnstileToken, clientIp);
+    if (!turnstileResult.success) {
+      return NextResponse.json({ error: turnstileResult.error }, { status: 403 });
+    }
+
+    // Sanitize all inputs
+    const passengerName = sanitizeInput(body.passengerName);
+    const passengers = sanitizeInput(body.passengers);
+    const phone = sanitizeInput(body.phone);
+    const phoneCode = sanitizeInput(body.phoneCode);
+    const email = sanitizeInput(body.email);
+    const serviceType = sanitizeInput(body.serviceType);
+    const vehicle = sanitizeInput(body.vehicle);
+    const pickupTime = sanitizeInput(body.pickupTime);
+    const pickupLocation = sanitizeInput(body.pickupLocation);
+    const dropoffLocation = sanitizeInput(body.dropoffLocation);
+    const additionalNotes = sanitizeInput(body.additionalNotes);
+    const stops = sanitizeArray(body.stops);
 
     if (!passengerName || !passengers || !phone || !email || !serviceType || !vehicle || !pickupTime || !pickupLocation || !dropoffLocation) {
       return NextResponse.json({ error: "Please fill in all required fields" }, { status: 400 });
@@ -13,11 +46,11 @@ export async function POST(request: NextRequest) {
     const currentDate = new Date().toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" });
     const formattedPickupTime = new Date(pickupTime).toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" });
 
-    const stopsRows = stops && stops.length > 0
+    const stopsRows = stops.length > 0
       ? stops.map((s: string, i: number) => `<tr><td style="padding:10px 0;color:#666;font-size:14px;">Stop ${i+1}:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${s}</td></tr>`).join("")
       : "";
 
-    const stopsUser = stops && stops.length > 0
+    const stopsUser = stops.length > 0
       ? stops.map((s: string, i: number) => `<p style="color:#666;font-size:14px;margin:5px 0;"><strong>Stop ${i+1}:</strong> ${s}</p>`).join("")
       : "";
 

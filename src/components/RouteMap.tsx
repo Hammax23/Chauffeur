@@ -11,7 +11,7 @@ import {
 interface RouteMapProps {
   pickupLocation: string;
   dropoffLocation: string;
-  onRouteCalculated?: (distance: string, duration: string, distanceValue: number) => void;
+  onRouteCalculated?: (distance: string, duration: string, distanceValue: number, durationValue: number) => void;
 }
 
 const mapContainerStyle = {
@@ -106,7 +106,7 @@ function RouteMap({ pickupLocation, dropoffLocation, onRouteCalculated }: RouteM
     if (!isLoaded || !pickupCoords || !dropoffCoords) {
       setDirections(null);
       if (onRouteCalculated) {
-        onRouteCalculated("--", "--", 0);
+        onRouteCalculated("--", "--", 0, 0);
       }
       return;
     }
@@ -130,9 +130,10 @@ function RouteMap({ pickupLocation, dropoffLocation, onRouteCalculated }: RouteM
             const distance = leg.distance?.text || "--";
             const duration = leg.duration?.text || "--";
             const distanceValue = leg.distance?.value || 0;
+            const durationValue = leg.duration?.value || 0;
             
             if (onRouteCalculated) {
-              onRouteCalculated(distance, duration, distanceValue);
+              onRouteCalculated(distance, duration, distanceValue, durationValue);
             }
           }
         }

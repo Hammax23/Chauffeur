@@ -6,6 +6,8 @@ import { User, Users, Phone, Mail, Clock, MapPin, ChevronDown, Plus, CheckCircle
 import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import Turnstile from "@/components/Turnstile";
+import DatePicker from "react-datepicker";
 import { services } from "@/data/services";
 
 // Country codes: Canada first. flagCode = ISO code for flag image (flagcdn.com).
@@ -42,7 +44,7 @@ export default function QuotePage() {
   const [email, setEmail] = useState("");
   const [serviceType, setServiceType] = useState("");
   const [vehicle, setVehicle] = useState("");
-  const [pickupTime, setPickupTime] = useState("");
+  const [pickupTime, setPickupTime] = useState<Date | null>(null);
   const [pickupLocation, setPickupLocation] = useState("");
   const [dropoffLocation, setDropoffLocation] = useState("");
   const [additionalNotes, setAdditionalNotes] = useState("");
@@ -53,6 +55,7 @@ export default function QuotePage() {
   const [submitError, setSubmitError] = useState("");
   const [toastVisible, setToastVisible] = useState(false);
   const [toastExiting, setToastExiting] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   const dismissToast = useCallback(() => {
     setToastExiting(true);
@@ -103,11 +106,12 @@ export default function QuotePage() {
           email,
           serviceType,
           vehicle,
-          pickupTime,
+          pickupTime: pickupTime ? pickupTime.toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" }) : "",
           pickupLocation,
           stops: stops.filter((s) => s.trim() !== ""),
           dropoffLocation,
           additionalNotes,
+          turnstileToken,
         }),
       });
 
@@ -126,7 +130,7 @@ export default function QuotePage() {
       setEmail("");
       setServiceType("");
       setVehicle("");
-      setPickupTime("");
+      setPickupTime(null);
       setPickupLocation("");
       setDropoffLocation("");
       setAdditionalNotes("");
@@ -326,16 +330,23 @@ export default function QuotePage() {
               </div>
             </div>
 
-            {/* Row 4: Pick-up time */}
+            {/* Row 4: Pick-up date & time */}
             <div>
               <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Pick-up time</label>
-              <div className="relative">
-                <input
-                  type="datetime-local"
-                  required
-                  value={pickupTime}
-                  onChange={(e) => setPickupTime(e.target.value)}
+              <div className="relative quote-datepicker">
+                <DatePicker
+                  selected={pickupTime}
+                  onChange={(date: Date | null) => setPickupTime(date)}
+                  showTimeSelect
+                  timeIntervals={15}
+                  timeCaption="Time"
+                  dateFormat="MMMM d, yyyy  h:mm aa"
+                  timeFormat="h:mm aa"
+                  minDate={new Date()}
+                  placeholderText="Select date & time"
                   className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 bg-gray-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200"
+                  withPortal
+                  required
                 />
                 <Clock className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
               </div>
@@ -434,6 +445,11 @@ export default function QuotePage() {
                   I agree to receive email and SMS updates about my quote request.
                 </span>
               </label>
+              <Turnstile
+                onVerify={(token) => setTurnstileToken(token)}
+                onExpire={() => setTurnstileToken("")}
+                onError={() => setTurnstileToken("")}
+              />
               <button
                 type="submit"
                 disabled={isSubmitting}
@@ -450,7 +466,7 @@ export default function QuotePage() {
 
           <p className="mt-8 text-center text-gray-500 text-[14px]">
             Prefer to book directly?{" "}
-            <Link href="/#book" className="text-[#C9A063] font-semibold hover:underline underline-offset-2">
+            <Link href="/reservation" className="text-[#C9A063] font-semibold hover:underline underline-offset-2">
               Go to booking
             </Link>
           </p>

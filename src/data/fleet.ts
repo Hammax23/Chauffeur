@@ -8,6 +8,7 @@ export interface FleetVehicle {
   category: FleetCategory;
   seating: string;
   luggage: string;
+  price: number;
 }
 
 export const fleetData: FleetVehicle[] = [
@@ -15,19 +16,11 @@ export const fleetData: FleetVehicle[] = [
     id: "cadillac-xts",
     name: "Cadillac XTS",
     description: "American luxury redefined. Spacious cabin, smooth ride, and premium comfort for every journey.",
-    image: "/fleet/xts.png",
+    image: "/fleet/xts1.png",
     category: "Sedan",
     seating: "4 maximum, 3 comfortable",
     luggage: "2 large, 2 medium",
-  },
-  {
-    id: "mercedes-s-class",
-    name: "Mercedes S Class",
-    description: "Flagship luxury sedan. Premium comfort, cutting-edge tech, and refined elegance.",
-    image: "/fleet/mercedesS1.png",
-    category: "Executive",
-    seating: "3 maximum, 3 comfortable",
-    luggage: "3 pieces",
+    price: 115,
   },
   {
     id: "chevrolet-suburban",
@@ -37,6 +30,7 @@ export const fleetData: FleetVehicle[] = [
     category: "SUV",
     seating: "6 maximum, 5 comfortable",
     luggage: "5 large, 2 medium, 4 small",
+    price: 145,
   },
   {
     id: "cadillac-escalade",
@@ -46,6 +40,27 @@ export const fleetData: FleetVehicle[] = [
     category: "SUV",
     seating: "6 maximum, 5 comfortable",
     luggage: "5 large, 2 medium, 4 small",
+    price: 175,
+  },
+  {
+    id: "cadillac-lyric",
+    name: "Cadillac Lyric",
+    description: "Elegant luxury sedan. Refined styling, smooth performance, and exceptional passenger comfort.",
+    image: "/fleet/lyric.png",
+    category: "Sedan",
+    seating: "4 maximum, 3 comfortable",
+    luggage: "2 large, 2 medium",
+    price: 135,
+  },
+  {
+    id: "mercedes-s-class",
+    name: "Mercedes S Class",
+    description: "Flagship luxury sedan. Premium comfort, cutting-edge tech, and refined elegance.",
+    image: "/fleet/mercedesS1.png",
+    category: "Executive",
+    seating: "3 maximum, 3 comfortable",
+    luggage: "3 pieces",
+    price: 295,
   },
   {
     id: "sprinter-van",
@@ -55,8 +70,8 @@ export const fleetData: FleetVehicle[] = [
     category: "Van",
     seating: "16 maximum, 16 comfortable",
     luggage: "16 large",
+    price: 285,
   },
-  
 ];
 
 export const fleetCategories: FleetCategory[] = ["Sedan", "Executive", "SUV", "Van", "Coach"];

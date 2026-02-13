@@ -1,9 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
+import { sanitizeInput, sanitizeArray } from "@/lib/sanitize";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { verifyTurnstile } from "@/lib/turnstile";
 
 export async function POST(request: NextRequest) {
   try {
-    const { firstName, lastName, email, phone, phoneCode, pickupLocation, dropoffLocation, stops, serviceDate, serviceTime, vehicle, passengers, specialRequirements, routeDistance, routeDuration, routePrice } = await request.json();
+    // Rate limiting: 5 requests per minute per IP
+    const clientIp = getClientIp(request);
+    const rateLimit = checkRateLimit(`reservation:${clientIp}`, { maxRequests: 5, windowMs: 60 * 1000 });
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: `Too many requests. Please try again in ${rateLimit.resetIn} seconds.` },
+        { status: 429 }
+      );
+    }
+
+    const body = await request.json();
+
+    // Turnstile verification
+    const turnstileResult = await verifyTurnstile(body.turnstileToken, clientIp);
+    if (!turnstileResult.success) {
+      return NextResponse.json({ error: turnstileResult.error }, { status: 403 });
+    }
+
+    // Sanitize all inputs
+    const firstName = sanitizeInput(body.firstName);
+    const lastName = sanitizeInput(body.lastName);
+    const email = sanitizeInput(body.email);
+    const phone = sanitizeInput(body.phone);
+    const phoneCode = sanitizeInput(body.phoneCode);
+    const pickupLocation = sanitizeInput(body.pickupLocation);
+    const dropoffLocation = sanitizeInput(body.dropoffLocation);
+    const serviceDate = sanitizeInput(body.serviceDate);
+    const serviceTime = sanitizeInput(body.serviceTime);
+    const vehicle = sanitizeInput(body.vehicle);
+    const passengers = typeof body.passengers === "number" ? body.passengers : parseInt(sanitizeInput(body.passengers)) || 1;
+    const specialRequirements = sanitizeInput(body.specialRequirements);
+    const routeDistance = sanitizeInput(body.routeDistance);
+    const routeDuration = sanitizeInput(body.routeDuration);
+    const routePrice = typeof body.routePrice === "number" ? body.routePrice : 0;
+    const stops = sanitizeArray(body.stops);
 
     if (!firstName || !lastName || !email || !phone || !pickupLocation || !dropoffLocation || !serviceDate || !serviceTime || !vehicle) {
       return NextResponse.json({ error: "Please fill in all required fields" }, { status: 400 });
