@@ -5,11 +5,11 @@ import { ChevronRight, ChevronLeft, Users, Briefcase } from 'lucide-react';
 
 const fleetData = [
   { name: 'CADILLAC XTS', images: ['/fleet/xts1.png', '/fleet/xts2.png', '/fleet/xts3.png'], seating: '4 maximum, 3 comfortable', luggage: '2 large, 2 medium' },
-  { name: 'CADILLAC LYRIQ', images: ['/fleet/lyric.png', '/fleet/lyric.png', '/fleet/lyric.png'], seating: '4 maximum, 4 comfortable', luggage: '2 large, 2 medium' },
-  { name: 'MERCEDES S-CLASS ', images: ['/fleet/mercedesS1.png', '/fleet/mercedesS1.png', '/fleet/mercedesS1.png'], seating: '4 maximum, 3 comfortable', luggage: '2 large, 2 medium' },
-  { name: 'CHEVROLET SUBURBAN', images: ['/fleet/suburban.png', '/fleet/suburban.png', '/fleet/suburban.png'], seating: '6 maximum, 5 comfortable', luggage: '4 large, 2 medium' },
-  { name: 'CADILLAC ESCALADE', images: ['/fleet/escalade.png', '/fleet/escalade.png', '/fleet/escalade.png'], seating: '6 maximum, 5 comfortable', luggage: '4 large, 2 medium' },
-  { name: 'SPRINTER VAN', images: ['/fleet/sprinter.png', '/fleet/sprinter.png', '/fleet/sprinter.png'], seating: '8 maximum, 7 comfortable', luggage: '6 large, 4 medium' },
+  { name: 'CADILLAC LYRIQ', images: ['/fleet/lyricfront.png', '/fleet/lyric.png', '/fleet/lyric2.png', '/fleet/lyricinterior.jpg'], seating: '4 maximum, 4 comfortable', luggage: '2 large, 2 medium' },
+  { name: 'MERCEDES S-CLASS ', images: ['/fleet/mercedesS1.png', '/fleet/msclassback.png', '/fleet/msclassinterior.jpg'], seating: '4 maximum, 3 comfortable', luggage: '2 large, 2 medium' },
+  { name: 'CHEVROLET SUBURBAN', images: ['/fleet/suburban.png', '/fleet/saburbanback.png', '/fleet/saburban_interior-removebg-preview.png'], seating: '6 maximum, 5 comfortable', luggage: '4 large, 2 medium' },
+  { name: 'CADILLAC ESCALADE', images: ['/fleet/escalade.png', '/fleet/escladeback.png', '/fleet/escaldeinterior.avif'], seating: '6 maximum, 5 comfortable', luggage: '4 large, 2 medium' },
+  { name: 'SPRINTER VAN', images: ['/fleet/sprinter.png', '/fleet/sprinterback.png', '/fleet/sprinter interior.jpg'], seating: '8 maximum, 7 comfortable', luggage: '6 large, 4 medium' },
 ];
 
 const DiscoverFleet = () => {
