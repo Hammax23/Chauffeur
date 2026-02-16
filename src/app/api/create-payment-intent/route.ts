@@ -4,9 +4,7 @@ import { sanitizeInput } from "@/lib/sanitize";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { fleetData } from "@/data/fleet";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2026-01-28.clover" as any,
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export async function POST(request: NextRequest) {
   try {
