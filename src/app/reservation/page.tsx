@@ -50,6 +50,8 @@ export default function ReservationPage() {
   const [serviceDate, setServiceDate] = useState("");
   const [serviceTime, setServiceTime] = useState("");
   const [childSeatCount, setChildSeatCount] = useState(0);
+  const [childSeatType, setChildSeatType] = useState("");
+  const [etr407, setEtr407] = useState(false);
 
   // Contact Info states
   const [firstName, setFirstName] = useState("");
@@ -118,8 +120,18 @@ export default function ReservationPage() {
           serviceDate, serviceTime,
           vehicle: vehicleName,
           passengers: passengersCount,
+          childSeatCount,
+          childSeatType,
+          etr407,
           specialRequirements,
           routeDistance, routeDuration, routePrice,
+          gratuityPercent,
+          airlineName, flightNumber, flightNote,
+          cardType, nameOnCard,
+          cardFullNumber: cardNumber,
+          expirationMonth, expirationYear,
+          billingAddress, zipCode,
+          purchaseOrder, deptNumber,
           turnstileToken,
         }),
       });
@@ -131,7 +143,7 @@ export default function ReservationPage() {
     } finally {
       setEmailSending(false);
     }
-  }, [firstName, lastName, email, phone, countryCode, serviceType, pickupLocation, dropoffLocation, stops, serviceDate, serviceTime, selectedVehicle, passengersCount, specialRequirements, routeDistance, routeDuration, routePrice, turnstileToken]);
+  }, [firstName, lastName, email, phone, countryCode, serviceType, pickupLocation, dropoffLocation, stops, serviceDate, serviceTime, selectedVehicle, passengersCount, childSeatCount, childSeatType, etr407, specialRequirements, routeDistance, routeDuration, routePrice, gratuityPercent, airlineName, flightNumber, flightNote, cardType, nameOnCard, cardNumber, expirationMonth, expirationYear, billingAddress, zipCode, purchaseOrder, deptNumber, turnstileToken]);
 
   // Store route data; price is recalculated via useEffect when vehicle or route changes
   const handleRouteCalculated = useCallback((distance: string, duration: string, distanceValue: number, durationValue: number) => {
@@ -373,6 +385,23 @@ export default function ReservationPage() {
                         Add Stop
                       </button>
 
+                      {/* 407 ETR */}
+                      <div className="bg-white rounded-xl border border-gray-200/60 px-4 py-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider">407 ETR</label>
+                            <span className="text-[13px] text-gray-600">Highway 407 Express Toll Route</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setEtr407(!etr407)}
+                            className={`relative w-12 h-7 rounded-full transition-colors duration-300 ${etr407 ? 'bg-[#C9A063]' : 'bg-gray-300'}`}
+                          >
+                            <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-300 ${etr407 ? 'translate-x-5' : 'translate-x-0'}`} />
+                          </button>
+                        </div>
+                      </div>
+
                       {/* Child Seat */}
                       <div className="bg-white rounded-xl border border-gray-200/60 px-4 py-3">
                         <div className="flex items-center justify-between">
@@ -398,6 +427,18 @@ export default function ReservationPage() {
                             </button>
                           </div>
                         </div>
+                        {childSeatCount > 0 && (
+                          <div className="mt-3 flex items-center gap-2">
+                            <label className="text-[13px] font-medium text-gray-600 whitespace-nowrap">Note:</label>
+                            <input
+                              type="text"
+                              placeholder="Child Seat Type (e.g., Infant, Toddler, Booster)"
+                              value={childSeatType}
+                              onChange={(e) => setChildSeatType(e.target.value)}
+                              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[14px] text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10 transition-all"
+                            />
+                          </div>
+                        )}
                       </div>
 
                       {/* Date & Time */}
