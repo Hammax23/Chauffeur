@@ -167,6 +167,55 @@ export default function ReservationPage() {
     setRoutePrice(calculatedPrice);
   }, [selectedVehicle, routeDistanceValue, routeDurationValue]);
 
+  // Card validation functions
+  const validateCardNumber = (number: string): boolean => {
+    const cleanNumber = number.replace(/\D/g, '');
+    if (cleanNumber.length < 13 || cleanNumber.length > 19) return false;
+    
+    // Luhn algorithm
+    let sum = 0;
+    let isEven = false;
+    
+    for (let i = cleanNumber.length - 1; i >= 0; i--) {
+      let digit = parseInt(cleanNumber.charAt(i));
+      
+      if (isEven) {
+        digit *= 2;
+        if (digit > 9) digit -= 9;
+      }
+      
+      sum += digit;
+      isEven = !isEven;
+    }
+    
+    return sum % 10 === 0;
+  };
+
+  const detectCardType = (number: string): string => {
+    const cleanNumber = number.replace(/\D/g, '');
+    const patterns = {
+      'Visa': /^4[0-9]/,
+      'Mastercard': /^5[1-5][0-9]/,
+      'American Express': /^3[47][0-9]/,
+      'Discover': /^6(?:011|5[0-9]{2})[0-9]/
+    };
+    
+    for (let [type, pattern] of Object.entries(patterns)) {
+      if (pattern.test(cleanNumber)) return type;
+    }
+    return '';
+  };
+
+  // Auto-detect card type when user enters card number
+  useEffect(() => {
+    if (cardNumber.length >= 4) {
+      const detectedType = detectCardType(cardNumber);
+      if (detectedType && detectedType !== cardType) {
+        setCardType(detectedType);
+      }
+    }
+  }, [cardNumber, cardType]);
+
   // Step validation
   const validateStep = (step: number): boolean => {
     setStepError("");
@@ -378,68 +427,13 @@ export default function ReservationPage() {
                       ))}
 
                       <button
+                        type="button"
                         onClick={() => setStops([...stops, ""])}
                         className="flex items-center gap-2 text-[#007AFF] text-[15px] font-medium"
                       >
                         <Plus className="w-4 h-4" strokeWidth={2.5} />
                         Add Stop
                       </button>
-
-                      {/* 407 ETR */}
-                      <div className="bg-white rounded-xl border border-gray-200/60 px-4 py-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider">407 ETR</label>
-                            <span className="text-[13px] text-gray-600">Highway 407 Express Toll Route</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setEtr407(!etr407)}
-                            className={`relative w-12 h-7 rounded-full transition-colors duration-300 ${etr407 ? 'bg-[#C9A063]' : 'bg-gray-300'}`}
-                          >
-                            <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-300 ${etr407 ? 'translate-x-5' : 'translate-x-0'}`} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Child Seat */}
-                      <div className="bg-white rounded-xl border border-gray-200/60 px-4 py-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider">Child Seat</label>
-                            <span className="text-[13px] text-gray-600"> Child Seat: $20</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <button
-                              type="button"
-                              onClick={() => setChildSeatCount(Math.max(0, childSeatCount - 1))}
-                              className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:border-[#C9A063] hover:text-[#C9A063] transition-colors"
-                            >
-                              <Minus className="w-4 h-4" />
-                            </button>
-                            <span className="text-[15px] font-semibold text-gray-900 w-6 text-center">{childSeatCount}</span>
-                            <button
-                              type="button"
-                              onClick={() => setChildSeatCount(childSeatCount + 1)}
-                              className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:border-[#C9A063] hover:text-[#C9A063] transition-colors"
-                            >
-                              <Plus className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                        {childSeatCount > 0 && (
-                          <div className="mt-3 flex items-center gap-2">
-                            <label className="text-[13px] font-medium text-gray-600 whitespace-nowrap">Note:</label>
-                            <input
-                              type="text"
-                              placeholder="Child Seat Type (e.g., Infant, Toddler, Booster)"
-                              value={childSeatType}
-                              onChange={(e) => setChildSeatType(e.target.value)}
-                              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[14px] text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10 transition-all"
-                            />
-                          </div>
-                        )}
-                      </div>
 
                       {/* Date & Time */}
                       <div className="grid grid-cols-2 gap-3">
@@ -539,6 +533,62 @@ export default function ReservationPage() {
                             </button>
                           ))}
                         </div>
+                      </div>
+
+                      {/* 407 ETR */}
+                      <div className="bg-white rounded-xl border border-gray-200/60 px-4 py-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider">407 ETR</label>
+                            <span className="text-[13px] text-gray-600">Highway 407 Express Toll Route</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setEtr407(!etr407)}
+                            className={`relative w-12 h-7 rounded-full transition-colors duration-300 ${etr407 ? 'bg-[#C9A063]' : 'bg-gray-300'}`}
+                          >
+                            <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-300 ${etr407 ? 'translate-x-5' : 'translate-x-0'}`} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Child Seat */}
+                      <div className="bg-white rounded-xl border border-gray-200/60 px-4 py-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider">Child Seat</label>
+                            <span className="text-[13px] text-gray-600">Child Seat: $25</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setChildSeatCount(Math.max(0, childSeatCount - 1))}
+                              className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:border-[#C9A063] hover:text-[#C9A063] transition-colors"
+                            >
+                              <Minus className="w-4 h-4" />
+                            </button>
+                            <span className="text-[15px] font-semibold text-gray-900 w-6 text-center">{childSeatCount}</span>
+                            <button
+                              type="button"
+                              onClick={() => setChildSeatCount(childSeatCount + 1)}
+                              className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:border-[#C9A063] hover:text-[#C9A063] transition-colors"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        {childSeatCount > 0 && (
+                          <div className="mt-3 flex items-center gap-2">
+                            <label className="text-[13px] font-medium text-gray-600 whitespace-nowrap">Note:</label>
+                            <input
+                              type="text"
+                              placeholder="Child Seat Type (e.g., Infant, Toddler, Booster)"
+                              value={childSeatType}
+                              onChange={(e) => setChildSeatType(e.target.value)}
+                              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[14px] text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10 transition-all"
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -895,20 +945,25 @@ export default function ReservationPage() {
                         
                         <div className="space-y-4">
                           <div>
-                            <select
-                              value={cardType}
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Card Type</label>
+                            <select 
+                              value={cardType} 
                               onChange={(e) => setCardType(e.target.value)}
                               className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
                             >
-                              <option value="">Select Card Type</option>
-                              <option value="American Express">American Express</option>
+                              <option value="">Select card type</option>
                               <option value="Visa">Visa</option>
                               <option value="Mastercard">Mastercard</option>
-                             
+                              <option value="American Express">American Express</option>
+                              <option value="Discover">Discover</option>
                             </select>
+                            {cardType && (
+                              <p className="text-xs text-green-600 mt-1">✓ Auto-detected: {cardType}</p>
+                            )}
                           </div>
 
                           <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Name on Card</label>
                             <input
                               type="text"
                               placeholder="Name on Card"
@@ -919,13 +974,30 @@ export default function ReservationPage() {
                           </div>
 
                           <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Card Number</label>
                             <input
                               type="text"
                               placeholder="Card Number"
                               value={cardNumber}
-                              onChange={(e) => setCardNumber(e.target.value)}
-                              className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
+                              onChange={(e) => {
+                                // Format card number with spaces
+                                const value = e.target.value.replace(/\D/g, '');
+                                const formattedValue = value.replace(/(\d{4})(?=\d)/g, '$1 ');
+                                setCardNumber(formattedValue);
+                              }}
+                              className={`w-full px-4 py-4 border-2 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300 ${
+                                cardNumber && !validateCardNumber(cardNumber) 
+                                  ? 'border-red-300 focus:border-red-500' 
+                                  : 'border-gray-200 focus:border-[#C9A063]'
+                              }`}
+                              maxLength={23}
                             />
+                            {cardNumber && !validateCardNumber(cardNumber) && (
+                              <p className="text-xs text-red-600 mt-1">⚠️ Invalid card number</p>
+                            )}
+                            {cardNumber && validateCardNumber(cardNumber) && (
+                              <p className="text-xs text-green-600 mt-1">✓ Valid card number</p>
+                            )}
                           </div>
 
                           <div className="grid grid-cols-2 gap-4">
@@ -1108,6 +1180,7 @@ export default function ReservationPage() {
                           if (!cardType) { setStepError("Please select a card type."); return; }
                           if (!nameOnCard.trim()) { setStepError("Please enter the name on card."); return; }
                           if (!cardNumber.trim()) { setStepError("Please enter the card number."); return; }
+                          if (!validateCardNumber(cardNumber)) { setStepError("Please enter a valid card number."); return; }
                           if (!expirationYear) { setStepError("Please select the expiration year."); return; }
                           if (!expirationMonth) { setStepError("Please select the expiration month."); return; }
                           if (!cvv.trim()) { setStepError("Please enter the CVV."); return; }
@@ -1276,6 +1349,16 @@ export default function ReservationPage() {
                                   </span>
                                   <span className="flex items-center gap-1">🧳 {vehicle.luggage}</span>
                                 </div>
+                                {childSeatCount > 0 && (
+                                  <div className="mt-3 pt-3 border-t border-gray-100">
+                                    <div className="text-[13px] font-medium text-gray-700 mb-1">Child Seat: ${childSeatCount * 25}</div>
+                                    {childSeatType && (
+                                      <div className="text-[12px] text-gray-500">
+                                        <span className="font-medium">Note:</span> {childSeatType}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
