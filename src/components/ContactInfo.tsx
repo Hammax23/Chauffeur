@@ -55,12 +55,9 @@ const ContactInfo = () => {
                 <h3 className="text-white text-[16px] sm:text-[18px] font-semibold mb-2 tracking-wide">
                   Write to us
                 </h3>
-                <a 
-                  href="mailto:info@renax.com" 
-                  className="text-gray-300 text-[14px] sm:text-[15px] font-light hover:text-[#C9A063] transition-colors duration-300"
-                >
+                <span className="text-gray-300 text-[14px] sm:text-[15px] font-light">
                   reserve@sarjworldwide.com
-                </a>
+                </span>
               </div>
             </div>
 

@@ -307,9 +307,9 @@ export default function ReservationPage() {
                           className="w-full py-1.5 bg-transparent text-[15px] text-gray-900 focus:outline-none"
                         >
                           <option value="">Select service type</option>
-                          <option value="Airport pick-up/drop-off">Airport pick-up/drop-off</option>
+                          <option value="Airport Transfer pick-up/drop-off">Airport Transfer pick-up/drop-off</option>
                           <option value="Point-to-Point transportation">Point-to-Point transportation</option>
-                          <option value="Hourly ride">Hourly ride</option>
+                          <option value="Hourly ride">Hourly Service</option>
                         </select>
                       </div>
 
@@ -407,7 +407,7 @@ export default function ReservationPage() {
                         <div className="flex items-center justify-between">
                           <div>
                             <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider">Child Seat</label>
-                            <span className="text-[13px] text-gray-600">$25 per child seat</span>
+                            <span className="text-[13px] text-gray-600"> Child Seat: $20</span>
                           </div>
                           <div className="flex items-center gap-3">
                             <button
@@ -658,7 +658,7 @@ export default function ReservationPage() {
                           Special Requirements (Optional)
                         </label>
                         <textarea
-                          placeholder="Any special requests, dietary requirements, or additional information..."
+                          placeholder="Special Requests"
                           rows={4}
                           value={specialRequirements}
                           onChange={(e) => setSpecialRequirements(e.target.value)}
@@ -700,7 +700,7 @@ export default function ReservationPage() {
                               <option value="">See Note</option>
                               <option value="Domestic Flight">Domestic Flight</option>
                               <option value="International Flight">International Flight</option>
-                              <option value="Private Flight">Private Flight</option>
+                              <option value="Private Flight">Private Jet</option>
                             </select>
                           </div>
                         </div>
@@ -904,7 +904,7 @@ export default function ReservationPage() {
                               <option value="American Express">American Express</option>
                               <option value="Visa">Visa</option>
                               <option value="Mastercard">Mastercard</option>
-                              <option value="Discover">Discover</option>
+                             
                             </select>
                           </div>
 
@@ -1030,6 +1030,10 @@ export default function ReservationPage() {
                               <li className="flex items-start gap-2">
                                 <span className="text-gray-400 mt-0.5">•</span>
                                 <span>24/7 customer support</span>
+                              </li>
+                              <li className="flex items-start gap-2">
+                                <span className="text-gray-400 mt-0.5">•</span>
+                                <span>407 ETR (extra charges applies)</span>
                               </li>
                             </ul>
                           </div>

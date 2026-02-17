@@ -29,7 +29,7 @@ const Footer = () => {
                   alt="SARJ Worldwide Logo" 
                   width={180}
                   height={80}
-                  className="h-[80px] w-auto relative z-10 group-hover:scale-105 transition-transform duration-300"
+                  className="h-14 sm:h-16 md:h-[80px] w-auto relative z-10 group-hover:scale-105 transition-transform duration-300"
                   unoptimized
                 />
               </div>

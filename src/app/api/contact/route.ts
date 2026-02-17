@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
             <p style="color: #888; font-size: 12px; margin: 0;">231 Oak Park Blvd, Oakville, ON L6H 7S8</p>
             <p style="color: #888; font-size: 12px; margin: 5px 0 0 0;">
               <a href="tel:+14168935779" style="color: #888; text-decoration: none;">416-893-5779</a> | 
-              <a href="mailto:reserve@sarjworldwide.ca" style="color: #888; text-decoration: none;">reserve@sarjworldwide.ca</a>
+              <span style="color: #888;">reserve@sarjworldwide.ca</span>
             </p>
           </div>
         </div>

@@ -23,7 +23,7 @@ const Navbar = () => {
         ? 'bg-black/70 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] border-b border-white/5' 
         : 'bg-black/60 backdrop-blur-xl'
     }`}>
-      <div className="max-w-[1600px] mx-auto px-8">
+      <div className="max-w-[1600px] mx-auto px-4 md:px-8">
         <div className="flex items-center justify-between h-[85px] md:h-[100px]">
           <div className="flex items-center gap-12">
             <Link href="/" className="flex items-center">
@@ -32,8 +32,7 @@ const Navbar = () => {
                 alt="SARJ Worldwide Chauffeur Services Logo" 
                 width={210}
                 height={110}
-                className="object-contain object-left"
-                style={{ width: '210px', height: '110px' }}
+                className="object-contain object-left w-auto h-14 sm:h-16 md:h-[110px] md:w-[210px]"
               />
             </Link>
 
@@ -112,7 +111,7 @@ const Navbar = () => {
             <div className="pt-3 mt-3 pb-2 border-t border-gray-800">
               <div className="flex items-center gap-2 text-white px-4">
                 <Phone className="w-4 h-4" />
-                <span className="text-sm">+1800900122</span>
+                <span className="text-sm">416-893-5779</span>
               </div>
             </div>
           </div>
