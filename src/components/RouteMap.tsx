@@ -11,6 +11,7 @@ import {
 interface RouteMapProps {
   pickupLocation: string;
   dropoffLocation: string;
+  stops?: string[];
   onRouteCalculated?: (distance: string, duration: string, distanceValue: number, durationValue: number) => void;
 }
 
@@ -51,10 +52,11 @@ const mapOptions = {
 
 const libraries: ("places" | "geometry" | "drawing" | "visualization")[] = ["places"];
 
-function RouteMap({ pickupLocation, dropoffLocation, onRouteCalculated }: RouteMapProps) {
+function RouteMap({ pickupLocation, dropoffLocation, stops = [], onRouteCalculated }: RouteMapProps) {
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [pickupCoords, setPickupCoords] = useState<google.maps.LatLngLiteral | null>(null);
   const [dropoffCoords, setDropoffCoords] = useState<google.maps.LatLngLiteral | null>(null);
+  const [stopCoords, setStopCoords] = useState<google.maps.LatLngLiteral[]>([]);
   const [map, setMap] = useState<google.maps.Map | null>(null);
 
   const { isLoaded, loadError } = useJsApiLoader({
@@ -101,7 +103,39 @@ function RouteMap({ pickupLocation, dropoffLocation, onRouteCalculated }: RouteM
     });
   }, [isLoaded, dropoffLocation]);
 
-  // Calculate route when both locations are set
+  // Geocode stop addresses
+  useEffect(() => {
+    if (!isLoaded) {
+      setStopCoords([]);
+      return;
+    }
+
+    const validStops = stops.filter(stop => stop.trim() !== "");
+    if (validStops.length === 0) {
+      setStopCoords([]);
+      return;
+    }
+
+    const geocoder = new google.maps.Geocoder();
+    const promises = validStops.map(stop => 
+      new Promise<google.maps.LatLngLiteral | null>((resolve) => {
+        geocoder.geocode({ address: stop }, (results, status) => {
+          if (status === "OK" && results && results[0]) {
+            const location = results[0].geometry.location;
+            resolve({ lat: location.lat(), lng: location.lng() });
+          } else {
+            resolve(null);
+          }
+        });
+      })
+    );
+
+    Promise.all(promises).then(coords => {
+      setStopCoords(coords.filter((c): c is google.maps.LatLngLiteral => c !== null));
+    });
+  }, [isLoaded, stops]);
+
+  // Calculate route when locations are set
   useEffect(() => {
     if (!isLoaded || !pickupCoords || !dropoffCoords) {
       setDirections(null);
@@ -113,35 +147,54 @@ function RouteMap({ pickupLocation, dropoffLocation, onRouteCalculated }: RouteM
 
     const directionsService = new google.maps.DirectionsService();
 
+    // Create waypoints from stops
+    const waypoints: google.maps.DirectionsWaypoint[] = stopCoords.map(coord => ({
+      location: coord,
+      stopover: true,
+    }));
+
     directionsService.route(
       {
         origin: pickupCoords,
         destination: dropoffCoords,
+        waypoints: waypoints,
+        optimizeWaypoints: false,
         travelMode: google.maps.TravelMode.DRIVING,
       },
       (result, status) => {
         if (status === "OK" && result) {
           setDirections(result);
           
-          // Extract distance and duration
+          // Extract total distance and duration from all legs
           const route = result.routes[0];
-          if (route && route.legs[0]) {
-            const leg = route.legs[0];
-            const distance = leg.distance?.text || "--";
-            const duration = leg.duration?.text || "--";
-            const distanceValue = leg.distance?.value || 0;
-            const durationValue = leg.duration?.value || 0;
+          if (route && route.legs) {
+            let totalDistanceValue = 0;
+            let totalDurationValue = 0;
+            
+            route.legs.forEach(leg => {
+              totalDistanceValue += leg.distance?.value || 0;
+              totalDurationValue += leg.duration?.value || 0;
+            });
+            
+            // Format distance
+            const distanceKm = totalDistanceValue / 1000;
+            const distanceText = distanceKm >= 1 ? `${distanceKm.toFixed(1)} km` : `${totalDistanceValue} m`;
+            
+            // Format duration
+            const hours = Math.floor(totalDurationValue / 3600);
+            const minutes = Math.floor((totalDurationValue % 3600) / 60);
+            const durationText = hours > 0 ? `${hours} hr ${minutes} min` : `${minutes} min`;
             
             if (onRouteCalculated) {
-              onRouteCalculated(distance, duration, distanceValue, durationValue);
+              onRouteCalculated(distanceText, durationText, totalDistanceValue, totalDurationValue);
             }
           }
         }
       }
     );
-  }, [isLoaded, pickupCoords, dropoffCoords, onRouteCalculated]);
+  }, [isLoaded, pickupCoords, dropoffCoords, stopCoords, onRouteCalculated]);
 
-  // Fit map bounds to show both markers
+  // Fit map bounds to show all markers including stops
   useEffect(() => {
     if (!map) return;
 
@@ -149,6 +202,8 @@ function RouteMap({ pickupLocation, dropoffLocation, onRouteCalculated }: RouteM
       const bounds = new google.maps.LatLngBounds();
       bounds.extend(pickupCoords);
       bounds.extend(dropoffCoords);
+      // Include stops in bounds
+      stopCoords.forEach(coord => bounds.extend(coord));
       map.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
     } else if (pickupCoords) {
       map.setCenter(pickupCoords);
@@ -157,7 +212,7 @@ function RouteMap({ pickupLocation, dropoffLocation, onRouteCalculated }: RouteM
       map.setCenter(dropoffCoords);
       map.setZoom(14);
     }
-  }, [map, pickupCoords, dropoffCoords]);
+  }, [map, pickupCoords, dropoffCoords, stopCoords]);
 
   // Check if API key is missing
   const apiKeyMissing = !process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;

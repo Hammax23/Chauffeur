@@ -23,6 +23,7 @@ import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import RouteMap from "@/components/RouteMap";
+import PlacesAutocomplete from "@/components/PlacesAutocomplete";
 // import StripePayment from "@/components/StripePayment";
 import Turnstile from "@/components/Turnstile";
 import { fleetData } from "@/data/fleet";
@@ -333,7 +334,7 @@ export default function ReservationPage() {
             
             {/* Form Section */}
             <div className="lg:col-span-2">
-              <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200/80">
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80">
                 <div className="bg-[#1C1C1E] p-4 sm:p-5">
                   <h2 className="text-lg sm:text-xl font-semibold text-white">
                     Step {currentStep}: {steps[currentStep - 1].title}
@@ -363,7 +364,7 @@ export default function ReservationPage() {
                       </div>
 
                       {/* Trip Route - iOS grouped style */}
-                      <div className="bg-white rounded-xl overflow-hidden border border-gray-200/60 divide-y divide-gray-100">
+                      <div className="bg-white rounded-xl border border-gray-200/60 divide-y divide-gray-100">
                         <div className="px-4 py-3">
                           <div className="flex items-center gap-2.5 mb-2">
                             <div className="w-8 h-8 rounded-lg bg-[#e5e5ea] flex items-center justify-center flex-shrink-0">
@@ -371,11 +372,9 @@ export default function ReservationPage() {
                             </div>
                             <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Pickup</label>
                           </div>
-                          <input
-                            type="text"
-                            required
+                          <PlacesAutocomplete
                             value={pickupLocation}
-                            onChange={(e) => { setPickupLocation(e.target.value); setStepError(""); }}
+                            onChange={(val) => { setPickupLocation(val); setStepError(""); }}
                             placeholder="Address or airport code (e.g. YYZ)"
                             className="w-full py-1.5 -mt-1 bg-transparent text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none"
                           />
@@ -387,11 +386,9 @@ export default function ReservationPage() {
                             </div>
                             <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Drop-off</label>
                           </div>
-                          <input
-                            type="text"
-                            required
+                          <PlacesAutocomplete
                             value={dropoffLocation}
-                            onChange={(e) => { setDropoffLocation(e.target.value); setStepError(""); }}
+                            onChange={(val) => { setDropoffLocation(val); setStepError(""); }}
                             placeholder="Destination address"
                             className="w-full py-1.5 -mt-1 bg-transparent text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none"
                           />
@@ -399,21 +396,22 @@ export default function ReservationPage() {
                       </div>
 
                       {stops.map((stop, index) => (
-                        <div key={index} className="bg-white rounded-xl border border-gray-200/60 overflow-hidden">
+                        <div key={index} className="bg-white rounded-xl border border-gray-200/60">
                           <div className="px-4 py-3">
                             <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">Stop {index + 1}</label>
                             <div className="flex items-center gap-2">
-                              <input
-                                type="text"
-                                placeholder="Stop address"
-                                value={stop}
-                                onChange={(e) => {
-                                  const newStops = [...stops];
-                                  newStops[index] = e.target.value;
-                                  setStops(newStops);
-                                }}
-                                className="flex-1 py-1.5 bg-transparent text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none"
-                              />
+                              <div className="flex-1">
+                                <PlacesAutocomplete
+                                  value={stop}
+                                  onChange={(val) => {
+                                    const newStops = [...stops];
+                                    newStops[index] = val;
+                                    setStops(newStops);
+                                  }}
+                                  placeholder="Stop address"
+                                  className="w-full py-1.5 bg-transparent text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none"
+                                />
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => setStops(stops.filter((_, i) => i !== index))}
@@ -1235,6 +1233,7 @@ export default function ReservationPage() {
                       <RouteMap
                         pickupLocation={pickupLocation}
                         dropoffLocation={dropoffLocation}
+                        stops={stops}
                         onRouteCalculated={handleRouteCalculated}
                       />
                     </div>
