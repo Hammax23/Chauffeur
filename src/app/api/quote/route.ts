@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
       <div style="background:#1C1C1E;padding:25px 30px;text-align:center;">
         <p style="color:#C9A063;font-size:14px;font-weight:600;margin:0 0 10px;">SARJ WORLDWIDE</p>
         <p style="color:#888;font-size:12px;margin:0;">231 Oak Park Blvd, Oakville, ON L6H 7S8</p>
-        <p style="color:#888;font-size:12px;margin:5px 0 0;"><a href="tel:+14168935779" style="color:#888;">416-893-5779</a> | <a href="mailto:reserve@sarjworldwide.ca" style="color:#888;">reserve@sarjworldwide.ca</a></p>
+        <p style="color:#888;font-size:12px;margin:5px 0 0;"><a href="tel:+14168935779" style="color:#888;">416-893-5779</a> | <span style="color:#888;">reserve@sarjworldwide.ca</span></p>
       </div>
     </div></body></html>`;
 

@@ -33,7 +33,7 @@ const contactCards = [
     icon: Mail,
     title: "Email us",
     value: "reserve@sarjworldwide.com",
-    href: "mailto:reserve@sarjworldwide.com",
+    href: "",
     sub: "We respond within 24 hours",
   },
   {

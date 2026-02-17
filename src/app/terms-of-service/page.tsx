@@ -168,7 +168,7 @@ export default function TermsOfServicePage() {
               </p>
               <ul className="list-disc list-inside text-gray-600 text-[15px] leading-relaxed space-y-1.5 ml-4">
                 <li>Phone: <a href="tel:+14168935779" className="text-[#C9A063] hover:underline">416-893-5779</a></li>
-                <li>Email: <a href="mailto:reserve@SARJWorldwide.ca" className="text-[#C9A063] hover:underline">reserve@SARJWorldwide.ca</a></li>
+                <li>Email: <span className="text-[#C9A063]">reserve@SARJWorldwide.ca</span></li>
                 <li>Text: <a href="tel:+14168835778" className="text-[#C9A063] hover:underline">416-883-5778</a></li>
               </ul>
               <p className="text-gray-600 text-[15px] leading-relaxed mt-3 font-medium">
@@ -280,7 +280,7 @@ export default function TermsOfServicePage() {
               <div className="space-y-2 text-[15px]">
                 <p className="text-gray-700"><strong>SARJ Worldwide Chauffeur Services</strong></p>
                 <p className="text-gray-600">Phone: <a href="tel:+14168935779" className="text-[#C9A063] hover:underline">416-893-5779</a></p>
-                <p className="text-gray-600">Email: <a href="mailto:reserve@sarjworldwide.ca" className="text-[#C9A063] hover:underline">reserve@sarjworldwide.ca</a></p>
+                <p className="text-gray-600">Email: <span className="text-[#C9A063]">reserve@sarjworldwide.ca</span></p>
               </div>
             </div>
 
