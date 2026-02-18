@@ -55,10 +55,14 @@ export default function PlacesAutocomplete({
   const updatePosition = useCallback(() => {
     if (inputRef.current) {
       const rect = inputRef.current.getBoundingClientRect();
+      const isMobile = window.innerWidth < 640;
+      // On mobile, use full width with small margin. On desktop, extend slightly.
+      const left = isMobile ? 16 : Math.max(16, rect.left - 16);
+      const width = isMobile ? window.innerWidth - 32 : Math.min(rect.width + 32, window.innerWidth - 32);
       setDropdownPosition({
         top: rect.bottom + 8,
-        left: rect.left - 16,
-        width: rect.width + 32,
+        left: left,
+        width: width,
       });
     }
   }, []);
