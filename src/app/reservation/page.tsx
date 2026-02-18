@@ -242,7 +242,22 @@ export default function ReservationPage() {
   const handleNext = () => {
     if (validateStep(currentStep)) {
       setCurrentStep(Math.min(4, currentStep + 1));
+      // Smooth scroll to top of page on mobile, slightly below on desktop
+      setTimeout(() => {
+        const isMobile = window.innerWidth < 768;
+        window.scrollTo({ top: isMobile ? 0 : 200, behavior: 'smooth' });
+      }, 100);
     }
+  };
+
+  const handlePrevious = () => {
+    setCurrentStep(Math.max(1, currentStep - 1));
+    setStepError("");
+    // Smooth scroll to top of page on mobile, slightly below on desktop
+    setTimeout(() => {
+      const isMobile = window.innerWidth < 768;
+      window.scrollTo({ top: isMobile ? 0 : 200, behavior: 'smooth' });
+    }, 100);
   };
 
   const steps = [
@@ -253,18 +268,18 @@ export default function ReservationPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+    <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 overflow-x-hidden">
       <TopNav />
       <Navbar />
 
-      <section className="pt-[165px] md:pt-[185px] pb-20">
+      <section className="pt-[165px] md:pt-[185px] pb-20 overflow-x-hidden">
         <div className="max-w-[1400px] mx-auto px-6 sm:px-8 md:px-12">
           
           {/* Header */}
           <div className="text-center mb-10">
-            <div className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-white border border-[#C9A063]/30 shadow-lg shadow-[#C9A063]/10 mb-6">
+            <div className="inline-flex items-center gap-2 sm:gap-2.5 px-4 sm:px-6 py-2.5 sm:py-3 rounded-full bg-white border border-[#C9A063]/30 shadow-lg shadow-[#C9A063]/10 mb-6">
               <div className="w-2 h-2 rounded-full bg-gradient-to-r from-[#C9A063] to-[#B8935A] animate-pulse" />
-              <span className="text-gray-800 text-[20px] font-bold tracking-[0.2em] uppercase">Make A Reservation</span>
+              <span className="text-gray-800 text-[14px] sm:text-[20px] font-bold tracking-[0.1em] sm:tracking-[0.2em] uppercase">Make A Reservation</span>
             </div>
             {/* <h1 className="text-4xl md:text-5xl font-bold text-gray-900 tracking-tight mb-4">
               Make A Reservation
@@ -1162,7 +1177,7 @@ export default function ReservationPage() {
                   {/* Navigation Buttons */}
                   <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 mt-6 pt-4 border-t border-gray-200/60">
                     <button
-                      onClick={() => { setCurrentStep(Math.max(1, currentStep - 1)); setStepError(""); }}
+                      onClick={handlePrevious}
                       disabled={currentStep === 1}
                       className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-[15px] font-medium transition-colors ${
                         currentStep === 1
