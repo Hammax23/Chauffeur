@@ -15,7 +15,7 @@ export const fleetData: FleetVehicle[] = [
   {
     id: "cadillac-xts",
     name: "Cadillac XTS",
-    description: "American luxury redefined. Spacious cabin, smooth ride, and premium comfort for every journey.",
+    description: "Luxury Sedan, Spacious and comfortable, prioritizing a quiet, smooth ride",
     image: "/fleet/xts1.png",
     category: "Sedan",
     seating: "4 maximum, 3 comfortable",
@@ -46,7 +46,7 @@ export const fleetData: FleetVehicle[] = [
     id: "cadillac-lyric",
     name: "Cadillac Lyric",
     description: "Elegant luxury sedan. Refined styling, smooth performance, and exceptional passenger comfort.",
-    image: "/fleet/lyric.png",
+    image: "/fleet/lyricfront.png",
     category: "Sedan",
     seating: "4 maximum, 3 comfortable",
     luggage: "2 large, 2 medium",

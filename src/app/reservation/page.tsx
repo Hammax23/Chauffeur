@@ -680,7 +680,7 @@ export default function ReservationPage() {
                                 alt=""
                                 className="w-5 h-4 object-cover rounded-sm"
                               />
-                              <span className="text-sm font-medium">{countryCode}</span>
+                              <span className="text-sm font-bold text-gray-900">{countryCode}</span>
                               <ChevronDown className="w-4 h-4 text-gray-500" />
                             </button>
                             {countryDropdownOpen && (
@@ -699,7 +699,7 @@ export default function ReservationPage() {
                                       alt=""
                                       className="w-5 h-4 object-cover rounded-sm"
                                     />
-                                    <span className="text-sm">{country.code} {country.name}</span>
+                                    <span className="text-sm font-semibold text-gray-900">{country.code} {country.name}</span>
                                   </button>
                                 ))}
                               </div>

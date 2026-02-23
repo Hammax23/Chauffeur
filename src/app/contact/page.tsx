@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,6 +15,7 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
+  ChevronDown,
 } from "lucide-react";
 import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
@@ -51,54 +52,26 @@ const contactCards = [
   },
 ];
 
-const countryCodes = [
-  { code: "+1", label: "US" },
-  { code: "+44", label: "UK" },
-  { code: "+91", label: "IN" },
-  { code: "+92", label: "PK" },
-  { code: "+971", label: "AE" },
-  { code: "+966", label: "SA" },
-  { code: "+973", label: "BH" },
-  { code: "+974", label: "QA" },
-  { code: "+968", label: "OM" },
-  { code: "+965", label: "KW" },
-  { code: "+20", label: "EG" },
-  { code: "+49", label: "DE" },
-  { code: "+33", label: "FR" },
-  { code: "+39", label: "IT" },
-  { code: "+34", label: "ES" },
-  { code: "+31", label: "NL" },
-  { code: "+32", label: "BE" },
-  { code: "+41", label: "CH" },
-  { code: "+43", label: "AT" },
-  { code: "+46", label: "SE" },
-  { code: "+47", label: "NO" },
-  { code: "+45", label: "DK" },
-  { code: "+358", label: "FI" },
-  { code: "+48", label: "PL" },
-  { code: "+7", label: "RU" },
-  { code: "+81", label: "JP" },
-  { code: "+86", label: "CN" },
-  { code: "+82", label: "KR" },
-  { code: "+61", label: "AU" },
-  { code: "+64", label: "NZ" },
-  { code: "+55", label: "BR" },
-  { code: "+52", label: "MX" },
-  { code: "+54", label: "AR" },
-  { code: "+27", label: "ZA" },
-  { code: "+234", label: "NG" },
-  { code: "+254", label: "KE" },
-  { code: "+60", label: "MY" },
-  { code: "+65", label: "SG" },
-  { code: "+66", label: "TH" },
-  { code: "+62", label: "ID" },
-  { code: "+63", label: "PH" },
-  { code: "+84", label: "VN" },
-  { code: "+98", label: "IR" },
-  { code: "+90", label: "TR" },
-  { code: "+212", label: "MA" },
-  { code: "+213", label: "DZ" },
+// Country codes with flag support
+const COUNTRY_CODES = [
+  { code: "+1", label: "CA", name: "Canada", flagCode: "ca" },
+  { code: "+1", label: "US", name: "United States", flagCode: "us" },
+  { code: "+44", label: "UK", name: "United Kingdom", flagCode: "gb" },
+  { code: "+33", label: "FR", name: "France", flagCode: "fr" },
+  { code: "+49", label: "DE", name: "Germany", flagCode: "de" },
+  { code: "+39", label: "IT", name: "Italy", flagCode: "it" },
+  { code: "+34", label: "ES", name: "Spain", flagCode: "es" },
+  { code: "+31", label: "NL", name: "Netherlands", flagCode: "nl" },
+  { code: "+41", label: "CH", name: "Switzerland", flagCode: "ch" },
+  { code: "+32", label: "BE", name: "Belgium", flagCode: "be" },
+  { code: "+43", label: "AT", name: "Austria", flagCode: "at" },
+  { code: "+353", label: "IE", name: "Ireland", flagCode: "ie" },
+  { code: "+46", label: "SE", name: "Sweden", flagCode: "se" },
+  { code: "+47", label: "NO", name: "Norway", flagCode: "no" },
+  { code: "+45", label: "DK", name: "Denmark", flagCode: "dk" },
 ];
+
+const FLAG_CDN = "https://flagcdn.com";
 
 // Separate component to handle search params
 function ContactFormWithParams({ 
@@ -128,7 +101,11 @@ export default function ContactPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [phoneCode, setPhoneCode] = useState("+1");
+  const [countryCode, setCountryCode] = useState(COUNTRY_CODES[0].code);
+  const [countryLabel, setCountryLabel] = useState(COUNTRY_CODES[0].label);
+  const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
+  const countryDropdownRef = useRef<HTMLDivElement>(null);
+  const selectedCountry = COUNTRY_CODES.find((c) => c.code === countryCode && c.label === countryLabel) ?? COUNTRY_CODES[0];
   const [additionalNotes, setAdditionalNotes] = useState("");
   
   // Form submission states
@@ -136,6 +113,20 @@ export default function ContactPage() {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [turnstileToken, setTurnstileToken] = useState("");
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (countryDropdownRef.current && !countryDropdownRef.current.contains(event.target as Node)) {
+        setCountryDropdownOpen(false);
+      }
+    };
+
+    if (countryDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [countryDropdownOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,7 +141,7 @@ export default function ContactPage() {
           fullName,
           email,
           phone,
-          phoneCode,
+          phoneCode: countryCode,
           additionalNotes,
           turnstileToken,
         }),
@@ -347,30 +338,66 @@ export default function ContactPage() {
 
                   <div>
                     <label className="block text-gray-800 text-[14px] font-medium mb-2">Phone <span className="text-red-500">*</span></label>
-                    <div className="flex rounded-xl overflow-hidden border border-gray-300 focus-within:ring-2 focus-within:ring-[#C9A063]/30 focus-within:border-[#C9A063] transition-all">
-                      <select
-                        value={phoneCode}
-                        onChange={(e) => setPhoneCode(e.target.value)}
-                        className="px-3 py-3.5 pl-4 pr-8 bg-gray-50 border-r border-gray-300 text-[15px] text-gray-800 focus:outline-none appearance-none cursor-pointer min-w-[115px]"
-                      >
-                        {countryCodes.map((c) => (
-                          <option key={`${c.code}-${c.label}`} value={c.code}>
-                            {c.code} {c.label}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="relative flex-1 flex items-center">
+                    <div className="flex rounded-xl border border-gray-300 bg-gray-50/50 focus-within:bg-white focus-within:ring-2 focus-within:ring-[#C9A063]/20 focus-within:border-[#C9A063] transition-all duration-200">
+                      <div className="relative flex-shrink-0 w-[75px] rounded-l-xl overflow-visible" ref={countryDropdownRef}>
+                        <button
+                          type="button"
+                          onClick={() => setCountryDropdownOpen(!countryDropdownOpen)}
+                          className="w-full h-full px-2.5 py-3 bg-transparent focus:outline-none flex items-center justify-center gap-1.5 rounded-l-xl hover:bg-gray-100/60 transition-colors"
+                          aria-expanded={countryDropdownOpen}
+                          aria-label="Country code"
+                        >
+                          <img
+                            src={`${FLAG_CDN}/w40/${selectedCountry.flagCode}.png`}
+                            alt=""
+                            width={18}
+                            height={13}
+                            className="rounded-sm"
+                          />
+                          <ChevronDown className={`w-3 h-3 text-gray-500 transition-transform duration-200 ${countryDropdownOpen ? "rotate-180" : ""}`} strokeWidth={2} />
+                        </button>
+                        {countryDropdownOpen && (
+                          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-50 max-h-60 overflow-y-auto">
+                            {COUNTRY_CODES.map((c) => (
+                              <button
+                                key={`${c.code}-${c.label}`}
+                                type="button"
+                                onClick={() => {
+                                  setCountryCode(c.code);
+                                  setCountryLabel(c.label);
+                                  setCountryDropdownOpen(false);
+                                }}
+                                className="w-full flex items-center gap-2 px-2 py-2 text-left text-[13px] text-gray-800 hover:bg-[#C9A063]/10 focus:bg-[#C9A063]/10 focus:outline-none transition-colors duration-150 rounded-lg mx-1 min-w-0"
+                              >
+                                <img
+                                  src={`${FLAG_CDN}/w40/${c.flagCode}.png`}
+                                  alt=""
+                                  width={18}
+                                  height={13}
+                                  className="rounded-sm flex-shrink-0"
+                                />
+                                <span className="font-medium text-gray-900 mr-1">{c.code}</span>
+                                <span className="text-gray-600 truncate">{c.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="relative flex-1 flex items-center min-w-0 rounded-r-xl overflow-hidden">
                         <input
                           type="tel"
+                          placeholder={countryLabel === "CA" || countryLabel === "US" ? "e.g. 416-555-1234" : "Phone number"}
+                          maxLength={18}
+                          inputMode="tel"
+                          required
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
-                          placeholder="300 1234567"
-                          required
-                          className="w-full px-4 py-3.5 pr-11 border-0 focus:ring-0 focus:outline-none bg-transparent text-[15px] text-gray-800 placeholder-gray-400"
+                          className="w-full px-4 py-3 pr-11 border-0 bg-transparent focus:ring-0 focus:outline-none text-[15px] text-gray-800 placeholder-gray-400"
                         />
                         <Phone className="absolute right-3 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
                       </div>
                     </div>
+                    <p className="mt-1.5 text-gray-400 text-[12px]">Canada, US, UK & Europe</p>
                   </div>
 
                   <div>

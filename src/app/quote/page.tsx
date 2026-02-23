@@ -463,7 +463,7 @@ export default function QuotePage() {
           <p className="mt-8 text-center text-gray-500 text-[14px]">
             Prefer to book directly?{" "}
             <Link href="/reservation" className="text-[#C9A063] font-semibold hover:underline underline-offset-2">
-              Go to booking
+              Go to Online Reservation
             </Link>
           </p>
         </div>
