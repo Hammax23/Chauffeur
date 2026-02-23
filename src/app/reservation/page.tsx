@@ -24,6 +24,8 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import RouteMap from "@/components/RouteMap";
 import PlacesAutocomplete from "@/components/PlacesAutocomplete";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 // import StripePayment from "@/components/StripePayment";
 import Turnstile from "@/components/Turnstile";
 import { fleetData } from "@/data/fleet";
@@ -48,8 +50,7 @@ export default function ReservationPage() {
   const [serviceType, setServiceType] = useState("");
   const [pickupLocation, setPickupLocation] = useState("");
   const [dropoffLocation, setDropoffLocation] = useState("");
-  const [serviceDate, setServiceDate] = useState("");
-  const [serviceTime, setServiceTime] = useState("");
+  const [pickupDateTime, setPickupDateTime] = useState<Date | null>(null);
   const [childSeatCount, setChildSeatCount] = useState(0);
   const [childSeatType, setChildSeatType] = useState("");
   const [etr407, setEtr407] = useState(false);
@@ -118,7 +119,8 @@ export default function ReservationPage() {
           serviceType,
           pickupLocation, dropoffLocation,
           stops: stops.filter((s) => s.trim() !== ""),
-          serviceDate, serviceTime,
+          serviceDate: pickupDateTime ? pickupDateTime.toLocaleDateString("en-CA") : "",
+          serviceTime: pickupDateTime ? pickupDateTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }) : "",
           vehicle: vehicleName,
           passengers: passengersCount,
           childSeatCount,
@@ -144,7 +146,7 @@ export default function ReservationPage() {
     } finally {
       setEmailSending(false);
     }
-  }, [firstName, lastName, email, phone, countryCode, serviceType, pickupLocation, dropoffLocation, stops, serviceDate, serviceTime, selectedVehicle, passengersCount, childSeatCount, childSeatType, etr407, specialRequirements, routeDistance, routeDuration, routePrice, gratuityPercent, airlineName, flightNumber, flightNote, cardType, nameOnCard, cardNumber, expirationMonth, expirationYear, billingAddress, zipCode, purchaseOrder, deptNumber, turnstileToken]);
+  }, [firstName, lastName, email, phone, countryCode, serviceType, pickupLocation, dropoffLocation, stops, pickupDateTime, selectedVehicle, passengersCount, childSeatCount, childSeatType, etr407, specialRequirements, routeDistance, routeDuration, routePrice, gratuityPercent, airlineName, flightNumber, flightNote, cardType, nameOnCard, cardNumber, expirationMonth, expirationYear, billingAddress, zipCode, purchaseOrder, deptNumber, turnstileToken]);
 
   // Store route data; price is recalculated via useEffect when vehicle or route changes
   const handleRouteCalculated = useCallback((distance: string, duration: string, distanceValue: number, durationValue: number) => {
@@ -224,8 +226,7 @@ export default function ReservationPage() {
       if (!serviceType) { setStepError("Please select a service type."); return false; }
       if (!pickupLocation.trim()) { setStepError("Please enter a pickup location."); return false; }
       if (!dropoffLocation.trim()) { setStepError("Please enter a drop-off location."); return false; }
-      if (!serviceDate) { setStepError("Please select a date."); return false; }
-      if (!serviceTime) { setStepError("Please select a time."); return false; }
+      if (!pickupDateTime) { setStepError("Please select date and time."); return false; }
     } else if (step === 2) {
       if (!selectedVehicle) { setStepError("Please select a vehicle."); return false; }
     } else if (step === 3) {
@@ -448,27 +449,29 @@ export default function ReservationPage() {
                         Add Stop
                       </button>
 
-                      {/* Date & Time */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-white rounded-xl border border-gray-200/60 px-4 py-3">
-                          <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">Date</label>
-                          <input
-                            type="date"
+                      {/* Pick-up Date & Time - Combined */}
+                      <div>
+                        <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Pick-up Time</label>
+                        <div className="relative reservation-datepicker">
+                          <DatePicker
+                            selected={pickupDateTime}
+                            onChange={(date: Date | null) => { setPickupDateTime(date); setStepError(""); }}
+                            showTimeSelect
+                            timeIntervals={15}
+                            timeCaption="Time"
+                            dateFormat="MMMM d, yyyy  h:mm aa"
+                            timeFormat="h:mm aa"
+                            minDate={new Date()}
+                            placeholderText="Select date & time"
+                            className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200"
+                            withPortal
                             required
-                            value={serviceDate}
-                            onChange={(e) => { setServiceDate(e.target.value); setStepError(""); }}
-                            className="w-full py-1.5 bg-transparent text-[15px] text-gray-900 focus:outline-none"
                           />
-                        </div>
-                        <div className="bg-white rounded-xl border border-gray-200/60 px-4 py-3">
-                          <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">Time</label>
-                          <input
-                            type="time"
-                            required
-                            value={serviceTime}
-                            onChange={(e) => { setServiceTime(e.target.value); setStepError(""); }}
-                            className="w-full py-1.5 bg-transparent text-[15px] text-gray-900 focus:outline-none"
-                          />
+                          <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                            <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </div>
                         </div>
                       </div>
 
@@ -791,8 +794,8 @@ export default function ReservationPage() {
                           <div className="flex items-center justify-between p-4">
                             <span className="text-[13px] font-medium text-gray-600">Date & Time</span>
                             <span className="text-[13px] font-semibold text-gray-900 text-right">
-                              {serviceDate && serviceTime
-                                ? new Date(serviceDate + "T" + serviceTime).toLocaleString("en-US", { month: "2-digit", day: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })
+                              {pickupDateTime
+                                ? pickupDateTime.toLocaleString("en-US", { month: "2-digit", day: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })
                                 : "--"}
                             </span>
                           </div>
@@ -913,8 +916,8 @@ export default function ReservationPage() {
                           metadata={{
                             pickup: pickupLocation,
                             dropoff: dropoffLocation,
-                            date: serviceDate,
-                            time: serviceTime,
+                            date: pickupDateTime ? pickupDateTime.toLocaleDateString("en-CA") : "",
+                            time: pickupDateTime ? pickupDateTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }) : "",
                             vehicle: selectedVehicle,
                             passengers: String(passengersCount),
                           }}
@@ -1289,8 +1292,8 @@ export default function ReservationPage() {
                             <div>
                               <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Pick-up Time</div>
                               <div className="text-[13px] text-gray-900">
-                                {serviceDate && serviceTime
-                                  ? new Date(serviceDate + "T" + serviceTime).toLocaleString("en-US", { month: "2-digit", day: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })
+                                {pickupDateTime
+                                  ? pickupDateTime.toLocaleString("en-US", { month: "2-digit", day: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })
                                   : "--"}
                               </div>
                             </div>

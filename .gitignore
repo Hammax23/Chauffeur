@@ -43,3 +43,8 @@ next-env.d.ts
 # Large video files (use CDN instead)
 public/cover.mp4
 public/howitswork.mp4
+
+# Local data storage
+/data
+
+/src/generated/prisma

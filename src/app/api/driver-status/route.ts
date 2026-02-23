@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getReservationById, updateReservationStatus } from "@/lib/data-store";
 
 export async function GET(request: NextRequest) {
   try {
@@ -6,21 +7,29 @@ export async function GET(request: NextRequest) {
     const bookingId = searchParams.get("bookingId");
 
     if (!bookingId) {
-      return NextResponse.json({ error: "Missing bookingId" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Missing bookingId" }, { status: 400 });
     }
 
-    const googleScriptUrl = process.env.GOOGLE_SCRIPT_URL;
-    if (!googleScriptUrl) {
-      return NextResponse.json({ error: "Google Script URL not configured" }, { status: 500 });
+    const reservation = await getReservationById(bookingId);
+    
+    if (!reservation) {
+      return NextResponse.json({ success: false, error: "Booking not found" }, { status: 404 });
     }
 
-    const res = await fetch(`${googleScriptUrl}?action=get_status&bookingId=${encodeURIComponent(bookingId)}`);
-    const data = await res.json();
-
-    return NextResponse.json(data);
+    return NextResponse.json({
+      success: true,
+      status: reservation.status,
+      firstName: reservation.firstName,
+      lastName: reservation.lastName,
+      vehicle: reservation.vehicle,
+      serviceDate: reservation.serviceDate,
+      serviceTime: reservation.serviceTime,
+      pickupLocation: reservation.pickupLocation,
+      dropoffLocation: reservation.dropoffLocation,
+    });
   } catch (error: any) {
     console.error("Driver status GET error:", error);
-    return NextResponse.json({ error: "Failed to get status" }, { status: 500 });
+    return NextResponse.json({ success: false, error: "Failed to get status" }, { status: 500 });
   }
 }
 
@@ -30,29 +39,23 @@ export async function POST(request: NextRequest) {
     const { bookingId, status } = body;
 
     if (!bookingId || !status) {
-      return NextResponse.json({ error: "Missing bookingId or status" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Missing bookingId or status" }, { status: 400 });
     }
 
     const validStatuses = ["PENDING", "ON THE WAY", "ARRIVED", "CIC", "DONE"];
     if (!validStatuses.includes(status)) {
-      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Invalid status" }, { status: 400 });
     }
 
-    const googleScriptUrl = process.env.GOOGLE_SCRIPT_URL;
-    if (!googleScriptUrl) {
-      return NextResponse.json({ error: "Google Script URL not configured" }, { status: 500 });
+    const success = await updateReservationStatus(bookingId, status);
+    
+    if (!success) {
+      return NextResponse.json({ success: false, error: "Booking not found" }, { status: 404 });
     }
 
-    const res = await fetch(googleScriptUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "update_status", bookingId, status }),
-    });
-    const data = await res.json();
-
-    return NextResponse.json(data);
+    return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("Driver status POST error:", error);
-    return NextResponse.json({ error: "Failed to update status" }, { status: 500 });
+    return NextResponse.json({ success: false, error: "Failed to update status" }, { status: 500 });
   }
 }

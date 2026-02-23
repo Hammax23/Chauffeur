@@ -3,6 +3,7 @@ import nodemailer from "nodemailer";
 import { sanitizeInput, sanitizeArray } from "@/lib/sanitize";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { verifyTurnstile } from "@/lib/turnstile";
+import { addReservation } from "@/lib/data-store";
 
 export async function POST(request: NextRequest) {
   try {
@@ -294,25 +295,42 @@ export async function POST(request: NextRequest) {
       html: userEmailHtml,
     });
 
-    // Post to Google Sheet (non-blocking — don't fail if this errors)
-    const googleScriptUrl = process.env.GOOGLE_SCRIPT_URL;
-    if (googleScriptUrl) {
-      fetch(googleScriptUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "new_reservation",
-          bookingId, baseUrl,
-          firstName, lastName, email, phone: fullPhone,
-          serviceType, vehicle, passengers, childSeatCount, childSeatType, etr407,
-          serviceDate, serviceTime, pickupLocation, dropoffLocation,
-          stops: stops || [],
-          routeDistance, routeDuration, routePrice,
-          stopCharge, childSeatCharge, subtotal, hst, gratuity, total,
-          airlineName, flightNumber, flightNote, specialRequirements,
-        }),
-      }).catch((err) => console.error("Google Sheet webhook error:", err));
-    }
+    // Save reservation to local data store
+    addReservation({
+      bookingId,
+      dateSubmitted: currentDate,
+      status: "PENDING",
+      firstName,
+      lastName,
+      email,
+      phone: fullPhone,
+      serviceType,
+      vehicle,
+      passengers,
+      childSeats: childSeatCount,
+      childSeatType,
+      etr407: etr407 ? "Yes" : "No",
+      serviceDate,
+      serviceTime,
+      pickupLocation,
+      stops: stops?.join(", ") || "",
+      dropoffLocation,
+      distance: routeDistance,
+      duration: routeDuration,
+      airline: airlineName,
+      flightNumber,
+      flightNote,
+      rideFare: routePrice,
+      stopCharge,
+      childSeatCharge,
+      subtotal,
+      hst,
+      gratuity,
+      total,
+      specialRequirements,
+      driverLink,
+      trackLink: customerTrackLink,
+    });
 
     return NextResponse.json({ success: true, message: "Reservation submitted successfully!", bookingId });
   } catch (error: any) {

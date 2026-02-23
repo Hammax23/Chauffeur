@@ -77,11 +77,22 @@ export default function TrackPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#1C1C1E] to-[#2C2C2E]">
       {/* Header */}
-      <div className="px-6 pt-10 pb-6">
+      <div className="px-6 pt-8 pb-6">
         <div className="max-w-lg mx-auto text-center">
+          {/* Logo */}
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <div className="w-12 h-12 bg-gradient-to-br from-[#C9A063] to-[#A68B5B] rounded-xl flex items-center justify-center shadow-lg">
+              <Car className="w-6 h-6 text-white" />
+            </div>
+            <div className="text-left">
+              <h2 className="text-white font-bold text-lg">SARJ Worldwide</h2>
+              <p className="text-[#C9A063] text-xs">Live Tracking</p>
+            </div>
+          </div>
+          
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#C9A063]/30 bg-[#C9A063]/10 mb-4">
             <div className="w-1.5 h-1.5 rounded-full bg-[#C9A063] animate-pulse" />
-            <span className="text-[#C9A063] text-xs font-medium tracking-widest uppercase">Live Tracking</span>
+            <span className="text-[#C9A063] text-xs font-medium tracking-widest uppercase">Live Status</span>
           </div>
           <h1 className="text-white text-2xl font-bold mb-1">Track Your Ride</h1>
           <p className="text-gray-400 text-sm">{bookingId}</p>

@@ -99,7 +99,7 @@ export default function DriverPage() {
         <div className="max-w-lg mx-auto">
           <div className="flex items-center gap-2 mb-1">
             <Car className="w-5 h-5 text-[#C9A063]" />
-            <span className="text-[#C9A063] text-sm font-medium">SARJ Driver Portal</span>
+            <span className="text-[#C9A063] text-sm font-medium">SARJ WORLDWIDE YOUR CHAUFFEUR STATUS</span>
           </div>
           <h1 className="text-2xl font-bold">{bookingId}</h1>
           {booking && (
