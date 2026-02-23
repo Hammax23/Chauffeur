@@ -7,6 +7,7 @@ import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Turnstile from "@/components/Turnstile";
+import PlacesAutocomplete from "@/components/PlacesAutocomplete";
 import DatePicker from "react-datepicker";
 import { services } from "@/data/services";
 
@@ -357,12 +358,10 @@ export default function QuotePage() {
               <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Pick-up location</label>
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-1">
-                  <input
-                    type="text"
-                    placeholder="Address or landmark"
-                    required
+                  <PlacesAutocomplete
                     value={pickupLocation}
-                    onChange={(e) => setPickupLocation(e.target.value)}
+                    onChange={setPickupLocation}
+                    placeholder="Address or landmark"
                     className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 placeholder-gray-400 bg-gray-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200"
                   />
                   <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
@@ -384,11 +383,10 @@ export default function QuotePage() {
                 <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Stop {i + 1}</label>
                 <div className="flex gap-3">
                   <div className="relative flex-1">
-                    <input
-                      type="text"
-                      placeholder="Stop location"
+                    <PlacesAutocomplete
                       value={stop}
-                      onChange={(e) => updateStop(i, e.target.value)}
+                      onChange={(value) => updateStop(i, value)}
+                      placeholder="Stop location"
                       className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 placeholder-gray-400 bg-gray-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200"
                     />
                     <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
@@ -408,12 +406,10 @@ export default function QuotePage() {
             <div>
               <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Drop-off location</label>
               <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Address or landmark"
-                  required
+                <PlacesAutocomplete
                   value={dropoffLocation}
-                  onChange={(e) => setDropoffLocation(e.target.value)}
+                  onChange={setDropoffLocation}
+                  placeholder="Address or landmark"
                   className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 placeholder-gray-400 bg-gray-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200"
                 />
                 <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
