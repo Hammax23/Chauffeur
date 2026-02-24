@@ -40,8 +40,8 @@ export default function TrackPage() {
 
   useEffect(() => {
     fetchStatus();
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchStatus, 30000);
+    // Auto-refresh every 5 seconds for real-time updates
+    const interval = setInterval(fetchStatus, 5000);
     return () => clearInterval(interval);
   }, [fetchStatus]);
 
@@ -216,7 +216,7 @@ export default function TrackPage() {
             SARJ Worldwide Chauffeur Services
           </p>
           <p className="text-gray-600 text-[10px] mt-1">
-            Status refreshes automatically every 30 seconds
+            Live updates every 5 seconds
           </p>
         </div>
       </div>

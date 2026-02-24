@@ -26,7 +26,8 @@ import RouteMap from "@/components/RouteMap";
 import PlacesAutocomplete from "@/components/PlacesAutocomplete";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-// import StripePayment from "@/components/StripePayment";
+import StripeProvider from "@/components/StripeProvider";
+import CardValidationForm from "@/components/CardValidationForm";
 import Turnstile from "@/components/Turnstile";
 import { fleetData } from "@/data/fleet";
 
@@ -81,6 +82,13 @@ export default function ReservationPage() {
   const [zipCode, setZipCode] = useState("");
   const [purchaseOrder, setPurchaseOrder] = useState("");
   const [deptNumber, setDeptNumber] = useState("");
+  
+  // Stripe card validation
+  const [cardValidated, setCardValidated] = useState(false);
+  const [stripePaymentMethodId, setStripePaymentMethodId] = useState("");
+  const [stripeCustomerId, setStripeCustomerId] = useState("");
+  const [cardLast4, setCardLast4] = useState("");
+  const [cardBrand, setCardBrand] = useState("");
 
   // Validation state
   const [stepError, setStepError] = useState("");
@@ -130,9 +138,11 @@ export default function ReservationPage() {
           routeDistance, routeDuration, routePrice,
           gratuityPercent,
           airlineName, flightNumber, flightNote,
-          cardType, nameOnCard,
-          cardFullNumber: cardNumber,
-          expirationMonth, expirationYear,
+          cardType: cardBrand || cardType,
+          nameOnCard,
+          cardLast4,
+          stripePaymentMethodId,
+          stripeCustomerId,
           billingAddress, zipCode,
           purchaseOrder, deptNumber,
           turnstileToken,
@@ -141,12 +151,13 @@ export default function ReservationPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.details || data.error || "Failed to send emails");
       setEmailSent(true);
-    } catch (err: any) {
-      setEmailError(err.message || "Failed to send confirmation emails.");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to send confirmation emails.";
+      setEmailError(errorMessage);
     } finally {
       setEmailSending(false);
     }
-  }, [firstName, lastName, email, phone, countryCode, serviceType, pickupLocation, dropoffLocation, stops, pickupDateTime, selectedVehicle, passengersCount, childSeatCount, childSeatType, etr407, specialRequirements, routeDistance, routeDuration, routePrice, gratuityPercent, airlineName, flightNumber, flightNote, cardType, nameOnCard, cardNumber, expirationMonth, expirationYear, billingAddress, zipCode, purchaseOrder, deptNumber, turnstileToken]);
+  }, [firstName, lastName, email, phone, countryCode, serviceType, pickupLocation, dropoffLocation, stops, pickupDateTime, selectedVehicle, passengersCount, childSeatCount, childSeatType, etr407, specialRequirements, routeDistance, routeDuration, routePrice, gratuityPercent, airlineName, flightNumber, flightNote, cardType, cardBrand, nameOnCard, cardLast4, stripePaymentMethodId, stripeCustomerId, billingAddress, zipCode, purchaseOrder, deptNumber, turnstileToken]);
 
   // Store route data; price is recalculated via useEffect when vehicle or route changes
   const handleRouteCalculated = useCallback((distance: string, duration: string, distanceValue: number, durationValue: number) => {
@@ -955,119 +966,47 @@ export default function ReservationPage() {
                         </div>
                       )} */}
 
-                      {/* Payment Section */}
+                      {/* Payment Section - Stripe Only */}
                       <div className="pt-4 border-t border-gray-200">
-                        <h3 className="text-lg font-semibold text-[#007AFF] mb-4">Payment</h3>
+                        <h3 className="text-lg font-semibold text-[#007AFF] mb-4">Payment Card</h3>
                         
                         <div className="space-y-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Card Type</label>
-                            <select 
-                              value={cardType} 
-                              onChange={(e) => setCardType(e.target.value)}
-                              className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
-                            >
-                              <option value="">Select card type</option>
-                              <option value="Visa">Visa</option>
-                              <option value="Mastercard">Mastercard</option>
-                              <option value="American Express">American Express</option>
-                              <option value="Discover">Discover</option>
-                            </select>
-                            {cardType && (
-                              <p className="text-xs text-green-600 mt-1">✓ Auto-detected: {cardType}</p>
-                            )}
-                          </div>
-
+                          {/* Name on Card */}
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Name on Card</label>
                             <input
                               type="text"
-                              placeholder="Name on Card"
+                              placeholder="Name as it appears on card"
                               value={nameOnCard}
                               onChange={(e) => setNameOnCard(e.target.value)}
                               className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
                             />
                           </div>
 
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Card Number</label>
-                            <input
-                              type="text"
-                              placeholder="Card Number"
-                              value={cardNumber}
-                              onChange={(e) => {
-                                // Format card number with spaces
-                                const value = e.target.value.replace(/\D/g, '');
-                                const formattedValue = value.replace(/(\d{4})(?=\d)/g, '$1 ');
-                                setCardNumber(formattedValue);
+                          {/* Stripe Card Validation - Single Entry */}
+                          <StripeProvider>
+                            <CardValidationForm
+                              email={email}
+                              name={nameOnCard || `${firstName} ${lastName}`}
+                              onSuccess={(data) => {
+                                setCardValidated(true);
+                                setStripePaymentMethodId(data.paymentMethodId);
+                                setStripeCustomerId(data.customerId);
+                                setCardLast4(data.last4);
+                                setCardBrand(data.brand);
+                                setCardType(data.brand);
+                                setStepError("");
                               }}
-                              className={`w-full px-4 py-4 border-2 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300 ${
-                                cardNumber && !validateCardNumber(cardNumber) 
-                                  ? 'border-red-300 focus:border-red-500' 
-                                  : 'border-gray-200 focus:border-[#C9A063]'
-                              }`}
-                              maxLength={23}
+                              onError={(error) => {
+                                setCardValidated(false);
+                                setStepError(error);
+                              }}
                             />
-                            {cardNumber && !validateCardNumber(cardNumber) && (
-                              <p className="text-xs text-red-600 mt-1">⚠️ Invalid card number</p>
-                            )}
-                            {cardNumber && validateCardNumber(cardNumber) && (
-                              <p className="text-xs text-green-600 mt-1">✓ Valid card number</p>
-                            )}
-                          </div>
+                          </StripeProvider>
 
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <select
-                                value={expirationYear}
-                                onChange={(e) => setExpirationYear(e.target.value)}
-                                className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
-                              >
-                                <option value="">Select Expiration Year</option>
-                                <option value="2024">2024</option>
-                                <option value="2025">2025</option>
-                                <option value="2026">2026</option>
-                                <option value="2027">2027</option>
-                                <option value="2028">2028</option>
-                                <option value="2029">2029</option>
-                                <option value="2030">2030</option>
-                              </select>
-                            </div>
-                            <div>
-                              <select
-                                value={expirationMonth}
-                                onChange={(e) => setExpirationMonth(e.target.value)}
-                                className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
-                              >
-                                <option value="">Select Expiration Month</option>
-                                <option value="01">01 - January</option>
-                                <option value="02">02 - February</option>
-                                <option value="03">03 - March</option>
-                                <option value="04">04 - April</option>
-                                <option value="05">05 - May</option>
-                                <option value="06">06 - June</option>
-                                <option value="07">07 - July</option>
-                                <option value="08">08 - August</option>
-                                <option value="09">09 - September</option>
-                                <option value="10">10 - October</option>
-                                <option value="11">11 - November</option>
-                                <option value="12">12 - December</option>
-                              </select>
-                            </div>
-                          </div>
-
-                          <div>
-                            <input
-                              type="text"
-                              placeholder="CVV (Secret Code)"
-                              value={cvv}
-                              onChange={(e) => setCvv(e.target.value)}
-                              maxLength={4}
-                              className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
-                            />
-                          </div>
-
-                          <div>
+                          {/* Billing Address (Optional) */}
+                          <div className="mt-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Billing Address (Optional)</label>
                             <input
                               type="text"
                               placeholder="Card Billing Street Address"
@@ -1077,6 +1016,7 @@ export default function ReservationPage() {
                             />
                           </div>
 
+                          {/* Zip Code (Optional) */}
                           <div>
                             <input
                               type="text"
@@ -1086,7 +1026,6 @@ export default function ReservationPage() {
                               className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:border-[#C9A063] focus:ring-4 focus:ring-[#C9A063]/10 transition-all duration-300"
                             />
                           </div>
-
                         </div>
                       </div>
 
@@ -1163,7 +1102,7 @@ export default function ReservationPage() {
                           className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063] focus:ring-offset-0"
                         />
                         <span className="text-gray-600 text-[13px] leading-snug group-hover:text-gray-700">
-                          I agree to the <a href="/terms" className="text-[#C9A063] underline">Terms of Service</a> and <a href="/privacy" className="text-[#C9A063] underline">Privacy Policy</a>
+                          I agree to the <a href="/terms-of-service" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">Terms of Service</a>, <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">Privacy Policy</a> and <a href="/privacy-policy#cancellation" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">Cancellation Policy</a>
                         </span>
                       </label>
                     </div>
@@ -1193,15 +1132,10 @@ export default function ReservationPage() {
                     {currentStep === 4 ? (
                       <button
                         onClick={async () => {
-                          if (!cardType) { setStepError("Please select a card type."); return; }
-                          if (!nameOnCard.trim()) { setStepError("Please enter the name on card."); return; }
-                          if (!cardNumber.trim()) { setStepError("Please enter the card number."); return; }
-                          if (!validateCardNumber(cardNumber)) { setStepError("Please enter a valid card number."); return; }
-                          if (!expirationYear) { setStepError("Please select the expiration year."); return; }
-                          if (!expirationMonth) { setStepError("Please select the expiration month."); return; }
-                          if (!cvv.trim()) { setStepError("Please enter the CVV."); return; }
-                          if (!billingAddress.trim()) { setStepError("Please enter the billing address."); return; }
-                          if (!zipCode.trim()) { setStepError("Please enter the zip/postal code."); return; }
+                          if (!cardValidated) { 
+                            setStepError("Please validate your card using the Stripe form."); 
+                            return; 
+                          }
                           if (!termsAccepted) {
                             setStepError("Please accept the Terms of Service and Privacy Policy.");
                             return;
@@ -1209,7 +1143,7 @@ export default function ReservationPage() {
                           setStepError("");
                           await sendReservationEmails();
                         }}
-                        disabled={!termsAccepted || emailSending}
+                        disabled={!termsAccepted || emailSending || !cardValidated}
                         className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#C9A063] text-white px-6 py-2.5 rounded-xl text-[15px] font-medium hover:bg-[#B8935A] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
                         {emailSending ? (

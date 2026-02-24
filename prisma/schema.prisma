@@ -58,6 +58,13 @@ model Reservation {
   driverLink          String?
   trackLink           String?
   
+  // Payment Info (Stripe)
+  stripeCustomerId       String?
+  stripePaymentMethodId  String?
+  cardType               String?
+  cardLast4              String?
+  paymentStatus          String?  @default("PENDING")
+  
   // Relations
   assignedDriverId    String?
   assignedDriver      Driver?  @relation(fields: [assignedDriverId], references: [id])
