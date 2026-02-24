@@ -19,10 +19,12 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
-    // Turnstile verification
-    const turnstileResult = await verifyTurnstile(body.turnstileToken, clientIp);
-    if (!turnstileResult.success) {
-      return NextResponse.json({ error: turnstileResult.error }, { status: 403 });
+    // Turnstile verification (skip for admin-created reservations)
+    if (!body.skipTurnstile) {
+      const turnstileResult = await verifyTurnstile(body.turnstileToken, clientIp);
+      if (!turnstileResult.success) {
+        return NextResponse.json({ error: turnstileResult.error }, { status: 403 });
+      }
     }
 
     // Sanitize all inputs
