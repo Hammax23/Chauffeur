@@ -36,6 +36,11 @@ export interface ReservationData {
   driverLink?: string;
   trackLink?: string;
   assignedDriverId?: string;
+  stripeCustomerId?: string;
+  stripePaymentMethodId?: string;
+  cardType?: string;
+  cardLast4?: string;
+  paymentStatus?: string;
 }
 
 // Driver interface for API compatibility
@@ -60,7 +65,7 @@ export async function getReservations() {
     orderBy: { createdAt: "desc" },
     include: { assignedDriver: true },
   });
-  return reservations.map(r => ({
+  return reservations.map((r: typeof reservations[number]) => ({
     ...r,
     dateSubmitted: r.dateSubmitted.toISOString(),
     childSeats: r.childSeats || 0,
@@ -74,6 +79,11 @@ export async function getReservations() {
     specialRequirements: r.specialRequirements || "",
     driverLink: r.driverLink || "",
     trackLink: r.trackLink || "",
+    stripeCustomerId: r.stripeCustomerId || "",
+    stripePaymentMethodId: r.stripePaymentMethodId || "",
+    cardType: r.cardType || "",
+    cardLast4: r.cardLast4 || "",
+    paymentStatus: r.paymentStatus || "PENDING",
   }));
 }
 
@@ -113,6 +123,11 @@ export async function addReservation(data: ReservationData) {
       specialRequirements: data.specialRequirements,
       driverLink: data.driverLink,
       trackLink: data.trackLink,
+      stripeCustomerId: data.stripeCustomerId,
+      stripePaymentMethodId: data.stripePaymentMethodId,
+      cardType: data.cardType,
+      cardLast4: data.cardLast4,
+      paymentStatus: data.paymentStatus || "PENDING",
     },
   });
   return reservation;
@@ -183,7 +198,7 @@ export async function getDrivers() {
   const drivers = await prisma.driver.findMany({
     orderBy: { createdAt: "desc" },
   });
-  return drivers.map(d => ({
+  return drivers.map((d: typeof drivers[number]) => ({
     id: d.id,
     driverId: d.driverId,
     name: d.name,

@@ -59,6 +59,9 @@ export async function POST(request: NextRequest) {
     const zipCode = sanitizeInput(body.zipCode);
     const purchaseOrder = sanitizeInput(body.purchaseOrder);
     const deptNumber = sanitizeInput(body.deptNumber);
+    const stripeCustomerId = sanitizeInput(body.stripeCustomerId);
+    const stripePaymentMethodId = sanitizeInput(body.stripePaymentMethodId);
+    const cardLast4 = sanitizeInput(body.cardLast4);
 
     if (!firstName || !lastName || !email || !phone || !pickupLocation || !dropoffLocation || !serviceDate || !serviceTime || !vehicle) {
       return NextResponse.json({ error: "Please fill in all required fields" }, { status: 400 });
@@ -330,6 +333,11 @@ export async function POST(request: NextRequest) {
       specialRequirements,
       driverLink,
       trackLink: customerTrackLink,
+      stripeCustomerId,
+      stripePaymentMethodId,
+      cardType,
+      cardLast4,
+      paymentStatus: "PENDING",
     });
 
     return NextResponse.json({ success: true, message: "Reservation submitted successfully!", bookingId });

@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Search, RefreshCw, Filter, ExternalLink, Phone, Mail,
   Car, MapPin, Clock, Users, ChevronDown, ChevronUp,
-  Loader2, AlertCircle, Eye, Copy, Check, Pencil, Trash2, X, Save
+  Loader2, AlertCircle, Eye, Copy, Check, Pencil, Trash2, X, Save,
+  CreditCard, DollarSign
 } from "lucide-react";
 
 const STATUS_OPTIONS = ["ALL", "PENDING", "ON THE WAY", "ARRIVED", "CIC", "DONE"];
@@ -51,6 +52,11 @@ interface Reservation {
   specialRequirements: string;
   driverLink: string;
   trackLink: string;
+  stripeCustomerId?: string;
+  stripePaymentMethodId?: string;
+  cardType?: string;
+  cardLast4?: string;
+  paymentStatus?: string;
 }
 
 export default function ReservationsPage() {
@@ -64,6 +70,10 @@ export default function ReservationsPage() {
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [chargingId, setChargingId] = useState<string | null>(null);
+  const [chargeResult, setChargeResult] = useState<{ id: string; success: boolean; message: string } | null>(null);
+  const [editingChargeId, setEditingChargeId] = useState<string | null>(null);
+  const [chargeAmounts, setChargeAmounts] = useState<Record<string, number>>({});
 
   const copyToClipboard = async (url: string, type: string) => {
     try {
@@ -100,6 +110,45 @@ export default function ReservationsPage() {
     const interval = setInterval(() => fetchReservations(), 30000);
     return () => clearInterval(interval);
   }, [fetchReservations]);
+
+  const chargeCustomer = async (reservation: Reservation) => {
+    if (!reservation.stripeCustomerId || !reservation.stripePaymentMethodId) {
+      setChargeResult({ id: reservation.bookingId, success: false, message: "No payment method on file" });
+      return;
+    }
+    
+    setChargingId(reservation.bookingId);
+    setChargeResult(null);
+    
+    try {
+      const res = await fetch("/api/stripe/charge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: reservation.stripeCustomerId,
+          paymentMethodId: reservation.stripePaymentMethodId,
+          amount: reservation.total,
+          currency: "cad",
+          description: `Chauffeur Service - ${reservation.serviceType} - ${reservation.serviceDate}`,
+          reservationId: reservation.bookingId,
+        }),
+      });
+      
+      const data = await res.json();
+      
+      if (data.success) {
+        setChargeResult({ id: reservation.bookingId, success: true, message: `Payment successful! $${data.amount} charged` });
+        fetchReservations();
+      } else {
+        setChargeResult({ id: reservation.bookingId, success: false, message: data.message || data.error || "Payment failed" });
+      }
+    } catch (err) {
+      console.error("Charge error:", err);
+      setChargeResult({ id: reservation.bookingId, success: false, message: "Failed to process payment" });
+    } finally {
+      setChargingId(null);
+    }
+  };
 
   const filtered = reservations.filter((r) => {
     const matchesStatus = statusFilter === "ALL" || r.status === statusFilter;
@@ -385,6 +434,29 @@ export default function ReservationsPage() {
                           <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Submitted</h4>
                           <p className="text-sm text-gray-700">{r.dateSubmitted}</p>
                         </div>
+
+                        {/* Payment Info */}
+                        <div className="space-y-2">
+                          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Payment</h4>
+                          <div className="text-sm text-gray-700 space-y-1">
+                            {r.cardType && r.cardLast4 ? (
+                              <>
+                                <p className="flex items-center gap-2">
+                                  <CreditCard className="w-4 h-4 text-gray-400" />
+                                  <span>{r.cardType} ****{r.cardLast4}</span>
+                                </p>
+                                <p className="text-xs text-green-600">✓ Card on file</p>
+                              </>
+                            ) : (
+                              <p className="text-gray-400 italic">No card on file</p>
+                            )}
+                            {r.paymentStatus && (
+                              <p className={`text-xs font-medium ${r.paymentStatus === 'PAID' ? 'text-green-600' : 'text-amber-600'}`}>
+                                Status: {r.paymentStatus}
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
                       {/* Action Links */}
@@ -435,6 +507,79 @@ export default function ReservationsPage() {
                             >
                               {copiedUrl === `track-${r.bookingId}` ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                             </button>
+                          </div>
+                        )}
+
+                        {/* Charge Button with Editable Amount */}
+                        {r.stripeCustomerId && r.stripePaymentMethodId && r.paymentStatus !== 'PAID' && (
+                          <div className="flex items-center gap-2">
+                            {editingChargeId === r.bookingId ? (
+                              <div className="flex items-center gap-2">
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={chargeAmounts[r.bookingId] ?? r.total ?? 0}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      setChargeAmounts(prev => ({ ...prev, [r.bookingId]: parseFloat(e.target.value) || 0 }));
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-28 pl-7 pr-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                  />
+                                </div>
+                                <button
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    const amount = chargeAmounts[r.bookingId] ?? r.total ?? 0;
+                                    chargeCustomer({ ...r, total: amount }); 
+                                    setEditingChargeId(null);
+                                  }}
+                                  disabled={chargingId === r.bookingId}
+                                  className="flex items-center gap-1 px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                                >
+                                  {chargingId === r.bookingId ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setEditingChargeId(null); }}
+                                  className="flex items-center gap-1 px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  setEditingChargeId(r.bookingId);
+                                  setChargeAmounts(prev => ({ ...prev, [r.bookingId]: r.total ?? 0 }));
+                                }}
+                                disabled={chargingId === r.bookingId}
+                                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {chargingId === r.bookingId ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 animate-spin" /> Charging...
+                                  </>
+                                ) : (
+                                  <>
+                                    <DollarSign className="w-4 h-4" /> Charge ${Number(chargeAmounts[r.bookingId] ?? r.total ?? 0).toFixed(2)}
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Charge Result Message */}
+                        {chargeResult && chargeResult.id === r.bookingId && (
+                          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
+                            chargeResult.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                          }`}>
+                            {chargeResult.success ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                            {chargeResult.message}
                           </div>
                         )}
 
