@@ -20,6 +20,7 @@ export default function DriverPage() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState("");
   const [error, setError] = useState("");
+  const [expired, setExpired] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -28,6 +29,8 @@ export default function DriverPage() {
       if (data.success) {
         setBooking(data);
         setCurrentStatus(data.status || "PENDING");
+      } else if (data.expired) {
+        setExpired(true);
       } else {
         setError(data.error || "Booking not found");
       }
@@ -72,6 +75,21 @@ export default function DriverPage() {
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin text-[#C9A063] mx-auto mb-3" />
           <p className="text-gray-500">Loading booking...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (expired) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-[#C9A063]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Clock className="w-8 h-8 text-[#C9A063]" />
+          </div>
+          <h1 className="text-xl font-bold text-gray-900 mb-2">Link Expired</h1>
+          <p className="text-gray-500 text-sm">This driver link has expired.</p>
+          <p className="text-gray-400 text-xs mt-3">Thank you for representing SARJ Worldwide.</p>
         </div>
       </div>
     );

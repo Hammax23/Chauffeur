@@ -57,6 +57,7 @@ model Reservation {
   specialRequirements String?
   driverLink          String?
   trackLink           String?
+  completedAt         DateTime?
   
   // Payment Info (Stripe)
   stripeCustomerId       String?

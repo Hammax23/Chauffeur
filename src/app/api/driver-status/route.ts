@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getReservationById, updateReservationStatus } from "@/lib/data-store";
 
+// Check if link is expired (5 minutes after completion)
+function isLinkExpired(completedAt: Date | null): boolean {
+  if (!completedAt) return false;
+  const expiryTime = new Date(completedAt.getTime() + 5 * 60 * 1000); // 5 minutes
+  return new Date() > expiryTime;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -14,6 +21,11 @@ export async function GET(request: NextRequest) {
     
     if (!reservation) {
       return NextResponse.json({ success: false, error: "Booking not found" }, { status: 404 });
+    }
+
+    // Check if link has expired (5 min after DONE)
+    if (isLinkExpired(reservation.completedAt)) {
+      return NextResponse.json({ success: false, expired: true, error: "This link has expired" }, { status: 410 });
     }
 
     return NextResponse.json({
