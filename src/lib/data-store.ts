@@ -136,9 +136,16 @@ export async function addReservation(data: ReservationData) {
 // Update reservation status
 export async function updateReservationStatus(bookingId: string, status: string) {
   try {
+    const updateData: { status: string; completedAt?: Date } = { status };
+    
+    // Set completedAt timestamp when ride is marked as DONE
+    if (status === "DONE") {
+      updateData.completedAt = new Date();
+    }
+    
     await prisma.reservation.update({
       where: { bookingId },
-      data: { status },
+      data: updateData,
     });
     return true;
   } catch {
