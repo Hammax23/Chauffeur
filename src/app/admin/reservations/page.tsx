@@ -491,50 +491,78 @@ export default function ReservationsPage() {
                       <div className="flex flex-wrap gap-3 mt-5 pt-4 border-t border-gray-200">
                         {r.driverLink && (
                           <div className="flex items-center gap-1">
-                            <a
-                              href={r.driverLink}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 px-4 py-2 bg-[#C9A063] text-white rounded-l-lg text-sm font-medium hover:bg-[#B8904F] transition-colors"
-                            >
-                              <Car className="w-4 h-4" /> Driver Page
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); copyToClipboard(r.driverLink, `driver-${r.bookingId}`); }}
-                              className={`flex items-center gap-1 px-3 py-2 rounded-r-lg text-sm font-medium transition-all ${
-                                copiedUrl === `driver-${r.bookingId}` 
-                                  ? "bg-green-500 text-white" 
-                                  : "bg-[#B8904F] text-white hover:bg-[#A07F3F]"
-                              }`}
-                              title="Copy Driver URL"
-                            >
-                              {copiedUrl === `driver-${r.bookingId}` ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                            </button>
+                            {r.assignedDriverId ? (
+                              <>
+                                <a
+                                  href={r.driverLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-2 px-4 py-2 bg-[#C9A063] text-white rounded-l-lg text-sm font-medium hover:bg-[#B8904F] transition-colors"
+                                >
+                                  <Car className="w-4 h-4" /> Driver Page
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); copyToClipboard(r.driverLink, `driver-${r.bookingId}`); }}
+                                  className={`flex items-center gap-1 px-3 py-2 rounded-r-lg text-sm font-medium transition-all ${
+                                    copiedUrl === `driver-${r.bookingId}` 
+                                      ? "bg-green-500 text-white" 
+                                      : "bg-[#B8904F] text-white hover:bg-[#A07F3F]"
+                                  }`}
+                                  title="Copy Driver URL"
+                                >
+                                  {copiedUrl === `driver-${r.bookingId}` ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <span className="flex items-center gap-2 px-4 py-2 bg-gray-300 text-gray-500 rounded-l-lg text-sm font-medium cursor-not-allowed">
+                                  <Car className="w-4 h-4" /> Driver Page
+                                  <ExternalLink className="w-3 h-3" />
+                                </span>
+                                <span className="flex items-center gap-1 px-3 py-2 rounded-r-lg text-sm font-medium bg-gray-200 text-gray-400 cursor-not-allowed">
+                                  <Copy className="w-4 h-4" />
+                                </span>
+                              </>
+                            )}
                           </div>
                         )}
                         {r.trackLink && (
                           <div className="flex items-center gap-1">
-                            <a
-                              href={r.trackLink}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 px-4 py-2 bg-[#1C1C1E] text-white rounded-l-lg text-sm font-medium hover:bg-[#333] transition-colors"
-                            >
-                              <Eye className="w-4 h-4" /> Customer Track
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); copyToClipboard(r.trackLink, `track-${r.bookingId}`); }}
-                              className={`flex items-center gap-1 px-3 py-2 rounded-r-lg text-sm font-medium transition-all ${
-                                copiedUrl === `track-${r.bookingId}` 
-                                  ? "bg-green-500 text-white" 
-                                  : "bg-[#333] text-white hover:bg-[#444]"
-                              }`}
-                              title="Copy Track URL"
-                            >
-                              {copiedUrl === `track-${r.bookingId}` ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                            </button>
+                            {r.assignedDriverId ? (
+                              <>
+                                <a
+                                  href={r.trackLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-2 px-4 py-2 bg-[#1C1C1E] text-white rounded-l-lg text-sm font-medium hover:bg-[#333] transition-colors"
+                                >
+                                  <Eye className="w-4 h-4" /> Customer Track
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); copyToClipboard(r.trackLink, `track-${r.bookingId}`); }}
+                                  className={`flex items-center gap-1 px-3 py-2 rounded-r-lg text-sm font-medium transition-all ${
+                                    copiedUrl === `track-${r.bookingId}` 
+                                      ? "bg-green-500 text-white" 
+                                      : "bg-[#333] text-white hover:bg-[#444]"
+                                  }`}
+                                  title="Copy Track URL"
+                                >
+                                  {copiedUrl === `track-${r.bookingId}` ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <span className="flex items-center gap-2 px-4 py-2 bg-gray-300 text-gray-500 rounded-l-lg text-sm font-medium cursor-not-allowed">
+                                  <Eye className="w-4 h-4" /> Customer Track
+                                  <ExternalLink className="w-3 h-3" />
+                                </span>
+                                <span className="flex items-center gap-1 px-3 py-2 rounded-r-lg text-sm font-medium bg-gray-200 text-gray-400 cursor-not-allowed">
+                                  <Copy className="w-4 h-4" />
+                                </span>
+                              </>
+                            )}
                           </div>
                         )}
 
