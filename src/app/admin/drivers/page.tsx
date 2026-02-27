@@ -454,7 +454,7 @@ export default function DriversPage() {
                   required
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
                   placeholder="Driver name"
                 />
               </div>
@@ -467,7 +467,7 @@ export default function DriversPage() {
                     required
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
                     placeholder="Phone number"
                   />
                 </div>
@@ -478,7 +478,7 @@ export default function DriversPage() {
                     required
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
                     placeholder="Email"
                   />
                 </div>
@@ -492,7 +492,7 @@ export default function DriversPage() {
                     required
                     value={form.vehicle}
                     onChange={(e) => setForm({ ...form, vehicle: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
                     placeholder="e.g., Mercedes S-Class"
                   />
                 </div>
@@ -503,7 +503,7 @@ export default function DriversPage() {
                     required
                     value={form.vehiclePlate}
                     onChange={(e) => setForm({ ...form, vehiclePlate: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
                     placeholder="e.g., ABC 123"
                   />
                 </div>
@@ -514,7 +514,7 @@ export default function DriversPage() {
                 <select
                   value={form.status}
                   onChange={(e) => setForm({ ...form, status: e.target.value as Driver["status"] })}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
                 >
                   <option value="available">Available</option>
                   <option value="on_trip">On Trip</option>
