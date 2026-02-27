@@ -491,7 +491,7 @@ export default function ReservationsPage() {
                       <div className="flex flex-wrap gap-3 mt-5 pt-4 border-t border-gray-200">
                         {r.driverLink && (
                           <div className="flex items-center gap-1">
-                            {r.assignedDriverId ? (
+                            {r.assignedDriver ? (
                               <>
                                 <a
                                   href={r.driverLink}
@@ -529,7 +529,7 @@ export default function ReservationsPage() {
                         )}
                         {r.trackLink && (
                           <div className="flex items-center gap-1">
-                            {r.assignedDriverId ? (
+                            {r.assignedDriver ? (
                               <>
                                 <a
                                   href={r.trackLink}
