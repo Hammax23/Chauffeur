@@ -2,13 +2,12 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { User, Users, Phone, Mail, Clock, MapPin, ChevronDown, Plus, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { User, Users, Phone, Mail, MapPin, ChevronDown, Plus, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Turnstile from "@/components/Turnstile";
 import PlacesAutocomplete from "@/components/PlacesAutocomplete";
-import DatePicker from "react-datepicker";
 import { services } from "@/data/services";
 
 // Country codes: Canada first. flagCode = ISO code for flag image (flagcdn.com).
@@ -44,8 +43,6 @@ export default function QuotePage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [serviceType, setServiceType] = useState("");
-  const [vehicle, setVehicle] = useState("");
-  const [pickupTime, setPickupTime] = useState<Date | null>(null);
   const [pickupLocation, setPickupLocation] = useState("");
   const [dropoffLocation, setDropoffLocation] = useState("");
   const [additionalNotes, setAdditionalNotes] = useState("");
@@ -106,8 +103,6 @@ export default function QuotePage() {
           phoneCode: countryCode,
           email,
           serviceType,
-          vehicle,
-          pickupTime: pickupTime ? pickupTime.toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" }) : "",
           pickupLocation,
           stops: stops.filter((s) => s.trim() !== ""),
           dropoffLocation,
@@ -130,8 +125,6 @@ export default function QuotePage() {
       setPhone("");
       setEmail("");
       setServiceType("");
-      setVehicle("");
-      setPickupTime(null);
       setPickupLocation("");
       setDropoffLocation("");
       setAdditionalNotes("");
@@ -300,60 +293,21 @@ export default function QuotePage() {
               </div>
             </div>
 
-            {/* Row 3: Service Type | Vehicle */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
-              <div>
-                <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Service Type</label>
-                <div className="relative">
-                  <select required value={serviceType} onChange={(e) => setServiceType(e.target.value)} className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] appearance-none cursor-pointer bg-gray-50/50 focus:bg-white transition-all duration-200">
-                    <option value="">Select service type</option>
-                    {services.filter((s) => s.slug !== "premium-services").map((s) => (
-                      <option key={s.slug} value={s.slug}>{s.title}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={2} />
-                </div>
-              </div>
-              <div>
-                <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Vehicle</label>
-                <div className="relative">
-                  <select required value={vehicle} onChange={(e) => setVehicle(e.target.value)} className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] appearance-none cursor-pointer bg-gray-50/50 focus:bg-white transition-all duration-200">
-                    <option value="">Select vehicle</option>
-                    <option value="sedan">SEDAN</option>
-                    <option value="suv">SUV</option>
-                    <option value="escalade">ESCALADE</option>
-                    <option value="mercedes-benz">MERCEDES BENZ</option>
-                    <option value="sprinter">SPRINTER</option>
-                    <option value="executive-van">EXECUTIVE VAN</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={2} />
-                </div>
-              </div>
-            </div>
-
-            {/* Row 4: Pick-up date & time */}
+            {/* Row 3: Service Type */}
             <div>
-              <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Pick-up time</label>
-              <div className="relative quote-datepicker">
-                <DatePicker
-                  selected={pickupTime}
-                  onChange={(date: Date | null) => setPickupTime(date)}
-                  showTimeSelect
-                  timeIntervals={15}
-                  timeCaption="Time"
-                  dateFormat="MMMM d, yyyy  h:mm aa"
-                  timeFormat="h:mm aa"
-                  minDate={new Date()}
-                  placeholderText="Select date & time"
-                  className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 bg-gray-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200"
-                  withPortal
-                  required
-                />
-                <Clock className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
+              <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Service Type</label>
+              <div className="relative">
+                <select required value={serviceType} onChange={(e) => setServiceType(e.target.value)} className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] appearance-none cursor-pointer bg-gray-50/50 focus:bg-white transition-all duration-200">
+                  <option value="">Select service type</option>
+                  {services.filter((s) => s.slug !== "premium-services").map((s) => (
+                    <option key={s.slug} value={s.slug}>{s.title}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={2} />
               </div>
             </div>
 
-            {/* Row 5: Pick-up location + Add Stop */}
+            {/* Row 4: Pick-up location + Add Stop */}
             <div>
               <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Pick-up location</label>
               <div className="flex flex-col sm:flex-row gap-3">
@@ -402,7 +356,7 @@ export default function QuotePage() {
               </div>
             ))}
 
-            {/* Row 6: Drop-off location */}
+            {/* Row 5: Drop-off location */}
             <div>
               <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Drop-off location</label>
               <div className="relative">
@@ -416,7 +370,7 @@ export default function QuotePage() {
               </div>
             </div>
 
-            {/* Row 7: Notes */}
+            {/* Row 6: Notes */
             <div>
               <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Additional notes</label>
               <textarea
@@ -428,7 +382,7 @@ export default function QuotePage() {
               />
             </div>
 
-            {/* Checkbox + Submit */}
+            }
             <div className="pt-2 pb-1 space-y-5">
               <label className="flex items-start gap-3 cursor-pointer group">
                 <input

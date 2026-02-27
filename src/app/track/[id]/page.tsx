@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { Car, MapPin, Clock, User, CheckCircle2, Loader2, Phone } from "lucide-react";
+import Image from "next/image";
 
 const STATUS_STEPS = [
   { key: "PENDING", label: "Reservation Confirmed", description: "Your booking has been received", icon: CheckCircle2, color: "text-gray-400", bgColor: "bg-gray-100" },
@@ -95,7 +96,7 @@ export default function TrackPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#1C1C1E] to-[#2C2C2E]">
       {/* Header */}
-      <div className="px-6 pt-8 pb-6">
+      <div className="px-4 sm:px-6 pt-6 sm:pt-8 pb-4 sm:pb-6">
         <div className="max-w-lg mx-auto text-center">
           {/* Logo */}
           <div className="flex items-center justify-center gap-3 mb-6">
@@ -117,9 +118,9 @@ export default function TrackPage() {
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-6">
+      <div className="max-w-lg mx-auto px-4 sm:px-6">
         {/* Current Status Card */}
-        <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6 mb-6">
+        <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-4 sm:p-6 mb-4 sm:mb-6">
           {(() => {
             const current = STATUS_STEPS[statusIndex] || STATUS_STEPS[0];
             const CurrentIcon = current.icon;
@@ -135,8 +136,81 @@ export default function TrackPage() {
           })()}
         </div>
 
+        {/* Chauffeur & Ride Details - Combined Card */}
+        {booking && (
+          <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-4 sm:p-6 mb-4 sm:mb-6">
+            {/* Chauffeur Section */}
+            {booking.chauffeurName && (
+              <div className="mb-4 sm:mb-5 pb-4 sm:pb-5 border-b border-white/10">
+                <h3 className="text-white text-xs font-semibold mb-3 uppercase tracking-wider flex items-center gap-2">
+                  <User className="w-3.5 h-3.5 text-[#C9A063]" />
+                  Your Chauffeur
+                </h3>
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-[#C9A063] to-[#A68B5B] flex items-center justify-center overflow-hidden ring-2 ring-[#C9A063]/30 flex-shrink-0">
+                    {booking.chauffeurPhoto ? (
+                      <Image src={booking.chauffeurPhoto} alt={booking.chauffeurName} width={56} height={56} className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="w-7 h-7 text-white" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-semibold">{booking.chauffeurName}</p>
+                    <a href={`tel:${booking.chauffeurPhone}`} className="text-[#C9A063] text-sm hover:underline flex items-center gap-1.5 mt-0.5">
+                      <Phone className="w-3 h-3" />
+                      {booking.chauffeurPhone}
+                    </a>
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1.5 text-gray-300 text-xs sm:text-sm">
+                      <span className="flex items-center gap-1.5">
+                        <Car className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#C9A063]" />
+                        {booking.chauffeurVehicle}
+                      </span>
+                      <span className="font-mono font-medium">{booking.chauffeurPlate}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Ride Details Section */}
+            <div>
+              <h3 className="text-white text-xs font-semibold mb-3 uppercase tracking-wider flex items-center gap-2">
+                <Car className="w-3.5 h-3.5 text-[#C9A063]" />
+                Ride Details
+              </h3>
+              {booking.serviceDate && (
+                <div className="bg-white/5 rounded-lg p-2.5 mb-3">
+                  <p className="text-gray-500 text-[10px] uppercase">Date & Time</p>
+                  <p className="text-gray-300 text-sm font-medium">{booking.serviceDate}</p>
+                  <p className="text-[#C9A063] text-xs">{booking.serviceTime}</p>
+                </div>
+              )}
+              <div className="space-y-2">
+                {booking.pickupLocation && (
+                  <div className="flex items-start gap-2.5 bg-white/5 rounded-lg p-2.5">
+                    <MapPin className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-green-400 text-[10px] uppercase font-medium">Pick-up</p>
+                      <p className="text-gray-300 text-sm">{booking.pickupLocation}</p>
+                    </div>
+                  </div>
+                )}
+                {booking.dropoffLocation && (
+                  <div className="flex items-start gap-2.5 bg-white/5 rounded-lg p-2.5">
+                    <MapPin className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-red-400 text-[10px] uppercase font-medium">Drop-off</p>
+                      <p className="text-gray-300 text-sm">{booking.dropoffLocation}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Status Timeline */}
-        <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6 mb-6">
+        <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-4 sm:p-6 mb-4 sm:mb-6">
           <div className="space-y-0">
             {STATUS_STEPS.map((step, index) => {
               const StepIcon = step.icon;
@@ -144,10 +218,10 @@ export default function TrackPage() {
               const isCurrent = index === statusIndex;
 
               return (
-                <div key={step.key} className="flex items-start gap-4">
+                <div key={step.key} className="flex items-start gap-3 sm:gap-4">
                   {/* Timeline line + dot */}
                   <div className="flex flex-col items-center">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-500 ${
+                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-500 ${
                       isCurrent
                         ? "bg-[#C9A063] shadow-lg shadow-[#C9A063]/30"
                         : isCompleted
@@ -159,7 +233,7 @@ export default function TrackPage() {
                       }`} />
                     </div>
                     {index < STATUS_STEPS.length - 1 && (
-                      <div className={`w-0.5 h-10 my-1 transition-all duration-500 ${
+                      <div className={`w-0.5 h-8 sm:h-10 my-1 transition-all duration-500 ${
                         isCompleted && index < statusIndex ? "bg-green-500/40" : "bg-white/10"
                       }`} />
                     )}
@@ -181,47 +255,8 @@ export default function TrackPage() {
           </div>
         </div>
 
-        {/* Ride Details */}
-        {booking && (
-          <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6 mb-6">
-            <h3 className="text-white text-sm font-semibold mb-4 uppercase tracking-wider">Ride Details</h3>
-            <div className="space-y-3">
-              {booking.vehicle && (
-                <div className="flex items-center gap-3">
-                  <Car className="w-4 h-4 text-[#C9A063]" />
-                  <span className="text-gray-300 text-sm">{booking.vehicle}</span>
-                </div>
-              )}
-              {booking.serviceDate && (
-                <div className="flex items-center gap-3">
-                  <Clock className="w-4 h-4 text-[#C9A063]" />
-                  <span className="text-gray-300 text-sm">{booking.serviceDate} at {booking.serviceTime}</span>
-                </div>
-              )}
-              {booking.pickupLocation && (
-                <div className="flex items-start gap-3">
-                  <MapPin className="w-4 h-4 text-green-400 mt-0.5" />
-                  <div>
-                    <p className="text-gray-500 text-xs">Pick-up</p>
-                    <p className="text-gray-300 text-sm">{booking.pickupLocation}</p>
-                  </div>
-                </div>
-              )}
-              {booking.dropoffLocation && (
-                <div className="flex items-start gap-3">
-                  <MapPin className="w-4 h-4 text-red-400 mt-0.5" />
-                  <div>
-                    <p className="text-gray-500 text-xs">Drop-off</p>
-                    <p className="text-gray-300 text-sm">{booking.dropoffLocation}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Contact */}
-        <div className="text-center pb-10">
+        <div className="text-center pb-8 sm:pb-10">
           <p className="text-gray-500 text-xs mb-3">Need assistance?</p>
           <a
             href="tel:+14168935779"

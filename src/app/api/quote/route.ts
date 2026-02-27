@@ -3,6 +3,7 @@ import nodemailer from "nodemailer";
 import { sanitizeInput, sanitizeArray } from "@/lib/sanitize";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { verifyTurnstile } from "@/lib/turnstile";
+import prisma from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
   try {
@@ -140,6 +141,26 @@ export async function POST(request: NextRequest) {
       to: email,
       subject: "Your Online Quote Form is Successfully Submitted - SARJ WORLDWIDE",
       html: userEmailHtml,
+    });
+
+    // Save quote to database
+    const quoteId = `QT-${Date.now().toString(36).toUpperCase()}`;
+    await prisma.quote.create({
+      data: {
+        quoteId,
+        passengerName,
+        passengers,
+        phone: fullPhone,
+        email,
+        serviceType,
+        vehicle,
+        pickupTime: formattedPickupTime,
+        pickupLocation,
+        stops: stops.length > 0 ? stops.join(" | ") : null,
+        dropoffLocation,
+        additionalNotes: additionalNotes || null,
+        status: "NEW",
+      },
     });
 
     return NextResponse.json({ success: true, message: "Your quote request has been sent successfully!" });

@@ -14,7 +14,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, phone, email, vehicle, vehiclePlate, status } = body;
+    const { name, phone, email, vehicle, vehiclePlate, status, photo } = body;
 
     if (!name || !phone || !email || !vehicle || !vehiclePlate) {
       return NextResponse.json({ success: false, error: "All fields are required" }, { status: 400 });
@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
       vehicle,
       vehiclePlate,
       status: status || "available",
+      photo: photo || null,
       rating: 5.0,
       totalTrips: 0,
     });
@@ -34,6 +35,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, driver: newDriver });
   } catch (error: any) {
     console.error("Add driver error:", error);
+    
+    // Handle duplicate email error
+    if (error?.code === "P2002" && error?.meta?.target?.includes("email")) {
+      return NextResponse.json({ success: false, error: "A driver with this email already exists" }, { status: 400 });
+    }
+    
     return NextResponse.json({ success: false, error: "Failed to add driver" }, { status: 500 });
   }
 }

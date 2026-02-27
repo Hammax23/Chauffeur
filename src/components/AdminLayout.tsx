@@ -15,12 +15,14 @@ import {
   LogOut,
   ChevronRight,
   PlusCircle,
+  FileText,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/reservations", label: "Reservations", icon: CalendarCheck },
   { href: "/admin/custom-reservation", label: "Custom Reservation", icon: PlusCircle },
+  { href: "/admin/quotes", label: "Online Quotes", icon: FileText },
   { href: "/admin/drivers", label: "Drivers", icon: Car },
   { href: "/admin/customers", label: "Customers", icon: Users },
 ];
