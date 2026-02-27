@@ -260,7 +260,7 @@ export default function QuotesPage() {
                               type="text"
                               value={editForm.passengerName || ""}
                               onChange={(e) => setEditForm({ ...editForm, passengerName: e.target.value })}
-                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A063]"
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#C9A063]"
                             />
                           </div>
                           <div>
@@ -269,7 +269,7 @@ export default function QuotesPage() {
                               type="text"
                               value={editForm.passengers || ""}
                               onChange={(e) => setEditForm({ ...editForm, passengers: e.target.value })}
-                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A063]"
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#C9A063]"
                             />
                           </div>
                           <div>
@@ -278,7 +278,7 @@ export default function QuotesPage() {
                               type="text"
                               value={editForm.phone || ""}
                               onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A063]"
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#C9A063]"
                             />
                           </div>
                           <div>
@@ -287,7 +287,7 @@ export default function QuotesPage() {
                               type="email"
                               value={editForm.email || ""}
                               onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A063]"
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#C9A063]"
                             />
                           </div>
                           <div>
@@ -296,7 +296,7 @@ export default function QuotesPage() {
                               type="text"
                               value={editForm.serviceType || ""}
                               onChange={(e) => setEditForm({ ...editForm, serviceType: e.target.value })}
-                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A063]"
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#C9A063]"
                             />
                           </div>
                           <div>
@@ -305,7 +305,7 @@ export default function QuotesPage() {
                               type="text"
                               value={editForm.vehicle || ""}
                               onChange={(e) => setEditForm({ ...editForm, vehicle: e.target.value })}
-                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A063]"
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#C9A063]"
                             />
                           </div>
                           <div>
@@ -314,7 +314,7 @@ export default function QuotesPage() {
                               type="text"
                               value={editForm.pickupTime || ""}
                               onChange={(e) => setEditForm({ ...editForm, pickupTime: e.target.value })}
-                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A063]"
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#C9A063]"
                             />
                           </div>
                           <div>
@@ -322,7 +322,7 @@ export default function QuotesPage() {
                             <select
                               value={editForm.status || "NEW"}
                               onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A063]"
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#C9A063]"
                             >
                               {STATUS_OPTIONS.map((s) => (
                                 <option key={s} value={s}>{s}</option>
@@ -336,7 +336,7 @@ export default function QuotesPage() {
                             type="text"
                             value={editForm.pickupLocation || ""}
                             onChange={(e) => setEditForm({ ...editForm, pickupLocation: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A063]"
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#C9A063]"
                           />
                         </div>
                         <div>
@@ -345,7 +345,7 @@ export default function QuotesPage() {
                             type="text"
                             value={editForm.dropoffLocation || ""}
                             onChange={(e) => setEditForm({ ...editForm, dropoffLocation: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A063]"
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#C9A063]"
                           />
                         </div>
                         <div>
@@ -354,7 +354,7 @@ export default function QuotesPage() {
                             value={editForm.additionalNotes || ""}
                             onChange={(e) => setEditForm({ ...editForm, additionalNotes: e.target.value })}
                             rows={2}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#C9A063]"
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#C9A063]"
                           />
                         </div>
                         <div className="flex gap-2 pt-2">

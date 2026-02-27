@@ -611,14 +611,8 @@ export default function ReservationsPage() {
                           </div>
                         )}
 
-                        {/* Edit & Delete Buttons */}
+                        {/* Delete Button */}
                         <div className="flex items-center gap-2 ml-auto">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setEditingReservation(r); }}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
-                          >
-                            <Pencil className="w-4 h-4" /> Edit
-                          </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); setDeleteConfirm(r.bookingId); }}
                             className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors"
