@@ -18,6 +18,14 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> =
   DONE: { bg: "bg-green-50", text: "text-green-700", dot: "bg-green-500" },
 };
 
+interface AssignedDriver {
+  id: string;
+  name: string;
+  phone: string;
+  vehicle: string;
+  vehiclePlate: string;
+}
+
 interface Reservation {
   bookingId: string;
   dateSubmitted: string;
@@ -57,6 +65,7 @@ interface Reservation {
   cardType?: string;
   cardLast4?: string;
   paymentStatus?: string;
+  assignedDriver?: AssignedDriver | null;
 }
 
 export default function ReservationsPage() {
@@ -377,6 +386,25 @@ export default function ReservationsPage() {
                               <Phone className="w-3.5 h-3.5" /> {r.phone}
                             </a>
                           </div>
+                        </div>
+
+                        {/* Assigned Driver */}
+                        <div className="space-y-2">
+                          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Assigned Driver</h4>
+                          {r.assignedDriver ? (
+                            <div className="text-sm text-gray-700 space-y-1">
+                              <p className="font-semibold text-[#C9A063]">{r.assignedDriver.name}</p>
+                              <a href={`tel:${r.assignedDriver.phone}`} className="flex items-center gap-2 text-sm text-gray-600 hover:text-[#C9A063]">
+                                <Phone className="w-3.5 h-3.5" /> {r.assignedDriver.phone}
+                              </a>
+                              <p className="flex items-center gap-2">
+                                <Car className="w-3.5 h-3.5 text-gray-400" />
+                                <span>{r.assignedDriver.vehicle} • {r.assignedDriver.vehiclePlate}</span>
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-400 italic">No driver assigned</p>
+                          )}
                         </div>
 
                         {/* Trip Info */}

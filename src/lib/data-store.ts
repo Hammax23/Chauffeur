@@ -136,7 +136,10 @@ export async function addReservation(data: ReservationData) {
 // Update reservation status
 export async function updateReservationStatus(bookingId: string, status: string) {
   try {
-    const updateData: { status: string; completedAt?: Date } = { status };
+    const updateData: { status: string; completedAt?: Date; statusUpdatedAt: Date } = { 
+      status,
+      statusUpdatedAt: new Date(),
+    };
     
     // Set completedAt timestamp when ride is marked as DONE
     if (status === "DONE") {

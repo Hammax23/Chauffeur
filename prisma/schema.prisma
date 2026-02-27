@@ -58,6 +58,7 @@ model Reservation {
   driverLink          String?
   trackLink           String?
   completedAt         DateTime?
+  statusUpdatedAt     DateTime?
   
   // Payment Info (Stripe)
   stripeCustomerId       String?
@@ -91,4 +92,26 @@ model Driver {
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+model Quote {
+  id              String   @id @default(cuid())
+  quoteId         String   @unique
+  status          String   @default("NEW")
+  
+  passengerName   String
+  passengers      String
+  phone           String
+  email           String
+  
+  serviceType     String
+  vehicle         String
+  pickupTime      String
+  pickupLocation  String
+  stops           String?
+  dropoffLocation String
+  additionalNotes String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

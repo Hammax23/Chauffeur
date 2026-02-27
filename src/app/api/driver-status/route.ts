@@ -28,16 +28,42 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, expired: true, error: "This link has expired" }, { status: 410 });
     }
 
+    // Include assigned driver details if available
+    const driverInfo = reservation.assignedDriver ? {
+      chauffeurName: reservation.assignedDriver.name,
+      chauffeurPhone: reservation.assignedDriver.phone,
+      chauffeurVehicle: reservation.assignedDriver.vehicle,
+      chauffeurPlate: reservation.assignedDriver.vehiclePlate,
+      chauffeurPhoto: reservation.assignedDriver.photo,
+    } : null;
+
+    // Calculate if status can still be edited (5 minute window)
+    const statusUpdatedAt = reservation.statusUpdatedAt;
+    let canEditStatus = true;
+    let editTimeRemaining = 0;
+    
+    if (statusUpdatedAt) {
+      const fiveMinutesMs = 5 * 60 * 1000;
+      const timeSinceUpdate = Date.now() - new Date(statusUpdatedAt).getTime();
+      canEditStatus = timeSinceUpdate < fiveMinutesMs;
+      editTimeRemaining = Math.max(0, Math.ceil((fiveMinutesMs - timeSinceUpdate) / 1000));
+    }
+
     return NextResponse.json({
       success: true,
       status: reservation.status,
       firstName: reservation.firstName,
       lastName: reservation.lastName,
+      phone: reservation.phone,
       vehicle: reservation.vehicle,
       serviceDate: reservation.serviceDate,
       serviceTime: reservation.serviceTime,
       pickupLocation: reservation.pickupLocation,
       dropoffLocation: reservation.dropoffLocation,
+      statusUpdatedAt: statusUpdatedAt?.toISOString() || null,
+      canEditStatus,
+      editTimeRemaining,
+      ...driverInfo,
     });
   } catch (error: any) {
     console.error("Driver status GET error:", error);

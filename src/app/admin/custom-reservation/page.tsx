@@ -364,17 +364,27 @@ export default function CustomReservationPage() {
           </div>
 
           {/* Pick-up Time */}
-          <div className="bg-white rounded-xl border border-gray-200/60 px-4 py-3">
-            <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">Pick-up Time</label>
-            <DatePicker
-              selected={pickupDateTime}
-              onChange={(date: Date | null) => setPickupDateTime(date)}
-              showTimeSelect
-              timeIntervals={15}
-              dateFormat="MMMM d, yyyy  h:mm aa"
-              placeholderText="Select date & time"
-              className="w-full py-1.5 bg-transparent text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none"
-            />
+          <div>
+            <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Pick-up Time</label>
+            <div className="relative reservation-datepicker">
+              <DatePicker
+                selected={pickupDateTime}
+                onChange={(date: Date | null) => setPickupDateTime(date)}
+                showTimeSelect
+                timeIntervals={15}
+                timeCaption="Time"
+                dateFormat="MMMM d, yyyy  h:mm aa"
+                timeFormat="h:mm aa"
+                placeholderText="Select date & time"
+                className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200"
+                withPortal
+              />
+              <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
           </div>
 
           {/* Passengers */}

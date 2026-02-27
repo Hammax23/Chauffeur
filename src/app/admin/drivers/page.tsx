@@ -4,8 +4,21 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Plus, Search, Phone, Mail, Car, Star,
   Loader2, AlertCircle, Edit2, Trash2, X, Check,
-  User, MapPin
+  User, MapPin, ClipboardList, Camera, Upload
 } from "lucide-react";
+import Image from "next/image";
+
+interface Reservation {
+  bookingId: string;
+  firstName: string;
+  lastName: string;
+  serviceDate: string;
+  serviceTime: string;
+  pickupLocation: string;
+  dropoffLocation: string;
+  vehicle: string;
+  assignedDriverId: string | null;
+}
 
 interface Driver {
   id: string;
@@ -15,6 +28,7 @@ interface Driver {
   vehicle: string;
   vehiclePlate: string;
   status: "available" | "on_trip" | "offline";
+  photo?: string;
   rating: number;
   totalTrips: number;
   createdAt: string;
@@ -41,6 +55,13 @@ export default function DriversPage() {
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  
+  // Assign to Reservation
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [loadingReservations, setLoadingReservations] = useState(false);
+  const [assigning, setAssigning] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -49,7 +70,9 @@ export default function DriversPage() {
     vehicle: "",
     vehiclePlate: "",
     status: "available" as Driver["status"],
+    photo: "",
   });
+  const [uploading, setUploading] = useState(false);
 
   const fetchDrivers = useCallback(async () => {
     try {
@@ -86,7 +109,7 @@ export default function DriversPage() {
 
   const openAddModal = () => {
     setEditingDriver(null);
-    setForm({ name: "", phone: "", email: "", vehicle: "", vehiclePlate: "", status: "available" });
+    setForm({ name: "", phone: "", email: "", vehicle: "", vehiclePlate: "", status: "available", photo: "" });
     setShowModal(true);
   };
 
@@ -99,8 +122,37 @@ export default function DriversPage() {
       vehicle: driver.vehicle,
       vehiclePlate: driver.vehiclePlate,
       status: driver.status,
+      photo: driver.photo || "",
     });
     setShowModal(true);
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", "driver");
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setForm({ ...form, photo: data.url });
+      } else {
+        setError(data.error || "Failed to upload photo");
+      }
+    } catch {
+      setError("Failed to upload photo");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -148,6 +200,51 @@ export default function DriversPage() {
       setError("Failed to delete driver");
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const openAssignModal = async (driver: Driver) => {
+    setSelectedDriver(driver);
+    setShowAssignModal(true);
+    setLoadingReservations(true);
+    try {
+      const res = await fetch("/api/admin/reservations");
+      const data = await res.json();
+      if (data.success) {
+        // Filter to show only unassigned reservations or those not marked as DONE
+        const available = (data.reservations || []).filter(
+          (r: Reservation) => !r.assignedDriverId && r.bookingId
+        );
+        setReservations(available);
+      }
+    } catch {
+      setError("Failed to load reservations");
+    } finally {
+      setLoadingReservations(false);
+    }
+  };
+
+  const handleAssign = async (bookingId: string) => {
+    if (!selectedDriver) return;
+    setAssigning(bookingId);
+    try {
+      const res = await fetch("/api/admin/reservations/assign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId, driverId: selectedDriver.id }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowAssignModal(false);
+        setSelectedDriver(null);
+        await fetchDrivers();
+      } else {
+        setError(data.error || "Failed to assign");
+      }
+    } catch {
+      setError("Failed to assign driver");
+    } finally {
+      setAssigning(null);
     }
   };
 
@@ -234,8 +331,12 @@ export default function DriversPage() {
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-[#C9A063] to-[#A68B5B] rounded-full flex items-center justify-center">
-                      <User className="w-6 h-6 text-white" />
+                    <div className="w-12 h-12 bg-gradient-to-br from-[#C9A063] to-[#A68B5B] rounded-full flex items-center justify-center overflow-hidden">
+                      {driver.photo ? (
+                        <Image src={driver.photo} alt={driver.name} width={48} height={48} className="w-full h-full object-cover" />
+                      ) : (
+                        <User className="w-6 h-6 text-white" />
+                      )}
                     </div>
                     <div>
                       <h3 className="font-semibold text-gray-900">{driver.name}</h3>
@@ -272,6 +373,13 @@ export default function DriversPage() {
                     <span className="text-gray-500">{driver.totalTrips} trips</span>
                   </div>
                   <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => openAssignModal(driver)}
+                      className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Assign to Reservation"
+                    >
+                      <ClipboardList className="w-4 h-4" />
+                    </button>
                     <button
                       onClick={() => openEditModal(driver)}
                       className="p-2 text-gray-400 hover:text-[#C9A063] hover:bg-[#C9A063]/10 rounded-lg transition-colors"
@@ -312,6 +420,33 @@ export default function DriversPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Photo Upload */}
+              <div className="flex justify-center">
+                <div className="relative">
+                  <div className="w-24 h-24 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden">
+                    {form.photo ? (
+                      <Image src={form.photo} alt="Driver" width={96} height={96} className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="w-10 h-10 text-gray-400" />
+                    )}
+                  </div>
+                  <label className="absolute bottom-0 right-0 w-8 h-8 bg-[#C9A063] rounded-full flex items-center justify-center cursor-pointer hover:bg-[#B8904F] transition-colors shadow-lg">
+                    {uploading ? (
+                      <Loader2 className="w-4 h-4 text-white animate-spin" />
+                    ) : (
+                      <Camera className="w-4 h-4 text-white" />
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoUpload}
+                      className="hidden"
+                      disabled={uploading}
+                    />
+                  </label>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                 <input
@@ -405,6 +540,69 @@ export default function DriversPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Assign to Reservation Modal */}
+      {showAssignModal && selectedDriver && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => { setShowAssignModal(false); setSelectedDriver(null); }} />
+          <div className="relative bg-white rounded-2xl w-full max-w-lg p-6 shadow-xl max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Assign Reservation</h2>
+                <p className="text-sm text-gray-500">Assign a reservation to <span className="font-medium text-[#C9A063]">{selectedDriver.name}</span></p>
+              </div>
+              <button onClick={() => { setShowAssignModal(false); setSelectedDriver(null); }} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {loadingReservations ? (
+                <div className="py-12 text-center">
+                  <Loader2 className="w-6 h-6 animate-spin text-[#C9A063] mx-auto mb-2" />
+                  <p className="text-gray-500 text-sm">Loading reservations...</p>
+                </div>
+              ) : reservations.length === 0 ? (
+                <div className="py-12 text-center">
+                  <ClipboardList className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 text-sm">No unassigned reservations available</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {reservations.map((res) => (
+                    <div key={res.bookingId} className="border border-gray-200 rounded-xl p-4 hover:border-[#C9A063]/50 transition-colors">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-900 text-sm">{res.firstName} {res.lastName}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{res.bookingId}</p>
+                          <div className="mt-2 space-y-1 text-xs text-gray-600">
+                            <p><span className="text-gray-400">Date:</span> {res.serviceDate} at {res.serviceTime}</p>
+                            <p><span className="text-gray-400">Vehicle:</span> {res.vehicle}</p>
+                            <p className="truncate"><span className="text-gray-400">From:</span> {res.pickupLocation}</p>
+                            <p className="truncate"><span className="text-gray-400">To:</span> {res.dropoffLocation}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleAssign(res.bookingId)}
+                          disabled={assigning === res.bookingId}
+                          className="px-3 py-1.5 bg-[#C9A063] text-white rounded-lg text-xs font-medium hover:bg-[#B8904F] disabled:opacity-50 flex items-center gap-1.5 flex-shrink-0"
+                        >
+                          {assigning === res.bookingId ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Check className="w-3 h-3" />
+                          )}
+                          Assign
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
