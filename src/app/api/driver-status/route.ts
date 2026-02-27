@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
       serviceDate: reservation.serviceDate,
       serviceTime: reservation.serviceTime,
       pickupLocation: reservation.pickupLocation,
+      stops: reservation.stops,
       dropoffLocation: reservation.dropoffLocation,
       statusUpdatedAt: statusUpdatedAt?.toISOString() || null,
       canEditStatus,

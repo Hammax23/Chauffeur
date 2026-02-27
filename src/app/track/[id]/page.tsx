@@ -195,6 +195,15 @@ export default function TrackPage() {
                     </div>
                   </div>
                 )}
+                {booking.stops && (
+                  <div className="flex items-start gap-2.5 bg-white/5 rounded-lg p-2.5">
+                    <MapPin className="w-4 h-4 text-[#C9A063] mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-[#C9A063] text-[10px] uppercase font-medium">Stop</p>
+                      <p className="text-gray-300 text-sm">{booking.stops}</p>
+                    </div>
+                  </div>
+                )}
                 {booking.dropoffLocation && (
                   <div className="flex items-start gap-2.5 bg-white/5 rounded-lg p-2.5">
                     <MapPin className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
