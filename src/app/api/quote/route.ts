@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
             <tr><td style="padding:10px 0;color:#666;font-size:14px;width:140px;">Name:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${passengerName}</td></tr>
             <tr><td style="padding:10px 0;color:#666;font-size:14px;">Passengers:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${passengers}</td></tr>
             <tr><td style="padding:10px 0;color:#666;font-size:14px;">Email:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;"><a href="mailto:${email}" style="color:#C9A063;">${email}</a></td></tr>
-            <tr><td style="padding:10px 0;color:#666;font-size:14px;">Phone:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;"><a href="tel:${fullPhone}" style="color:#C9A063;">${fullPhone}</a></td></tr>
+            <tr><td style="padding:10px 0;color:#666;font-size:14px;">Phone:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;"><span style="color:#C9A063;">${fullPhone}</span></td></tr>
           </table>
         </div>
         <div style="background:#f8f9fa;border-radius:12px;padding:20px;margin-bottom:20px;">
@@ -109,13 +109,13 @@ export async function POST(request: NextRequest) {
           ${stopsUser}
           <p style="color:#666;font-size:14px;margin:5px 0;"><strong>Drop-off:</strong> ${dropoffLocation}</p>
         </div>
-        <p style="color:#444;font-size:15px;line-height:1.8;margin:20px 0;">For urgent inquiries, call us at <a href="tel:+14168935779" style="color:#C9A063;font-weight:600;">416-893-5779</a>.</p>
+        <p style="color:#444;font-size:15px;line-height:1.8;margin:20px 0;">For urgent inquiries, call us at <span style="color:#C9A063;font-weight:600;">416-893-5779</span>.</p>
         <p style="color:#444;font-size:15px;line-height:1.8;margin:20px 0 0;">Best regards,<br><strong style="color:#C9A063;">SARJ WORLDWIDE</strong><br><span style="color:#888;font-size:13px;">Luxury Chauffeur Service</span></p>
       </div>
       <div style="background:#1C1C1E;padding:25px 30px;text-align:center;">
         <p style="color:#C9A063;font-size:14px;font-weight:600;margin:0 0 10px;">SARJ WORLDWIDE</p>
         <p style="color:#888;font-size:12px;margin:0;">231 Oak Park Blvd, Oakville, ON L6H 7S8</p>
-        <p style="color:#888;font-size:12px;margin:5px 0 0;"><a href="tel:+14168935779" style="color:#888;">416-893-5779</a> | <span style="color:#888;">reserve@sarjworldwide.ca</span></p>
+        <p style="color:#888;font-size:12px;margin:5px 0 0;"><span style="color:#888;">416-893-5779</span> | <span style="color:#888;">reserve@sarjworldwide.ca</span></p>
       </div>
     </div></body></html>`;
 

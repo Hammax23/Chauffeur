@@ -6,14 +6,14 @@ import { Wifi, MapPin } from "lucide-react";
 const GlobalFootprint = () => {
   // Spread-out points with city names (akhatay removed – only these on map)
   const cities = [
-    { name: "Toronto Pearson", left: "80%", top: "26%" },
-    { name: "Hamilton", left: "68%", top: "26%" },
     { name: "London", left: "21%", top: "51%" },
-    { name: "Ottawa", left: "62%", top: "48%" },
+    { name: "Hamilton", left: "58%", top: "44%" },
+    { name: "Greater Toronto Area", left: "62%", top: "48%" },
+    { name: "Toronto Pearson", left: "68%", top: "26%" },
+    { name: "Niagara/Buffalo", left: "74%", top: "58%" },
+    { name: "Ottawa", left: "75%", top: "65%" },
+    { name: "Ottawa/Montreal", left: "80%", top: "26%" },
     { name: "Montreal", left: "86%", top: "68%" },
-    { name: "Niagara/Buffalo", left: "75%", top: "65%" },
-    { name: "Ottawa/Montreal", left: "58%", top: "44%" },
-    { name: "Greater Toronto Area", left: "74%", top: "58%" },
   ];
 
   return (
@@ -161,25 +161,25 @@ const GlobalFootprint = () => {
               </filter>
             </defs>
             {/* Lines connecting spread-out city points */}
-            <line x1="80%" y1="26%" x2="68%" y2="26%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
+            <line x1="21%" y1="51%" x2="58%" y2="44%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
               <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
             </line>
-            <line x1="68%" y1="26%" x2="62%" y2="48%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
+            <line x1="58%" y1="44%" x2="62%" y2="48%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
               <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
             </line>
-            <line x1="62%" y1="48%" x2="21%" y2="51%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
+            <line x1="62%" y1="48%" x2="68%" y2="26%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
               <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
             </line>
-            <line x1="21%" y1="51%" x2="74%" y2="58%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
+            <line x1="68%" y1="26%" x2="74%" y2="58%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
               <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
             </line>
-            <line x1="62%" y1="48%" x2="75%" y2="65%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
+            <line x1="74%" y1="58%" x2="75%" y2="65%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
               <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
             </line>
-            <line x1="75%" y1="65%" x2="86%" y2="68%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
+            <line x1="75%" y1="65%" x2="80%" y2="26%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
               <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
             </line>
-            <line x1="80%" y1="26%" x2="62%" y2="48%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
+            <line x1="80%" y1="26%" x2="86%" y2="68%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
               <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
             </line>
           </svg>

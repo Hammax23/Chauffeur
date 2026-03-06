@@ -30,12 +30,9 @@ const ContactInfo = () => {
                 <h3 className="text-white text-[16px] sm:text-[18px] font-semibold mb-2 tracking-wide">
                   Phone Number
                 </h3>
-                <a 
-                  href="tel:+97152-333-4444" 
-                  className="text-gray-300 text-[14px] sm:text-[15px] font-light hover:text-[#C9A063] transition-colors duration-300"
-                >
+                <span className="text-gray-300 text-[14px] sm:text-[15px] font-light">
                   416-893-5779
-                </a>
+                </span>
               </div>
             </div>
 

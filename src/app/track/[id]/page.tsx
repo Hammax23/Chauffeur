@@ -156,10 +156,10 @@ export default function TrackPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-white font-semibold">{booking.chauffeurName}</p>
-                    <a href={`tel:${booking.chauffeurPhone}`} className="text-[#C9A063] text-sm hover:underline flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[#C9A063] text-sm flex items-center gap-1.5 mt-0.5">
                       <Phone className="w-3 h-3" />
                       {booking.chauffeurPhone}
-                    </a>
+                    </span>
                     <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1.5 text-gray-300 text-xs sm:text-sm">
                       <span className="flex items-center gap-1.5">
                         <Car className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#C9A063]" />
@@ -267,13 +267,10 @@ export default function TrackPage() {
         {/* Contact */}
         <div className="text-center pb-8 sm:pb-10">
           <p className="text-gray-500 text-xs mb-3">Need assistance?</p>
-          <a
-            href="tel:+14168935779"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#C9A063]/10 border border-[#C9A063]/30 rounded-full text-[#C9A063] text-sm font-medium hover:bg-[#C9A063]/20 transition-all"
-          >
+          <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#C9A063]/10 border border-[#C9A063]/30 rounded-full text-[#C9A063] text-sm font-medium">
             <Phone className="w-4 h-4" />
             416-893-5779
-          </a>
+          </span>
           <p className="text-gray-600 text-xs mt-6">
             SARJ Worldwide Chauffeur Services
           </p>

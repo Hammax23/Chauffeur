@@ -200,10 +200,10 @@ export default function DriverPage() {
               <div className="space-y-2">
                 <p className="text-white font-semibold text-base sm:text-lg">{booking.firstName} {booking.lastName}</p>
                 {booking.phone && (
-                  <a href={`tel:${booking.phone}`} className="inline-flex items-center gap-2 text-[#C9A063] hover:underline text-sm">
+                  <span className="inline-flex items-center gap-2 text-[#C9A063] text-sm">
                     <Phone className="w-4 h-4" />
                     {booking.phone}
-                  </a>
+                  </span>
                 )}
               </div>
             </div>

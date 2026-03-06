@@ -27,7 +27,7 @@ const contactCards = [
     icon: Phone,
     title: "Call us",
     value: "416-893-5779",
-    href: "tel:+14168935779",
+    href: "#",
     sub: "24/7 available",
   },
   {
@@ -47,7 +47,7 @@ const contactCards = [
   {
     icon: Clock,
     title: "Business hours",
-    value: "24/7 concierge & support",
+    value: "Best concierge & support",
     sub: "Bookings, changes & enquiries",
   },
 ];

@@ -196,7 +196,7 @@ export default function TermsOfServicePage() {
                 If a passenger cannot locate the vehicle, they must contact SARJ Worldwide Dispatch:
               </p>
               <ul className="list-disc list-inside text-gray-600 text-[15px] leading-relaxed space-y-1.5 ml-4 mb-3">
-                <li>Phone: <a href="tel:+14168935779" className="text-[#C9A063] hover:underline">416-893-5779</a></li>
+                <li>Phone: <span className="text-[#C9A063]">416-893-5779</span></li>
                 <li>Text: <a href="sms:+14168835778" className="text-[#C9A063] hover:underline">416-883-5778</a></li>
                 <li>Email: <span className="text-[#C9A063]">reserve@SARJWorldwide.ca</span></li>
               </ul>
@@ -397,7 +397,7 @@ export default function TermsOfServicePage() {
               </p>
               <div className="space-y-2 text-[15px]">
                 <p className="text-gray-700"><strong>SARJ Worldwide Chauffeured Services Inc.</strong></p>
-                <p className="text-gray-600">Phone: <a href="tel:+14168935779" className="text-[#C9A063] hover:underline">416-893-5779</a></p>
+                <p className="text-gray-600">Phone: <span className="text-[#C9A063]">416-893-5779</span></p>
                 <p className="text-gray-600">Text: <a href="sms:+14168835778" className="text-[#C9A063] hover:underline">416-883-5778</a></p>
                 <p className="text-gray-600">Email: <span className="text-[#C9A063]">reserve@SARJWorldwide.ca</span></p>
               </div>
