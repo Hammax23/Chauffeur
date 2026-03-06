@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MessageCircle, Phone } from "lucide-react";
+import { MessageCircle, Phone, Mail } from "lucide-react";
 
 const PHONE_NUMBER = "4168935779";
 const PHONE_DISPLAY = "416-893-5779";
@@ -41,6 +41,13 @@ export default function FloatingContact() {
           aria-label={`Call ${PHONE_DISPLAY}`}
         >
           <Phone className="w-6 h-6" strokeWidth={2.5} />
+        </a>
+        <a
+          href="mailto:reserve@sarjworldwide.ca"
+          className="group flex items-center justify-center w-14 h-14 rounded-full bg-blue-600 text-white shadow-lg shadow-blue-600/40 hover:shadow-xl hover:shadow-blue-600/50 hover:scale-110 active:scale-95 transition-all duration-200"
+          aria-label="Send email to reserve@sarjworldwide.ca"
+        >
+          <Mail className="w-6 h-6" strokeWidth={2.5} />
         </a>
       </div>
 

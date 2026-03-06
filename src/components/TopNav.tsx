@@ -19,27 +19,21 @@ const TopNav = () => {
              */}
             {/* <div className="hidden sm:block w-px h-4 bg-white/20"></div> */}
             
-            <a 
-              href="tel:+1800900122" 
-              className="hidden sm:flex items-center gap-2 text-white/90 hover:text-[#C9A063] transition-all duration-300 group"
-            >
+            <span className="hidden sm:flex items-center gap-2 text-white/90 group">
               {/* <div className="w-7 h-7 rounded-full bg-white/10 group-hover:bg-[#C9A063]/20 border border-white/10 group-hover:border-[#C9A063]/30 flex items-center justify-center transition-all duration-300 backdrop-blur-sm">
                 <Phone className="w-3.5 h-3.5" strokeWidth={2} />
               </div> */}
               {/* <span className="text-[25px] font-light tracking-wide">+1 (800) 900-122</span> */}
-            </a>
+            </span>
           </div>
 
           <div className="flex items-center justify-center sm:justify-end gap-4">
             <div className="hidden sm:block w-px h-4 bg-white/20"></div>
             
-            <a 
-              href="tel:+1800900122" 
-              className="flex items-center gap-2 text-white/90 hover:text-[#C9A063] transition-all duration-300 group"
-            >
+            <span className="flex items-center gap-2 text-white/90 group">
               <Phone className="w-4 h-4 sm:w-3.5 sm:h-3.5 flex-shrink-0" strokeWidth={2} />
               <span className="text-[25px] sm:text-[25px] font-light tracking-wide"> 416-893-5779</span>
-            </a>
+            </span>
 
 
             {/* <div className="flex items-center gap-2">

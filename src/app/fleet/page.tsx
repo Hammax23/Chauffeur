@@ -31,23 +31,54 @@ export default function FleetPage() {
       <TopNav />
       <Navbar />
 
-      <section className="pt-[130px] md:pt-[145px]">
-        <div className="max-w-[1300px] mx-auto px-6 sm:px-8 md:px-12 py-12 sm:py-16 md:py-20">
-          <div className="text-center mb-14 sm:mb-16">
-            <div className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-white border border-[#C9A063]/30 shadow-lg shadow-[#C9A063]/10 mb-6">
-              <div className="w-2 h-2 rounded-full bg-gradient-to-r from-[#C9A063] to-[#B8935A] animate-pulse" />
-              <span className="text-gray-800 text-[13px] sm:text-[14px] font-bold tracking-[0.2em] uppercase">
-                Our Fleet
-              </span>
-            </div>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 tracking-tight mb-4">
-              Curated Luxury Vehicles
-            </h1>
-            <p className="text-gray-600 text-[15px] sm:text-[17px] max-w-2xl mx-auto leading-relaxed font-light">
-              From executive sedans to premium SUVs and vans—each vehicle is maintained to the
-              highest standards and ready to elevate your journey.
-            </p>
+      {/* Hero Section */}
+      <section className="relative pt-[160px] md:pt-[180px] pb-8 sm:pb-12 md:pb-16 bg-gradient-to-br from-gray-900 via-gray-800 to-black overflow-hidden">
+        {/* Background Pattern */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(201,160,99,0.1)_0%,transparent_50%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.02)_25%,rgba(255,255,255,0.02)_50%,transparent_50%,transparent_75%,rgba(255,255,255,0.02)_75%)] bg-[length:60px_60px]" />
+        
+        <div className="relative max-w-7xl mx-auto px-6 sm:px-8 md:px-12 text-center">
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-white/10 backdrop-blur-sm border border-[#C9A063]/30 shadow-lg mb-8">
+            <div className="w-2 h-2 rounded-full bg-gradient-to-r from-[#C9A063] to-[#B8935A] animate-pulse" />
+            <span className="text-[#C9A063] text-[13px] sm:text-[14px] font-bold tracking-[0.2em] uppercase">
+              Our Collection
+            </span>
           </div>
+
+          {/* Main Headlines */}
+          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-white tracking-tight mb-6">
+            Curated Luxury Vehicles
+          </h1>
+
+          {/* Description */}
+          <p className="text-gray-300 text-sm sm:text-base md:text-lg max-w-4xl mx-auto leading-relaxed font-light mb-10">
+            From executive sedans to premium SUVs and vans—each vehicle is maintained to the
+            highest standards and ready to elevate your journey.
+          </p>
+
+
+          {/* CTA Buttons */}
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
+            <Link
+              href="/reservation"
+              className="group inline-flex items-center justify-center gap-3 px-8 sm:px-10 py-4 sm:py-5 rounded-full bg-gradient-to-r from-[#C9A063] to-[#B8935A] text-white font-semibold text-base sm:text-lg shadow-lg shadow-[#C9A063]/30 hover:shadow-xl hover:shadow-[#C9A063]/40 hover:scale-105 active:scale-95 transition-all duration-300"
+            >
+              Reserve Your Ride
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" strokeWidth={2.5} />
+            </Link>
+          </div>
+        </div>
+
+        {/* Decorative Elements */}
+        <div className="absolute top-1/4 left-10 w-2 h-2 bg-[#C9A063] rounded-full animate-pulse opacity-60" />
+        <div className="absolute top-1/3 right-16 w-1 h-1 bg-white rounded-full animate-pulse delay-300" />
+        <div className="absolute bottom-1/4 left-1/4 w-1.5 h-1.5 bg-[#C9A063] rounded-full animate-pulse delay-700" />
+      </section>
+
+      {/* Fleet Gallery Section */}
+      <section id="fleet-gallery" className="py-16 sm:py-20 md:py-24 bg-gradient-to-b from-gray-50 to-white">
+        <div className="max-w-[1300px] mx-auto px-6 sm:px-8 md:px-12">
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {fleetData.map((vehicle) => (
