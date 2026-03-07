@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDrivers, addDriver } from "@/lib/data-store";
+import { verifyAdminAuth } from "@/lib/admin-auth";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Verify admin authentication
+  const auth = await verifyAdminAuth(request);
+  if (!auth.authenticated) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const drivers = await getDrivers();
     return NextResponse.json({ success: true, drivers });
@@ -12,6 +19,12 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  // Verify admin authentication
+  const auth = await verifyAdminAuth(request);
+  if (!auth.authenticated) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { name, phone, email, vehicle, vehiclePlate, status, photo } = body;
