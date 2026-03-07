@@ -123,8 +123,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <span className="font-medium">Back to Website</span>
           </Link>
           <button
-            onClick={() => {
-              localStorage.removeItem("sarj_admin_auth");
+            onClick={async () => {
+              try {
+                await fetch("/api/admin/auth/logout", {
+                  method: "POST",
+                  credentials: "include",
+                });
+              } catch {
+                // Continue with redirect even if API fails
+              }
               window.location.href = "/admin";
             }}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all"
