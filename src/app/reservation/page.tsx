@@ -30,6 +30,7 @@ import StripeProvider from "@/components/StripeProvider";
 import CardValidationForm from "@/components/CardValidationForm";
 import Turnstile from "@/components/Turnstile";
 import { fleetData } from "@/data/fleet";
+import { GoogleMapsProvider } from "@/components/GoogleMapsProvider";
 
 const COUNTRY_CODES = [
   { code: "+1", label: "CA", name: "Canada", flagCode: "ca" },
@@ -280,6 +281,7 @@ export default function ReservationPage() {
   ];
 
   return (
+    <GoogleMapsProvider>
     <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 overflow-x-hidden">
       <TopNav />
       <Navbar />
@@ -1326,5 +1328,6 @@ export default function ReservationPage() {
 
       <Footer />
     </main>
+    </GoogleMapsProvider>
   );
 }

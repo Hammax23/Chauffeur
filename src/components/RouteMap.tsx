@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState, memo, useMemo } from "react";
 import {
   GoogleMap,
-  useJsApiLoader,
   DirectionsRenderer,
   Marker,
 } from "@react-google-maps/api";
+import { useGoogleMaps } from "./GoogleMapsProvider";
 
 interface RouteMapProps {
   pickupLocation: string;
@@ -50,8 +50,6 @@ const mapOptions = {
   ],
 };
 
-const libraries: ("places" | "geometry" | "drawing" | "visualization")[] = ["places"];
-
 function RouteMap({ pickupLocation, dropoffLocation, stops = [], onRouteCalculated }: RouteMapProps) {
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [pickupCoords, setPickupCoords] = useState<google.maps.LatLngLiteral | null>(null);
@@ -59,10 +57,7 @@ function RouteMap({ pickupLocation, dropoffLocation, stops = [], onRouteCalculat
   const [stopCoords, setStopCoords] = useState<google.maps.LatLngLiteral[]>([]);
   const [map, setMap] = useState<google.maps.Map | null>(null);
 
-  const { isLoaded, loadError } = useJsApiLoader({
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
-    libraries,
-  });
+  const { isLoaded, loadError } = useGoogleMaps();
 
   const onLoad = useCallback((map: google.maps.Map) => {
     setMap(map);

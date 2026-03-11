@@ -2,10 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { useJsApiLoader } from "@react-google-maps/api";
+import { useGoogleMaps } from "./GoogleMapsProvider";
 import { MapPin, Navigation, Plane, Building2, Search } from "lucide-react";
-
-const libraries: ("places" | "geometry" | "drawing" | "visualization")[] = ["places"];
 
 interface PlacesAutocompleteProps {
   value: string;
@@ -41,10 +39,7 @@ export default function PlacesAutocomplete({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
-  const { isLoaded } = useJsApiLoader({
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
-    libraries,
-  });
+  const { isLoaded } = useGoogleMaps();
 
   // Mount check for portal
   useEffect(() => {
