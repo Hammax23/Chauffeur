@@ -105,8 +105,8 @@ model Quote {
   email           String
   
   serviceType     String
-  vehicle         String
-  pickupTime      String
+  vehicle         String?
+  pickupTime      String?
   pickupLocation  String
   stops           String?
   dropoffLocation String

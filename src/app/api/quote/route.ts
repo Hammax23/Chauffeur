@@ -32,20 +32,18 @@ export async function POST(request: NextRequest) {
     const phoneCode = sanitizeInput(body.phoneCode);
     const email = sanitizeInput(body.email);
     const serviceType = sanitizeInput(body.serviceType);
-    const vehicle = sanitizeInput(body.vehicle);
-    const pickupTime = sanitizeInput(body.pickupTime);
+    const vehicleType = sanitizeInput(body.vehicleType);
     const pickupLocation = sanitizeInput(body.pickupLocation);
     const dropoffLocation = sanitizeInput(body.dropoffLocation);
     const additionalNotes = sanitizeInput(body.additionalNotes);
     const stops = sanitizeArray(body.stops);
 
-    if (!passengerName || !passengers || !phone || !email || !serviceType || !vehicle || !pickupTime || !pickupLocation || !dropoffLocation) {
+    if (!passengerName || !passengers || !phone || !email || !serviceType || !vehicleType || !pickupLocation || !dropoffLocation) {
       return NextResponse.json({ error: "Please fill in all required fields" }, { status: 400 });
     }
 
     const fullPhone = `${phoneCode}${phone}`;
     const currentDate = new Date().toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" });
-    const formattedPickupTime = new Date(pickupTime).toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" });
 
     const stopsRows = stops.length > 0
       ? stops.map((s: string, i: number) => `<tr><td style="padding:10px 0;color:#666;font-size:14px;">Stop ${i+1}:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${s}</td></tr>`).join("")
@@ -76,8 +74,7 @@ export async function POST(request: NextRequest) {
           <h2 style="color:#1C1C1E;margin:0 0 15px;font-size:18px;border-bottom:2px solid #C9A063;padding-bottom:10px;">Trip Details</h2>
           <table style="width:100%;border-collapse:collapse;">
             <tr><td style="padding:10px 0;color:#666;font-size:14px;width:140px;">Service:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${serviceType}</td></tr>
-            <tr><td style="padding:10px 0;color:#666;font-size:14px;">Vehicle:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${vehicle}</td></tr>
-            <tr><td style="padding:10px 0;color:#666;font-size:14px;">Pick-up Time:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${formattedPickupTime}</td></tr>
+            <tr><td style="padding:10px 0;color:#666;font-size:14px;">Vehicle:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${vehicleType}</td></tr>
             <tr><td style="padding:10px 0;color:#666;font-size:14px;">Pick-up:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${pickupLocation}</td></tr>
             ${stopsRows}
             <tr><td style="padding:10px 0;color:#666;font-size:14px;">Drop-off:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${dropoffLocation}</td></tr>
@@ -103,8 +100,7 @@ export async function POST(request: NextRequest) {
           <p style="color:#666;font-size:14px;margin:5px 0;"><strong>Name:</strong> ${passengerName}</p>
           <p style="color:#666;font-size:14px;margin:5px 0;"><strong>Passengers:</strong> ${passengers}</p>
           <p style="color:#666;font-size:14px;margin:5px 0;"><strong>Service:</strong> ${serviceType}</p>
-          <p style="color:#666;font-size:14px;margin:5px 0;"><strong>Vehicle:</strong> ${vehicle}</p>
-          <p style="color:#666;font-size:14px;margin:5px 0;"><strong>Pick-up Time:</strong> ${formattedPickupTime}</p>
+          <p style="color:#666;font-size:14px;margin:5px 0;"><strong>Vehicle:</strong> ${vehicleType}</p>
           <p style="color:#666;font-size:14px;margin:5px 0;"><strong>Pick-up:</strong> ${pickupLocation}</p>
           ${stopsUser}
           <p style="color:#666;font-size:14px;margin:5px 0;"><strong>Drop-off:</strong> ${dropoffLocation}</p>
@@ -153,8 +149,7 @@ export async function POST(request: NextRequest) {
         phone: fullPhone,
         email,
         serviceType,
-        vehicle,
-        pickupTime: formattedPickupTime,
+        vehicle: vehicleType,
         pickupLocation,
         stops: stops.length > 0 ? stops.join(" | ") : null,
         dropoffLocation,
