@@ -3,7 +3,8 @@
 import { useState, useCallback } from "react";
 import Link from "next/link";
 import { Wifi, MapPin } from "lucide-react";
-import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from "@react-google-maps/api";
+import { GoogleMap, Marker, InfoWindow } from "@react-google-maps/api";
+import { useGoogleMaps } from "./GoogleMapsProvider";
 
 // Canada cities with real coordinates
 const cities = [
@@ -51,9 +52,7 @@ const GlobalFootprint = () => {
   const [selectedCity, setSelectedCity] = useState<typeof cities[0] | null>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
 
-  const { isLoaded, loadError } = useJsApiLoader({
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
-  });
+  const { isLoaded, loadError } = useGoogleMaps();
 
   const onLoad = useCallback((map: google.maps.Map) => {
     setMap(map);
