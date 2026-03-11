@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "react-datepicker/dist/react-datepicker.css";
 import "./globals.css";
@@ -71,15 +71,16 @@ export const metadata: Metadata = {
     images: ["https://luxride-chauffeur.vercel.app/logo1.png"],
     creator: "@sarjworldwide",
   },
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 5,
-  },
   alternates: {
     canonical: "https://luxride-chauffeur.vercel.app",
   },
   category: "transportation",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
 };
 
 // JSON-LD Structured Data - Organization & WebSite
