@@ -1,20 +1,67 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import { Wifi, MapPin } from "lucide-react";
+import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from "@react-google-maps/api";
+
+// Canada cities with real coordinates
+const cities = [
+  { name: "London", lat: 42.9849, lng: -81.2453 },
+  { name: "Hamilton", lat: 43.2557, lng: -79.8711 },
+  { name: "Greater Toronto Area", lat: 43.6532, lng: -79.3832 },
+  { name: "Toronto Pearson", lat: 43.6777, lng: -79.6248 },
+  { name: "Niagara Falls", lat: 43.0896, lng: -79.0849 },
+  { name: "Buffalo", lat: 42.8864, lng: -78.8784 },
+  { name: "Ottawa", lat: 45.4215, lng: -75.6972 },
+  { name: "Montreal", lat: 45.5017, lng: -73.5673 },
+];
+
+// Custom light/gold elegant map style
+const mapStyles = [
+  { elementType: "geometry", stylers: [{ color: "#f5f5f5" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#ffffff" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#616161" }] },
+  { featureType: "administrative.country", elementType: "geometry.stroke", stylers: [{ color: "#C9A063" }, { weight: 2 }] },
+  { featureType: "administrative.province", elementType: "geometry.stroke", stylers: [{ color: "#C9A063" }, { weight: 1.2 }] },
+  { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#8B7355" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
+  { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#e0e0e0" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#dadada" }] },
+  { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#C9A063" }, { weight: 0.5 }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#c9d6e3" }] },
+  { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#9e9e9e" }] },
+  { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#e5e5e5" }] },
+  { featureType: "transit", stylers: [{ visibility: "off" }] },
+  { featureType: "landscape", elementType: "geometry", stylers: [{ color: "#f0f0f0" }] },
+  { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#e8e8e8" }] },
+];
+
+const mapContainerStyle = {
+  width: "100%",
+  height: "100%",
+  borderRadius: "16px",
+};
+
+// Center on Ontario/Quebec region (where services are)
+const center = { lat: 44.5, lng: -78.0 };
 
 const GlobalFootprint = () => {
-  // Spread-out points with city names (akhatay removed – only these on map)
-  const cities = [
-    { name: "London", left: "21%", top: "51%" },
-    { name: "Hamilton", left: "58%", top: "44%" },
-    { name: "Greater Toronto Area", left: "62%", top: "48%" },
-    { name: "Toronto Pearson", left: "68%", top: "26%" },
-    { name: "Niagara/Buffalo", left: "74%", top: "58%" },
-    { name: "Ottawa", left: "75%", top: "65%" },
-    { name: "Ottawa/Montreal", left: "80%", top: "26%" },
-    { name: "Montreal", left: "86%", top: "68%" },
-  ];
+  const [selectedCity, setSelectedCity] = useState<typeof cities[0] | null>(null);
+  const [map, setMap] = useState<google.maps.Map | null>(null);
+
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
+  });
+
+  const onLoad = useCallback((map: google.maps.Map) => {
+    setMap(map);
+  }, []);
+
+  const onUnmount = useCallback(() => {
+    setMap(null);
+  }, []);
 
   return (
     <section className="relative py-12 sm:py-14 md:py-16 lg:py-18 bg-white overflow-hidden">
@@ -36,14 +83,11 @@ const GlobalFootprint = () => {
             <span className="text-gray-800 text-[13px] sm:text-[14px] font-bold tracking-[0.2em] uppercase">Cities We Serve</span>
           </div>
           
-          {/* <h2 className="text-gray-800 text-2xl sm:text-3xl md:text-4xl font-bold mb-4 tracking-tight">
-           Cities We Serve
-          </h2> */}
           <p className="text-gray-600 text-[15px] sm:text-[16px] md:text-[17px] tracking-wide font-light max-w-3xl mx-auto leading-relaxed">
             There&apos;s a reason for our elevated reputation worldwide. Experience luxury chauffeur services across major cities globally.
           </p>
 
-          {/* Prominent CTA button - SS style, site colours + iOS effects */}
+          {/* Prominent CTA button */}
           <div className="mt-6 sm:mt-8 flex justify-center">
             <Link
               href="/cities-we-serve"
@@ -57,136 +101,85 @@ const GlobalFootprint = () => {
                 shadow-[0_1px_0_0_rgba(255,255,255,0.15)_inset,0_4px_16px_rgba(139,115,85,0.25),0_8px_24px_-4px_rgba(0,0,0,0.15)]
                 hover:shadow-[0_1px_0_0_rgba(255,255,255,0.2)_inset,0_6px_24px_rgba(139,115,85,0.35),0_12px_32px_-6px_rgba(0,0,0,0.12)]"
             >
-              {/* Top-edge highlight - iOS style */}
               <span className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none" aria-hidden />
               <span className="relative">SERVICES AVAILABLE IN ALL CITIES</span>
             </Link>
           </div>
         </div>
 
-        {/* World Map Container with iOS Effects */}
-        <div className="relative w-full h-[500px] sm:h-[600px] md:h-[700px] lg:h-[750px] max-w-[1600px] mx-auto">
-          {/* Dotted world map pattern */}
-          <div 
-            className="absolute inset-0 opacity-85"
-            style={{
-              backgroundImage: `
-                radial-gradient(circle, rgba(30,30,30,0.8) 2.5px, transparent 2.5px),
-                radial-gradient(circle, rgba(40,40,40,0.6) 1.5px, transparent 1.5px),
-                radial-gradient(circle, rgba(50,50,50,0.18) 1px, transparent 1px),
-                radial-gradient(circle, rgba(60,60,60,0.08) 0.8px, transparent 0.8px),
-                radial-gradient(circle, rgba(70,70,70,0.03) 0.6px, transparent 0.6px)
-              `,
-              backgroundSize: '18px 18px, 11px 11px, 7px 7px, 4.5px 4.5px, 2.5px 2.5px',
-              backgroundPosition: '0 0, 5.5px 5.5px, 3.5px 3.5px, 2.2px 2.2px, 1.2px 1.2px',
-              maskImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 500'%3E%3Cpath fill='white' d='M80,120 L100,100 L150,110 L180,95 L200,110 L230,105 L250,120 L240,150 L220,160 L200,180 L180,190 L160,200 L140,180 L120,170 L90,160 L80,140 Z M300,80 L350,70 L400,85 L450,80 L480,95 L500,90 L530,105 L550,115 L540,140 L520,150 L500,170 L480,160 L460,140 L440,125 L420,110 L400,100 L380,95 L360,90 L340,95 L320,100 Z M180,220 L200,210 L220,220 L240,230 L250,250 L245,270 L235,290 L220,310 L200,320 L180,310 L170,290 L165,270 L170,250 L180,230 Z M600,100 L650,90 L700,95 L750,100 L800,95 L850,105 L880,120 L870,150 L850,165 L830,180 L810,190 L790,185 L770,175 L750,160 L730,145 L710,130 L690,115 L670,110 L650,110 L630,105 Z M820,220 L860,210 L900,220 L920,235 L910,260 L890,275 L870,270 L850,260 L830,245 Z M550,180 L590,170 L630,175 L670,185 L700,195 L720,210 L730,230 L720,260 L700,280 L680,295 L660,300 L640,295 L620,285 L600,270 L580,250 L565,230 L555,210 Z M600,320 L640,310 L680,320 L710,335 L730,355 L720,380 L700,395 L680,400 L660,395 L640,385 L620,370 L605,350 Z M850,350 L880,340 L910,350 L925,370 L920,390 L900,400 L880,395 L865,380 Z'/%3E%3C/svg%3E")`,
-              WebkitMaskImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 500'%3E%3Cpath fill='white' d='M80,120 L100,100 L150,110 L180,95 L200,110 L230,105 L250,120 L240,150 L220,160 L200,180 L180,190 L160,200 L140,180 L120,170 L90,160 L80,140 Z M300,80 L350,70 L400,85 L450,80 L480,95 L500,90 L530,105 L550,115 L540,140 L520,150 L500,170 L480,160 L460,140 L440,125 L420,110 L400,100 L380,95 L360,90 L340,95 L320,100 Z M180,220 L200,210 L220,220 L240,230 L250,250 L245,270 L235,290 L220,310 L200,320 L180,310 L170,290 L165,270 L170,250 L180,230 Z M600,100 L650,90 L700,95 L750,100 L800,95 L850,105 L880,120 L870,150 L850,165 L830,180 L810,190 L790,185 L770,175 L750,160 L730,145 L710,130 L690,115 L670,110 L650,110 L630,105 Z M820,220 L860,210 L900,220 L920,235 L910,260 L890,275 L870,270 L850,260 L830,245 Z M550,180 L590,170 L630,175 L670,185 L700,195 L720,210 L730,230 L720,260 L700,280 L680,295 L660,300 L640,295 L620,285 L600,270 L580,250 L565,230 L555,210 Z M600,320 L640,310 L680,320 L710,335 L730,355 L720,380 L700,395 L680,400 L660,395 L640,385 L620,370 L605,350 Z M850,350 L880,340 L910,350 L925,370 L920,390 L900,400 L880,395 L865,380 Z'/%3E%3C/svg%3E")`,
-              maskSize: 'contain',
-              WebkitMaskSize: 'contain',
-              maskRepeat: 'no-repeat',
-              WebkitMaskRepeat: 'no-repeat',
-              maskPosition: 'center',
-              WebkitMaskPosition: 'center'
-            }}
-          />
-          
-          {/* City markers with iOS style */}
-          <div className="absolute inset-0 z-20">
-            {cities.map((city, i) => (
-              <div
-                key={i}
-                className="absolute group cursor-pointer"
-                style={{ left: city.left, top: city.top }}
-              >
-                {/* Pulsing dot - Made larger */}
-                <div className="relative">
-                  {/* Outer pulse ring */}
-                  <div className="absolute -inset-6 bg-gradient-to-r from-[#C9A063] to-[#B8935A] rounded-full opacity-20 group-hover:opacity-40 transition-all duration-500 animate-ping"></div>
-                  {/* Middle ring */}
-                  <div className="absolute -inset-3 bg-[#C9A063]/30 rounded-full group-hover:bg-[#C9A063]/40 transition-all duration-300"></div>
-                  {/* Main dot */}
-                  <div className="relative w-6 h-6 bg-gradient-to-br from-[#C9A063] via-[#D4AF6A] to-[#B8935A] rounded-full shadow-2xl shadow-[#C9A063]/70 group-hover:scale-110 transition-all duration-300 border-[3px] border-white ring-2 ring-[#C9A063]/40 group-hover:ring-[#C9A063]/60">
-                    {/* Inner glow */}
-                    <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/40 to-transparent"></div>
-                  </div>
-                </div>
-                
-                {/* City name - Simple stylish text */}
-                <div className="absolute left-1/2 -translate-x-1/2 top-10 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-all duration-300 group-hover:-translate-y-1 z-30 pointer-events-none">
-                  <span className="text-gray-900 text-[14px] sm:text-[15px] font-bold tracking-wider uppercase drop-shadow-[0_2px_8px_rgba(255,255,255,0.9)] [text-shadow:_0_1px_3px_rgb(255_255_255_/_80%)]">
-                    {city.name}
-                  </span>
-                </div>
+        {/* Google Map Container */}
+        <div className="relative w-full h-[300px] sm:h-[350px] md:h-[400px] lg:h-[450px] max-w-[1200px] mx-auto rounded-2xl overflow-hidden shadow-xl border border-gray-200">
+          {/* Loading state */}
+          {!isLoaded && (
+            <div className="absolute inset-0 bg-gray-100 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-12 h-12 border-4 border-[#C9A063]/30 border-t-[#C9A063] rounded-full animate-spin"></div>
+                <p className="text-[#8B7355] text-sm font-medium tracking-wide">Loading Map...</p>
               </div>
-            ))}
-          </div>
-          
-          {/* Scattered diamond accents – on land only (within mask blobs) */}
-          <div className="absolute inset-0">
-            {[
-              { left: '16%', top: '30%' },
-              { left: '24%', top: '26%' },
-              { left: '52%', top: '28%' },
-              { left: '62%', top: '32%' },
-              { left: '78%', top: '30%' },
-              { left: '88%', top: '72%' },
-            ].map((pos, i) => (
-              <div
-                key={i}
-                className="absolute"
-                style={{ left: pos.left, top: pos.top }}
-              >
-                <div className="relative">
-                  <div className="absolute -inset-2 bg-[#C9A063]/20 rounded-full blur-sm"></div>
-                  <div className="relative w-3 h-3 bg-gradient-to-br from-[#C9A063] to-[#B8935A] opacity-60 rotate-45 shadow-xl shadow-[#C9A063]/60 animate-pulse" style={{ animationDelay: `${i * 0.3}s` }}></div>
-                </div>
-              </div>
-            ))}
-          </div>
+            </div>
+          )}
 
-          {/* Connecting lines effect */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-40">
-            <defs>
-              <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#C9A063" stopOpacity="0" />
-                <stop offset="50%" stopColor="#C9A063" stopOpacity="1" />
-                <stop offset="100%" stopColor="#C9A063" stopOpacity="0" />
-              </linearGradient>
-              <filter id="glow">
-                <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-                <feMerge>
-                  <feMergeNode in="coloredBlur"/>
-                  <feMergeNode in="SourceGraphic"/>
-                </feMerge>
-              </filter>
-            </defs>
-            {/* Lines connecting spread-out city points */}
-            <line x1="21%" y1="51%" x2="58%" y2="44%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
-              <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
-            </line>
-            <line x1="58%" y1="44%" x2="62%" y2="48%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
-              <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
-            </line>
-            <line x1="62%" y1="48%" x2="68%" y2="26%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
-              <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
-            </line>
-            <line x1="68%" y1="26%" x2="74%" y2="58%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
-              <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
-            </line>
-            <line x1="74%" y1="58%" x2="75%" y2="65%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
-              <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
-            </line>
-            <line x1="75%" y1="65%" x2="80%" y2="26%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
-              <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
-            </line>
-            <line x1="80%" y1="26%" x2="86%" y2="68%" stroke="url(#lineGradient)" strokeWidth="2.5" filter="url(#glow)" strokeDasharray="5,5">
-              <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
-            </line>
-          </svg>
+          {/* Error state */}
+          {loadError && (
+            <div className="absolute inset-0 bg-gray-100 flex items-center justify-center">
+              <p className="text-red-500 text-sm">Failed to load map</p>
+            </div>
+          )}
+
+          {/* Google Map */}
+          {isLoaded && (
+            <GoogleMap
+              mapContainerStyle={mapContainerStyle}
+              center={center}
+              zoom={6.5}
+              onLoad={onLoad}
+              onUnmount={onUnmount}
+              options={{
+                styles: mapStyles,
+                disableDefaultUI: true,
+                zoomControl: true,
+                scrollwheel: true,
+                mapTypeControl: false,
+                streetViewControl: false,
+                fullscreenControl: false,
+              }}
+            >
+              {/* City Markers */}
+              {cities.map((city, index) => (
+                <Marker
+                  key={index}
+                  position={{ lat: city.lat, lng: city.lng }}
+                  onClick={() => setSelectedCity(city)}
+                  icon={{
+                    path: google.maps.SymbolPath.CIRCLE,
+                    fillColor: "#C9A063",
+                    fillOpacity: 1,
+                    strokeColor: "#FFFFFF",
+                    strokeWeight: 3,
+                    scale: 10,
+                  }}
+                />
+              ))}
+
+              {/* Info Window */}
+              {selectedCity && (
+                <InfoWindow
+                  position={{ lat: selectedCity.lat, lng: selectedCity.lng }}
+                  onCloseClick={() => setSelectedCity(null)}
+                >
+                  <div className="px-3 py-2 min-w-[120px]">
+                    <h3 className="text-gray-900 font-bold text-sm tracking-wide">{selectedCity.name}</h3>
+                    <p className="text-[#8B7355] text-xs mt-1">Luxury Service Available</p>
+                  </div>
+                </InfoWindow>
+              )}
+            </GoogleMap>
+          )}
+
         </div>
 
         {/* Technology Section */}
-        <div className="-mt-6 sm:-mt-5 md:-mt-4 lg:-mt-3 max-w-[1100px] mx-auto">
+        <div className="mt-10 sm:mt-12 md:mt-14 lg:mt-16 max-w-[1100px] mx-auto">
           <h3 className="text-gray-500 text-xl sm:text-2xl md:text-3xl font-light tracking-[0.25em] uppercase mb-4 text-center">
            SARJ Worldwide Technology
           </h3>

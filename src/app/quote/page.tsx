@@ -9,6 +9,7 @@ import Footer from "@/components/Footer";
 import Turnstile from "@/components/Turnstile";
 import PlacesAutocomplete from "@/components/PlacesAutocomplete";
 import { services } from "@/data/services";
+import { fleetData } from "@/data/fleet";
 
 // Country codes: Canada first. flagCode = ISO code for flag image (flagcdn.com).
 const COUNTRY_CODES = [
@@ -43,6 +44,7 @@ export default function QuotePage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [serviceType, setServiceType] = useState("");
+  const [vehicleType, setVehicleType] = useState("");
   const [pickupLocation, setPickupLocation] = useState("");
   const [dropoffLocation, setDropoffLocation] = useState("");
   const [additionalNotes, setAdditionalNotes] = useState("");
@@ -103,6 +105,7 @@ export default function QuotePage() {
           phoneCode: countryCode,
           email,
           serviceType,
+          vehicleType,
           pickupLocation,
           stops: stops.filter((s) => s.trim() !== ""),
           dropoffLocation,
@@ -125,6 +128,7 @@ export default function QuotePage() {
       setPhone("");
       setEmail("");
       setServiceType("");
+      setVehicleType("");
       setPickupLocation("");
       setDropoffLocation("");
       setAdditionalNotes("");
@@ -293,17 +297,31 @@ export default function QuotePage() {
               </div>
             </div>
 
-            {/* Row 3: Service Type */}
-            <div>
-              <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Service Type</label>
-              <div className="relative">
-                <select required value={serviceType} onChange={(e) => setServiceType(e.target.value)} className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] appearance-none cursor-pointer bg-gray-50/50 focus:bg-white transition-all duration-200">
-                  <option value="">Select service type</option>
-                  {services.filter((s) => s.slug !== "premium-services").map((s) => (
-                    <option key={s.slug} value={s.slug}>{s.title}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={2} />
+            {/* Row 3: Service Type | Vehicle Type */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
+              <div>
+                <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Service Type</label>
+                <div className="relative">
+                  <select required value={serviceType} onChange={(e) => setServiceType(e.target.value)} className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] appearance-none cursor-pointer bg-gray-50/50 focus:bg-white transition-all duration-200">
+                    <option value="">Select service type</option>
+                    {services.filter((s) => s.slug !== "premium-services").map((s) => (
+                      <option key={s.slug} value={s.slug}>{s.title}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={2} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Vehicle Type</label>
+                <div className="relative">
+                  <select required value={vehicleType} onChange={(e) => setVehicleType(e.target.value)} className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] appearance-none cursor-pointer bg-gray-50/50 focus:bg-white transition-all duration-200">
+                    <option value="">Select vehicle</option>
+                    {fleetData.map((v) => (
+                      <option key={v.id} value={v.id}>{v.dropdownName}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={2} />
+                </div>
               </div>
             </div>
 
