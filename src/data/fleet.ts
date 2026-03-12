@@ -16,7 +16,7 @@ export const fleetData: FleetVehicle[] = [
   {
     id: "cadillac-xts",
     name: "Cadillac XTS",
-    dropdownName: "SEDAN",
+    dropdownName: "LUXURY SEDAN",
     description: "Luxury Sedan, Spacious and comfortable, prioritizing a quiet, smooth ride",
     image: "/fleet/xts1.png",
     category: "Sedan",

@@ -1,66 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
 import Link from "next/link";
 import { Wifi, MapPin } from "lucide-react";
-import { GoogleMap, Marker, InfoWindow } from "@react-google-maps/api";
-import { useGoogleMaps } from "./GoogleMapsProvider";
-
-// Canada cities with real coordinates
-const cities = [
-  { name: "London", lat: 42.9849, lng: -81.2453 },
-  { name: "Hamilton", lat: 43.2557, lng: -79.8711 },
-  { name: "Greater Toronto Area", lat: 43.6532, lng: -79.3832 },
-  { name: "Toronto Pearson", lat: 43.6777, lng: -79.6248 },
-  { name: "Niagara Falls", lat: 43.0896, lng: -79.0849 },
-  { name: "Buffalo", lat: 42.8864, lng: -78.8784 },
-  { name: "Ottawa", lat: 45.4215, lng: -75.6972 },
-  { name: "Montreal", lat: 45.5017, lng: -73.5673 },
-];
-
-// Custom light/gold elegant map style
-const mapStyles = [
-  { elementType: "geometry", stylers: [{ color: "#f5f5f5" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#ffffff" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#616161" }] },
-  { featureType: "administrative.country", elementType: "geometry.stroke", stylers: [{ color: "#C9A063" }, { weight: 2 }] },
-  { featureType: "administrative.province", elementType: "geometry.stroke", stylers: [{ color: "#C9A063" }, { weight: 1.2 }] },
-  { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#8B7355" }] },
-  { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
-  { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#e0e0e0" }] },
-  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#dadada" }] },
-  { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#C9A063" }, { weight: 0.5 }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#c9d6e3" }] },
-  { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#9e9e9e" }] },
-  { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
-  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#e5e5e5" }] },
-  { featureType: "transit", stylers: [{ visibility: "off" }] },
-  { featureType: "landscape", elementType: "geometry", stylers: [{ color: "#f0f0f0" }] },
-  { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#e8e8e8" }] },
-];
-
-const mapContainerStyle = {
-  width: "100%",
-  height: "100%",
-  borderRadius: "16px",
-};
-
-// Center on Ontario/Quebec region (where services are)
-const center = { lat: 44.5, lng: -78.0 };
+import Image from "next/image";
 
 const GlobalFootprint = () => {
-  const [selectedCity, setSelectedCity] = useState<typeof cities[0] | null>(null);
-  const [map, setMap] = useState<google.maps.Map | null>(null);
-
-  const { isLoaded, loadError } = useGoogleMaps();
-
-  const onLoad = useCallback((map: google.maps.Map) => {
-    setMap(map);
-  }, []);
-
-  const onUnmount = useCallback(() => {
-    setMap(null);
-  }, []);
 
   return (
     <section className="relative py-12 sm:py-14 md:py-16 lg:py-18 bg-white overflow-hidden">
@@ -106,75 +50,15 @@ const GlobalFootprint = () => {
           </div>
         </div>
 
-        {/* Google Map Container */}
-        <div className="relative w-full h-[300px] sm:h-[350px] md:h-[400px] lg:h-[450px] max-w-[1200px] mx-auto rounded-2xl overflow-hidden shadow-xl border border-gray-200">
-          {/* Loading state */}
-          {!isLoaded && (
-            <div className="absolute inset-0 bg-gray-100 flex items-center justify-center">
-              <div className="flex flex-col items-center gap-4">
-                <div className="w-12 h-12 border-4 border-[#C9A063]/30 border-t-[#C9A063] rounded-full animate-spin"></div>
-                <p className="text-[#8B7355] text-sm font-medium tracking-wide">Loading Map...</p>
-              </div>
-            </div>
-          )}
-
-          {/* Error state */}
-          {loadError && (
-            <div className="absolute inset-0 bg-gray-100 flex items-center justify-center">
-              <p className="text-red-500 text-sm">Failed to load map</p>
-            </div>
-          )}
-
-          {/* Google Map */}
-          {isLoaded && (
-            <GoogleMap
-              mapContainerStyle={mapContainerStyle}
-              center={center}
-              zoom={6.5}
-              onLoad={onLoad}
-              onUnmount={onUnmount}
-              options={{
-                styles: mapStyles,
-                disableDefaultUI: true,
-                zoomControl: true,
-                scrollwheel: true,
-                mapTypeControl: false,
-                streetViewControl: false,
-                fullscreenControl: false,
-              }}
-            >
-              {/* City Markers */}
-              {cities.map((city, index) => (
-                <Marker
-                  key={index}
-                  position={{ lat: city.lat, lng: city.lng }}
-                  onClick={() => setSelectedCity(city)}
-                  icon={{
-                    path: google.maps.SymbolPath.CIRCLE,
-                    fillColor: "#C9A063",
-                    fillOpacity: 1,
-                    strokeColor: "#FFFFFF",
-                    strokeWeight: 3,
-                    scale: 10,
-                  }}
-                />
-              ))}
-
-              {/* Info Window */}
-              {selectedCity && (
-                <InfoWindow
-                  position={{ lat: selectedCity.lat, lng: selectedCity.lng }}
-                  onCloseClick={() => setSelectedCity(null)}
-                >
-                  <div className="px-3 py-2 min-w-[120px]">
-                    <h3 className="text-gray-900 font-bold text-sm tracking-wide">{selectedCity.name}</h3>
-                    <p className="text-[#8B7355] text-xs mt-1">Luxury Service Available</p>
-                  </div>
-                </InfoWindow>
-              )}
-            </GoogleMap>
-          )}
-
+        {/* Map Image Container */}
+        <div className="relative w-full h-[400px] sm:h-[500px] md:h-[600px] lg:h-[700px] mx-auto overflow-hidden">
+          <Image
+            src="/map.png"
+            alt="Cities We Serve - SARJ Worldwide Coverage Map"
+            fill
+            className="object-contain"
+            priority
+          />
         </div>
 
         {/* Technology Section */}

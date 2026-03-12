@@ -35,7 +35,7 @@ const contactCards = [
     title: "Email us",
     value: "reserve@sarjworldwide.com",
     href: "",
-    sub: "We respond within 24 hours",
+    sub: "We respond as soon as possible.",
   },
   {
     icon: MapPin,
@@ -195,7 +195,7 @@ export default function ContactPage() {
             </h1>
             <p className="text-gray-600 text-[15px] sm:text-[17px] md:text-[18px] max-w-2xl mx-auto leading-relaxed font-light">
               Have a question or ready to book? Our team is here to help. Reach out anytime—we
-              typically respond within 24 hours.
+              typically respond as soon as possible.
             </p>
           </div>
         </div>

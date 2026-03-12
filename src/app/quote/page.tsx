@@ -8,7 +8,15 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Turnstile from "@/components/Turnstile";
 import PlacesAutocomplete from "@/components/PlacesAutocomplete";
-import { services } from "@/data/services";
+import { GoogleMapsProvider } from "@/components/GoogleMapsProvider";
+// Service types for quote form
+const quoteServiceTypes = [
+  { value: "airport-transportation", label: "Airport Transportation" },
+  { value: "transfer", label: "Transfer" },
+  { value: "hourly-as-directed", label: "Hourly/As Directed" },
+  { value: "wedding-transportation", label: "Wedding Transportation" },
+  { value: "corporate-business-travel", label: "Corporate and Business Travel" },
+];
 import { fleetData } from "@/data/fleet";
 
 // Country codes: Canada first. flagCode = ISO code for flag image (flagcdn.com).
@@ -142,6 +150,7 @@ export default function QuotePage() {
   };
 
   return (
+    <GoogleMapsProvider>
     <main className="min-h-screen bg-[#fafafa]">
       <TopNav />
       <Navbar />
@@ -304,8 +313,8 @@ export default function QuotePage() {
                 <div className="relative">
                   <select required value={serviceType} onChange={(e) => setServiceType(e.target.value)} className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] appearance-none cursor-pointer bg-gray-50/50 focus:bg-white transition-all duration-200">
                     <option value="">Select service type</option>
-                    {services.filter((s) => s.slug !== "premium-services").map((s) => (
-                      <option key={s.slug} value={s.slug}>{s.title}</option>
+                    {quoteServiceTypes.map((s) => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
                     ))}
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={2} />
@@ -392,7 +401,7 @@ export default function QuotePage() {
             <div>
               <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Additional notes</label>
               <textarea
-                placeholder="Special requests, accessibility needs, etc."
+                placeholder="Special requests, accessibility needs, flight details for tracking, child seats, preferred route, etc."
                 rows={4}
                 value={additionalNotes}
                 onChange={(e) => setAdditionalNotes(e.target.value)}
@@ -493,5 +502,6 @@ export default function QuotePage() {
         }
       `}</style>
     </main>
+    </GoogleMapsProvider>
   );
 }
