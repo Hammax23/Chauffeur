@@ -57,7 +57,7 @@ export async function GET() {
       name,
       rating,
       totalReviews: user_ratings_total,
-      reviews: (reviews || []).slice(0, 5).map(
+      reviews: (reviews || []).slice(0, 6).map(
         (review: {
           author_name: string;
           rating: number;

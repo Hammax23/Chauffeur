@@ -1,7 +1,16 @@
 "use client";
-import { User, Mail, Phone } from 'lucide-react';
+import { User, Mail, Phone, Plus } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import Image from 'next/image';
+
+const heroServices = [
+  { title: "Airport Transfers", href: "/services/airport-transfers", image: "/heropics/airportTransfers.png" },
+  { title: "Corporate Travel", href: "/services/corporate-travel", image: "/heropics/buisnesstravel.png" },
+  { title: "Wedding & Events", href: "/services/wedding-events", image: "/heropics/weddingsandevent.png" },
+  { title: "Hourly Chauffeur", href: "/services/hourly-chauffeur", image: "/heropics/hourlyasdirected.png" },
+];
 
 const HeroSection = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -94,7 +103,7 @@ const HeroSection = () => {
           </div>
         </div>
 
-        <div id="book" className="w-full max-w-[720px] mt-4 sm:mt-6 md:mt-8 lg:mt-10 mb-12 sm:mb-16 md:mb-20 lg:mb-24 mx-auto px-4 sm:px-6 md:px-8">
+        <div id="book" className="w-full max-w-[720px] mt-4 sm:mt-6 md:mt-8 lg:mt-10 mb-8 sm:mb-10 mx-auto px-4 sm:px-6 md:px-8">
           <div className="bg-white rounded-3xl md:rounded-full shadow-2xl px-4 py-3 sm:px-5 sm:py-3 md:px-5 md:py-3">
             <div className="flex flex-col md:flex-row md:flex-wrap lg:flex-nowrap lg:items-center gap-2.5 sm:gap-2.5 lg:gap-3 overflow-hidden">
               <div className="flex items-center gap-2 sm:gap-2.5 flex-1 min-w-0 basis-0 lg:min-w-0 lg:max-w-[180px]">
@@ -155,6 +164,65 @@ const HeroSection = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Service Cards - Right Side Vertical */}
+        <div className="hidden lg:flex absolute right-6 xl:right-10 top-[55%] -translate-y-1/2 z-20 flex-col gap-5">
+          {heroServices.map((service, index) => (
+            <Link
+              key={index}
+              href={service.href}
+              className="group relative w-[100px] h-[100px] xl:w-[115px] xl:h-[115px] overflow-hidden rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 hover:border-[#C9A063]/40 transition-all duration-500 shadow-md hover:shadow-lg opacity-80 hover:opacity-100"
+            >
+              <Image
+                src={service.image}
+                alt={service.title}
+                fill
+                className="object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500"
+              />
+              <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-black/40 to-transparent" />
+              
+              {/* Plus Icon - appears on hover */}
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
+                <div className="w-10 h-10 rounded-full bg-[#C9A063] flex items-center justify-center shadow-lg transform scale-50 group-hover:scale-100 transition-transform duration-300">
+                  <Plus className="w-5 h-5 text-white" strokeWidth={2.5} />
+                </div>
+              </div>
+
+              {/* Title */}
+              <div className="absolute bottom-0 left-0 right-0 p-2">
+                <h3 className="text-white text-[10px] xl:text-xs font-semibold tracking-wide uppercase text-center group-hover:text-[#C9A063] transition-colors duration-300 leading-tight">
+                  {service.title}
+                </h3>
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        {/* Mobile Service Cards - Bottom */}
+        <div className="lg:hidden w-full px-4 pb-8">
+          <div className="grid grid-cols-4 gap-2">
+            {heroServices.map((service, index) => (
+              <Link
+                key={index}
+                href={service.href}
+                className="group relative aspect-square overflow-hidden rounded-lg bg-black/30 backdrop-blur-sm border border-white/20"
+              >
+                <Image
+                  src={service.image}
+                  alt={service.title}
+                  fill
+                  className="object-contain p-1 opacity-80 group-hover:opacity-100 transition-all duration-300"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 p-1.5">
+                  <h3 className="text-white text-[8px] sm:text-[9px] font-semibold uppercase text-center leading-tight">
+                    {service.title}
+                  </h3>
+                </div>
+              </Link>
+            ))}
           </div>
         </div>
       </div>
