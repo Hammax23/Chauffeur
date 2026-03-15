@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Plus, Search, Phone, Mail, Car, Star,
   Loader2, AlertCircle, Edit2, Trash2, X, Check,
-  User, MapPin, ClipboardList, Camera, Upload
+  User, MapPin, ClipboardList, Camera, Upload, Link2, Copy, Clock, CheckCircle, XCircle, Send
 } from "lucide-react";
 import Image from "next/image";
 
@@ -18,6 +18,18 @@ interface Reservation {
   dropoffLocation: string;
   vehicle: string;
   assignedDriverId: string | null;
+}
+
+interface DriverInvite {
+  id: string;
+  token: string;
+  email: string | null;
+  name: string | null;
+  status: "PENDING" | "USED" | "EXPIRED" | "REVOKED";
+  expiresAt: string;
+  usedAt: string | null;
+  createdAt: string;
+  registrationUrl?: string;
 }
 
 interface Driver {
@@ -73,6 +85,17 @@ export default function DriversPage() {
     photo: "",
   });
   const [uploading, setUploading] = useState(false);
+
+  // Invite states
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showInvitesListModal, setShowInvitesListModal] = useState(false);
+  const [invites, setInvites] = useState<DriverInvite[]>([]);
+  const [loadingInvites, setLoadingInvites] = useState(false);
+  const [creatingInvite, setCreatingInvite] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ email: "", name: "", expiryHours: "48" });
+  const [generatedLink, setGeneratedLink] = useState("");
+  const [copySuccess, setCopySuccess] = useState(false);
+  const [deletingInvite, setDeletingInvite] = useState<string | null>(null);
 
   const fetchDrivers = useCallback(async () => {
     try {
@@ -248,6 +271,98 @@ export default function DriversPage() {
     }
   };
 
+  // Invite functions
+  const fetchInvites = async () => {
+    setLoadingInvites(true);
+    try {
+      const res = await fetch("/api/admin/driver-invites");
+      const data = await res.json();
+      if (data.success) {
+        setInvites(data.invites || []);
+      }
+    } catch {
+      setError("Failed to load invites");
+    } finally {
+      setLoadingInvites(false);
+    }
+  };
+
+  const openInviteModal = () => {
+    setInviteForm({ email: "", name: "", expiryHours: "48" });
+    setGeneratedLink("");
+    setCopySuccess(false);
+    setShowInviteModal(true);
+  };
+
+  const openInvitesList = async () => {
+    setShowInvitesListModal(true);
+    await fetchInvites();
+  };
+
+  const handleCreateInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreatingInvite(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/admin/driver-invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(inviteForm),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setGeneratedLink(data.invite.registrationUrl);
+      } else {
+        setError(data.error || "Failed to create invite");
+      }
+    } catch {
+      setError("Failed to create invite");
+    } finally {
+      setCreatingInvite(false);
+    }
+  };
+
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(generatedLink);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch {
+      setError("Failed to copy to clipboard");
+    }
+  };
+
+  const handleRevokeInvite = async (id: string) => {
+    if (!confirm("Are you sure you want to revoke this invite?")) return;
+    
+    setDeletingInvite(id);
+    try {
+      const res = await fetch(`/api/admin/driver-invites?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        await fetchInvites();
+      } else {
+        setError(data.error || "Failed to revoke invite");
+      }
+    } catch {
+      setError("Failed to revoke invite");
+    } finally {
+      setDeletingInvite(null);
+    }
+  };
+
+  const getInviteStatusStyle = (status: string) => {
+    switch (status) {
+      case "PENDING": return { bg: "bg-amber-100", text: "text-amber-700", icon: Clock };
+      case "USED": return { bg: "bg-green-100", text: "text-green-700", icon: CheckCircle };
+      case "EXPIRED": return { bg: "bg-gray-100", text: "text-gray-500", icon: XCircle };
+      case "REVOKED": return { bg: "bg-red-100", text: "text-red-700", icon: XCircle };
+      default: return { bg: "bg-gray-100", text: "text-gray-500", icon: Clock };
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -267,13 +382,29 @@ export default function DriversPage() {
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Drivers</h1>
           <p className="text-gray-500 mt-1">Manage your driver fleet</p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#C9A063] text-white rounded-xl text-sm font-medium hover:bg-[#B8904F] transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          Add Driver
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={openInvitesList}
+            className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-all"
+          >
+            <Clock className="w-4 h-4" />
+            View Invites
+          </button>
+          <button
+            onClick={openInviteModal}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-all"
+          >
+            <Send className="w-4 h-4" />
+            Invite Driver
+          </button>
+          <button
+            onClick={openAddModal}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#C9A063] text-white rounded-xl text-sm font-medium hover:bg-[#B8904F] transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            Add Driver
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -600,6 +731,252 @@ export default function DriversPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invite Driver Modal */}
+      {showInviteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowInviteModal(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-md p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Invite Driver</h2>
+                <p className="text-sm text-gray-500">Generate a secure registration link</p>
+              </div>
+              <button onClick={() => setShowInviteModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {!generatedLink ? (
+              <form onSubmit={handleCreateInvite} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Driver Name (optional)</label>
+                  <input
+                    type="text"
+                    value={inviteForm.name}
+                    onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
+                    placeholder="Pre-fill driver's name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Driver Email (optional)</label>
+                  <input
+                    type="email"
+                    value={inviteForm.email}
+                    onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
+                    placeholder="Pre-fill driver's email"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Link Expiry</label>
+                  <select
+                    value={inviteForm.expiryHours}
+                    onChange={(e) => setInviteForm({ ...inviteForm, expiryHours: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
+                  >
+                    <option value="24">24 hours</option>
+                    <option value="48">48 hours</option>
+                    <option value="72">72 hours</option>
+                    <option value="168">7 days</option>
+                  </select>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <Link2 className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-blue-900">Secure Invitation</p>
+                      <p className="text-xs text-blue-700 mt-1">
+                        The link is one-time use only and will expire after the selected duration. 
+                        Driver can self-register without accessing your admin panel.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowInviteModal(false)}
+                    className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creatingInvite}
+                    className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {creatingInvite ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+                    Generate Link
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-green-50 border border-green-100 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    <p className="text-sm font-medium text-green-900">Link Generated Successfully!</p>
+                  </div>
+                  <p className="text-xs text-green-700">Share this link with the driver. They can use it to register themselves.</p>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type="text"
+                    readOnly
+                    value={generatedLink}
+                    className="w-full px-4 py-3 pr-24 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 font-mono"
+                  />
+                  <button
+                    onClick={copyToClipboard}
+                    className={`absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+                      copySuccess 
+                        ? "bg-green-100 text-green-700" 
+                        : "bg-[#C9A063] text-white hover:bg-[#B8904F]"
+                    }`}
+                  >
+                    {copySuccess ? (
+                      <>
+                        <Check className="w-3 h-3" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3" />
+                        Copy
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => {
+                      setGeneratedLink("");
+                      setInviteForm({ email: "", name: "", expiryHours: "48" });
+                    }}
+                    className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50"
+                  >
+                    Generate Another
+                  </button>
+                  <button
+                    onClick={() => setShowInviteModal(false)}
+                    className="flex-1 px-4 py-2.5 bg-[#C9A063] text-white rounded-xl text-sm font-medium hover:bg-[#B8904F]"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* View Invites List Modal */}
+      {showInvitesListModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowInvitesListModal(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-2xl p-6 shadow-xl max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Driver Invites</h2>
+                <p className="text-sm text-gray-500">Manage registration invitations</p>
+              </div>
+              <button onClick={() => setShowInvitesListModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {loadingInvites ? (
+                <div className="py-12 text-center">
+                  <Loader2 className="w-6 h-6 animate-spin text-[#C9A063] mx-auto mb-2" />
+                  <p className="text-gray-500 text-sm">Loading invites...</p>
+                </div>
+              ) : invites.length === 0 ? (
+                <div className="py-12 text-center">
+                  <Link2 className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 text-sm">No invites created yet</p>
+                  <button
+                    onClick={() => {
+                      setShowInvitesListModal(false);
+                      openInviteModal();
+                    }}
+                    className="mt-3 text-[#C9A063] font-medium text-sm hover:underline"
+                  >
+                    Create your first invite
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {invites.map((invite) => {
+                    const statusStyle = getInviteStatusStyle(invite.status);
+                    const StatusIcon = statusStyle.icon;
+                    return (
+                      <div key={invite.id} className="border border-gray-200 rounded-xl p-4 hover:border-gray-300 transition-colors">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 ${statusStyle.bg} ${statusStyle.text}`}>
+                                <StatusIcon className="w-3 h-3" />
+                                {invite.status}
+                              </span>
+                              {invite.name && (
+                                <span className="text-sm font-medium text-gray-900">{invite.name}</span>
+                              )}
+                            </div>
+                            <div className="space-y-1 text-xs text-gray-600">
+                              {invite.email && (
+                                <p><span className="text-gray-400">Email:</span> {invite.email}</p>
+                              )}
+                              <p>
+                                <span className="text-gray-400">Created:</span>{" "}
+                                {new Date(invite.createdAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
+                              </p>
+                              <p>
+                                <span className="text-gray-400">Expires:</span>{" "}
+                                {new Date(invite.expiresAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
+                              </p>
+                              {invite.usedAt && (
+                                <p>
+                                  <span className="text-gray-400">Used:</span>{" "}
+                                  {new Date(invite.usedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          {invite.status === "PENDING" && (
+                            <button
+                              onClick={() => handleRevokeInvite(invite.id)}
+                              disabled={deletingInvite === invite.id}
+                              className="px-3 py-1.5 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+                            >
+                              {deletingInvite === invite.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-3 h-3" />
+                              )}
+                              Revoke
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
