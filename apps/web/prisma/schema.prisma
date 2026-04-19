@@ -1,0 +1,131 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Reservation {
+  id                  String   @id @default(cuid())
+  bookingId           String   @unique
+  dateSubmitted       DateTime @default(now())
+  status              String   @default("PENDING")
+  
+  // Customer Info
+  firstName           String
+  lastName            String
+  email               String
+  phone               String
+  
+  // Service Details
+  serviceType         String
+  vehicle             String
+  passengers          Int      @default(1)
+  childSeats          Int      @default(0)
+  childSeatType       String?
+  etr407              String   @default("No")
+  
+  // Trip Details
+  serviceDate         String
+  serviceTime         String
+  pickupLocation      String
+  stops               String?
+  dropoffLocation     String
+  distance            String?
+  duration            String?
+  
+  // Flight Info
+  airline             String?
+  flightNumber        String?
+  flightNote          String?
+  
+  // Pricing
+  rideFare            Float    @default(0)
+  stopCharge          Float    @default(0)
+  childSeatCharge     Float    @default(0)
+  subtotal            Float    @default(0)
+  hst                 Float    @default(0)
+  gratuity            Float    @default(0)
+  total               Float    @default(0)
+  
+  // Additional
+  specialRequirements String?
+  driverLink          String?
+  trackLink           String?
+  completedAt         DateTime?
+  statusUpdatedAt     DateTime?
+  
+  // Payment Info (Stripe)
+  stripeCustomerId       String?
+  stripePaymentMethodId  String?
+  cardType               String?
+  cardLast4              String?
+  paymentStatus          String?  @default("PENDING")
+  
+  // Relations
+  assignedDriverId    String?
+  assignedDriver      Driver?  @relation(fields: [assignedDriverId], references: [id])
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Driver {
+  id            String   @id @default(cuid())
+  driverId      String   @unique
+  name          String
+  phone         String
+  email         String   @unique
+  vehicle       String
+  vehiclePlate  String
+  status        String   @default("available")
+  photo         String?
+  rating        Float    @default(5.0)
+  totalTrips    Int      @default(0)
+  
+  reservations  Reservation[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Quote {
+  id              String   @id @default(cuid())
+  quoteId         String   @unique
+  status          String   @default("NEW")
+  
+  passengerName   String
+  passengers      String
+  phone           String
+  email           String
+  
+  serviceType     String
+  vehicle         String?
+  pickupTime      String?
+  pickupLocation  String
+  stops           String?
+  dropoffLocation String
+  additionalNotes String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model DriverInvite {
+  id            String    @id @default(cuid())
+  token         String    @unique
+  email         String?
+  name          String?
+  
+  status        String    @default("PENDING")
+  expiresAt     DateTime
+  usedAt        DateTime?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
