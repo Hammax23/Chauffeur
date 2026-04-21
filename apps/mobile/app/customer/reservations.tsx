@@ -10,6 +10,7 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 interface Driver {
@@ -100,6 +101,26 @@ const mockReservations: Reservation[] = [
       rating: 4.8,
       photo: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&q=80",
       vehicleNumber: "WXYZ 5678",
+    },
+  },
+  {
+    id: "5",
+    bookingId: "SARJ-MNLA112K90",
+    vehicleName: "BMW 7 Series",
+    vehicleImage: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=400&q=80",
+    status: "Completed",
+    price: "$195.00 CAD",
+    date: "2026-04-15",
+    time: "11:00 AM",
+    passengers: 3,
+    pickupLocation: "Union Station, Toronto, ON, CA",
+    dropoffLocation: "Pearson Airport, Terminal 3, Mississauga, ON, CA",
+    driver: {
+      name: "James Anderson",
+      phone: "+1 (647) 555-0789",
+      rating: 4.7,
+      photo: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&q=80",
+      vehicleNumber: "LMNO 9012",
     },
   },
 ];
@@ -245,7 +266,11 @@ export default function ReservationsScreen() {
 
               {/* Track Ride Button - Only for In-progress */}
               {reservation.status === "In-progress" && (
-                <TouchableOpacity style={styles.trackBtn} activeOpacity={0.8}>
+                <TouchableOpacity 
+                  style={styles.trackBtn} 
+                  activeOpacity={0.8}
+                  onPress={() => router.push("/customer/track-ride")}
+                >
                   <Ionicons name="location" size={18} color="#fff" />
                   <Text style={styles.trackBtnText}>Track Ride</Text>
                 </TouchableOpacity>
@@ -276,7 +301,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     paddingHorizontal: 20,
     marginBottom: 16,
-    gap: 8,
+    gap: 18,
   },
   tab: {
     paddingVertical: 10,
@@ -288,7 +313,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#1a1a1a",
   },
   tabText: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: "500",
     color: "#666",
   },
