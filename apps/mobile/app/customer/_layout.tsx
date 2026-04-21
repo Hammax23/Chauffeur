@@ -10,37 +10,37 @@ export default function CustomerLayout() {
         headerShown: false,
         tabBarStyle: {
           position: "absolute",
-          bottom: Platform.OS === "ios" ? 24 : 16,
-          left: 24,
-          right: 24,
-          height: 65,
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: Platform.OS === "ios" ? 70 : 54,
           backgroundColor: "transparent",
           borderTopWidth: 0,
           elevation: 0,
-          borderRadius: 32,
-          paddingHorizontal: 8,
+          paddingHorizontal: 16,
         },
         tabBarBackground: () => (
-          <View style={styles.tabBarBackground}>
+          <View style={styles.tabBarBg}>
             <BlurView
-              intensity={Platform.OS === "ios" ? 90 : 100}
-              tint="light"
-              style={styles.blurView}
+              intensity={Platform.OS === "ios" ? 80 : 100}
+              tint="dark"
+              style={StyleSheet.absoluteFill}
             />
             <View style={styles.tabBarOverlay} />
           </View>
         ),
         tabBarActiveTintColor: "#D4A04A",
-        tabBarInactiveTintColor: "#8E8E93",
+        tabBarInactiveTintColor: "rgba(255,255,255,0.4)",
         tabBarShowLabel: true,
         tabBarLabelStyle: {
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: "600",
-          marginTop: -4,
-          marginBottom: Platform.OS === "ios" ? 6 : 8,
+          letterSpacing: 0.2,
+          marginTop: 0,
+          marginBottom: Platform.OS === "ios" ? 14 : 6,
         },
         tabBarIconStyle: {
-          marginTop: Platform.OS === "ios" ? 6 : 8,
+          marginTop: Platform.OS === "ios" ? 6 : 4,
         },
       }}
     >
@@ -49,10 +49,11 @@ export default function CustomerLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color, focused }) => (
-            <View style={focused ? styles.activeIconContainer : styles.iconContainer}>
+            <View style={styles.iconWrapper}>
+              {focused && <View style={styles.activeIndicator} />}
               <Ionicons 
                 name={focused ? "home" : "home-outline"} 
-                size={22} 
+                size={24} 
                 color={color} 
               />
             </View>
@@ -64,10 +65,11 @@ export default function CustomerLayout() {
         options={{
           title: "Bookings",
           tabBarIcon: ({ color, focused }) => (
-            <View style={focused ? styles.activeIconContainer : styles.iconContainer}>
+            <View style={styles.iconWrapper}>
+              {focused && <View style={styles.activeIndicator} />}
               <Ionicons 
                 name={focused ? "calendar" : "calendar-outline"} 
-                size={22} 
+                size={24} 
                 color={color} 
               />
             </View>
@@ -79,10 +81,11 @@ export default function CustomerLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color, focused }) => (
-            <View style={focused ? styles.activeIconContainer : styles.iconContainer}>
+            <View style={styles.iconWrapper}>
+              {focused && <View style={styles.activeIndicator} />}
               <Ionicons 
                 name={focused ? "person-circle" : "person-circle-outline"} 
-                size={22} 
+                size={24} 
                 color={color} 
               />
             </View>
@@ -110,45 +113,44 @@ export default function CustomerLayout() {
           tabBarStyle: { display: "none" },
         }}
       />
+      <Tabs.Screen
+        name="edit-profile"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+      <Tabs.Screen
+        name="track-ride"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
     </Tabs>
   );
 }
 
 const styles = StyleSheet.create({
-  tabBarBackground: {
+  tabBarBg: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 32,
     overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.15,
-        shadowRadius: 24,
-      },
-      android: {
-        elevation: 12,
-      },
-    }),
-  },
-  blurView: {
-    ...StyleSheet.absoluteFillObject,
   },
   tabBarOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: Platform.OS === "ios" 
-      ? "rgba(255, 255, 255, 0.85)" 
-      : "rgba(255, 255, 255, 0.95)",
-    borderRadius: 32,
-    borderWidth: 0.5,
-    borderColor: "rgba(0, 0, 0, 0.05)",
+    backgroundColor: "rgba(17, 17, 17, 0.65)",
   },
-  iconContainer: {
+  iconWrapper: {
     alignItems: "center",
     justifyContent: "center",
+    position: "relative",
   },
-  activeIconContainer: {
-    alignItems: "center",
-    justifyContent: "center",
+  activeIndicator: {
+    position: "absolute",
+    top: -8,
+    width: 20,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "#D4A04A",
   },
 });

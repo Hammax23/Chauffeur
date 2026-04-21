@@ -14,13 +14,31 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
+const carOptions = [
+  { id: "1", name: "Mercedes-Maybach S-Class", price: "$ 450/hr", image: "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=200&q=80" },
+  { id: "2", name: "Tesla Model S", price: "$ 450/hr", image: "https://images.unsplash.com/photo-1536700503339-1e4b06520771?w=200&q=80" },
+  { id: "3", name: "Mercedes G Wagon AMG", price: "$ 450/hr", image: "https://images.unsplash.com/photo-1520031441872-265e4ff70366?w=200&q=80" },
+  { id: "4", name: "Porsche Carrera GT", price: "$ 450/hr", image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=200&q=80" },
+  { id: "5", name: "Lamborghini Aventador", price: "$ 450/hr", image: "https://images.unsplash.com/photo-1544636331-e26879cd4d9b?w=200&q=80" },
+];
+
+const serviceTypes = [
+  { id: "1", name: "Airport Transfer" },
+  { id: "2", name: "Hourly Chauffeur" },
+  { id: "3", name: "Point-to-Point" },
+];
+
 export default function CreateReservationScreen() {
   const [serviceType, setServiceType] = useState("");
+  const [showServiceDropdown, setShowServiceDropdown] = useState(false);
   const [pickupAddress, setPickupAddress] = useState("");
   const [dropoffAddress, setDropoffAddress] = useState("");
+  const [stopAddress, setStopAddress] = useState("");
+  const [showStopField, setShowStopField] = useState(false);
   const [pickupTime, setPickupTime] = useState("");
   const [passengers, setPassengers] = useState("");
-  const [selectedCar, setSelectedCar] = useState("Mercedes-Maybach S-Class");
+  const [selectedCar, setSelectedCar] = useState(carOptions[0]);
+  const [showCarDropdown, setShowCarDropdown] = useState(false);
   const [tollRoute, setTollRoute] = useState(true);
   const [childSeatCount, setChildSeatCount] = useState(1);
   const [firstName, setFirstName] = useState("Valadimir");
@@ -63,10 +81,42 @@ export default function CreateReservationScreen() {
 
           {/* Service Type */}
           <Text style={styles.inputLabel}>Service Type</Text>
-          <TouchableOpacity style={styles.dropdown}>
-            <Text style={styles.placeholderText}>Select Service</Text>
-            <Ionicons name="chevron-down" size={20} color="#999" />
+          <TouchableOpacity 
+            style={styles.dropdown} 
+            onPress={() => setShowServiceDropdown(!showServiceDropdown)}
+          >
+            <Text style={serviceType ? styles.selectedText : styles.placeholderText}>
+              {serviceType || "Select Service"}
+            </Text>
+            <Ionicons name={showServiceDropdown ? "chevron-up" : "chevron-down"} size={20} color="#999" />
           </TouchableOpacity>
+          {showServiceDropdown && (
+            <View style={styles.dropdownList}>
+              {serviceTypes.map((service) => (
+                <TouchableOpacity
+                  key={service.id}
+                  style={[
+                    styles.dropdownItem,
+                    serviceType === service.name && styles.dropdownItemActive,
+                  ]}
+                  onPress={() => {
+                    setServiceType(service.name);
+                    setShowServiceDropdown(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.dropdownItemText,
+                    serviceType === service.name && styles.dropdownItemTextActive,
+                  ]}>
+                    {service.name}
+                  </Text>
+                  {serviceType === service.name && (
+                    <Ionicons name="checkmark" size={18} color="#D4A04A" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
 
           {/* Pickup Address */}
           <Text style={styles.inputLabel}>Pickup Address</Text>
@@ -95,10 +145,25 @@ export default function CreateReservationScreen() {
           </View>
 
           {/* Add Stop */}
-          <TouchableOpacity style={styles.addStopBtn}>
-            <Ionicons name="add-circle-outline" size={20} color="#D4A04A" />
-            <Text style={styles.addStopText}>Add Stop</Text>
+          <TouchableOpacity 
+            style={styles.addStopBtn} 
+            onPress={() => setShowStopField(!showStopField)}
+          >
+            <Ionicons name={showStopField ? "remove-circle-outline" : "add-circle-outline"} size={20} color="#D4A04A" />
+            <Text style={styles.addStopText}>{showStopField ? "Remove Stop" : "Add Stop"}</Text>
           </TouchableOpacity>
+          {showStopField && (
+            <View style={[styles.inputWithIcon, { marginTop: 10 }]}>
+              <Ionicons name="flag-outline" size={18} color="#e53935" />
+              <TextInput
+                style={styles.inputField}
+                placeholder="Stop address"
+                placeholderTextColor="#999"
+                value={stopAddress}
+                onChangeText={setStopAddress}
+              />
+            </View>
+          )}
 
           {/* Pick-up Time */}
           <Text style={styles.inputLabel}>Pick-up Time</Text>
@@ -158,20 +223,54 @@ export default function CreateReservationScreen() {
 
           {/* Select Car */}
           <Text style={styles.inputLabel}>Select Car</Text>
-          <TouchableOpacity style={styles.carSelector}>
+          <TouchableOpacity 
+            style={styles.carSelector} 
+            onPress={() => setShowCarDropdown(!showCarDropdown)}
+          >
             <View style={styles.carInfo}>
               <Image
-                source={{ uri: "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=100&q=80" }}
+                source={{ uri: selectedCar.image }}
                 style={styles.carThumb}
                 resizeMode="contain"
               />
-              <Text style={styles.carName}>Mercedes-Maybach S-Class</Text>
+              <Text style={styles.carName}>{selectedCar.name}</Text>
             </View>
             <View style={styles.carPrice}>
-              <Text style={styles.carPriceText}>$ 450/hr</Text>
-              <Ionicons name="chevron-down" size={18} color="#D4A04A" />
+              <Text style={styles.carPriceText}>{selectedCar.price}</Text>
+              <Ionicons name={showCarDropdown ? "chevron-up" : "chevron-down"} size={18} color="#D4A04A" />
             </View>
           </TouchableOpacity>
+          {showCarDropdown && (
+            <View style={styles.carDropdownList}>
+              {carOptions.map((car, index) => (
+                <TouchableOpacity
+                  key={car.id}
+                  style={[
+                    styles.carDropdownItem,
+                    selectedCar.id === car.id && styles.carDropdownItemActive,
+                    index < carOptions.length - 1 && styles.carDropdownItemBorder,
+                  ]}
+                  onPress={() => {
+                    setSelectedCar(car);
+                    setShowCarDropdown(false);
+                  }}
+                >
+                  <Image
+                    source={{ uri: car.image }}
+                    style={styles.carDropdownThumb}
+                    resizeMode="contain"
+                  />
+                  <Text style={[
+                    styles.carDropdownName,
+                    selectedCar.id === car.id && styles.carDropdownNameActive,
+                  ]}>
+                    {car.name}
+                  </Text>
+                  <Text style={styles.carDropdownPrice}>{car.price}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
 
           {/* 407 ETR Toggle */}
           <View style={styles.toggleRow}>
@@ -392,6 +491,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#999",
   },
+  selectedText: {
+    fontSize: 14,
+    color: "#1a1a1a",
+    fontWeight: "500",
+  },
+  dropdownList: {
+    borderWidth: 1,
+    borderColor: "#e8e8e8",
+    borderRadius: 10,
+    marginTop: 6,
+    backgroundColor: "#fff",
+    overflow: "hidden",
+  },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  dropdownItemActive: {
+    backgroundColor: "#FFF8E7",
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    color: "#1a1a1a",
+  },
+  dropdownItemTextActive: {
+    color: "#D4A04A",
+    fontWeight: "600",
+  },
   inputWithIcon: {
     flexDirection: "row",
     alignItems: "center",
@@ -504,6 +636,47 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   carPriceText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#D4A04A",
+  },
+  carDropdownList: {
+    borderWidth: 1,
+    borderColor: "#e8e8e8",
+    borderRadius: 12,
+    marginTop: 6,
+    backgroundColor: "#2a2a2a",
+    overflow: "hidden",
+  },
+  carDropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  carDropdownItemActive: {
+    backgroundColor: "#3a3a3a",
+  },
+  carDropdownItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+  carDropdownThumb: {
+    width: 70,
+    height: 40,
+    marginRight: 12,
+  },
+  carDropdownName: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#fff",
+  },
+  carDropdownNameActive: {
+    color: "#D4A04A",
+    fontWeight: "600",
+  },
+  carDropdownPrice: {
     fontSize: 13,
     fontWeight: "600",
     color: "#D4A04A",

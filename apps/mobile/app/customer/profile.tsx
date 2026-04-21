@@ -16,50 +16,64 @@ export default function CustomerProfileScreen() {
     router.replace("/login");
   };
 
+  const handleEditProfile = () => {
+    router.push("/customer/edit-profile");
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
         
-        <Text style={styles.headerTitle}>Profile</Text>
+        {/* Header */}
+        <Text style={styles.headerTitle}>Customer's Profile</Text>
 
         {/* Profile Card */}
         <View style={styles.profileCard}>
           <Image
-            source={{ uri: "https://randomuser.me/api/portraits/men/45.jpg" }}
+            source={{ uri: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80" }}
             style={styles.profileAvatar}
           />
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>Valadmir</Text>
-            <Text style={styles.profileEmail}>valadmir@gmail.com</Text>
+            <Text style={styles.profileName}>Valadmir Putin</Text>
+            <Text style={styles.profileEmail}>voladmir1@gmail.com</Text>
           </View>
-        </View>
-
-        {/* Phone Number */}
-        <View style={styles.infoCard}>
-          <Text style={styles.infoLabel}>Phone Number</Text>
-          <Text style={styles.infoValue}>+123456789</Text>
+          <TouchableOpacity style={styles.editBtn} onPress={handleEditProfile}>
+            <Ionicons name="pencil-outline" size={14} color="#1a1a1a" />
+            <Text style={styles.editBtnText}>Edit</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Menu Items */}
         <TouchableOpacity style={styles.menuItem}>
+          <Text style={styles.menuText}>Contact Us</Text>
+          <Ionicons name="chevron-forward" size={20} color="#ccc" />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.menuItem}>
+          <Text style={styles.menuText}>Refund Policy</Text>
+          <Ionicons name="chevron-forward" size={20} color="#ccc" />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.menuItem}>
           <Text style={styles.menuText}>Privacy Policy</Text>
-          <Ionicons name="chevron-forward" size={20} color="#666" />
+          <Ionicons name="chevron-forward" size={20} color="#ccc" />
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.menuItem}>
           <Text style={styles.menuText}>Terms & Conditions</Text>
-          <Ionicons name="chevron-forward" size={20} color="#666" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.menuItem}>
-          <Text style={styles.menuText}>Contact Us</Text>
-          <Ionicons name="chevron-forward" size={20} color="#666" />
+          <Ionicons name="chevron-forward" size={20} color="#ccc" />
         </TouchableOpacity>
 
         {/* Logout */}
         <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Logout</Text>
+          <Text style={styles.dangerText}>Logout</Text>
+          <Ionicons name="chevron-forward" size={20} color="#e53935" />
+        </TouchableOpacity>
+
+        {/* Deactivate Account */}
+        <TouchableOpacity style={styles.menuItem}>
+          <Text style={styles.dangerText}>Deactivate Account</Text>
           <Ionicons name="chevron-forward" size={20} color="#e53935" />
         </TouchableOpacity>
 
@@ -79,78 +93,70 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 40,
+    paddingTop: 16,
+    paddingBottom: 100,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#000",
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#1a1a1a",
+    textAlign: "center",
     marginBottom: 24,
   },
   profileCard: {
     backgroundColor: "#1a1a1a",
     borderRadius: 12,
-    padding: 20,
+    padding: 16,
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 24,
   },
   profileAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    marginRight: 16,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 12,
   },
   profileInfo: {
     flex: 1,
   },
   profileName: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: "600",
     color: "#fff",
-    marginBottom: 4,
+    marginBottom: 2,
   },
   profileEmail: {
-    fontSize: 14,
-    color: "#999",
-  },
-  infoCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#e8e8e8",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  infoLabel: {
-    fontSize: 14,
-    color: "#666",
-  },
-  infoValue: {
-    fontSize: 14,
+    fontSize: 12,
     color: "#D4A04A",
+  },
+  editBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    gap: 4,
+  },
+  editBtnText: {
+    fontSize: 13,
     fontWeight: "500",
+    color: "#1a1a1a",
   },
   menuItem: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#e8e8e8",
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   menuText: {
     fontSize: 15,
-    color: "#000",
+    color: "#1a1a1a",
   },
-  logoutText: {
+  dangerText: {
     fontSize: 15,
     color: "#e53935",
   },
