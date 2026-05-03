@@ -6,14 +6,28 @@ import {
   ScrollView,
   StatusBar,
   Image,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "../../contexts/AuthContext";
 
 export default function CustomerProfileScreen() {
-  const handleLogout = () => {
-    router.replace("/login");
+  const { user, logout } = useAuth();
+
+  const handleLogout = async () => {
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: async () => {
+          await logout();
+          router.replace("/login");
+        },
+      },
+    ]);
   };
 
   const handleEditProfile = () => {
@@ -30,13 +44,21 @@ export default function CustomerProfileScreen() {
 
         {/* Profile Card */}
         <View style={styles.profileCard}>
-          <Image
-            source={{ uri: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80" }}
-            style={styles.profileAvatar}
-          />
+          {user?.photo ? (
+            <Image
+              source={{ uri: user.photo }}
+              style={styles.profileAvatar}
+            />
+          ) : (
+            <View style={[styles.profileAvatar, { backgroundColor: '#D4A04A', justifyContent: 'center', alignItems: 'center' }]}>
+              <Text style={{ color: '#fff', fontSize: 20, fontWeight: '700' }}>
+                {user?.firstName?.[0]}{user?.lastName?.[0]}
+              </Text>
+            </View>
+          )}
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>Valadmir Putin</Text>
-            <Text style={styles.profileEmail}>voladmir1@gmail.com</Text>
+            <Text style={styles.profileName}>{user?.firstName} {user?.lastName}</Text>
+            <Text style={styles.profileEmail}>{user?.email}</Text>
           </View>
           <TouchableOpacity style={styles.editBtn} onPress={handleEditProfile}>
             <Ionicons name="pencil-outline" size={14} color="#1a1a1a" />

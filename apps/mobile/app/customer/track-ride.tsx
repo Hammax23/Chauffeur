@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,10 +8,12 @@ import {
   StatusBar,
   Image,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { getReservationById, Reservation } from "../../services/api";
 
 type RideStatus = "pending" | "on_the_way" | "arrived" | "customer_in_car" | "stop" | "done";
 
@@ -52,9 +55,50 @@ const getStatusColor = (status: RideStatus) => {
 };
 
 export default function TrackRideScreen() {
-  // In real app, this would come from API/state based on reservation
-  const currentStatus: RideStatus = "pending";
+  const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
+  const [reservation, setReservation] = useState<Reservation | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (bookingId) {
+      (async () => {
+        try {
+          const data = await getReservationById(bookingId);
+          if (data.success) {
+            setReservation(data.reservation);
+          }
+        } catch {
+          // Silently fail
+        } finally {
+          setIsLoading(false);
+        }
+      })();
+    } else {
+      setIsLoading(false);
+    }
+  }, [bookingId]);
+
+  const mapStatusToRideStatus = (status: string): RideStatus => {
+    switch (status) {
+      case "PENDING": return "pending";
+      case "ON THE WAY": return "on_the_way";
+      case "ARRIVED": return "arrived";
+      case "CIC": return "customer_in_car";
+      case "DONE": return "done";
+      default: return "pending";
+    }
+  };
+
+  const currentStatus: RideStatus = reservation ? mapStatusToRideStatus(reservation.status) : "pending";
   const currentIndex = getStatusIndex(currentStatus);
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]} edges={["top"]}>
+        <ActivityIndicator size="large" color="#D4A04A" />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -70,12 +114,12 @@ export default function TrackRideScreen() {
         {/* Header Info */}
         <View style={styles.headerInfo}>
           <View style={styles.headerLeft}>
-            <Text style={styles.bookingIdLabel}>ID: SARJ-MNL4363K34</Text>
+            <Text style={styles.bookingIdLabel}>ID: {reservation?.bookingId || "N/A"}</Text>
             <View style={styles.chauffeurBadge}>
               <Text style={styles.chauffeurBadgeText}>YOUR CHAUFFEUR STATUS</Text>
             </View>
           </View>
-          <Text style={styles.price}>$ 250.80</Text>
+          <Text style={styles.price}>${reservation?.total?.toFixed(2) || "0.00"}</Text>
         </View>
 
         {/* Driver Details */}
@@ -85,15 +129,21 @@ export default function TrackRideScreen() {
             <Text style={styles.sectionTitle}>DRIVER DETAILS</Text>
           </View>
           <View style={styles.driverCard}>
-            <Image
-              source={{ uri: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80" }}
-              style={styles.driverAvatar}
-            />
+            {reservation?.driver?.photo ? (
+              <Image
+                source={{ uri: reservation.driver.photo }}
+                style={styles.driverAvatar}
+              />
+            ) : (
+              <View style={[styles.driverAvatar, { backgroundColor: '#e0e0e0', justifyContent: 'center', alignItems: 'center' }]}>
+                <Ionicons name="person" size={22} color="#999" />
+              </View>
+            )}
             <View style={styles.driverInfo}>
-              <Text style={styles.driverName}>Jhon Smith</Text>
-              <Text style={styles.driverPhone}>+14164180528</Text>
+              <Text style={styles.driverName}>{reservation?.driver?.name || "Not Assigned"}</Text>
+              <Text style={styles.driverPhone}>{reservation?.driver?.phone || ""}</Text>
             </View>
-            <Text style={styles.passengerCount}>4 passengers</Text>
+            <Text style={styles.passengerCount}>{reservation?.passengers || 0} passengers</Text>
           </View>
         </View>
 
@@ -107,17 +157,17 @@ export default function TrackRideScreen() {
           <View style={styles.rideDetailsCard}>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>VEHICLE</Text>
-              <Text style={styles.detailValue}>Cadillac XTC</Text>
+              <Text style={styles.detailValue}>{reservation?.vehicle || "N/A"}</Text>
             </View>
 
             <View style={styles.dateTimeRow}>
               <View style={styles.dateTimeItem}>
                 <Text style={styles.detailLabel}>DATE</Text>
-                <Text style={styles.detailValue}>2026-04-10</Text>
+                <Text style={styles.detailValue}>{reservation?.serviceDate || "N/A"}</Text>
               </View>
               <View style={styles.dateTimeItem}>
                 <Text style={styles.detailLabel}>TIME</Text>
-                <Text style={styles.detailValue}>09:00 AM</Text>
+                <Text style={styles.detailValue}>{reservation?.serviceTime || "N/A"}</Text>
               </View>
             </View>
 
@@ -126,7 +176,7 @@ export default function TrackRideScreen() {
               <View style={[styles.locationDot, styles.pickupDot]} />
               <View style={styles.locationContent}>
                 <Text style={[styles.locationLabel, { color: "#4CAF50" }]}>PICK-UP</Text>
-                <Text style={styles.locationText}>YYZ Terminal 1, Mississauga, ON, CA</Text>
+                <Text style={styles.locationText}>{reservation?.pickupLocation || "N/A"}</Text>
               </View>
             </View>
 
@@ -134,17 +184,19 @@ export default function TrackRideScreen() {
               <View style={[styles.locationDot, styles.dropoffDot]} />
               <View style={styles.locationContent}>
                 <Text style={[styles.locationLabel, { color: "#F5A623" }]}>DROP-OFF</Text>
-                <Text style={styles.locationText}>Biryaniwalla Milton, Main Street East, Milton, ON, CA</Text>
+                <Text style={styles.locationText}>{reservation?.dropoffLocation || "N/A"}</Text>
               </View>
             </View>
 
+            {reservation?.stops ? (
             <View style={[styles.locationItem, { marginBottom: 0 }]}>
               <View style={[styles.locationDot, styles.stopDot]} />
               <View style={styles.locationContent}>
                 <Text style={[styles.locationLabel, { color: "#e53935" }]}>Stop</Text>
-                <Text style={styles.locationText}>PO BOX 123 Main Street East, Milton, ON, CA</Text>
+                <Text style={styles.locationText}>{reservation.stops}</Text>
               </View>
             </View>
+            ) : null}
           </View>
         </View>
 

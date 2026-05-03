@@ -7,12 +7,40 @@ import {
   ScrollView,
   TextInput,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { createReservation } from "../../services/api";
 
 export default function ReservationConfirmScreen() {
+  const params = useLocalSearchParams<{
+    serviceType: string;
+    pickupAddress: string;
+    dropoffAddress: string;
+    stopAddress: string;
+    pickupTime: string;
+    passengers: string;
+    vehicle: string;
+    vehiclePrice: string;
+    tollRoute: string;
+    childSeatCount: string;
+    firstName: string;
+    lastName: string;
+    phoneNumber: string;
+    email: string;
+  }>();
+
+  const childSeats = parseInt(params.childSeatCount || "0");
+  const rideFare = 115; // base rate
+  const childSeatCharge = childSeats * 25;
+  const subtotalCalc = rideFare + childSeatCharge;
+  const hstCalc = subtotalCalc * 0.13;
+  const gratuityAmount = subtotalCalc * 0.15;
+  const totalCalc = subtotalCalc + hstCalc + gratuityAmount;
+
   const [nameOnCard, setNameOnCard] = useState("");
   const [cardNumber, setCardNumber] = useState("");
   const [expiry, setExpiry] = useState("");
@@ -21,6 +49,51 @@ export default function ReservationConfirmScreen() {
   const [zipCode, setZipCode] = useState("");
   const [gratuity, setGratuity] = useState("15%");
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!termsAccepted) {
+      Alert.alert("Error", "Please agree to the Terms of Service");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const result = await createReservation({
+        serviceType: params.serviceType || "Airport Transfer",
+        vehicle: params.vehicle || "Mercedes-Maybach S-Class",
+        passengers: parseInt(params.passengers || "1"),
+        childSeats,
+        etr407: params.tollRoute || "No",
+        serviceDate: params.pickupTime?.split(",")[0]?.trim() || new Date().toISOString().split("T")[0],
+        serviceTime: params.pickupTime?.split(",")[1]?.trim() || "09:00 AM",
+        pickupLocation: params.pickupAddress || "",
+        stops: params.stopAddress || undefined,
+        dropoffLocation: params.dropoffAddress || "",
+        rideFare,
+        childSeatCharge,
+        subtotal: subtotalCalc,
+        hst: hstCalc,
+        gratuity: gratuityAmount,
+        total: totalCalc,
+        firstName: params.firstName,
+        lastName: params.lastName,
+        phone: params.phoneNumber,
+        email: params.email,
+      });
+      if (result.success) {
+        router.push({
+          pathname: "/customer/reservation-pending",
+          params: { bookingId: result.bookingId },
+        });
+      } else {
+        Alert.alert("Error", "Failed to create reservation");
+      }
+    } catch {
+      Alert.alert("Error", "Something went wrong. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -59,19 +132,19 @@ export default function ReservationConfirmScreen() {
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Vehicle</Text>
-              <Text style={styles.summaryValue}>Cadillac XTS</Text>
+              <Text style={styles.summaryValue}>{params.vehicle || "N/A"}</Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Date & Time</Text>
-              <Text style={styles.summaryValue}>04/16/2026, 11:30 AM</Text>
+              <Text style={styles.summaryValue}>{params.pickupTime || "N/A"}</Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Passengers</Text>
-              <Text style={styles.summaryValue}>1</Text>
+              <Text style={styles.summaryValue}>{params.passengers || "1"}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Estimated</Text>
-              <Text style={styles.summaryValue}>36.2 Km / 29 mins</Text>
+              <Text style={styles.summaryLabel}>Service Type</Text>
+              <Text style={styles.summaryValue}>{params.serviceType || "N/A"}</Text>
             </View>
             
             <View style={styles.divider} />
@@ -84,17 +157,19 @@ export default function ReservationConfirmScreen() {
               <Text style={styles.summaryLabel}>Duration (billable)</Text>
               <Text style={styles.summaryValue}>1hr</Text>
             </View>
+            {childSeats > 0 && (
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Child Seat (1 x $25)</Text>
-              <Text style={styles.summaryValue}>$25.00</Text>
+              <Text style={styles.summaryLabel}>Child Seat ({childSeats} x $25)</Text>
+              <Text style={styles.summaryValue}>${childSeatCharge.toFixed(2)}</Text>
             </View>
+            )}
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Subtotal</Text>
-              <Text style={styles.summaryValue}>$140.00</Text>
+              <Text style={styles.summaryValue}>${subtotalCalc.toFixed(2)}</Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>HST (13%)</Text>
-              <Text style={styles.summaryValue}>$18.20</Text>
+              <Text style={styles.summaryValue}>${hstCalc.toFixed(2)}</Text>
             </View>
             <View style={styles.summaryRow}>
               <View style={styles.gratuityLabel}>
@@ -104,14 +179,14 @@ export default function ReservationConfirmScreen() {
                   <Ionicons name="chevron-down" size={14} color="#1a1a1a" />
                 </TouchableOpacity>
               </View>
-              <Text style={styles.summaryValue}>$21.00</Text>
+              <Text style={styles.summaryValue}>${gratuityAmount.toFixed(2)}</Text>
             </View>
             
             <View style={styles.divider} />
             
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>$179.20 CAD</Text>
+              <Text style={styles.totalValue}>${totalCalc.toFixed(2)} CAD</Text>
             </View>
           </View>
         </View>
@@ -256,9 +331,14 @@ export default function ReservationConfirmScreen() {
         <TouchableOpacity 
           style={styles.submitBtn} 
           activeOpacity={0.9}
-          onPress={() => router.push("/customer/reservation-pending")}
+          disabled={isSubmitting}
+          onPress={handleSubmit}
         >
-          <Text style={styles.submitBtnText}>Submit Reservation</Text>
+          {isSubmitting ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Text style={styles.submitBtnText}>Submit Reservation</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>

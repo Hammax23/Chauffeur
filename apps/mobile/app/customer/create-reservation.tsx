@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "../../contexts/AuthContext";
 
 const carOptions = [
   { id: "1", name: "Mercedes-Maybach S-Class", price: "$ 450/hr", image: "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=200&q=80" },
@@ -29,6 +30,7 @@ const serviceTypes = [
 ];
 
 export default function CreateReservationScreen() {
+  const { user } = useAuth();
   const [serviceType, setServiceType] = useState("");
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
   const [pickupAddress, setPickupAddress] = useState("");
@@ -41,10 +43,10 @@ export default function CreateReservationScreen() {
   const [showCarDropdown, setShowCarDropdown] = useState(false);
   const [tollRoute, setTollRoute] = useState(true);
   const [childSeatCount, setChildSeatCount] = useState(1);
-  const [firstName, setFirstName] = useState("Valadimir");
-  const [lastName, setLastName] = useState("Putin");
-  const [phoneNumber, setPhoneNumber] = useState("+1234567890");
-  const [email, setEmail] = useState("voladmir@gmail.com");
+  const [firstName, setFirstName] = useState(user?.firstName || "");
+  const [lastName, setLastName] = useState(user?.lastName || "");
+  const [phoneNumber, setPhoneNumber] = useState(user?.phone || "");
+  const [email, setEmail] = useState(user?.email || "");
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -377,7 +379,25 @@ export default function CreateReservationScreen() {
         <TouchableOpacity 
           style={styles.continueBtn} 
           activeOpacity={0.9}
-          onPress={() => router.push("/customer/reservation-confirm")}
+          onPress={() => router.push({
+            pathname: "/customer/reservation-confirm",
+            params: {
+              serviceType,
+              pickupAddress,
+              dropoffAddress,
+              stopAddress: showStopField ? stopAddress : "",
+              pickupTime,
+              passengers,
+              vehicle: selectedCar.name,
+              vehiclePrice: selectedCar.price,
+              tollRoute: tollRoute ? "Yes" : "No",
+              childSeatCount: String(childSeatCount),
+              firstName,
+              lastName,
+              phoneNumber,
+              email,
+            },
+          })}
         >
           <Text style={styles.continueBtnText}>Continue</Text>
         </TouchableOpacity>

@@ -8,18 +8,25 @@ import {
   ScrollView,
   StatusBar,
   Image,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function RegisterScreen() {
+  const { register } = useAuth();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [city, setCity] = useState("");
   const [agreeTerms, setAgreeTerms] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -107,6 +114,33 @@ export default function RegisterScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Password */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>
+          Password<Text style={styles.required}>*</Text>
+        </Text>
+        <View style={styles.phoneContainer}>
+          <TextInput
+            style={[styles.input, { flex: 1, borderWidth: 0 }]}
+            placeholder="Create a password"
+            placeholderTextColor="#999"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+          />
+          <TouchableOpacity
+            style={{ paddingHorizontal: 12, justifyContent: "center" }}
+            onPress={() => setShowPassword(!showPassword)}
+          >
+            <Ionicons
+              name={showPassword ? "eye-outline" : "eye-off-outline"}
+              size={22}
+              color="#999"
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* Terms Checkbox */}
       <TouchableOpacity
         style={styles.checkboxContainer}
@@ -122,8 +156,49 @@ export default function RegisterScreen() {
       </TouchableOpacity>
 
       {/* Register Button */}
-      <TouchableOpacity style={styles.registerButton}>
-        <Text style={styles.registerButtonText}>Register</Text>
+      <TouchableOpacity
+        style={[styles.registerButton, isLoading && { opacity: 0.7 }]}
+        disabled={isLoading}
+        onPress={async () => {
+          if (!firstName.trim() || !lastName.trim() || !email.trim() || !phoneNumber.trim() || !password.trim()) {
+            Alert.alert("Error", "Please fill in all required fields");
+            return;
+          }
+          if (!agreeTerms) {
+            Alert.alert("Error", "Please agree to the Terms of Service and Privacy Policy");
+            return;
+          }
+          if (password.length < 6) {
+            Alert.alert("Error", "Password must be at least 6 characters");
+            return;
+          }
+          setIsLoading(true);
+          try {
+            const result = await register({
+              firstName: firstName.trim(),
+              lastName: lastName.trim(),
+              email: email.trim(),
+              phone: phoneNumber.trim(),
+              password,
+              city: city.trim() || undefined,
+            });
+            if (result.success) {
+              router.replace("/customer");
+            } else {
+              Alert.alert("Registration Failed", result.error || "Something went wrong");
+            }
+          } catch {
+            Alert.alert("Error", "Something went wrong. Please try again.");
+          } finally {
+            setIsLoading(false);
+          }
+        }}
+      >
+        {isLoading ? (
+          <ActivityIndicator color="#fff" size="small" />
+        ) : (
+          <Text style={styles.registerButtonText}>Register</Text>
+        )}
       </TouchableOpacity>
 
       {/* Sign In Link */}

@@ -50,9 +50,12 @@ export interface DriverData {
   name: string;
   phone: string;
   email: string;
+  password?: string;
   vehicle: string;
   vehiclePlate: string;
+  vehicleCode?: string;
   status?: "available" | "on_trip" | "offline";
+  isActive?: boolean;
   photo?: string;
   rating?: number;
   totalTrips?: number;
@@ -216,7 +219,9 @@ export async function getDrivers() {
     email: d.email,
     vehicle: d.vehicle,
     vehiclePlate: d.vehiclePlate,
+    vehicleCode: d.vehicleCode,
     status: d.status as "available" | "on_trip" | "offline",
+    isActive: d.isActive,
     photo: d.photo,
     rating: d.rating,
     totalTrips: d.totalTrips,
@@ -225,7 +230,7 @@ export async function getDrivers() {
 }
 
 // Add a new driver
-export async function addDriver(data: Omit<DriverData, "id" | "driverId" | "createdAt">) {
+export async function addDriver(data: Omit<DriverData, "id" | "driverId" | "createdAt"> & { password: string }) {
   const driverId = `DRV-${Date.now().toString(36).toUpperCase()}`;
   const driver = await prisma.driver.create({
     data: {
@@ -233,8 +238,10 @@ export async function addDriver(data: Omit<DriverData, "id" | "driverId" | "crea
       name: data.name,
       phone: data.phone,
       email: data.email,
+      password: data.password,
       vehicle: data.vehicle,
       vehiclePlate: data.vehiclePlate,
+      vehicleCode: data.vehicleCode || null,
       status: data.status || "available",
       photo: data.photo,
       rating: data.rating || 5.0,
@@ -249,7 +256,9 @@ export async function addDriver(data: Omit<DriverData, "id" | "driverId" | "crea
     email: driver.email,
     vehicle: driver.vehicle,
     vehiclePlate: driver.vehiclePlate,
+    vehicleCode: driver.vehicleCode,
     status: driver.status as "available" | "on_trip" | "offline",
+    isActive: driver.isActive,
     photo: driver.photo,
     rating: driver.rating,
     totalTrips: driver.totalTrips,
@@ -296,7 +305,9 @@ export async function getDriverById(id: string) {
     email: driver.email,
     vehicle: driver.vehicle,
     vehiclePlate: driver.vehiclePlate,
+    vehicleCode: driver.vehicleCode,
     status: driver.status as "available" | "on_trip" | "offline",
+    isActive: driver.isActive,
     photo: driver.photo,
     rating: driver.rating,
     totalTrips: driver.totalTrips,
