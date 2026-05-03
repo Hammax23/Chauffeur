@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,72 +8,91 @@ import {
   StatusBar,
   Image,
   Switch,
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useDriverAuth } from "../../contexts/DriverAuthContext";
+import { getDriverRides, acceptRide, rejectRide, DriverRide } from "../../services/api";
 
 type TabType = "requests" | "upcoming";
 
-interface RideRequest {
-  id: string;
-  customerName: string;
-  phone: string;
-  bookingId: string;
-  date: string;
-  time: string;
-  passengers: number;
-  pickup: string;
-  dropoff: string;
-  isNew: boolean;
-  avatar?: string;
-}
-
-const mockRequests: RideRequest[] = [
-  {
-    id: "1",
-    customerName: "Jhon Smith",
-    phone: "+14164180528",
-    bookingId: "SARJ-MNL4363K34",
-    date: "2026-04-10",
-    time: "09:00 AM",
-    passengers: 4,
-    pickup: "YYZ Terminal 1, Mississauga, ON, CA",
-    dropoff: "Biryaniwalla Milton, Main Street East, Milton, ON, CA",
-    isNew: true,
-  },
-];
-
-const mockUpcomingRides: RideRequest[] = [
-  {
-    id: "2",
-    customerName: "Sarah Johnson",
-    phone: "+14165551234",
-    bookingId: "SARJ-MNL4363K35",
-    date: "2026-04-11",
-    time: "10:30 AM",
-    passengers: 2,
-    pickup: "Toronto Pearson Airport, Terminal 3",
-    dropoff: "Downtown Toronto, King Street West",
-    isNew: false,
-  },
-  {
-    id: "3",
-    customerName: "Michael Brown",
-    phone: "+14165559876",
-    bookingId: "SARJ-MNL4363K36",
-    date: "2026-04-12",
-    time: "02:00 PM",
-    passengers: 3,
-    pickup: "Union Station, Toronto",
-    dropoff: "Niagara Falls, Ontario",
-    isNew: false,
-  },
-];
-
 export default function DriverDashboard() {
-  const [isActive, setIsActive] = useState(false);
+  const { driver, toggleActive } = useDriverAuth();
+  const [isActive, setIsActive] = useState(driver?.isActive || false);
   const [activeTab, setActiveTab] = useState<TabType>("requests");
+  const [rides, setRides] = useState<DriverRide[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchRides = useCallback(async (tab: TabType) => {
+    try {
+      const data = await getDriverRides(tab);
+      if (data.success) {
+        setRides(data.rides);
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      setIsLoading(true);
+      fetchRides(activeTab);
+    }, [activeTab, fetchRides])
+  );
+
+  const handleToggleActive = async (value: boolean) => {
+    setIsActive(value);
+    const result = await toggleActive(value);
+    if (!result.success) {
+      setIsActive(!value);
+      Alert.alert("Error", result.error || "Failed to update status");
+    }
+  };
+
+  const handleAcceptRide = async (bookingId: string) => {
+    try {
+      const result = await acceptRide(bookingId);
+      if (result.success) {
+        Alert.alert("Success", "Ride accepted!");
+        fetchRides(activeTab);
+      } else {
+        Alert.alert("Error", "Failed to accept ride");
+      }
+    } catch {
+      Alert.alert("Error", "Something went wrong");
+    }
+  };
+
+  const handleRejectRide = async (bookingId: string) => {
+    Alert.alert("Reject Ride", "Are you sure you want to reject this ride?", [
+      { text: "No", style: "cancel" },
+      {
+        text: "Yes, Reject",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const result = await rejectRide(bookingId);
+            if (result.success) {
+              fetchRides(activeTab);
+            } else {
+              Alert.alert("Error", "Failed to reject ride");
+            }
+          } catch {
+            Alert.alert("Error", "Something went wrong");
+          }
+        },
+      },
+    ]);
+  };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -85,7 +104,7 @@ export default function DriverDashboard() {
           <View style={styles.statusToggle}>
             <Switch
               value={isActive}
-              onValueChange={setIsActive}
+              onValueChange={handleToggleActive}
               trackColor={{ false: "#e0e0e0", true: "#4CAF50" }}
               thumbColor={isActive ? "#fff" : "#fff"}
             />
@@ -99,17 +118,20 @@ export default function DriverDashboard() {
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.avatarContainer} onPress={() => router.push("/driver/profile")}>
-              <Image
-                source={{ uri: "https://randomuser.me/api/portraits/men/32.jpg" }}
-                style={styles.avatar}
-              />
+              {driver?.photo ? (
+                <Image source={{ uri: driver.photo }} style={styles.avatar} />
+              ) : (
+                <View style={[styles.avatar, { backgroundColor: '#D4A04A', justifyContent: 'center', alignItems: 'center' }]}>
+                  <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>{driver?.name?.[0] || 'D'}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Greeting */}
         <View style={styles.greeting}>
-          <Text style={styles.greetingTitle}>Hi, Hammad 🤚</Text>
+          <Text style={styles.greetingTitle}>Hi, {driver?.name?.split(' ')[0] || 'Driver'} 🤚</Text>
           <Text style={styles.greetingSubtitle}>Good to see you back on work!</Text>
         </View>
 
@@ -133,78 +155,35 @@ export default function DriverDashboard() {
           </TouchableOpacity>
         </View>
 
-        {/* Ride Requests */}
-        {activeTab === "requests" && (
+        {/* Rides List */}
+        {isLoading ? (
+          <View style={styles.emptyState}>
+            <ActivityIndicator size="large" color="#D4A04A" />
+          </View>
+        ) : rides.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="car-outline" size={64} color="#ccc" />
+            <Text style={styles.emptyText}>
+              {activeTab === "requests" ? "No new ride requests" : "No upcoming rides"}
+            </Text>
+          </View>
+        ) : (
           <View style={styles.requestsList}>
-            {mockRequests.map((request) => (
-              <View key={request.id} style={styles.rideCard}>
+            {rides.map((ride) => (
+              <View key={ride.id} style={styles.rideCard}>
                 {/* Customer Info */}
                 <View style={styles.customerRow}>
-                  <Image
-                    source={{ uri: "https://randomuser.me/api/portraits/men/45.jpg" }}
-                    style={styles.customerAvatar}
-                  />
+                  <View style={[styles.customerAvatar, { backgroundColor: '#e0e0e0', justifyContent: 'center', alignItems: 'center' }]}>
+                    <Ionicons name="person" size={22} color="#999" />
+                  </View>
                   <View style={styles.customerInfo}>
                     <View style={styles.nameRow}>
-                      <Text style={styles.customerName}>{request.customerName}</Text>
-                      {request.isNew && (
+                      <Text style={styles.customerName}>{ride.customerName}</Text>
+                      {activeTab === "requests" && (
                         <View style={styles.newBadge}>
                           <Text style={styles.newBadgeText}>NEW</Text>
                         </View>
                       )}
-                    </View>
-                    <Text style={styles.customerPhone}>{request.phone}</Text>
-                  </View>
-                </View>
-
-                {/* Booking ID */}
-                <Text style={styles.bookingId}>{request.bookingId}</Text>
-
-                {/* Date & Passengers */}
-                <View style={styles.dateRow}>
-                  <Text style={styles.dateText}>{request.date} | {request.time}</Text>
-                  <Text style={styles.passengers}>{request.passengers} passengers</Text>
-                </View>
-
-                {/* Locations */}
-                <View style={styles.locationsContainer}>
-                  <View style={styles.locationRow}>
-                    <View style={[styles.locationDot, styles.pickupDot]} />
-                    <Text style={styles.locationText}>{request.pickup}</Text>
-                  </View>
-                  <View style={styles.locationRow}>
-                    <View style={[styles.locationDot, styles.dropoffDot]} />
-                    <Text style={styles.locationText}>{request.dropoff}</Text>
-                  </View>
-                </View>
-
-                {/* Action Buttons */}
-                <View style={styles.actionButtons}>
-                  <TouchableOpacity style={styles.rejectButton}>
-                    <Text style={styles.rejectButtonText}>Reject Ride</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.acceptButton}>
-                    <Text style={styles.acceptButtonText}>Accept Ride</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {activeTab === "upcoming" && (
-          <View style={styles.requestsList}>
-            {mockUpcomingRides.map((ride) => (
-              <View key={ride.id} style={styles.rideCard}>
-                {/* Customer Info */}
-                <View style={styles.customerRow}>
-                  <Image
-                    source={{ uri: `https://randomuser.me/api/portraits/women/${ride.id}5.jpg` }}
-                    style={styles.customerAvatar}
-                  />
-                  <View style={styles.customerInfo}>
-                    <View style={styles.nameRow}>
-                      <Text style={styles.customerName}>{ride.customerName}</Text>
                     </View>
                     <Text style={styles.customerPhone}>{ride.phone}</Text>
                   </View>
@@ -215,7 +194,7 @@ export default function DriverDashboard() {
 
                 {/* Date & Passengers */}
                 <View style={styles.dateRow}>
-                  <Text style={styles.dateText}>{ride.date} | {ride.time}</Text>
+                  <Text style={styles.dateText}>{ride.serviceDate} | {ride.serviceTime}</Text>
                   <Text style={styles.passengers}>{ride.passengers} passengers</Text>
                 </View>
 
@@ -223,22 +202,28 @@ export default function DriverDashboard() {
                 <View style={styles.locationsContainer}>
                   <View style={styles.locationRow}>
                     <View style={[styles.locationDot, styles.pickupDot]} />
-                    <Text style={styles.locationText}>{ride.pickup}</Text>
+                    <Text style={styles.locationText}>{ride.pickupLocation}</Text>
                   </View>
                   <View style={styles.locationRow}>
                     <View style={[styles.locationDot, styles.dropoffDot]} />
-                    <Text style={styles.locationText}>{ride.dropoff}</Text>
+                    <Text style={styles.locationText}>{ride.dropoffLocation}</Text>
                   </View>
                 </View>
 
                 {/* Action Buttons */}
                 <View style={styles.actionButtons}>
-                  <TouchableOpacity style={styles.rejectButton}>
-                    <Text style={styles.rejectButtonText}>Cancel Ride</Text>
+                  <TouchableOpacity style={styles.rejectButton} onPress={() => handleRejectRide(ride.bookingId)}>
+                    <Text style={styles.rejectButtonText}>{activeTab === "requests" ? "Reject Ride" : "Cancel Ride"}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.acceptButton} onPress={() => router.push("/driver/ride-details")}>
-                    <Text style={styles.acceptButtonText}>Start Ride</Text>
-                  </TouchableOpacity>
+                  {activeTab === "requests" ? (
+                    <TouchableOpacity style={styles.acceptButton} onPress={() => handleAcceptRide(ride.bookingId)}>
+                      <Text style={styles.acceptButtonText}>Accept Ride</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity style={styles.acceptButton} onPress={() => router.push({ pathname: "/driver/ride-details", params: { bookingId: ride.bookingId } })}>
+                      <Text style={styles.acceptButtonText}>Start Ride</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             ))}

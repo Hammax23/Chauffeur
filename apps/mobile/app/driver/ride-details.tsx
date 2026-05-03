@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,10 +7,13 @@ import {
   ScrollView,
   StatusBar,
   Image,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { getDriverRideDetail, updateRideStatus, DriverRide } from "../../services/api";
 
 type RideStatus = "pending" | "on_the_way" | "arrived" | "customer_in_car" | "stop" | "done";
 
@@ -52,13 +55,98 @@ const getStatusColor = (status: RideStatus) => {
 };
 
 export default function RideDetailsScreen() {
-  const [currentStatus, setCurrentStatus] = useState<RideStatus>("pending");
+  const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
+  const [ride, setRide] = useState<DriverRide | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
 
-  const handleStatusChange = (stepId: string) => {
-    setCurrentStatus(stepId as RideStatus);
+  const mapStatusToRideStatus = (status: string): RideStatus => {
+    switch (status) {
+      case "PENDING": return "pending";
+      case "ON THE WAY": return "on_the_way";
+      case "ARRIVED": return "arrived";
+      case "CIC": return "customer_in_car";
+      case "DONE": return "done";
+      default: return "pending";
+    }
+  };
+
+  const mapRideStatusToApi = (status: RideStatus): string => {
+    switch (status) {
+      case "on_the_way": return "ON THE WAY";
+      case "arrived": return "ARRIVED";
+      case "customer_in_car": return "CIC";
+      case "done": return "DONE";
+      default: return "ON THE WAY";
+    }
+  };
+
+  useEffect(() => {
+    if (bookingId) {
+      (async () => {
+        try {
+          const data = await getDriverRideDetail(bookingId);
+          if (data.success) {
+            setRide(data.ride);
+          }
+        } catch {
+          // Silently fail
+        } finally {
+          setIsLoading(false);
+        }
+      })();
+    } else {
+      setIsLoading(false);
+    }
+  }, [bookingId]);
+
+  const currentStatus: RideStatus = ride ? mapStatusToRideStatus(ride.status) : "pending";
+
+  const handleStatusChange = async (stepId: string) => {
+    if (!ride || isUpdating) return;
+    const apiStatus = mapRideStatusToApi(stepId as RideStatus);
+    
+    Alert.alert(
+      "Update Status",
+      `Change ride status to "${apiStatus}"?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm",
+          onPress: async () => {
+            setIsUpdating(true);
+            try {
+              const result = await updateRideStatus(ride.bookingId, apiStatus);
+              if (result.success) {
+                setRide({ ...ride, status: apiStatus });
+                if (apiStatus === "DONE") {
+                  Alert.alert("Ride Complete", "This ride has been completed!", [
+                    { text: "OK", onPress: () => router.back() },
+                  ]);
+                }
+              } else {
+                Alert.alert("Error", "Failed to update status");
+              }
+            } catch {
+              Alert.alert("Error", "Something went wrong");
+            } finally {
+              setIsUpdating(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const currentIndex = getStatusIndex(currentStatus);
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]} edges={["top"]}>
+        <ActivityIndicator size="large" color="#D4A04A" />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -74,27 +162,26 @@ export default function RideDetailsScreen() {
         {/* Header Info */}
         <View style={styles.headerInfo}>
           <View style={styles.headerLeft}>
-            <Text style={styles.bookingIdLabel}>ID: SARJ-MNL4363K34</Text>
+            <Text style={styles.bookingIdLabel}>ID: {ride?.bookingId || "N/A"}</Text>
             <View style={styles.chauffeurBadge}>
               <Text style={styles.chauffeurBadgeText}>YOUR CHAUFFEUR STATUS</Text>
             </View>
           </View>
-          <Text style={styles.price}>$ 250.80</Text>
+          <Text style={styles.price}>${ride?.total?.toFixed(2) || "0.00"}</Text>
         </View>
 
         {/* Customer Details */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>CUSTOMER DETAILS</Text>
           <View style={styles.customerCard}>
-            <Image
-              source={{ uri: "https://randomuser.me/api/portraits/men/45.jpg" }}
-              style={styles.customerAvatar}
-            />
-            <View style={styles.customerInfo}>
-              <Text style={styles.customerName}>Jhon Smith</Text>
-              <Text style={styles.customerPhone}>+14164180528</Text>
+            <View style={[styles.customerAvatar, { backgroundColor: '#e0e0e0', justifyContent: 'center', alignItems: 'center' }]}>
+              <Ionicons name="person" size={22} color="#999" />
             </View>
-            <Text style={styles.passengerCount}>4 passengers</Text>
+            <View style={styles.customerInfo}>
+              <Text style={styles.customerName}>{ride?.customerName || "N/A"}</Text>
+              <Text style={styles.customerPhone}>{ride?.phone || ""}</Text>
+            </View>
+            <Text style={styles.passengerCount}>{ride?.passengers || 0} passengers</Text>
           </View>
         </View>
 
@@ -105,17 +192,17 @@ export default function RideDetailsScreen() {
           <View style={styles.rideDetailsCard}>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>VEHICLE</Text>
-              <Text style={styles.detailValue}>Cadillac XTC</Text>
+              <Text style={styles.detailValue}>{ride?.vehicle || "N/A"}</Text>
             </View>
 
             <View style={styles.dateTimeRow}>
               <View style={styles.dateTimeItem}>
                 <Text style={styles.detailLabel}>DATE</Text>
-                <Text style={styles.detailValue}>2026-04-10</Text>
+                <Text style={styles.detailValue}>{ride?.serviceDate || "N/A"}</Text>
               </View>
               <View style={styles.dateTimeItem}>
                 <Text style={styles.detailLabel}>TIME</Text>
-                <Text style={styles.detailValue}>09:00 AM</Text>
+                <Text style={styles.detailValue}>{ride?.serviceTime || "N/A"}</Text>
               </View>
             </View>
 
@@ -124,7 +211,7 @@ export default function RideDetailsScreen() {
               <View style={[styles.locationDot, styles.pickupDot]} />
               <View style={styles.locationContent}>
                 <Text style={[styles.locationLabel, { color: "#4CAF50" }]}>PICK-UP</Text>
-                <Text style={styles.locationText}>YYZ Terminal 1, Mississauga, ON, CA</Text>
+                <Text style={styles.locationText}>{ride?.pickupLocation || "N/A"}</Text>
               </View>
             </View>
 
@@ -132,17 +219,19 @@ export default function RideDetailsScreen() {
               <View style={[styles.locationDot, styles.dropoffDot]} />
               <View style={styles.locationContent}>
                 <Text style={[styles.locationLabel, { color: "#F5A623" }]}>DROP-OFF</Text>
-                <Text style={styles.locationText}>Biryaniwalla Milton, Main Street East, Milton, ON, CA</Text>
+                <Text style={styles.locationText}>{ride?.dropoffLocation || "N/A"}</Text>
               </View>
             </View>
 
+            {ride?.stops ? (
             <View style={[styles.locationItem, { marginBottom: 0 }]}>
               <View style={[styles.locationDot, styles.stopDot]} />
               <View style={styles.locationContent}>
                 <Text style={[styles.locationLabel, { color: "#e53935" }]}>Stop</Text>
-                <Text style={styles.locationText}>PO BOX 123 Main Street East, Milton, ON, CA</Text>
+                <Text style={styles.locationText}>{ride.stops}</Text>
               </View>
             </View>
+            ) : null}
           </View>
         </View>
 

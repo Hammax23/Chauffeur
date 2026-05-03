@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,144 +8,89 @@ import {
   TouchableOpacity,
   Image,
   Platform,
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-
-interface Driver {
-  name: string;
-  phone: string;
-  rating: number;
-  photo: string;
-  vehicleNumber: string;
-}
-
-interface Reservation {
-  id: string;
-  bookingId: string;
-  vehicleName: string;
-  vehicleImage: string;
-  status: "Pending" | "Accepted" | "In-progress" | "Completed";
-  price: string;
-  date: string;
-  time: string;
-  passengers: number;
-  pickupLocation: string;
-  dropoffLocation: string;
-  driver?: Driver;
-}
-
-const mockReservations: Reservation[] = [
-  {
-    id: "1",
-    bookingId: "SARJ-MNLA363K34",
-    vehicleName: "Mercedes-Maybach S-Class",
-    vehicleImage: "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=400&q=80",
-    status: "Pending",
-    price: "$179.20 CAD",
-    date: "2026-04-10",
-    time: "09:00 AM",
-    passengers: 4,
-    pickupLocation: "YYZ Terminal 1, Mississauga, ON, CA",
-    dropoffLocation: "Bryanwalla Milton, Main Street East, Milton, ON, CA",
-  },
-  {
-    id: "2",
-    bookingId: "SARJ-MNLA363K34",
-    vehicleName: "Tesla Model S",
-    vehicleImage: "https://images.unsplash.com/photo-1536700503339-1e4b06520771?w=400&q=80",
-    status: "Accepted",
-    price: "$179.20 CAD",
-    date: "2026-04-10",
-    time: "09:00 AM",
-    passengers: 4,
-    pickupLocation: "YYZ Terminal 1, Mississauga, ON, CA",
-    dropoffLocation: "Bryanwalla Milton, Main Street East, Milton, ON, CA",
-  },
-  {
-    id: "3",
-    bookingId: "SARJ-MNLA789K56",
-    vehicleName: "Mercedes-Maybach S-Class",
-    vehicleImage: "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=400&q=80",
-    status: "In-progress",
-    price: "$215.50 CAD",
-    date: "2026-04-19",
-    time: "02:30 PM",
-    passengers: 2,
-    pickupLocation: "YYZ Terminal 3, Mississauga, ON, CA",
-    dropoffLocation: "Downtown Toronto, King Street, Toronto, ON, CA",
-    driver: {
-      name: "Michael Johnson",
-      phone: "+1 (416) 555-0123",
-      rating: 4.9,
-      photo: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80",
-      vehicleNumber: "ABCD 1234",
-    },
-  },
-  {
-    id: "4",
-    bookingId: "SARJ-MNLA456K78",
-    vehicleName: "Cadillac Escalade",
-    vehicleImage: "https://images.unsplash.com/photo-1520031441872-265e4ff70366?w=400&q=80",
-    status: "In-progress",
-    price: "$320.00 CAD",
-    date: "2026-04-19",
-    time: "04:00 PM",
-    passengers: 6,
-    pickupLocation: "Pearson Airport, Terminal 1",
-    dropoffLocation: "Niagara Falls, ON, CA",
-    driver: {
-      name: "David Williams",
-      phone: "+1 (905) 555-0456",
-      rating: 4.8,
-      photo: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&q=80",
-      vehicleNumber: "WXYZ 5678",
-    },
-  },
-  {
-    id: "5",
-    bookingId: "SARJ-MNLA112K90",
-    vehicleName: "BMW 7 Series",
-    vehicleImage: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=400&q=80",
-    status: "Completed",
-    price: "$195.00 CAD",
-    date: "2026-04-15",
-    time: "11:00 AM",
-    passengers: 3,
-    pickupLocation: "Union Station, Toronto, ON, CA",
-    dropoffLocation: "Pearson Airport, Terminal 3, Mississauga, ON, CA",
-    driver: {
-      name: "James Anderson",
-      phone: "+1 (647) 555-0789",
-      rating: 4.7,
-      photo: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&q=80",
-      vehicleNumber: "LMNO 9012",
-    },
-  },
-];
+import { getReservations, cancelReservation, Reservation } from "../../services/api";
 
 const tabs = ["Pending", "In-progress", "Completed"];
 
 export default function ReservationsScreen() {
   const [activeTab, setActiveTab] = useState("Pending");
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const filteredReservations = mockReservations.filter((res) => {
-    if (activeTab === "Pending") return res.status === "Pending" || res.status === "Accepted";
-    if (activeTab === "In-progress") return res.status === "In-progress";
-    if (activeTab === "Completed") return res.status === "Completed";
+  const fetchReservations = useCallback(async () => {
+    try {
+      const data = await getReservations();
+      if (data.success) {
+        setReservations(data.reservations);
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      setIsLoading(true);
+      fetchReservations();
+    }, [fetchReservations])
+  );
+
+  const handleCancel = async (bookingId: string) => {
+    Alert.alert(
+      "Cancel Reservation",
+      "Are you sure you want to cancel this reservation?",
+      [
+        { text: "No", style: "cancel" },
+        {
+          text: "Yes, Cancel",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const result = await cancelReservation(bookingId);
+              if (result.success) {
+                Alert.alert("Success", "Reservation cancelled successfully");
+                fetchReservations();
+              } else {
+                Alert.alert("Error", "Failed to cancel reservation");
+              }
+            } catch {
+              Alert.alert("Error", "Something went wrong");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const filteredReservations = reservations.filter((res) => {
+    if (activeTab === "Pending") return res.status === "PENDING";
+    if (activeTab === "In-progress") return res.status === "ON THE WAY" || res.status === "ARRIVED" || res.status === "CIC";
+    if (activeTab === "Completed") return res.status === "DONE" || res.status === "CANCELLED";
     return true;
   });
 
   const getStatusStyle = (status: string) => {
-    if (status === "Pending") return styles.statusPending;
-    if (status === "Accepted") return styles.statusAccepted;
+    if (status === "PENDING") return styles.statusPending;
+    if (status === "ON THE WAY" || status === "ARRIVED" || status === "CIC") return styles.statusAccepted;
+    if (status === "CANCELLED") return styles.statusDefault;
     return styles.statusDefault;
   };
 
   const getStatusTextStyle = (status: string) => {
-    if (status === "Pending") return styles.statusPendingText;
-    if (status === "Accepted") return styles.statusAcceptedText;
+    if (status === "PENDING") return styles.statusPendingText;
+    if (status === "ON THE WAY" || status === "ARRIVED" || status === "CIC") return styles.statusAcceptedText;
+    if (status === "CANCELLED") return styles.statusDefaultText;
     return styles.statusDefaultText;
   };
 
@@ -176,8 +121,15 @@ export default function ReservationsScreen() {
         style={styles.container} 
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchReservations(); }} />
+        }
       >
-        {filteredReservations.length === 0 ? (
+        {isLoading ? (
+          <View style={styles.emptyState}>
+            <ActivityIndicator size="large" color="#D4A04A" />
+          </View>
+        ) : filteredReservations.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="calendar-outline" size={64} color="#ccc" />
             <Text style={styles.emptyText}>No reservations</Text>
@@ -188,7 +140,7 @@ export default function ReservationsScreen() {
             <View key={reservation.id} style={styles.reservationCard}>
               {/* Card Header */}
               <View style={styles.cardHeader}>
-                <Text style={styles.vehicleName}>{reservation.vehicleName}</Text>
+                <Text style={styles.vehicleName}>{reservation.vehicle}</Text>
                 <View style={getStatusStyle(reservation.status)}>
                   <Text style={getStatusTextStyle(reservation.status)}>
                     {reservation.status}
@@ -199,11 +151,11 @@ export default function ReservationsScreen() {
               {/* Booking Info */}
               <View style={styles.bookingInfo}>
                 <Text style={styles.bookingId}>{reservation.bookingId}</Text>
-                <Text style={styles.price}>{reservation.price}</Text>
+                <Text style={styles.price}>${reservation.total.toFixed(2)} CAD</Text>
               </View>
               <View style={styles.bookingInfo}>
                 <Text style={styles.dateTime}>
-                  {reservation.date} | {reservation.time}
+                  {reservation.serviceDate} | {reservation.serviceTime}
                 </Text>
                 <Text style={styles.passengers}>{reservation.passengers} passengers</Text>
               </View>
@@ -224,14 +176,7 @@ export default function ReservationsScreen() {
                 </View>
               </View>
 
-              {/* Vehicle Image */}
-              <Image
-                source={{ uri: reservation.vehicleImage }}
-                style={styles.vehicleImage}
-                resizeMode="contain"
-              />
-
-              {/* Driver Info - Only for In-progress */}
+              {/* Driver Info - Only when driver assigned */}
               {reservation.driver && (
                 <View style={styles.driverCard}>
                   <View style={styles.driverHeader}>
@@ -242,13 +187,19 @@ export default function ReservationsScreen() {
                     </View>
                   </View>
                   <View style={styles.driverInfo}>
-                    <Image
-                      source={{ uri: reservation.driver.photo }}
-                      style={styles.driverPhoto}
-                    />
+                    {reservation.driver.photo ? (
+                      <Image
+                        source={{ uri: reservation.driver.photo }}
+                        style={styles.driverPhoto}
+                      />
+                    ) : (
+                      <View style={[styles.driverPhoto, { backgroundColor: '#e0e0e0', justifyContent: 'center', alignItems: 'center' }]}>
+                        <Ionicons name="person" size={20} color="#999" />
+                      </View>
+                    )}
                     <View style={styles.driverDetails}>
                       <Text style={styles.driverName}>{reservation.driver.name}</Text>
-                      <Text style={styles.vehicleNumber}>{reservation.driver.vehicleNumber}</Text>
+                      <Text style={styles.vehicleNumber}>{reservation.driver.vehiclePlate}</Text>
                     </View>
                     <TouchableOpacity style={styles.callBtn}>
                       <Ionicons name="call" size={18} color="#fff" />
@@ -258,18 +209,18 @@ export default function ReservationsScreen() {
               )}
 
               {/* Cancel Button - Only for Pending */}
-              {(reservation.status === "Pending" || reservation.status === "Accepted") && (
-                <TouchableOpacity style={styles.cancelBtn} activeOpacity={0.8}>
+              {reservation.status === "PENDING" && (
+                <TouchableOpacity style={styles.cancelBtn} activeOpacity={0.8} onPress={() => handleCancel(reservation.bookingId)}>
                   <Text style={styles.cancelBtnText}>Cancel Reservation</Text>
                 </TouchableOpacity>
               )}
 
               {/* Track Ride Button - Only for In-progress */}
-              {reservation.status === "In-progress" && (
+              {(reservation.status === "ON THE WAY" || reservation.status === "ARRIVED" || reservation.status === "CIC") && (
                 <TouchableOpacity 
                   style={styles.trackBtn} 
                   activeOpacity={0.8}
-                  onPress={() => router.push("/customer/track-ride")}
+                  onPress={() => router.push({ pathname: "/customer/track-ride", params: { bookingId: reservation.bookingId } })}
                 >
                   <Ionicons name="location" size={18} color="#fff" />
                   <Text style={styles.trackBtnText}>Track Ride</Text>

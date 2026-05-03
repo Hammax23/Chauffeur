@@ -6,14 +6,28 @@ import {
   ScrollView,
   StatusBar,
   Image,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useDriverAuth } from "../../contexts/DriverAuthContext";
 
 export default function DriverProfileScreen() {
+  const { driver, logout } = useDriverAuth();
+
   const handleLogout = () => {
-    router.replace("/login");
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: async () => {
+          await logout();
+          router.replace("/login");
+        },
+      },
+    ]);
   };
 
   return (
@@ -33,20 +47,23 @@ export default function DriverProfileScreen() {
 
         {/* Profile Card */}
         <View style={styles.profileCard}>
-          <Image
-            source={{ uri: "https://randomuser.me/api/portraits/men/32.jpg" }}
-            style={styles.profileAvatar}
-          />
+          {driver?.photo ? (
+            <Image source={{ uri: driver.photo }} style={styles.profileAvatar} />
+          ) : (
+            <View style={[styles.profileAvatar, { backgroundColor: '#D4A04A', justifyContent: 'center', alignItems: 'center' }]}>
+              <Text style={{ color: '#fff', fontSize: 20, fontWeight: '700' }}>{driver?.name?.[0] || 'D'}</Text>
+            </View>
+          )}
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>Jhon Smith</Text>
-            <Text style={styles.profileEmail}>jhon@gmail.com</Text>
+            <Text style={styles.profileName}>{driver?.name || "N/A"}</Text>
+            <Text style={styles.profileEmail}>{driver?.email || "N/A"}</Text>
           </View>
         </View>
 
         {/* Phone Number */}
         <View style={styles.infoCard}>
           <Text style={styles.infoLabel}>Phone Number</Text>
-          <Text style={styles.infoValue}>+123456789</Text>
+          <Text style={styles.infoValue}>{driver?.phone || "N/A"}</Text>
         </View>
 
         {/* Assigned Vehicle */}
@@ -55,17 +72,30 @@ export default function DriverProfileScreen() {
           
           <View style={styles.vehicleRow}>
             <Text style={styles.vehicleLabel}>Vehicle Type:</Text>
-            <Text style={styles.vehicleValue}>ESCLD/SUV</Text>
+            <Text style={styles.vehicleValue}>{driver?.vehicle || "N/A"}</Text>
           </View>
           
           <View style={styles.vehicleRow}>
             <Text style={styles.vehicleLabel}>Car Code:</Text>
-            <Text style={styles.vehicleValue}>SERJ_ESCLD</Text>
+            <Text style={styles.vehicleValue}>{driver?.vehicleCode || "N/A"}</Text>
           </View>
           
           <View style={[styles.vehicleRow, { marginBottom: 0 }]}>
             <Text style={styles.vehicleLabel}>Car License Plate:</Text>
-            <Text style={styles.vehicleValue}>DCBE 984</Text>
+            <Text style={styles.vehicleValue}>{driver?.vehiclePlate || "N/A"}</Text>
+          </View>
+        </View>
+
+        {/* Stats */}
+        <View style={styles.infoCard}>
+          <Text style={styles.sectionLabel}>Stats</Text>
+          <View style={styles.vehicleRow}>
+            <Text style={styles.vehicleLabel}>Rating:</Text>
+            <Text style={styles.vehicleValue}>⭐ {driver?.rating?.toFixed(1) || "5.0"}</Text>
+          </View>
+          <View style={[styles.vehicleRow, { marginBottom: 0 }]}>
+            <Text style={styles.vehicleLabel}>Total Trips:</Text>
+            <Text style={styles.vehicleValue}>{driver?.totalTrips || 0}</Text>
           </View>
         </View>
 

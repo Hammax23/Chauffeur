@@ -1,1 +1,5 @@
-{}
+{
+  "/api/customer/auth/register/route": "app/api/customer/auth/register/route.js",
+  "/api/customer/reservations/route": "app/api/customer/reservations/route.js",
+  "/api-docs/page": "app/api-docs/page.js"
+}

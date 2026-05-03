@@ -9,18 +9,25 @@ import {
   StatusBar,
   Image,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "../contexts/AuthContext";
+import { useDriverAuth } from "../contexts/DriverAuthContext";
 
 type UserType = "customer" | "driver";
 
 export default function LoginScreen() {
+  const { login } = useAuth();
+  const { login: driverLogin } = useDriverAuth();
   const [userType, setUserType] = useState<UserType>("customer");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -126,16 +133,42 @@ export default function LoginScreen() {
 
       {/* Sign In Button */}
       <TouchableOpacity 
-        style={styles.signInButton}
-        onPress={() => {
-          if (userType === "driver") {
-            router.replace("/driver");
-          } else {
-            router.replace("/customer");
+        style={[styles.signInButton, isLoading && { opacity: 0.7 }]}
+        disabled={isLoading}
+        onPress={async () => {
+          if (!email.trim() || !password.trim()) {
+            Alert.alert("Error", "Please enter your email and password");
+            return;
+          }
+          setIsLoading(true);
+          try {
+            if (userType === "driver") {
+              const result = await driverLogin(email.trim(), password);
+              if (result.success) {
+                router.replace("/driver");
+              } else {
+                Alert.alert("Login Failed", result.error || "Invalid credentials");
+              }
+            } else {
+              const result = await login(email.trim(), password);
+              if (result.success) {
+                router.replace("/customer");
+              } else {
+                Alert.alert("Login Failed", result.error || "Invalid credentials");
+              }
+            }
+          } catch {
+            Alert.alert("Error", "Something went wrong. Please try again.");
+          } finally {
+            setIsLoading(false);
           }
         }}
       >
-        <Text style={styles.signInText}>Sign In</Text>
+        {isLoading ? (
+          <ActivityIndicator color="#fff" size="small" />
+        ) : (
+          <Text style={styles.signInText}>Sign In</Text>
+        )}
       </TouchableOpacity>
 
       {/* Social Login - Only for Customer */}

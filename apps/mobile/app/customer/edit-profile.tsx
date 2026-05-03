@@ -8,20 +8,47 @@ import {
   TextInput,
   Image,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "../../contexts/AuthContext";
 
 export default function EditProfileScreen() {
-  const [firstName, setFirstName] = useState("Valadmir");
-  const [lastName, setLastName] = useState("Putin");
-  const [phoneNumber, setPhoneNumber] = useState("+1234567890");
-  const [email, setEmail] = useState("putin@gmail.com");
-  const [city, setCity] = useState("Ontario");
+  const { user, updateProfile } = useAuth();
+  const [firstName, setFirstName] = useState(user?.firstName || "");
+  const [lastName, setLastName] = useState(user?.lastName || "");
+  const [phoneNumber, setPhoneNumber] = useState(user?.phone || "");
+  const [email] = useState(user?.email || "");
+  const [city, setCity] = useState(user?.city || "");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSave = () => {
-    router.back();
+  const handleSave = async () => {
+    if (!firstName.trim() || !lastName.trim() || !phoneNumber.trim()) {
+      Alert.alert("Error", "Name and phone number are required");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const result = await updateProfile({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        phone: phoneNumber.trim(),
+        city: city.trim() || undefined,
+      });
+      if (result.success) {
+        Alert.alert("Success", "Profile updated successfully");
+        router.back();
+      } else {
+        Alert.alert("Error", result.error || "Failed to update profile");
+      }
+    } catch {
+      Alert.alert("Error", "Something went wrong");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -97,11 +124,11 @@ export default function EditProfileScreen() {
 
         {/* Email */}
         <Text style={styles.inputLabel}>Email</Text>
-        <View style={styles.inputBox}>
+        <View style={[styles.inputBox, { backgroundColor: '#f0f0f0' }]}>
           <TextInput
-            style={styles.textInput}
+            style={[styles.textInput, { color: '#999' }]}
             value={email}
-            onChangeText={setEmail}
+            editable={false}
             keyboardType="email-address"
             autoCapitalize="none"
           />
@@ -120,11 +147,16 @@ export default function EditProfileScreen() {
       {/* Save Button */}
       <View style={styles.bottomContainer}>
         <TouchableOpacity 
-          style={styles.saveBtn} 
+          style={[styles.saveBtn, isLoading && { opacity: 0.7 }]} 
           activeOpacity={0.9}
+          disabled={isLoading}
           onPress={handleSave}
         >
-          <Text style={styles.saveBtnText}>Save Changes</Text>
+          {isLoading ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Text style={styles.saveBtnText}>Save Changes</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,9 +12,11 @@ import {
   Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useAuth } from "../../contexts/AuthContext";
+import { getReservations, Reservation } from "../../services/api";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -67,8 +69,10 @@ const trustPoints = [
 ];
 
 export default function CustomerHomeScreen() {
+  const { user } = useAuth();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
+  const [activeRide, setActiveRide] = useState<Reservation | null>(null);
 
   useEffect(() => {
     Animated.parallel([
@@ -84,6 +88,25 @@ export default function CustomerHomeScreen() {
       }),
     ]).start();
   }, []);
+
+  // Fetch active ride on focus
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        try {
+          const data = await getReservations();
+          if (data.success) {
+            const active = data.reservations.find(
+              (r) => r.status === "ON THE WAY" || r.status === "ARRIVED" || r.status === "CIC"
+            );
+            setActiveRide(active || null);
+          }
+        } catch {
+          // Silently fail
+        }
+      })();
+    }, [])
+  );
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -108,7 +131,7 @@ export default function CustomerHomeScreen() {
             </View>
             <View>
               <Text style={styles.welcomeText}>Welcome back</Text>
-              <Text style={styles.userName}>Valadmir Putin</Text>
+              <Text style={styles.userName}>{user?.firstName} {user?.lastName}</Text>
             </View>
           </TouchableOpacity>
           <TouchableOpacity style={styles.notificationBtn}>
@@ -118,11 +141,12 @@ export default function CustomerHomeScreen() {
         </Animated.View>
 
         {/* Active Ride Banner */}
+        {activeRide && (
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
           <TouchableOpacity
             style={styles.activeRideBanner}
             activeOpacity={0.9}
-            onPress={() => router.push("/customer/track-ride")}
+            onPress={() => router.push({ pathname: "/customer/track-ride", params: { bookingId: activeRide.bookingId } })}
           >
             <LinearGradient
               colors={["#D4A04A", "#C49A3A"]}
@@ -136,7 +160,7 @@ export default function CustomerHomeScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.activeRideLabel}>RIDE IN PROGRESS</Text>
-                  <Text style={styles.activeRideRoute}>YYZ Terminal 1 → Niagara Falls</Text>
+                  <Text style={styles.activeRideRoute} numberOfLines={1}>{activeRide.pickupLocation.split(",")[0]} → {activeRide.dropoffLocation.split(",")[0]}</Text>
                 </View>
               </View>
               <View style={styles.activeRideArrow}>
@@ -145,6 +169,7 @@ export default function CustomerHomeScreen() {
             </LinearGradient>
           </TouchableOpacity>
         </Animated.View>
+        )}
 
         {/* Hero Card – Book */}
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
