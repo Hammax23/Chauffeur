@@ -506,6 +506,15 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
+// Validate ../../src/app/api/driver/push-token/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/driver/push-token">> = Specific
+  const handler = {} as typeof import("../../src/app/api/driver/push-token/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../src/app/api/driver/rides/[bookingId]/route.ts
 {
   type __IsExpected<Specific extends RouteHandlerConfig<"/api/driver/rides/[bookingId]">> = Specific

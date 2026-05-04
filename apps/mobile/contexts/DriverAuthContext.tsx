@@ -8,6 +8,7 @@ import {
   getDriverProfile,
   toggleDriverActive as apiToggleActive,
 } from "../services/api";
+import { registerPushToken } from "../services/notifications";
 
 interface DriverAuthContextType {
   driver: DriverProfile | null;
@@ -56,6 +57,14 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
       const data = await loginDriver(email, password);
       if (data.success) {
         setDriver(data.driver);
+        
+        // Register push notification token after successful login
+        if (data.token) {
+          registerPushToken(data.token).catch(err => 
+            console.log('Failed to register push token:', err)
+          );
+        }
+        
         return { success: true };
       }
       return { success: false, error: data.error || "Login failed" };

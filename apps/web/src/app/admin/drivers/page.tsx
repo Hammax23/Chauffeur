@@ -83,6 +83,7 @@ export default function DriversPage() {
     vehiclePlate: "",
     status: "available" as Driver["status"],
     photo: "",
+    password: "",
   });
   const [uploading, setUploading] = useState(false);
 
@@ -116,6 +117,11 @@ export default function DriversPage() {
 
   useEffect(() => {
     fetchDrivers();
+    // Auto-refresh every 5 seconds to show real-time driver status (active/inactive)
+    const interval = setInterval(() => {
+      fetchDrivers();
+    }, 5000);
+    return () => clearInterval(interval);
   }, [fetchDrivers]);
 
   const filtered = drivers.filter((d) => {
@@ -132,7 +138,7 @@ export default function DriversPage() {
 
   const openAddModal = () => {
     setEditingDriver(null);
-    setForm({ name: "", phone: "", email: "", vehicle: "", vehiclePlate: "", status: "available", photo: "" });
+    setForm({ name: "", phone: "", email: "", vehicle: "", vehiclePlate: "", status: "available", photo: "", password: "" });
     setShowModal(true);
   };
 
@@ -146,6 +152,7 @@ export default function DriversPage() {
       vehiclePlate: driver.vehiclePlate,
       status: driver.status,
       photo: driver.photo || "",
+      password: "",
     });
     setShowModal(true);
   };
@@ -651,6 +658,32 @@ export default function DriversPage() {
                   <option value="on_trip">On Trip</option>
                   <option value="offline">Offline</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Password {editingDriver && <span className="text-xs text-gray-500">(leave blank to keep current)</span>}
+                </label>
+                {editingDriver && (
+                  <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center gap-1 text-green-700 text-xs">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium">Current password is set</span>
+                    </div>
+                    <span className="text-gray-400 text-xs ml-auto">••••••••</span>
+                  </div>
+                )}
+                <input
+                  type="password"
+                  required={!editingDriver}
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
+                  placeholder={editingDriver ? "Enter new password to change" : "Set driver password"}
+                  minLength={6}
+                />
               </div>
 
               <div className="flex gap-3 pt-4">

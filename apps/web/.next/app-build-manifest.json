@@ -1,71 +1,46 @@
 {
   "pages": {
+    "/api/admin/drivers/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/admin/drivers/route.js"
+    ],
+    "/api/upload/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/upload/route.js"
+    ],
+    "/api/admin/driver-invites/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/admin/driver-invites/route.js"
+    ],
     "/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/api-docs/page": [
+    "/driver-register/[token]/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/css/app/api-docs/page.css",
-      "static/chunks/app/api-docs/page.js"
+      "static/chunks/app/driver-register/[token]/page.js"
     ],
-    "/page": [
+    "/api/driver-register/validate/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/page.js"
-    ],
-    "/api/google-reviews/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/google-reviews/route.js"
-    ],
-    "/api/docs/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/docs/route.js"
+      "static/chunks/app/api/driver-register/validate/route.js"
     ],
     "/admin/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/admin/layout.js"
     ],
-    "/admin/page": [
+    "/admin/custom-reservation/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/admin/page.js"
-    ],
-    "/api/admin/auth/verify/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/admin/auth/verify/route.js"
-    ],
-    "/api/admin/dashboard/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/admin/dashboard/route.js"
-    ],
-    "/admin/drivers/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/admin/drivers/page.js"
-    ],
-    "/api/admin/drivers/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/admin/drivers/route.js"
-    ],
-    "/api/driver/auth/login/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/driver/auth/login/route.js"
-    ],
-    "/api/driver/rides/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/driver/rides/route.js"
+      "static/css/app/admin/custom-reservation/page.css",
+      "static/chunks/app/admin/custom-reservation/page.js"
     ],
     "/admin/reservations/page": [
       "static/chunks/webpack.js",
@@ -77,15 +52,35 @@
       "static/chunks/main-app.js",
       "static/chunks/app/api/admin/reservations/route.js"
     ],
-    "/api/driver/rides/[bookingId]/route": [
+    "/admin/drivers/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/driver/rides/[bookingId]/route.js"
+      "static/chunks/app/admin/drivers/page.js"
     ],
-    "/api/driver/toggle-active/route": [
+    "/admin/quotes/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/driver/toggle-active/route.js"
+      "static/chunks/app/admin/quotes/page.js"
+    ],
+    "/api/admin/quotes/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/admin/quotes/route.js"
+    ],
+    "/api/admin/auth/verify/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/admin/auth/verify/route.js"
+    ],
+    "/api/admin/auth/send-otp/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/admin/auth/send-otp/route.js"
+    ],
+    "/api/admin/auth/verify-otp/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/admin/auth/verify-otp/route.js"
     ]
   }
 }

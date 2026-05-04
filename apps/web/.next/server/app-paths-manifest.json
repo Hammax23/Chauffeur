@@ -1,12 +1,8 @@
 {
-  "/api/driver/rides/route": "app/api/driver/rides/route.js",
-  "/api/admin/reservations/route": "app/api/admin/reservations/route.js",
-  "/api/driver/rides/[bookingId]/route": "app/api/driver/rides/[bookingId]/route.js",
+  "/api/admin/auth/verify/route": "app/api/admin/auth/verify/route.js",
+  "/api/admin/auth/send-otp/route": "app/api/admin/auth/send-otp/route.js",
+  "/api/admin/auth/verify-otp/route": "app/api/admin/auth/verify-otp/route.js",
   "/api/admin/drivers/route": "app/api/admin/drivers/route.js",
-  "/api/driver/toggle-active/route": "app/api/driver/toggle-active/route.js",
-  "/api-docs/page": "app/api-docs/page.js",
-  "/page": "app/page.js",
-  "/admin/page": "app/admin/page.js",
-  "/admin/drivers/page": "app/admin/drivers/page.js",
-  "/admin/reservations/page": "app/admin/reservations/page.js"
+  "/driver-register/[token]/page": "app/driver-register/[token]/page.js",
+  "/admin/drivers/page": "app/admin/drivers/page.js"
 }
