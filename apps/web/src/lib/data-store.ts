@@ -87,6 +87,9 @@ export async function getReservations() {
     cardType: r.cardType || "",
     cardLast4: r.cardLast4 || "",
     paymentStatus: r.paymentStatus || "PENDING",
+    driverResponse: r.driverResponse || null,
+    driverRespondedAt: r.driverRespondedAt ? r.driverRespondedAt.toISOString() : null,
+    rejectedDriverIds: r.rejectedDriverIds || null,
   }));
 }
 
@@ -173,7 +176,11 @@ export async function assignDriverToReservation(bookingId: string, driverId: str
   try {
     await prisma.reservation.update({
       where: { bookingId },
-      data: { assignedDriverId: driverId },
+      data: {
+        assignedDriverId: driverId,
+        driverResponse: null,
+        driverRespondedAt: null,
+      },
     });
     return true;
   } catch {

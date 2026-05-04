@@ -488,6 +488,51 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
+// Validate ../../src/app/api/driver/auth/login/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/driver/auth/login">> = Specific
+  const handler = {} as typeof import("../../src/app/api/driver/auth/login/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/api/driver/profile/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/driver/profile">> = Specific
+  const handler = {} as typeof import("../../src/app/api/driver/profile/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/api/driver/rides/[bookingId]/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/driver/rides/[bookingId]">> = Specific
+  const handler = {} as typeof import("../../src/app/api/driver/rides/[bookingId]/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/api/driver/rides/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/driver/rides">> = Specific
+  const handler = {} as typeof import("../../src/app/api/driver/rides/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/api/driver/toggle-active/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/driver/toggle-active">> = Specific
+  const handler = {} as typeof import("../../src/app/api/driver/toggle-active/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../src/app/api/google-reviews/route.ts
 {
   type __IsExpected<Specific extends RouteHandlerConfig<"/api/google-reviews">> = Specific

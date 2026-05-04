@@ -4,11 +4,5 @@
     "files": [
       "static/chunks/_app-pages-browser_node_modules_next_dist_client_dev_noop-turbopack-hmr_js.js"
     ]
-  },
-  "app\\api-docs\\page.tsx -> swagger-ui-react": {
-    "id": "app\\api-docs\\page.tsx -> swagger-ui-react",
-    "files": [
-      "static/chunks/_app-pages-browser_node_modules_swagger-ui-react_index_mjs.js"
-    ]
   }
 }
