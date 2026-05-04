@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  AppState,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
@@ -20,6 +21,8 @@ import { getDriverRides, acceptRide, rejectRide, DriverRide } from "../../servic
 
 type TabType = "requests" | "upcoming";
 
+const POLL_INTERVAL = 5000; // 5 seconds
+
 export default function DriverDashboard() {
   const { driver, toggleActive } = useDriverAuth();
   const [isActive, setIsActive] = useState(driver?.isActive || false);
@@ -27,27 +30,77 @@ export default function DriverDashboard() {
   const [rides, setRides] = useState<DriverRide[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [requestCount, setRequestCount] = useState(0);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isFocusedRef = useRef(true);
 
-  const fetchRides = useCallback(async (tab: TabType) => {
+  const fetchRides = useCallback(async (tab: TabType, silent = false) => {
     try {
       const data = await getDriverRides(tab);
       if (data.success) {
         setRides(data.rides);
+        if (tab === "requests") {
+          setRequestCount(data.rides.length);
+        }
       }
     } catch {
       // Silently fail
     } finally {
-      setIsLoading(false);
-      setRefreshing(false);
+      if (!silent) {
+        setIsLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
+  // Auto-poll: fetch rides every 5 seconds for real-time updates
   useFocusEffect(
     useCallback(() => {
+      isFocusedRef.current = true;
       setIsLoading(true);
       fetchRides(activeTab);
+
+      // Start polling
+      pollTimerRef.current = setInterval(() => {
+        if (isFocusedRef.current) {
+          fetchRides(activeTab, true);
+        }
+      }, POLL_INTERVAL);
+
+      return () => {
+        isFocusedRef.current = false;
+        if (pollTimerRef.current) {
+          clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
+        }
+      };
     }, [activeTab, fetchRides])
   );
+
+  // Also fetch request count in background for notification badge
+  useEffect(() => {
+    if (activeTab !== "requests") {
+      const fetchCount = async () => {
+        try {
+          const data = await getDriverRides("requests");
+          if (data.success) {
+            setRequestCount(data.rides.length);
+          }
+        } catch {}
+      };
+      fetchCount();
+      const interval = setInterval(fetchCount, POLL_INTERVAL);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab]);
+
+  // Pause polling when app goes to background
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      isFocusedRef.current = state === "active";
+    });
+    return () => sub.remove();
+  }, []);
 
   const handleToggleActive = async (value: boolean) => {
     setIsActive(value);
@@ -97,7 +150,21 @@ export default function DriverDashboard() {
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              fetchRides(activeTab);
+            }}
+            tintColor="#D4A04A"
+            colors={["#D4A04A"]}
+          />
+        }
+      >
         
         {/* Header */}
         <View style={styles.header}>
@@ -113,9 +180,11 @@ export default function DriverDashboard() {
           <View style={styles.headerRight}>
             <TouchableOpacity style={styles.notificationBtn}>
               <Ionicons name="notifications-outline" size={24} color="#000" />
-              <View style={styles.notificationBadge}>
-                <Text style={styles.badgeText}>2</Text>
-              </View>
+              {requestCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.badgeText}>{requestCount > 9 ? "9+" : requestCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
             <TouchableOpacity style={styles.avatarContainer} onPress={() => router.push("/driver/profile")}>
               {driver?.photo ? (

@@ -67,6 +67,11 @@ model Reservation {
   cardLast4              String?
   paymentStatus          String?  @default("PENDING")
   
+  // Driver Response Tracking
+  driverResponse      String?  // "ACCEPTED", "REJECTED", null (pending)
+  driverRespondedAt   DateTime?
+  rejectedDriverIds   String?  // Comma-separated IDs of drivers who rejected
+  
   // Relations
   customerId          String?
   customer            Customer? @relation(fields: [customerId], references: [id])

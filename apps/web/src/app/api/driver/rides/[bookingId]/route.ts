@@ -100,9 +100,11 @@ export async function PATCH(
       return NextResponse.json({ success: false, error: "Ride not found" }, { status: 404 });
     }
 
-    const updateData: { status: string; statusUpdatedAt: Date; completedAt?: Date } = {
+    const updateData: Record<string, unknown> = {
       status,
       statusUpdatedAt: new Date(),
+      driverResponse: "ACCEPTED",
+      driverRespondedAt: new Date(),
     };
 
     if (status === "DONE") {
@@ -147,10 +149,18 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: "Ride not found" }, { status: 404 });
     }
 
-    // Unassign driver from reservation (go back to unassigned PENDING)
+    // Track which driver rejected + unassign
+    const existingRejected = reservation.rejectedDriverIds || "";
+    const rejectedList = existingRejected ? `${existingRejected},${tokenData.id}` : tokenData.id;
+
     await prisma.reservation.update({
       where: { id: reservation.id },
-      data: { assignedDriverId: null },
+      data: {
+        assignedDriverId: null,
+        driverResponse: "REJECTED",
+        driverRespondedAt: new Date(),
+        rejectedDriverIds: rejectedList,
+      },
     });
 
     return NextResponse.json({ success: true, message: "Ride rejected" });

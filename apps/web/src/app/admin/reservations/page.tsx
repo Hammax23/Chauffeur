@@ -5,7 +5,7 @@ import {
   Search, RefreshCw, Filter, ExternalLink, Phone, Mail,
   Car, MapPin, Clock, Users, ChevronDown, ChevronUp,
   Loader2, AlertCircle, Eye, Copy, Check, Pencil, Trash2, X, Save,
-  CreditCard, DollarSign
+  CreditCard, DollarSign, UserX, UserCheck, RotateCcw, Shield
 } from "lucide-react";
 
 const STATUS_OPTIONS = ["ALL", "PENDING", "ON THE WAY", "ARRIVED", "CIC", "DONE"];
@@ -66,6 +66,10 @@ interface Reservation {
   cardLast4?: string;
   paymentStatus?: string;
   assignedDriver?: AssignedDriver | null;
+  assignedDriverId?: string | null;
+  driverResponse?: string | null;
+  driverRespondedAt?: string | null;
+  rejectedDriverIds?: string | null;
 }
 
 export default function ReservationsPage() {
@@ -83,6 +87,10 @@ export default function ReservationsPage() {
   const [chargeResult, setChargeResult] = useState<{ id: string; success: boolean; message: string } | null>(null);
   const [editingChargeId, setEditingChargeId] = useState<string | null>(null);
   const [chargeAmounts, setChargeAmounts] = useState<Record<string, number>>({});
+  const [reassignBookingId, setReassignBookingId] = useState<string | null>(null);
+  const [availableDrivers, setAvailableDrivers] = useState<{id: string; name: string; phone: string; vehicle: string; vehiclePlate: string; isActive: boolean}[]>([]);
+  const [loadingDrivers, setLoadingDrivers] = useState(false);
+  const [assigningDriver, setAssigningDriver] = useState<string | null>(null);
 
   const copyToClipboard = async (url: string, type: string) => {
     try {
@@ -217,6 +225,51 @@ export default function ReservationsPage() {
       alert("Error updating reservation");
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  // Open reassign modal — fetch all drivers, excluding ones who already rejected
+  const openReassignModal = async (bookingId: string, rejectedDriverIds?: string | null) => {
+    setReassignBookingId(bookingId);
+    setLoadingDrivers(true);
+    try {
+      const res = await fetch("/api/admin/drivers");
+      const data = await res.json();
+      if (data.success) {
+        const rejectedSet = new Set((rejectedDriverIds || "").split(",").filter(Boolean));
+        const drivers = (data.drivers || []).map((d: { id: string; name: string; phone: string; vehicle: string; vehiclePlate: string; isActive: boolean }) => ({
+          ...d,
+          wasRejected: rejectedSet.has(d.id),
+        }));
+        setAvailableDrivers(drivers);
+      }
+    } catch {
+      setError("Failed to load drivers");
+    } finally {
+      setLoadingDrivers(false);
+    }
+  };
+
+  const handleReassign = async (driverId: string) => {
+    if (!reassignBookingId) return;
+    setAssigningDriver(driverId);
+    try {
+      const res = await fetch("/api/admin/reservations/assign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId: reassignBookingId, driverId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setReassignBookingId(null);
+        await fetchReservations();
+      } else {
+        alert(data.error || "Failed to assign driver");
+      }
+    } catch {
+      alert("Failed to assign driver");
+    } finally {
+      setAssigningDriver(null);
     }
   };
 
@@ -401,9 +454,63 @@ export default function ReservationsPage() {
                                 <Car className="w-3.5 h-3.5 text-gray-400" />
                                 <span>{r.assignedDriver.vehicle} • {r.assignedDriver.vehiclePlate}</span>
                               </p>
+                              {/* Driver Response Badge */}
+                              {r.driverResponse === "ACCEPTED" ? (
+                                <div className="flex items-center gap-1.5 mt-1">
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                                    <UserCheck className="w-3 h-3" /> Accepted
+                                  </span>
+                                  {r.driverRespondedAt && (
+                                    <span className="text-xs text-gray-400">{new Date(r.driverRespondedAt).toLocaleString()}</span>
+                                  )}
+                                </div>
+                              ) : r.driverResponse === null && r.assignedDriverId ? (
+                                <div className="flex items-center gap-1.5 mt-1">
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 animate-pulse">
+                                    <Clock className="w-3 h-3" /> Awaiting Response
+                                  </span>
+                                </div>
+                              ) : null}
+                              {/* Reassign button */}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); openReassignModal(r.bookingId, r.rejectedDriverIds); }}
+                                className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                              >
+                                <RotateCcw className="w-3 h-3" /> Reassign Driver
+                              </button>
+                            </div>
+                          ) : r.driverResponse === "REJECTED" ? (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                                  <UserX className="w-3 h-3" /> Rejected by Driver
+                                </span>
+                                {r.driverRespondedAt && (
+                                  <span className="text-xs text-gray-400">{new Date(r.driverRespondedAt).toLocaleString()}</span>
+                                )}
+                              </div>
+                              {r.rejectedDriverIds && (
+                                <p className="text-xs text-gray-400">
+                                  {r.rejectedDriverIds.split(",").filter(Boolean).length} driver(s) rejected
+                                </p>
+                              )}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); openReassignModal(r.bookingId, r.rejectedDriverIds); }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-[#C9A063] hover:bg-[#B8904F] rounded-lg transition-colors"
+                              >
+                                <RotateCcw className="w-3 h-3" /> Reassign to Another Driver
+                              </button>
                             </div>
                           ) : (
-                            <p className="text-sm text-gray-400 italic">No driver assigned</p>
+                            <div className="space-y-2">
+                              <p className="text-sm text-gray-400 italic">No driver assigned</p>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); openReassignModal(r.bookingId, r.rejectedDriverIds); }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-[#1C1C1E] hover:bg-[#2C2C2E] rounded-lg transition-colors"
+                              >
+                                <UserCheck className="w-3 h-3" /> Assign Driver
+                              </button>
+                            </div>
                           )}
                         </div>
 
@@ -851,6 +958,94 @@ export default function ReservationsPage() {
                 {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 Save Changes
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reassign Driver Modal */}
+      {reassignBookingId && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Assign Driver</h3>
+                <p className="text-sm text-gray-500 mt-1">Booking: <span className="text-[#C9A063] font-semibold">{reassignBookingId}</span></p>
+              </div>
+              <button
+                onClick={() => setReassignBookingId(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              {loadingDrivers ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-[#C9A063]" />
+                </div>
+              ) : availableDrivers.length === 0 ? (
+                <div className="text-center py-12">
+                  <UserX className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 text-sm">No drivers available</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {availableDrivers.map((d: any) => (
+                    <div
+                      key={d.id}
+                      className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
+                        d.wasRejected
+                          ? "border-red-200 bg-red-50/50"
+                          : "border-gray-200 hover:border-[#C9A063] hover:bg-amber-50/30"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          d.isActive ? "bg-green-100" : "bg-gray-100"
+                        }`}>
+                          <Users className={`w-4 h-4 ${d.isActive ? "text-green-600" : "text-gray-400"}`} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-gray-900 truncate">{d.name}</p>
+                            {d.isActive ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700">Online</span>
+                            ) : (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500">Offline</span>
+                            )}
+                            {d.wasRejected && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-600">
+                                <UserX className="w-2.5 h-2.5" /> Rejected
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 truncate">{d.vehicle} • {d.vehiclePlate}</p>
+                          <p className="text-xs text-gray-400">{d.phone}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleReassign(d.id)}
+                        disabled={assigningDriver === d.id || d.wasRejected}
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-colors flex-shrink-0 ${
+                          d.wasRejected
+                            ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                            : assigningDriver === d.id
+                            ? "bg-[#C9A063] text-white opacity-70"
+                            : "bg-[#1C1C1E] text-white hover:bg-[#2C2C2E]"
+                        }`}
+                      >
+                        {assigningDriver === d.id ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <UserCheck className="w-3 h-3" />
+                        )}
+                        {d.wasRejected ? "Rejected" : "Assign"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
