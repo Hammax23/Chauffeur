@@ -31,13 +31,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { name, phone, email, vehicle, vehiclePlate, vehicleCode, status, photo, password } = body;
 
-    if (!name || !phone || !email || !vehicle || !vehiclePlate) {
-      return NextResponse.json({ success: false, error: "All fields are required" }, { status: 400 });
+    if (!name || !phone || !email || !vehicle || !vehiclePlate || !password) {
+      return NextResponse.json({ success: false, error: "All fields including password are required" }, { status: 400 });
     }
 
-    // Generate a random password if admin doesn't provide one
-    const plainPassword = password || crypto.randomBytes(6).toString("hex");
-    const hashedPassword = await bcrypt.hash(plainPassword, 12);
+    // Hash the admin-provided password
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     const newDriver = await addDriver({
       name,
@@ -59,7 +58,7 @@ export async function POST(request: NextRequest) {
       driver: newDriver,
       credentials: {
         email,
-        password: plainPassword,
+        password: password,
       },
     });
   } catch (error: any) {

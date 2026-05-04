@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateDriver, deleteDriver, getDriverById } from "@/lib/data-store";
 import { verifyAdminAuth } from "@/lib/admin-auth";
+import bcrypt from "bcryptjs";
 
 export async function GET(
   request: NextRequest,
@@ -38,6 +39,14 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
+
+    // If password is provided, hash it before updating
+    if (body.password && body.password.trim() !== "") {
+      body.password = await bcrypt.hash(body.password, 12);
+    } else {
+      // Remove empty password field to prevent overwriting with empty string
+      delete body.password;
+    }
 
     const success = await updateDriver(id, body);
     
