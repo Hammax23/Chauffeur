@@ -98,6 +98,14 @@ model Driver {
   rating        Float    @default(5.0)
   totalTrips    Int      @default(0)
   pushToken     String?  // Expo push notification token
+
+  backgroundCheckUrl           String?
+  commercialInsuranceUrl       String?
+  driverLicenceUrl             String?
+  proofOfWorkEligibilityUrl    String?
+  municipalTaxiLimoLicenceUrl  String?
+  vehicleInsuranceUrl          String?
+  vehicleRegistrationUrl       String?
   
   reservations  Reservation[]
   
@@ -148,6 +156,11 @@ model DriverInvite {
   token         String    @unique
   email         String?
   name          String?
+
+  /// Which registration fields the driver sees (JSON: name, email, phone, vehicle, vehiclePlate, photo — booleans). Legacy rows = all visible.
+  visibleFields     Json?
+  /// Admin-provided values for fields hidden from the driver (same keys as strings).
+  prefilledFields   Json?
   
   status        String    @default("PENDING")
   expiresAt     DateTime
