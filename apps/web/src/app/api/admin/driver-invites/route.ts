@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAdminAuth } from "@/lib/admin-auth";
 import crypto from "crypto";
+import {
+  normalizeVisibleFields,
+  normalizePrefilledFields,
+  validatePrefilledForHidden,
+  type PrefilledFieldsMap,
+  type VisibleFieldsMap,
+  DRIVER_INVITE_FIELD_KEYS,
+} from "@/lib/driver-invite-config";
 
 // Generate cryptographically secure token
 function generateSecureToken(): string {
@@ -36,7 +44,15 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { email, name, expiryHours = 48 } = body;
+    const { email, name, expiryHours = 48, visibleFields: rawVisible, prefilledFields: rawPrefilled } = body;
+
+    const visibleFields = normalizeVisibleFields(rawVisible);
+    const prefilledFields = normalizePrefilledFields(rawPrefilled);
+
+    const prefilledErr = validatePrefilledForHidden(visibleFields, prefilledFields);
+    if (prefilledErr) {
+      return NextResponse.json({ success: false, error: prefilledErr }, { status: 400 });
+    }
 
     // Validate expiry hours (min 1 hour, max 168 hours / 7 days)
     const validExpiryHours = Math.min(Math.max(parseInt(expiryHours) || 48, 1), 168);
@@ -48,12 +64,34 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + validExpiryHours);
 
+    // Optional hints when field is visible on registration form
+    const hintName = name?.trim() || null;
+    const hintEmail = email?.trim() || null;
+
+    // Stored listing labels: prefer hints; hidden fields use prefilled
+    const resolvedName =
+      (visibleFields.name ? hintName : prefilledFields.name?.trim()) || hintName || prefilledFields.name?.trim() || null;
+    const resolvedEmail =
+      (visibleFields.email ? hintEmail : prefilledFields.email?.trim()) || hintEmail || prefilledFields.email?.trim() || null;
+
+    // Only persist prefilled keys for hidden fields (keep payload small)
+    const prefilledOnlyHidden: PrefilledFieldsMap = {};
+    for (const key of DRIVER_INVITE_FIELD_KEYS) {
+      if (!visibleFields[key] && prefilledFields[key]?.trim()) {
+        prefilledOnlyHidden[key] = prefilledFields[key]!.trim();
+      }
+    }
+
     // Create invite in database
     const invite = await prisma.driverInvite.create({
       data: {
         token,
-        email: email?.trim() || null,
-        name: name?.trim() || null,
+        email: resolvedEmail,
+        name: resolvedName,
+        visibleFields: visibleFields as object,
+        ...(Object.keys(prefilledOnlyHidden).length > 0
+          ? { prefilledFields: prefilledOnlyHidden as object }
+          : {}),
         status: "PENDING",
         expiresAt,
       },
@@ -72,6 +110,7 @@ export async function POST(request: NextRequest) {
         name: invite.name,
         status: invite.status,
         expiresAt: invite.expiresAt,
+        visibleFields: normalizeVisibleFields(invite.visibleFields),
         registrationUrl,
       },
     });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { parseVisibleFieldsFromDb } from "@/lib/driver-invite-config";
 
 // Rate limiting map
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -87,13 +88,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Token is valid
+    const visibleFields = parseVisibleFieldsFromDb(invite.visibleFields);
+
+    // Token is valid — only expose hint name/email when those fields are open; never leak prefilled-only data.
     return NextResponse.json({
       success: true,
       invite: {
-        email: invite.email,
-        name: invite.name,
+        email: visibleFields.email ? invite.email : null,
+        name: visibleFields.name ? invite.name : null,
         expiresAt: invite.expiresAt,
+        visibleFields,
       },
     });
   } catch (error: any) {

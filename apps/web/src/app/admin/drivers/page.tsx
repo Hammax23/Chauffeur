@@ -4,9 +4,23 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Plus, Search, Phone, Mail, Car, Star,
   Loader2, AlertCircle, Edit2, Trash2, X, Check,
-  User, MapPin, ClipboardList, Camera, Upload, Link2, Copy, Clock, CheckCircle, XCircle, Send
+  User, ClipboardList, Camera, Upload, Link2, Copy, Clock, CheckCircle, XCircle, Send, Eye, EyeOff,
+  FileText,
 } from "lucide-react";
 import Image from "next/image";
+import {
+  DEFAULT_VISIBLE_FIELDS,
+  DRIVER_INVITE_FIELD_KEYS,
+  DRIVER_PROFILE_FIELD_KEYS,
+  DRIVER_DOCUMENT_FIELD_KEYS,
+  DRIVER_VEHICLE_DOC_FIELD_KEYS,
+  DRIVER_INVITE_FIELD_LABELS,
+  emptyPrefilledFieldsRecord,
+  isDocumentUploadField,
+  isPrefilledOptionalWhenClosed,
+  type DriverInviteFieldKey,
+  type VisibleFieldsMap,
+} from "@/lib/driver-invite-config";
 
 interface Reservation {
   bookingId: string;
@@ -94,6 +108,11 @@ export default function DriversPage() {
   const [loadingInvites, setLoadingInvites] = useState(false);
   const [creatingInvite, setCreatingInvite] = useState(false);
   const [inviteForm, setInviteForm] = useState({ email: "", name: "", expiryHours: "48" });
+  const [fieldVisibility, setFieldVisibility] = useState<VisibleFieldsMap>({ ...DEFAULT_VISIBLE_FIELDS });
+  const [prefilledFields, setPrefilledFields] = useState<Record<DriverInviteFieldKey, string>>(() =>
+    emptyPrefilledFieldsRecord()
+  );
+  const [uploadingInviteField, setUploadingInviteField] = useState<DriverInviteFieldKey | null>(null);
   const [generatedLink, setGeneratedLink] = useState("");
   const [copySuccess, setCopySuccess] = useState(false);
   const [deletingInvite, setDeletingInvite] = useState<string | null>(null);
@@ -294,8 +313,165 @@ export default function DriversPage() {
     }
   };
 
+  const handleInviteClosedFieldUpload = async (
+    key: DriverInviteFieldKey,
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingInviteField(key);
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", key === "photo" ? "driver" : "driver-document");
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      if (data.success) {
+        setPrefilledFields((prev) => ({ ...prev, [key]: data.url }));
+      } else {
+        setError(data.error || "Upload failed");
+      }
+    } catch {
+      setError("Upload failed");
+    } finally {
+      setUploadingInviteField(null);
+      e.target.value = "";
+    }
+  };
+
+  const renderInviteFieldRow = (key: DriverInviteFieldKey) => {
+    const open = fieldVisibility[key];
+    const label = DRIVER_INVITE_FIELD_LABELS[key];
+    const docKind = isDocumentUploadField(key);
+    const showDocClosedUi = !open && docKind;
+    const showTextClosedUi = !open && !docKind;
+
+    return (
+      <div
+        key={key}
+        className="rounded-xl border border-gray-200 bg-gray-50/80 p-3 sm:p-3.5 space-y-2"
+      >
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <span className="text-sm font-medium text-gray-800 min-w-0 break-words pr-1">{label}</span>
+          <div className="flex w-full sm:w-auto rounded-lg border border-gray-200 bg-white overflow-hidden shrink-0">
+            <button
+              type="button"
+              onClick={() => setFieldVisibility((prev) => ({ ...prev, [key]: true }))}
+              className={`flex flex-1 sm:flex-initial items-center justify-center gap-1.5 px-3 py-2.5 sm:px-2.5 sm:py-1.5 min-h-[44px] sm:min-h-0 text-xs font-medium transition-colors ${
+                open ? "bg-emerald-600 text-white" : "text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              <Eye className="w-3.5 h-3.5 shrink-0" />
+              Open
+            </button>
+            <button
+              type="button"
+              onClick={() => setFieldVisibility((prev) => ({ ...prev, [key]: false }))}
+              className={`flex flex-1 sm:flex-initial items-center justify-center gap-1.5 px-3 py-2.5 sm:px-2.5 sm:py-1.5 min-h-[44px] sm:min-h-0 text-xs font-medium transition-colors ${
+                !open ? "bg-gray-700 text-white" : "text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              <EyeOff className="w-3.5 h-3.5 shrink-0" />
+              Closed
+            </button>
+          </div>
+        </div>
+
+        {open && (key === "name" || key === "email") && (
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">
+              Optional pre-fill when driver opens the link
+            </label>
+            <input
+              type={key === "email" ? "email" : "text"}
+              value={key === "name" ? inviteForm.name : inviteForm.email}
+              onChange={(e) =>
+                setInviteForm({
+                  ...inviteForm,
+                  [key === "name" ? "name" : "email"]: e.target.value,
+                })
+              }
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
+              placeholder={key === "name" ? "Pre-fill name on form" : "Pre-fill email on form"}
+            />
+          </div>
+        )}
+
+        {open && key !== "name" && key !== "email" && (
+          <p className="text-xs text-gray-500 leading-relaxed">
+            {key === "photo"
+              ? "Driver will upload a profile photo on the registration page."
+              : docKind && key !== "photo"
+                ? "Driver will upload this document (PDF or image) on the registration page."
+                : "Driver will enter this on the registration page."}
+          </p>
+        )}
+
+        {showDocClosedUi && (
+          <div className="space-y-2">
+            <label className="block text-xs text-gray-600">
+              {isPrefilledOptionalWhenClosed(key)
+                ? "Optional — paste URL or upload"
+                : "Required — paste secure URL or upload file"}
+            </label>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+              <input
+                type="text"
+                value={prefilledFields[key]}
+                onChange={(e) =>
+                  setPrefilledFields((prev) => ({ ...prev, [key]: e.target.value }))
+                }
+                className="w-full flex-1 min-w-0 px-3 py-2.5 sm:py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
+                placeholder="https://..."
+              />
+              <label className="flex sm:flex-shrink-0 items-center justify-center gap-2 w-full sm:w-11 h-11 rounded-lg border border-gray-200 bg-white cursor-pointer hover:bg-gray-50 py-2 sm:py-0 text-xs sm:text-[0] font-medium text-gray-600 sm:font-normal">
+                {uploadingInviteField === key ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-[#C9A063]" />
+                ) : (
+                  <Upload className="w-4 h-4 text-gray-600" />
+                )}
+                <span className="sm:hidden">Upload file</span>
+                <input
+                  type="file"
+                  accept={key === "photo" ? "image/*" : "image/*,application/pdf"}
+                  className="hidden"
+                  disabled={uploadingInviteField !== null}
+                  onChange={(e) => handleInviteClosedFieldUpload(key, e)}
+                />
+              </label>
+            </div>
+          </div>
+        )}
+
+        {showTextClosedUi && (
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">
+              Required — {label} for driver record
+            </label>
+            <input
+              type="text"
+              value={prefilledFields[key]}
+              onChange={(e) =>
+                setPrefilledFields((prev) => ({
+                  ...prev,
+                  [key]: e.target.value,
+                }))
+              }
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
+              placeholder={`Enter ${label.toLowerCase()}`}
+              required
+            />
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const openInviteModal = () => {
     setInviteForm({ email: "", name: "", expiryHours: "48" });
+    setFieldVisibility({ ...DEFAULT_VISIBLE_FIELDS });
+    setPrefilledFields(emptyPrefilledFieldsRecord());
     setGeneratedLink("");
     setCopySuccess(false);
     setShowInviteModal(true);
@@ -311,11 +487,29 @@ export default function DriversPage() {
     setCreatingInvite(true);
     setError("");
 
+    for (const key of DRIVER_INVITE_FIELD_KEYS) {
+      if (fieldVisibility[key]) continue;
+      if (isPrefilledOptionalWhenClosed(key)) continue;
+      if (!prefilledFields[key]?.trim()) {
+        setError(
+          `"${DRIVER_INVITE_FIELD_LABELS[key]}" is closed — provide a value or upload for the driver record.`
+        );
+        setCreatingInvite(false);
+        return;
+      }
+    }
+
     try {
       const res = await fetch("/api/admin/driver-invites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(inviteForm),
+        body: JSON.stringify({
+          email: fieldVisibility.email ? inviteForm.email.trim() || undefined : undefined,
+          name: fieldVisibility.name ? inviteForm.name.trim() || undefined : undefined,
+          expiryHours: inviteForm.expiryHours,
+          visibleFields: fieldVisibility,
+          prefilledFields,
+        }),
       });
       const data = await res.json();
 
@@ -382,40 +576,40 @@ export default function DriversPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Drivers</h1>
           <p className="text-gray-500 mt-1">Manage your driver fleet</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col min-[480px]:flex-row flex-wrap gap-2 w-full sm:w-auto">
           <button
             onClick={openInvitesList}
-            className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-all"
+            className="flex flex-1 min-[480px]:flex-initial items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-all"
           >
-            <Clock className="w-4 h-4" />
+            <Clock className="w-4 h-4 shrink-0" />
             View Invites
           </button>
           <button
             onClick={openInviteModal}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-all"
+            className="flex flex-1 min-[480px]:flex-initial items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-all"
           >
-            <Send className="w-4 h-4" />
+            <Send className="w-4 h-4 shrink-0" />
             Invite Driver
           </button>
           <button
             onClick={openAddModal}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#C9A063] text-white rounded-xl text-sm font-medium hover:bg-[#B8904F] transition-all"
+            className="flex flex-1 min-[480px]:flex-initial items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] bg-[#C9A063] text-white rounded-xl text-sm font-medium hover:bg-[#B8904F] transition-all"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 shrink-0" />
             Add Driver
           </button>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
         <div className="bg-white rounded-xl p-4 border border-gray-100">
           <p className="text-2xl font-bold text-gray-900">{drivers.length}</p>
           <p className="text-xs text-gray-500">Total Drivers</p>
@@ -545,14 +739,19 @@ export default function DriversPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-0 sm:p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowModal(false)} />
-          <div className="relative bg-white rounded-2xl w-full max-w-md p-6 shadow-xl">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900">
+          <div className="relative bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto p-4 sm:p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-3 mb-5 sm:mb-6">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 pr-2">
                 {editingDriver ? "Edit Driver" : "Add New Driver"}
               </h2>
-              <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="p-2.5 min-h-[44px] min-w-[44px] shrink-0 flex items-center justify-center hover:bg-gray-100 rounded-lg"
+                aria-label="Close"
+              >
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
@@ -597,7 +796,7 @@ export default function DriversPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
                   <input
@@ -605,7 +804,7 @@ export default function DriversPage() {
                     required
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-base sm:text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
                     placeholder="Phone number"
                   />
                 </div>
@@ -616,13 +815,13 @@ export default function DriversPage() {
                     required
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-base sm:text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
                     placeholder="Email"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle</label>
                   <input
@@ -686,18 +885,18 @@ export default function DriversPage() {
                 />
               </div>
 
-              <div className="flex gap-3 pt-4">
+              <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-4">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50"
+                  className="w-full sm:flex-1 px-4 py-3 sm:py-2.5 min-h-[48px] border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 px-4 py-2.5 bg-[#C9A063] text-white rounded-xl text-sm font-medium hover:bg-[#B8904F] disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="w-full sm:flex-1 px-4 py-3 sm:py-2.5 min-h-[48px] bg-[#C9A063] text-white rounded-xl text-sm font-medium hover:bg-[#B8904F] disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                   {editingDriver ? "Update" : "Add Driver"}
@@ -710,15 +909,23 @@ export default function DriversPage() {
 
       {/* Assign to Reservation Modal */}
       {showAssignModal && selectedDriver && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-0 sm:p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => { setShowAssignModal(false); setSelectedDriver(null); }} />
-          <div className="relative bg-white rounded-2xl w-full max-w-lg p-6 shadow-xl max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Assign Reservation</h2>
-                <p className="text-sm text-gray-500">Assign a reservation to <span className="font-medium text-[#C9A063]">{selectedDriver.name}</span></p>
+          <div className="relative bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg p-4 sm:p-6 shadow-xl max-h-[85dvh] sm:max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-start justify-between gap-3 mb-4 shrink-0">
+              <div className="min-w-0 pr-2">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Assign Reservation</h2>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                  Assign a reservation to{" "}
+                  <span className="font-medium text-[#C9A063] break-words">{selectedDriver.name}</span>
+                </p>
               </div>
-              <button onClick={() => { setShowAssignModal(false); setSelectedDriver(null); }} className="p-2 hover:bg-gray-100 rounded-lg">
+              <button
+                type="button"
+                onClick={() => { setShowAssignModal(false); setSelectedDriver(null); }}
+                className="p-2.5 min-h-[44px] min-w-[44px] shrink-0 flex items-center justify-center hover:bg-gray-100 rounded-lg"
+                aria-label="Close"
+              >
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
@@ -737,22 +944,23 @@ export default function DriversPage() {
               ) : (
                 <div className="space-y-3">
                   {reservations.map((res) => (
-                    <div key={res.bookingId} className="border border-gray-200 rounded-xl p-4 hover:border-[#C9A063]/50 transition-colors">
-                      <div className="flex items-start justify-between gap-4">
+                    <div key={res.bookingId} className="border border-gray-200 rounded-xl p-3 sm:p-4 hover:border-[#C9A063]/50 transition-colors">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-gray-900 text-sm">{res.firstName} {res.lastName}</p>
-                          <p className="text-xs text-gray-500 mt-0.5">{res.bookingId}</p>
+                          <p className="text-xs text-gray-500 mt-0.5 break-all">{res.bookingId}</p>
                           <div className="mt-2 space-y-1 text-xs text-gray-600">
                             <p><span className="text-gray-400">Date:</span> {res.serviceDate} at {res.serviceTime}</p>
                             <p><span className="text-gray-400">Vehicle:</span> {res.vehicle}</p>
-                            <p className="truncate"><span className="text-gray-400">From:</span> {res.pickupLocation}</p>
-                            <p className="truncate"><span className="text-gray-400">To:</span> {res.dropoffLocation}</p>
+                            <p className="break-words"><span className="text-gray-400">From:</span> {res.pickupLocation}</p>
+                            <p className="break-words"><span className="text-gray-400">To:</span> {res.dropoffLocation}</p>
                           </div>
                         </div>
                         <button
+                          type="button"
                           onClick={() => handleAssign(res.bookingId)}
                           disabled={assigning === res.bookingId}
-                          className="px-3 py-1.5 bg-[#C9A063] text-white rounded-lg text-xs font-medium hover:bg-[#B8904F] disabled:opacity-50 flex items-center gap-1.5 flex-shrink-0"
+                          className="w-full sm:w-auto sm:flex-shrink-0 px-4 py-2.5 min-h-[44px] justify-center bg-[#C9A063] text-white rounded-lg text-xs font-medium hover:bg-[#B8904F] disabled:opacity-50 flex items-center gap-1.5"
                         >
                           {assigning === res.bookingId ? (
                             <Loader2 className="w-3 h-3 animate-spin" />
@@ -773,44 +981,69 @@ export default function DriversPage() {
 
       {/* Invite Driver Modal */}
       {showInviteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-0 sm:p-4 md:p-6">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowInviteModal(false)} />
-          <div className="relative bg-white rounded-2xl w-full max-w-md p-6 shadow-xl">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Invite Driver</h2>
-                <p className="text-sm text-gray-500">Generate a secure registration link</p>
+          <div className="relative bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-2xl p-4 sm:p-6 shadow-xl max-h-[calc(100dvh-0px)] sm:max-h-[90vh] flex flex-col">
+            <div className="flex items-start justify-between gap-3 mb-4 sm:mb-6 shrink-0">
+              <div className="min-w-0 flex-1 pr-2">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Invite Driver</h2>
+                <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Generate a secure registration link</p>
               </div>
-              <button onClick={() => setShowInviteModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+              <button
+                type="button"
+                onClick={() => setShowInviteModal(false)}
+                className="p-2.5 min-h-[44px] min-w-[44px] shrink-0 flex items-center justify-center hover:bg-gray-100 rounded-lg"
+                aria-label="Close"
+              >
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
 
             {!generatedLink ? (
-              <form onSubmit={handleCreateInvite} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Driver Name (optional)</label>
-                  <input
-                    type="text"
-                    value={inviteForm.name}
-                    onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
-                    placeholder="Pre-fill driver's name"
-                  />
+              <form onSubmit={handleCreateInvite} className="space-y-3 sm:space-y-4 flex flex-col min-h-0 flex-1 overflow-hidden">
+                <p className="text-xs text-gray-500 shrink-0 leading-relaxed">
+                  <span className="font-semibold text-gray-700">Open</span> = driver sees this on the registration page.{" "}
+                  <span className="font-semibold text-gray-700">Closed</span> = you provide it here (upload or URL); it stays off the public form.
+                </p>
+
+                <div className="space-y-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 -mr-1 pb-2 max-h-[min(52dvh,420px)] sm:max-h-[min(58vh,520px)]">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                      Profile &amp; vehicle
+                    </p>
+                    <div className="space-y-3">
+                      {DRIVER_PROFILE_FIELD_KEYS.map(renderInviteFieldRow)}
+                    </div>
+                  </div>
+
+                  <div className="border-t border-gray-100 pt-4">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-gray-500" />
+                      Documents
+                    </p>
+                    <p className="text-xs text-gray-500 mb-2 leading-relaxed">
+                      Compliance document uploads (PDF or image). Same Open / Closed rules — Open lets the driver upload on registration; Closed keeps files internal to admin.
+                    </p>
+                    <div className="space-y-3">
+                      {DRIVER_DOCUMENT_FIELD_KEYS.map(renderInviteFieldRow)}
+                    </div>
+                  </div>
+
+                  <div className="border-t border-gray-100 pt-4">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-2">
+                      <Car className="w-4 h-4 text-gray-500" />
+                      Vehicle
+                    </p>
+                    <p className="text-xs text-gray-500 mb-2 leading-relaxed">
+                      Vehicle insurance and registration documents.
+                    </p>
+                    <div className="space-y-3">
+                      {DRIVER_VEHICLE_DOC_FIELD_KEYS.map(renderInviteFieldRow)}
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Driver Email (optional)</label>
-                  <input
-                    type="email"
-                    value={inviteForm.email}
-                    onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
-                    placeholder="Pre-fill driver's email"
-                  />
-                </div>
-
-                <div>
+                <div className="shrink-0">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Link Expiry</label>
                   <select
                     value={inviteForm.expiryHours}
@@ -832,25 +1065,25 @@ export default function DriversPage() {
                     <div>
                       <p className="text-sm font-medium text-blue-900">Secure Invitation</p>
                       <p className="text-xs text-blue-700 mt-1">
-                        The link is one-time use only and will expire after the selected duration. 
-                        Driver can self-register without accessing your admin panel.
+                        One-time link; expires after the duration you pick. Only &quot;Open&quot; fields appear on{" "}
+                        <code className="text-[11px] bg-blue-100/80 px-1 rounded">/driver-register</code>.
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex gap-3 pt-2">
+                <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-2 shrink-0">
                   <button
                     type="button"
                     onClick={() => setShowInviteModal(false)}
-                    className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50"
+                    className="w-full sm:flex-1 px-4 py-3 sm:py-2.5 min-h-[48px] border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={creatingInvite}
-                    className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="w-full sm:flex-1 px-4 py-3 sm:py-2.5 min-h-[48px] bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {creatingInvite ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
                     Generate Link
@@ -858,7 +1091,7 @@ export default function DriversPage() {
                 </div>
               </form>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-4 overflow-y-auto max-h-[calc(100dvh-8rem)]">
                 <div className="bg-green-50 border border-green-100 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <CheckCircle className="w-5 h-5 text-green-600" />
@@ -867,16 +1100,17 @@ export default function DriversPage() {
                   <p className="text-xs text-green-700">Share this link with the driver. They can use it to register themselves.</p>
                 </div>
 
-                <div className="relative">
+                <div className="flex flex-col gap-2 sm:block sm:relative">
                   <input
                     type="text"
                     readOnly
                     value={generatedLink}
-                    className="w-full px-4 py-3 pr-24 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 font-mono"
+                    className="w-full px-3 sm:px-4 py-3 sm:pr-24 bg-gray-50 border border-gray-200 rounded-xl text-xs sm:text-sm text-gray-900 font-mono break-all"
                   />
                   <button
+                    type="button"
                     onClick={copyToClipboard}
-                    className={`absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+                    className={`sm:absolute sm:right-2 sm:top-1/2 sm:-translate-y-1/2 w-full sm:w-auto justify-center px-4 py-3 sm:py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all min-h-[44px] sm:min-h-0 ${
                       copySuccess 
                         ? "bg-green-100 text-green-700" 
                         : "bg-[#C9A063] text-white hover:bg-[#B8904F]"
@@ -896,19 +1130,23 @@ export default function DriversPage() {
                   </button>
                 </div>
 
-                <div className="flex gap-3 pt-2">
+                <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-2">
                   <button
+                    type="button"
                     onClick={() => {
                       setGeneratedLink("");
                       setInviteForm({ email: "", name: "", expiryHours: "48" });
+                      setFieldVisibility({ ...DEFAULT_VISIBLE_FIELDS });
+                      setPrefilledFields(emptyPrefilledFieldsRecord());
                     }}
-                    className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50"
+                    className="w-full sm:flex-1 px-4 py-3 sm:py-2.5 min-h-[48px] border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50"
                   >
                     Generate Another
                   </button>
                   <button
+                    type="button"
                     onClick={() => setShowInviteModal(false)}
-                    className="flex-1 px-4 py-2.5 bg-[#C9A063] text-white rounded-xl text-sm font-medium hover:bg-[#B8904F]"
+                    className="w-full sm:flex-1 px-4 py-3 sm:py-2.5 min-h-[48px] bg-[#C9A063] text-white rounded-xl text-sm font-medium hover:bg-[#B8904F]"
                   >
                     Done
                   </button>
@@ -921,15 +1159,20 @@ export default function DriversPage() {
 
       {/* View Invites List Modal */}
       {showInvitesListModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-0 sm:p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowInvitesListModal(false)} />
-          <div className="relative bg-white rounded-2xl w-full max-w-2xl p-6 shadow-xl max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Driver Invites</h2>
-                <p className="text-sm text-gray-500">Manage registration invitations</p>
+          <div className="relative bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-2xl p-4 sm:p-6 shadow-xl max-h-[85dvh] sm:max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-start justify-between gap-3 mb-4 shrink-0">
+              <div className="min-w-0">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Driver Invites</h2>
+                <p className="text-xs sm:text-sm text-gray-500">Manage registration invitations</p>
               </div>
-              <button onClick={() => setShowInvitesListModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+              <button
+                type="button"
+                onClick={() => setShowInvitesListModal(false)}
+                className="p-2.5 min-h-[44px] min-w-[44px] shrink-0 flex items-center justify-center hover:bg-gray-100 rounded-lg"
+                aria-label="Close"
+              >
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
@@ -960,8 +1203,8 @@ export default function DriversPage() {
                     const statusStyle = getInviteStatusStyle(invite.status);
                     const StatusIcon = statusStyle.icon;
                     return (
-                      <div key={invite.id} className="border border-gray-200 rounded-xl p-4 hover:border-gray-300 transition-colors">
-                        <div className="flex items-start justify-between gap-4">
+                      <div key={invite.id} className="border border-gray-200 rounded-xl p-3 sm:p-4 hover:border-gray-300 transition-colors">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-2">
                               <span className={`px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 ${statusStyle.bg} ${statusStyle.text}`}>
@@ -994,9 +1237,10 @@ export default function DriversPage() {
                           </div>
                           {invite.status === "PENDING" && (
                             <button
+                              type="button"
                               onClick={() => handleRevokeInvite(invite.id)}
                               disabled={deletingInvite === invite.id}
-                              className="px-3 py-1.5 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+                              className="self-start sm:self-auto px-4 py-2.5 sm:py-1.5 min-h-[44px] sm:min-h-0 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors w-full sm:w-auto"
                             >
                               {deletingInvite === invite.id ? (
                                 <Loader2 className="w-3 h-3 animate-spin" />

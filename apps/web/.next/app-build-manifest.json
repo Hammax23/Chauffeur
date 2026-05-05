@@ -1,20 +1,5 @@
 {
   "pages": {
-    "/api/admin/drivers/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/admin/drivers/route.js"
-    ],
-    "/api/upload/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/upload/route.js"
-    ],
-    "/api/admin/driver-invites/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/admin/driver-invites/route.js"
-    ],
     "/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
@@ -26,21 +11,30 @@
       "static/chunks/main-app.js",
       "static/chunks/app/driver-register/[token]/page.js"
     ],
-    "/api/driver-register/validate/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/driver-register/validate/route.js"
-    ],
     "/admin/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/admin/layout.js"
     ],
-    "/admin/custom-reservation/page": [
+    "/admin/drivers/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/css/app/admin/custom-reservation/page.css",
-      "static/chunks/app/admin/custom-reservation/page.js"
+      "static/chunks/app/admin/drivers/page.js"
+    ],
+    "/api/admin/auth/verify/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/admin/auth/verify/route.js"
+    ],
+    "/api/driver-register/validate/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/driver-register/validate/route.js"
+    ],
+    "/api/admin/drivers/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/admin/drivers/route.js"
     ],
     "/admin/reservations/page": [
       "static/chunks/webpack.js",
@@ -52,35 +46,10 @@
       "static/chunks/main-app.js",
       "static/chunks/app/api/admin/reservations/route.js"
     ],
-    "/admin/drivers/page": [
+    "/_not-found/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/admin/drivers/page.js"
-    ],
-    "/admin/quotes/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/admin/quotes/page.js"
-    ],
-    "/api/admin/quotes/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/admin/quotes/route.js"
-    ],
-    "/api/admin/auth/verify/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/admin/auth/verify/route.js"
-    ],
-    "/api/admin/auth/send-otp/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/admin/auth/send-otp/route.js"
-    ],
-    "/api/admin/auth/verify-otp/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/admin/auth/verify-otp/route.js"
+      "static/chunks/app/_not-found/page.js"
     ]
   }
 }

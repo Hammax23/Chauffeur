@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Resend } from "resend";
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
+import {
+  mergeDriverInviteRegistration,
+  getVisibleComplianceDocKeys,
+  parseVisibleFieldsFromDb,
+  DRIVER_INVITE_FIELD_LABELS,
+  type DriverInviteFieldKey,
+  type MergedDriverRegistration,
+} from "@/lib/driver-invite-config";
 
 // Initialize Resend only if API key exists
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -35,6 +45,12 @@ function sanitizeInput(input: string): string {
     .slice(0, 500);
 }
 
+function sanitizeDocUrl(url: string | null): string | null {
+  if (!url || typeof url !== "string") return null;
+  const t = url.trim().replace(/[<>]/g, "").slice(0, 2048);
+  return t || null;
+}
+
 // Generate unique driver ID
 function generateDriverId(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -58,12 +74,108 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { token, name, phone, email, vehicle, vehiclePlate, photo, turnstileToken } = body;
+    const {
+      token,
+      turnstileToken,
+      name,
+      phone,
+      email,
+      vehicle,
+      vehiclePlate,
+      photo,
+      backgroundCheck,
+      commercialInsurance,
+      driverLicence,
+      proofOfWorkEligibility,
+      municipalTaxiLimoLicence,
+      vehicleInsurance,
+      vehicleRegistration,
+    } = body;
 
-    // Validate required fields
-    if (!token || !name || !phone || !email || !vehicle || !vehiclePlate) {
+    if (!token || typeof token !== "string") {
+      return NextResponse.json({ success: false, error: "Invalid invitation" }, { status: 400 });
+    }
+
+    // Validate invite token early (needed for dynamic field merge)
+    const invite = await prisma.driverInvite.findUnique({
+      where: { token },
+    });
+
+    if (!invite) {
       return NextResponse.json(
-        { success: false, error: "All fields are required" },
+        { success: false, error: "Invalid invitation link" },
+        { status: 404 }
+      );
+    }
+
+    if (invite.status !== "PENDING") {
+      return NextResponse.json(
+        { success: false, error: "This invitation has already been used or is no longer valid" },
+        { status: 410 }
+      );
+    }
+
+    if (new Date() > invite.expiresAt) {
+      await prisma.driverInvite.update({
+        where: { id: invite.id },
+        data: { status: "EXPIRED" },
+      });
+
+      return NextResponse.json(
+        { success: false, error: "This invitation has expired" },
+        { status: 410 }
+      );
+    }
+
+    const merged = mergeDriverInviteRegistration(invite, {
+      name,
+      email,
+      phone,
+      vehicle,
+      vehiclePlate,
+      photo,
+      backgroundCheck,
+      commercialInsurance,
+      driverLicence,
+      proofOfWorkEligibility,
+      municipalTaxiLimoLicence,
+      vehicleInsurance,
+      vehicleRegistration,
+    });
+
+    if (!merged.name || !merged.email || !merged.phone || !merged.vehicle || !merged.vehiclePlate) {
+      return NextResponse.json(
+        { success: false, error: "Missing required registration information" },
+        { status: 400 }
+      );
+    }
+
+    const visibleParsed = parseVisibleFieldsFromDb(invite.visibleFields);
+    for (const key of getVisibleComplianceDocKeys(visibleParsed)) {
+      const val = merged[key as keyof MergedDriverRegistration];
+      if (val == null || (typeof val === "string" && !val.trim())) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Required document missing: ${DRIVER_INVITE_FIELD_LABELS[key as DriverInviteFieldKey]}`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(merged.email)) {
+      return NextResponse.json(
+        { success: false, error: "Please enter a valid email address" },
+        { status: 400 }
+      );
+    }
+
+    const phoneRegex = /^[\d\s\-+()]{10,}$/;
+    if (!phoneRegex.test(merged.phone)) {
+      return NextResponse.json(
+        { success: false, error: "Please enter a valid phone number" },
         { status: 400 }
       );
     }
@@ -97,40 +209,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate invite token
-    const invite = await prisma.driverInvite.findUnique({
-      where: { token },
-    });
-
-    if (!invite) {
-      return NextResponse.json(
-        { success: false, error: "Invalid invitation link" },
-        { status: 404 }
-      );
-    }
-
-    if (invite.status !== "PENDING") {
-      return NextResponse.json(
-        { success: false, error: "This invitation has already been used or is no longer valid" },
-        { status: 410 }
-      );
-    }
-
-    if (new Date() > invite.expiresAt) {
-      await prisma.driverInvite.update({
-        where: { id: invite.id },
-        data: { status: "EXPIRED" },
-      });
-
-      return NextResponse.json(
-        { success: false, error: "This invitation has expired" },
-        { status: 410 }
-      );
-    }
-
     // Check if email already exists
     const existingDriver = await prisma.driver.findUnique({
-      where: { email: sanitizeInput(email) },
+      where: { email: sanitizeInput(merged.email) },
     });
 
     if (existingDriver) {
@@ -139,6 +220,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const plainPassword = crypto.randomBytes(18).toString("base64url").slice(0, 20);
+    const hashedPassword = await bcrypt.hash(plainPassword, 12);
 
     // Generate unique driver ID
     let driverId = generateDriverId();
@@ -163,12 +247,20 @@ export async function POST(request: NextRequest) {
       const driver = await tx.driver.create({
         data: {
           driverId,
-          name: sanitizeInput(name),
-          phone: sanitizeInput(phone),
-          email: sanitizeInput(email),
-          vehicle: sanitizeInput(vehicle),
-          vehiclePlate: sanitizeInput(vehiclePlate).toUpperCase(),
-          photo: photo || null,
+          name: sanitizeInput(merged.name),
+          phone: sanitizeInput(merged.phone),
+          email: sanitizeInput(merged.email),
+          vehicle: sanitizeInput(merged.vehicle),
+          vehiclePlate: sanitizeInput(merged.vehiclePlate).toUpperCase(),
+          password: hashedPassword,
+          photo: merged.photo || null,
+          backgroundCheckUrl: sanitizeDocUrl(merged.backgroundCheck),
+          commercialInsuranceUrl: sanitizeDocUrl(merged.commercialInsurance),
+          driverLicenceUrl: sanitizeDocUrl(merged.driverLicence),
+          proofOfWorkEligibilityUrl: sanitizeDocUrl(merged.proofOfWorkEligibility),
+          municipalTaxiLimoLicenceUrl: sanitizeDocUrl(merged.municipalTaxiLimoLicence),
+          vehicleInsuranceUrl: sanitizeDocUrl(merged.vehicleInsurance),
+          vehicleRegistrationUrl: sanitizeDocUrl(merged.vehicleRegistration),
           status: "available",
           rating: 5.0,
           totalTrips: 0,
@@ -275,6 +367,9 @@ export async function POST(request: NextRequest) {
                   <p style="margin: 5px 0;"><strong>Driver ID:</strong> ${result.driverId}</p>
                   <p style="margin: 5px 0;"><strong>Vehicle:</strong> ${result.vehicle}</p>
                   <p style="margin: 5px 0;"><strong>Plate:</strong> ${result.vehiclePlate}</p>
+                  <p style="margin: 12px 0 0 0; padding-top: 12px; border-top: 1px solid #ddd; color: #333;"><strong>Driver app login password:</strong></p>
+                  <p style="margin: 8px 0 0 0; font-family: monospace; font-size: 15px; font-weight: bold; letter-spacing: 0.5px;">${plainPassword}</p>
+                  <p style="margin: 8px 0 0 0; font-size: 13px; color: #666;">Use this email and password to sign in to the driver app. Store it securely.</p>
                 </div>
                 
                 <p style="color: #666; font-size: 14px;">

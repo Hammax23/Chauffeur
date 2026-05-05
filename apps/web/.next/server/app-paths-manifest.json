@@ -1,8 +1,7 @@
 {
-  "/api/admin/auth/verify/route": "app/api/admin/auth/verify/route.js",
-  "/api/admin/auth/send-otp/route": "app/api/admin/auth/send-otp/route.js",
-  "/api/admin/auth/verify-otp/route": "app/api/admin/auth/verify-otp/route.js",
   "/api/admin/drivers/route": "app/api/admin/drivers/route.js",
+  "/api/driver-register/validate/route": "app/api/driver-register/validate/route.js",
+  "/_not-found/page": "app/_not-found/page.js",
   "/driver-register/[token]/page": "app/driver-register/[token]/page.js",
   "/admin/drivers/page": "app/admin/drivers/page.js"
 }
