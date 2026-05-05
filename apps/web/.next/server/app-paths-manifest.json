@@ -1,7 +1,11 @@
 {
   "/api/admin/drivers/route": "app/api/admin/drivers/route.js",
-  "/api/driver-register/validate/route": "app/api/driver-register/validate/route.js",
-  "/_not-found/page": "app/_not-found/page.js",
-  "/driver-register/[token]/page": "app/driver-register/[token]/page.js",
-  "/admin/drivers/page": "app/admin/drivers/page.js"
+  "/api/driver/rides/route": "app/api/driver/rides/route.js",
+  "/api/admin/reservations/route": "app/api/admin/reservations/route.js",
+  "/api/admin/reservations/assign/route": "app/api/admin/reservations/assign/route.js",
+  "/api/driver/toggle-active/route": "app/api/driver/toggle-active/route.js",
+  "/admin/drivers/page": "app/admin/drivers/page.js",
+  "/admin/app-customers/page": "app/admin/app-customers/page.js",
+  "/admin/reservations/page": "app/admin/reservations/page.js",
+  "/admin/custom-reservation/page": "app/admin/custom-reservation/page.js"
 }

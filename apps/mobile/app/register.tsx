@@ -106,12 +106,13 @@ export default function RegisterScreen() {
       {/* City */}
       <View style={styles.inputGroup}>
         <Text style={styles.label}>City</Text>
-        <TouchableOpacity style={styles.selectContainer}>
-          <Text style={city ? styles.selectText : styles.selectPlaceholder}>
-            {city || "Enter your email"}
-          </Text>
-          <Ionicons name="chevron-down" size={20} color="#666" />
-        </TouchableOpacity>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter your city"
+          placeholderTextColor="#999"
+          value={city}
+          onChangeText={setCity}
+        />
       </View>
 
       {/* Password */}

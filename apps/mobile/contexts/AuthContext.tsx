@@ -4,6 +4,8 @@ import {
   getStoredUser,
   getToken,
   loginCustomer,
+  loginCustomerWithApple,
+  loginCustomerWithGoogle,
   registerCustomer,
   logoutCustomer,
   getProfile,
@@ -15,6 +17,22 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: (idToken: string) => Promise<{
+    success: boolean;
+    error?: string;
+    tokenAudience?: string | string[] | null;
+    allowedAudiences?: string[];
+  }>;
+  loginWithApple: (params: {
+    identityToken: string;
+    fullName?: { givenName?: string | null; familyName?: string | null } | null;
+  }) => Promise<{
+    success: boolean;
+    error?: string;
+    tokenAudience?: string | string[] | null;
+    allowedAudiences?: string[];
+    tokenIssuer?: string | null;
+  }>;
   register: (params: {
     firstName: string;
     lastName: string;
@@ -78,6 +96,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: data.error || "Login failed" };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Login failed";
+      return { success: false, error: message };
+    }
+  }, []);
+
+  const loginWithGoogle = useCallback(async (idToken: string) => {
+    try {
+      const data = await loginCustomerWithGoogle(idToken);
+      if (data.success) {
+        setUser(data.customer);
+        return { success: true };
+      }
+      return {
+        success: false,
+        error: data.error || "Google login failed",
+        tokenAudience: (data as any).tokenAudience ?? null,
+        allowedAudiences: (data as any).allowedAudiences ?? undefined,
+      };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Google login failed";
+      return { success: false, error: message };
+    }
+  }, []);
+
+  const loginWithApple = useCallback(async (params: {
+    identityToken: string;
+    fullName?: { givenName?: string | null; familyName?: string | null } | null;
+  }) => {
+    try {
+      const data = await loginCustomerWithApple(params);
+      if (data.success) {
+        setUser(data.customer);
+        return { success: true };
+      }
+      return {
+        success: false,
+        error: data.error || "Apple login failed",
+        tokenAudience: (data as any).tokenAudience ?? null,
+        allowedAudiences: (data as any).allowedAudiences ?? undefined,
+        tokenIssuer: (data as any).tokenIssuer ?? null,
+      };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Apple login failed";
       return { success: false, error: message };
     }
   }, []);
@@ -146,6 +206,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         isAuthenticated: !!user,
         login,
+        loginWithGoogle,
+        loginWithApple,
         register,
         logout,
         refreshProfile,

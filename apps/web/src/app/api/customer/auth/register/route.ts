@@ -8,7 +8,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { firstName, lastName, email, phone, password, city } = body;
+    const { firstName, lastName, email, phone, password, city, source } = body;
 
     if (!firstName || !lastName || !email || !phone || !password) {
       return NextResponse.json(
@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
         phone,
         password: hashedPassword,
         city: city || null,
+        registrationSource: source === "app" ? "app" : "web",
       },
     });
 

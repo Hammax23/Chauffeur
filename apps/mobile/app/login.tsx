@@ -17,17 +17,118 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
 import { useDriverAuth } from "../contexts/DriverAuthContext";
+import * as WebBrowser from "expo-web-browser";
+import * as Google from "expo-auth-session/providers/google";
+import * as AppleAuthentication from "expo-apple-authentication";
+import Constants from "expo-constants";
+
+WebBrowser.maybeCompleteAuthSession();
 
 type UserType = "customer" | "driver";
 
 export default function LoginScreen() {
-  const { login } = useAuth();
+  const { login, loginWithGoogle, loginWithApple } = useAuth();
   const { login: driverLogin } = useDriverAuth();
   const [userType, setUserType] = useState<UserType>("customer");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const extra = (Constants.expoConfig?.extra || {}) as Record<string, string>;
+  const googleExpoClientId = extra.GOOGLE_EXPO_CLIENT_ID;
+  const googleIosClientId = extra.GOOGLE_IOS_CLIENT_ID;
+  const googleAndroidClientId = extra.GOOGLE_ANDROID_CLIENT_ID;
+  const googleWebClientId = extra.GOOGLE_WEB_CLIENT_ID;
+
+  const [googleRequest, googleResponse, promptGoogle] = Google.useIdTokenAuthRequest({
+    expoClientId: googleExpoClientId,
+    iosClientId: googleIosClientId,
+    androidClientId: googleAndroidClientId,
+    webClientId: googleWebClientId,
+  });
+
+  async function handleGoogle() {
+    try {
+      if (!googleRequest) return;
+      const anyId =
+        googleExpoClientId ||
+        googleIosClientId ||
+        googleAndroidClientId ||
+        googleWebClientId;
+      if (!anyId || anyId === "REPLACE_ME") {
+        Alert.alert(
+          "Config Missing",
+          "Google OAuth client IDs are not set. Add GOOGLE_EXPO_CLIENT_ID (for Expo Go) and platform client IDs in app.json extra."
+        );
+        return;
+      }
+      const result = await promptGoogle();
+      if (result.type !== "success") return;
+      const idToken = result.params?.id_token;
+      if (!idToken) {
+        Alert.alert("Google Login Failed", "No id_token returned.");
+        return;
+      }
+      setIsLoading(true);
+      const r = await loginWithGoogle(idToken);
+      if (r.success) {
+        router.replace("/customer");
+      } else {
+        Alert.alert("Google Login Failed", r.error || "Unable to login with Google");
+      }
+    } catch (e: unknown) {
+      Alert.alert("Error", e instanceof Error ? e.message : "Google login failed");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleApple() {
+    try {
+      if (Platform.OS !== "ios") {
+        Alert.alert("Apple Sign In", "Apple sign-in is available on iOS devices only.");
+        return;
+      }
+      setIsLoading(true);
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      if (!credential.identityToken) {
+        Alert.alert("Apple Login Failed", "No identity token returned.");
+        return;
+      }
+      const r = await loginWithApple({
+        identityToken: credential.identityToken,
+        fullName: credential.fullName
+          ? {
+              givenName: credential.fullName.givenName ?? null,
+              familyName: credential.fullName.familyName ?? null,
+            }
+          : null,
+      });
+      if (r.success) {
+        router.replace("/customer");
+      } else {
+        const extra =
+          r.tokenAudience || r.allowedAudiences
+            ? `\n\nToken aud: ${JSON.stringify(r.tokenAudience ?? null)}\nAllowed: ${JSON.stringify(
+                r.allowedAudiences ?? []
+              )}`
+            : "";
+        Alert.alert("Apple Login Failed", (r.error || "Unable to login with Apple") + extra);
+      }
+    } catch (e: unknown) {
+      const msg =
+        e instanceof Error ? e.message : "Apple login failed";
+      Alert.alert("Apple Login Failed", msg);
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -180,7 +281,11 @@ export default function LoginScreen() {
             <View style={styles.dividerLine} />
           </View>
 
-          <TouchableOpacity style={styles.socialButton}>
+          <TouchableOpacity
+            style={[styles.socialButton, (!googleRequest || isLoading) && { opacity: 0.7 }]}
+            disabled={!googleRequest || isLoading}
+            onPress={handleGoogle}
+          >
             <Image
               source={{ uri: "https://www.google.com/favicon.ico" }}
               style={styles.socialIcon}
@@ -188,10 +293,16 @@ export default function LoginScreen() {
             <Text style={styles.socialText}>Continue with Google</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.socialButton}>
-            <Ionicons name="logo-apple" size={20} color="#000" />
-            <Text style={styles.socialText}>Continue with Apple</Text>
-          </TouchableOpacity>
+          {Platform.OS === "ios" && (
+            <TouchableOpacity
+              style={[styles.socialButton, isLoading && { opacity: 0.7 }]}
+              disabled={isLoading}
+              onPress={handleApple}
+            >
+              <Ionicons name="logo-apple" size={20} color="#000" />
+              <Text style={styles.socialText}>Continue with Apple</Text>
+            </TouchableOpacity>
+          )}
         </>
       )}
       </ScrollView>

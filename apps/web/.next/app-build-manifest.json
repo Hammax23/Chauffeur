@@ -6,50 +6,91 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/driver-register/[token]/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/driver-register/[token]/page.js"
-    ],
     "/admin/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/admin/layout.js"
     ],
-    "/admin/drivers/page": [
+    "/admin/app-customers/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/admin/drivers/page.js"
+      "static/chunks/app/admin/app-customers/page.js"
     ],
     "/api/admin/auth/verify/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/api/admin/auth/verify/route.js"
     ],
-    "/api/driver-register/validate/route": [
+    "/api/admin/app-customers/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/driver-register/validate/route.js"
+      "static/chunks/app/api/admin/app-customers/route.js"
+    ],
+    "/api/customer/reservations/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/customer/reservations/route.js"
+    ],
+    "/api/customer/auth/oauth/apple/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/customer/auth/oauth/apple/route.js"
+    ],
+    "/admin/drivers/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/admin/drivers/page.js"
     ],
     "/api/admin/drivers/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/api/admin/drivers/route.js"
     ],
-    "/admin/reservations/page": [
+    "/api/driver/auth/login/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/admin/reservations/page.js"
+      "static/chunks/app/api/driver/auth/login/route.js"
+    ],
+    "/api/driver/rides/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/driver/rides/route.js"
+    ],
+    "/api/driver/profile/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/driver/profile/route.js"
+    ],
+    "/api/driver/rides/[bookingId]/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/driver/rides/[bookingId]/route.js"
     ],
     "/api/admin/reservations/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/api/admin/reservations/route.js"
     ],
-    "/_not-found/page": [
+    "/admin/reservations/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/_not-found/page.js"
+      "static/chunks/app/admin/reservations/page.js"
+    ],
+    "/api/admin/reservations/assign/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/admin/reservations/assign/route.js"
+    ],
+    "/admin/custom-reservation/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/admin/custom-reservation/page.css",
+      "static/chunks/app/admin/custom-reservation/page.js"
+    ],
+    "/api/driver/toggle-active/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/driver/toggle-active/route.js"
     ]
   }
 }

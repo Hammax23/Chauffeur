@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import { API_BASE_URL } from './api';
+import Constants from 'expo-constants';
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -38,9 +39,20 @@ export async function registerForPushNotificationsAsync() {
       return null;
     }
     
-    token = (await Notifications.getExpoPushTokenAsync({
-      projectId: 'your-project-id', // Add your Expo project ID here
-    })).data;
+    const projectId =
+      Constants.easConfig?.projectId ??
+      ((Constants.expoConfig?.extra as any)?.eas?.projectId as string | undefined) ??
+      ((Constants.expoConfig?.extra as any)?.EAS_PROJECT_ID as string | undefined);
+
+    const isUuid = (value: string | undefined) =>
+      !!value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
+    // If we have a valid EAS projectId, pass it. Otherwise, let Expo infer it.
+    token = (
+      await Notifications.getExpoPushTokenAsync(
+        isUuid(projectId) ? { projectId } : undefined
+      )
+    ).data;
   } else {
     console.log('Must use physical device for Push Notifications');
   }

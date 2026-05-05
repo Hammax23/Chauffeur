@@ -15,6 +15,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../contexts/AuthContext";
+import * as ImagePicker from "expo-image-picker";
+import { API_BASE_URL } from "../../services/api";
 
 export default function EditProfileScreen() {
   const { user, updateProfile } = useAuth();
@@ -23,7 +25,58 @@ export default function EditProfileScreen() {
   const [phoneNumber, setPhoneNumber] = useState(user?.phone || "");
   const [email] = useState(user?.email || "");
   const [city, setCity] = useState(user?.city || "");
+  const [photoUrl, setPhotoUrl] = useState<string | null>(user?.photo || null);
   const [isLoading, setIsLoading] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  const initials = `${firstName?.[0] || ""}${lastName?.[0] || ""}`.toUpperCase() || "C";
+
+  const handlePickPhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Required", "Please allow photo library access to upload a profile photo.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.9,
+        allowsEditing: true,
+        aspect: [1, 1],
+      });
+
+      if (result.canceled) return;
+      const asset = result.assets?.[0];
+      if (!asset?.uri) return;
+
+      setUploadingPhoto(true);
+      const formData = new FormData();
+      formData.append("file", {
+        uri: asset.uri,
+        name: `customer_${Date.now()}.jpg`,
+        type: asset.mimeType || "image/jpeg",
+      } as any);
+      formData.append("type", "customer");
+
+      const response = await fetch(`${API_BASE_URL}/upload`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok || !data?.success) {
+        Alert.alert("Upload Failed", data?.error || "Failed to upload photo");
+        return;
+      }
+
+      setPhotoUrl(data.url);
+      Alert.alert("Uploaded", "Profile photo uploaded. Tap Save Changes to apply.");
+    } catch (e: unknown) {
+      Alert.alert("Error", e instanceof Error ? e.message : "Failed to upload photo");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!firstName.trim() || !lastName.trim() || !phoneNumber.trim()) {
@@ -37,6 +90,7 @@ export default function EditProfileScreen() {
         lastName: lastName.trim(),
         phone: phoneNumber.trim(),
         city: city.trim() || undefined,
+        photo: photoUrl || undefined,
       });
       if (result.success) {
         Alert.alert("Success", "Profile updated successfully");
@@ -71,12 +125,23 @@ export default function EditProfileScreen() {
         {/* Profile Photo */}
         <View style={styles.photoContainer}>
           <View style={styles.photoWrapper}>
-            <Image
-              source={{ uri: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80" }}
-              style={styles.profilePhoto}
-            />
-            <TouchableOpacity style={styles.cameraBtn}>
-              <Ionicons name="camera" size={14} color="#D4A04A" />
+            {photoUrl ? (
+              <Image source={{ uri: photoUrl }} style={styles.profilePhoto} />
+            ) : (
+              <View style={[styles.profilePhoto, styles.avatarFallback]}>
+                <Text style={styles.avatarText}>{initials}</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={[styles.cameraBtn, uploadingPhoto && { opacity: 0.7 }]}
+              onPress={handlePickPhoto}
+              disabled={uploadingPhoto}
+            >
+              {uploadingPhoto ? (
+                <ActivityIndicator size="small" color="#D4A04A" />
+              ) : (
+                <Ionicons name="camera" size={14} color="#D4A04A" />
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -136,10 +201,15 @@ export default function EditProfileScreen() {
 
         {/* City */}
         <Text style={styles.inputLabel}>City</Text>
-        <TouchableOpacity style={styles.dropdown}>
-          <Text style={styles.dropdownText}>{city}</Text>
-          <Ionicons name="chevron-down" size={18} color="#999" />
-        </TouchableOpacity>
+        <View style={styles.inputBox}>
+          <TextInput
+            style={styles.textInput}
+            value={city}
+            onChangeText={setCity}
+            placeholder="Enter your city"
+            placeholderTextColor="#999"
+          />
+        </View>
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -205,6 +275,17 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
+  },
+  avatarFallback: {
+    backgroundColor: "#D4A04A",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: {
+    color: "#fff",
+    fontSize: 28,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
   cameraBtn: {
     position: "absolute",

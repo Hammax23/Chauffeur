@@ -15,6 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
+      "usesAppleSignIn": true,
       "bundleIdentifier": "com.sarjworldwide.chauffeur"
     },
     "android": {
@@ -33,8 +34,18 @@
       "expo-router",
       "expo-secure-store",
       "expo-font",
-      "expo-asset"
+      "expo-asset",
+      "expo-apple-authentication"
     ],
+    "extra": {
+      "GOOGLE_EXPO_CLIENT_ID": "199624638433-v2bm7j4a52pb0kql61thdr9gt98hsucp.apps.googleusercontent.com",
+      "GOOGLE_IOS_CLIENT_ID": "REPLACE_ME",
+      "GOOGLE_ANDROID_CLIENT_ID": "REPLACE_ME",
+      "GOOGLE_WEB_CLIENT_ID": "REPLACE_ME",
+      "eas": {
+        "projectId": "REPLACE_ME_UUID"
+      }
+    },
     "experiments": {
       "typedRoutes": true
     }
