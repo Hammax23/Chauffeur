@@ -140,15 +140,24 @@ model Customer {
   firstName     String
   lastName      String
   email         String   @unique
-  phone         String
+  phone         String   @default("")
   password      String
   city          String?
   photo         String?
+
+  /// OAuth provider account linking (e.g. google/apple). If set, password login still exists but should be treated as internal.
+  oauthProvider String?
+  oauthSub      String?
+
+  /// Where this customer account was created (e.g. "app" via mobile, "web" via website/admin).
+  registrationSource String @default("web")
   
   reservations  Reservation[]
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@unique([oauthProvider, oauthSub])
 }
 
 model DriverInvite {

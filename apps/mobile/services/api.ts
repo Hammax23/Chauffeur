@@ -1,6 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 
-const API_BASE_URL = __DEV__
+export const API_BASE_URL = __DEV__
   ? "http://192.168.100.246:3000/api"
   : "https://sarjworldwide.ca/api";
 
@@ -129,6 +129,30 @@ async function apiRequest<T>(
   return data;
 }
 
+// API request helper that returns JSON even on non-2xx (for OAuth flows where server returns useful fields)
+async function apiRequestWithResponse<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<{ ok: boolean; status: number; data: T }> {
+  const token = await getToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...((options.headers as Record<string, string>) || {}),
+  };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  const data = (await response.json()) as T;
+  return { ok: response.ok, status: response.status, data };
+}
+
 // ==================== AUTH API ====================
 
 export async function loginCustomer(email: string, password: string) {
@@ -143,6 +167,56 @@ export async function loginCustomer(email: string, password: string) {
   });
 
   if (data.success && data.token) {
+    await setToken(data.token);
+    await setStoredUser(data.customer);
+  }
+
+  return data;
+}
+
+export async function loginCustomerWithGoogle(idToken: string) {
+  const res = await apiRequestWithResponse<{
+    success: boolean;
+    token: string;
+    customer: CustomerProfile;
+    error?: string;
+    allowedAudiences?: string[];
+    tokenAudience?: string | string[] | null;
+  }>("/customer/auth/oauth/google", {
+    method: "POST",
+    body: JSON.stringify({ idToken }),
+  });
+
+  const data = res.data;
+
+  if (res.ok && data.success && data.token) {
+    await setToken(data.token);
+    await setStoredUser(data.customer);
+  }
+
+  return data;
+}
+
+export async function loginCustomerWithApple(params: {
+  identityToken: string;
+  fullName?: { givenName?: string | null; familyName?: string | null } | null;
+}) {
+  const res = await apiRequestWithResponse<{
+    success: boolean;
+    token: string;
+    customer: CustomerProfile;
+    error?: string;
+    allowedAudiences?: string[];
+    tokenAudience?: string | string[] | null;
+    tokenIssuer?: string | null;
+  }>("/customer/auth/oauth/apple", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+
+  const data = res.data;
+
+  if (res.ok && data.success && data.token) {
     await setToken(data.token);
     await setStoredUser(data.customer);
   }
@@ -165,7 +239,7 @@ export async function registerCustomer(params: {
     error?: string;
   }>("/customer/auth/register", {
     method: "POST",
-    body: JSON.stringify(params),
+    body: JSON.stringify({ ...params, source: "app" }),
   });
 
   if (data.success && data.token) {

@@ -25,6 +25,7 @@ const NAV_ITEMS = [
   { href: "/admin/quotes", label: "Online Quotes", icon: FileText },
   { href: "/admin/drivers", label: "Drivers", icon: Car },
   { href: "/admin/customers", label: "Customers", icon: Users },
+  { href: "/admin/app-customers", label: "App Customers", icon: Users },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

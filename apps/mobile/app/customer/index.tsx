@@ -123,10 +123,16 @@ export default function CustomerHomeScreen() {
         >
           <TouchableOpacity style={styles.headerLeft} activeOpacity={0.8} onPress={() => router.push("/customer/profile")}>
             <View style={styles.avatarContainer}>
-              <Image
-                source={{ uri: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80" }}
-                style={styles.avatar}
-              />
+              {user?.photo ? (
+                <Image source={{ uri: user.photo }} style={styles.avatar} />
+              ) : (
+                <View style={[styles.avatar, styles.avatarFallback]}>
+                  <Text style={styles.avatarText}>
+                    {(user?.firstName?.[0] || "C")}
+                    {(user?.lastName?.[0] || "")}
+                  </Text>
+                </View>
+              )}
               <View style={styles.onlineIndicator} />
             </View>
             <View>
@@ -343,6 +349,17 @@ const styles = StyleSheet.create({
     borderRadius: 23,
     borderWidth: 2,
     borderColor: "#D4A04A",
+  },
+  avatarFallback: {
+    backgroundColor: "#D4A04A",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
   onlineIndicator: {
     position: "absolute",
