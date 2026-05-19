@@ -1,8 +1,54 @@
 import * as SecureStore from "expo-secure-store";
+import Constants from "expo-constants";
+import { Platform } from "react-native";
 
-export const API_BASE_URL = __DEV__
-  ? "http://192.168.100.246:3000/api"
-  : "https://sarjworldwide.ca/api";
+/**
+ * Production + dev-safe API origin. Hard-coded LAN IPs break when Wi‑Fi / PC IP changes.
+ * Override anytime with EXPO_PUBLIC_API_BASE_URL (full URL ending in /api).
+ */
+function resolveApiBaseUrl(): string {
+  const defaultProd = "https://sarjworldwide.ca/api";
+  const fromEnv = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+
+  // Release builds: allow EAS env (preview/staging/prod) to override the API host.
+  if (!__DEV__) {
+    return (fromEnv || defaultProd).replace(/\/+$/, "");
+  }
+
+  if (fromEnv) {
+    return fromEnv.replace(/\/+$/, "");
+  }
+
+  const dbg =
+    Constants.expoGoConfig?.debuggerHost ??
+    (Constants.manifest2 as { extra?: { expoClient?: { debuggerHost?: string } } } | null)?.extra?.expoClient
+      ?.debuggerHost ??
+    (Constants.manifest as { debuggerHost?: string } | undefined)?.debuggerHost;
+
+  if (dbg) {
+    const hostOnly = dbg.split(":")[0]?.trim();
+    if (hostOnly) {
+      return `http://${hostOnly}:3000/api`;
+    }
+  }
+
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (hostUri) {
+    const raw = hostUri.replace(/^exp[+a-z]*:\/\//i, "").replace(/^\/\//, "");
+    const hostOnly = raw.split(":")[0]?.split("/")[0];
+    if (hostOnly && hostOnly !== "localhost" && hostOnly !== "127.0.0.1") {
+      return `http://${hostOnly}:3000/api`;
+    }
+  }
+
+  if (Platform.OS === "android") {
+    return "http://10.0.2.2:3000/api";
+  }
+
+  return "http://127.0.0.1:3000/api";
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 const TOKEN_KEY = "sarj_auth_token";
 const USER_KEY = "sarj_user_data";
@@ -285,6 +331,39 @@ export async function updateProfile(params: {
   return data;
 }
 
+// ==================== PUBLIC FLEET (no auth) ====================
+
+export interface FleetVehicleDto {
+  id: string;
+  name: string;
+  dropdownName: string;
+  description: string;
+  image: string;
+  imageUrl: string;
+  category: string;
+  seating: string;
+  luggage: string;
+  /** Hourly rate, used when the booking is hourly. */
+  price: number;
+  /** Public per-kilometre rate shown on fleet preview cards. */
+  pricePerKm: number;
+}
+
+export async function getFleetVehicles(): Promise<{ success: boolean; vehicles: FleetVehicleDto[] }> {
+  const response = await fetch(`${API_BASE_URL}/fleet`, {
+    headers: { Accept: "application/json" },
+  });
+  const data = (await response.json()) as {
+    success: boolean;
+    vehicles?: FleetVehicleDto[];
+    error?: string;
+  };
+  if (!response.ok || !data.success || !data.vehicles?.length) {
+    throw new Error(data.error || "Failed to load fleet");
+  }
+  return { success: true, vehicles: data.vehicles };
+}
+
 // ==================== RESERVATIONS API ====================
 
 export async function getReservations() {
@@ -387,6 +466,11 @@ export interface DriverRide {
   duration: string;
   total: number;
   createdAt: string;
+  /** ISO — trip timer starts here (first ON THE WAY). */
+  driverOnTheWayAt?: string | null;
+  /** JSON array of { start, end? } stop intervals (Stop → Continue). */
+  driverStopPeriodsJson?: string | null;
+  completedAt?: string | null;
 }
 
 // ==================== DRIVER AUTH API ====================
@@ -454,7 +538,7 @@ export async function rejectRide(bookingId: string) {
 export async function acceptRide(bookingId: string) {
   return apiRequest<{ success: boolean; message: string }>(
     `/driver/rides/${bookingId}`,
-    { method: "PATCH", body: JSON.stringify({ status: "ON THE WAY" }) }
+    { method: "PATCH", body: JSON.stringify({ status: "ACCEPTED" }) }
   );
 }
 
@@ -462,5 +546,18 @@ export async function toggleDriverActive(isActive: boolean) {
   return apiRequest<{ success: boolean; isActive: boolean; status: string }>(
     "/driver/toggle-active",
     { method: "POST", body: JSON.stringify({ isActive }) }
+  );
+}
+
+export async function updateDriverLocation(params: {
+  latitude: number;
+  longitude: number;
+  accuracy?: number | null;
+  heading?: number | null;
+  speed?: number | null;
+}) {
+  return apiRequest<{ success: boolean }>(
+    "/driver/location",
+    { method: "POST", body: JSON.stringify(params) }
   );
 }

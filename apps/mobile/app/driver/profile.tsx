@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import {
   View,
   Text,
@@ -9,12 +10,18 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useDriverAuth } from "../../contexts/DriverAuthContext";
 
 export default function DriverProfileScreen() {
-  const { driver, logout } = useDriverAuth();
+  const { driver, logout, refreshProfile } = useDriverAuth();
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshProfile();
+    }, [refreshProfile])
+  );
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -48,7 +55,7 @@ export default function DriverProfileScreen() {
         {/* Profile Card */}
         <View style={styles.profileCard}>
           {driver?.photo ? (
-            <Image source={{ uri: driver.photo }} style={styles.profileAvatar} />
+            <Image key={driver.photo} source={{ uri: driver.photo }} style={styles.profileAvatar} />
           ) : (
             <View style={[styles.profileAvatar, { backgroundColor: '#D4A04A', justifyContent: 'center', alignItems: 'center' }]}>
               <Text style={{ color: '#fff', fontSize: 20, fontWeight: '700' }}>{driver?.name?.[0] || 'D'}</Text>

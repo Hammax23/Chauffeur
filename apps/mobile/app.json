@@ -31,20 +31,29 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "@react-native-community/datetimepicker",
       "expo-router",
       "expo-secure-store",
       "expo-font",
       "expo-asset",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "SARJ uses your location to show your live position to dispatch and for ride assignments.",
+          "locationAlwaysAndWhenInUsePermission": "SARJ uses your location in the background so dispatch can see you until you log out or close the app.",
+          "locationAlwaysPermission": "SARJ uses your location in the background for live driver tracking.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true
+        }
+      ]
     ],
     "extra": {
       "GOOGLE_EXPO_CLIENT_ID": "199624638433-v2bm7j4a52pb0kql61thdr9gt98hsucp.apps.googleusercontent.com",
       "GOOGLE_IOS_CLIENT_ID": "REPLACE_ME",
       "GOOGLE_ANDROID_CLIENT_ID": "REPLACE_ME",
-      "GOOGLE_WEB_CLIENT_ID": "REPLACE_ME",
-      "eas": {
-        "projectId": "REPLACE_ME_UUID"
-      }
+      "GOOGLE_WEB_CLIENT_ID": "REPLACE_ME"
     },
     "experiments": {
       "typedRoutes": true

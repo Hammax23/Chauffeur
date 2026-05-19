@@ -59,6 +59,11 @@ model Reservation {
   trackLink           String?
   completedAt         DateTime?
   statusUpdatedAt     DateTime?
+
+  /// First transition to ON THE WAY — used for total trip duration (→ DONE).
+  driverOnTheWayAt    DateTime?
+  /// JSON array: [{ "start": ISO, "end"?: ISO }, ...] stop intervals (Stop tap → Continue tap).
+  driverStopPeriodsJson String?
   
   // Payment Info (Stripe)
   stripeCustomerId       String?
@@ -98,6 +103,14 @@ model Driver {
   rating        Float    @default(5.0)
   totalTrips    Int      @default(0)
   pushToken     String?  // Expo push notification token
+
+  /// Last known live location (updated by driver app while in use)
+  lastLatitude            Float?
+  lastLongitude           Float?
+  lastLocationAccuracy    Float?
+  lastLocationHeading     Float?
+  lastLocationSpeed       Float?
+  lastLocationUpdatedAt   DateTime?
 
   backgroundCheckUrl           String?
   commercialInsuranceUrl       String?
@@ -177,4 +190,85 @@ model DriverInvite {
   
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+
+  applications  DriverApplication[]
+}
+
+model DriverApplication {
+  id            String   @id @default(cuid())
+
+  inviteId      String
+  invite        DriverInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+
+  status        String   @default("SUBMITTED") // SUBMITTED | APPROVED | REJECTED
+  rejectionReason String?
+
+  /// Snapshot of submitted registration details (immutable record)
+  name          String
+  email         String
+  phone         String
+  vehicle       String
+  vehiclePlate  String
+  photo         String?
+
+  backgroundCheckUrl           String?
+  commercialInsuranceUrl       String?
+  driverLicenceUrl             String?
+  proofOfWorkEligibilityUrl    String?
+  municipalTaxiLimoLicenceUrl  String?
+  vehicleInsuranceUrl          String?
+  vehicleRegistrationUrl       String?
+
+  submittedAt   DateTime @default(now())
+  reviewedAt    DateTime?
+
+  documents     DriverApplicationDocument[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status, submittedAt])
+  @@unique([inviteId])
+}
+
+model DriverApplicationDocument {
+  id              String   @id @default(cuid())
+  applicationId   String
+  application     DriverApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  /// One of the invite document keys (e.g. backgroundCheck, driverLicence, vehicleInsurance, ...)
+  key             String
+  url             String
+
+  /// OCR extraction result (best-effort)
+  extractedExpiryDate  DateTime?
+  ocrConfidence        Float?
+
+  /// Confirmed expiry date (driver-confirmed or admin-corrected)
+  confirmedExpiryDate  DateTime?
+  expirySource         String   @default("OCR") // OCR | DRIVER | ADMIN
+
+  /// Review / gating
+  status          String   @default("PENDING") // PENDING | VALID | EXPIRED | MISMATCH | MISSING
+  overrideReason  String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([applicationId, key])
+  @@index([key])
+  @@index([status])
+}
+
+/// Operational managers: limited panel (/operational-manager) — assign drivers only. Created by admin.
+model OperationalManager {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
 }

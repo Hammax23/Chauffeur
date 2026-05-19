@@ -60,13 +60,21 @@ export default function DriverRegisterPage() {
   const [complianceUrls, setComplianceUrls] = useState<
     Partial<Record<DriverInviteFieldKey, string>>
   >(() => emptyComplianceUrlState());
+  /** YYYY-MM-DD per compliance doc (matches <input type="date" />). */
+  const [documentExpiryDates, setDocumentExpiryDates] = useState<
+    Partial<Record<DriverInviteFieldKey, string>>
+  >(() => {
+    const o: Partial<Record<DriverInviteFieldKey, string>> = {};
+    for (const k of DRIVER_COMPLIANCE_UPLOAD_KEYS) o[k] = "";
+    return o;
+  });
   const [uploadingComplianceKey, setUploadingComplianceKey] = useState<DriverInviteFieldKey | null>(null);
 
   // Submission states
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState(false);
-  const [driverInfo, setDriverInfo] = useState<{ driverId: string; name: string } | null>(null);
+  const [applicationInfo, setApplicationInfo] = useState<{ applicationId: string; name: string } | null>(null);
 
   // Turnstile
   const [turnstileToken, setTurnstileToken] = useState("");
@@ -190,6 +198,7 @@ export default function DriverRegisterPage() {
       const data = await response.json();
       if (data.success) {
         setComplianceUrls((prev) => ({ ...prev, [key]: data.url }));
+        setDocumentExpiryDates((prev) => ({ ...prev, [key]: "" }));
       } else {
         setSubmitError(data.error || "Upload failed");
       }
@@ -252,6 +261,11 @@ export default function DriverRegisterPage() {
         setSubmitError(`Please upload: ${DRIVER_INVITE_FIELD_LABELS[key]}`);
         return;
       }
+      const exp = documentExpiryDates[key]?.trim();
+      if (!exp) {
+        setSubmitError(`Enter the expiry date for: ${DRIVER_INVITE_FIELD_LABELS[key]} (use the calendar — format YYYY-MM-DD)`);
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -263,6 +277,12 @@ export default function DriverRegisterPage() {
     if (vf.vehicle) payload.vehicle = vehicle.trim();
     if (vf.vehiclePlate) payload.vehiclePlate = vehiclePlate.trim().toUpperCase();
     if (vf.photo) payload.photo = photo || null;
+
+    const documentExpiries: Record<string, string> = {};
+    for (const key of getVisibleComplianceDocKeys(vf)) {
+      documentExpiries[key] = documentExpiryDates[key]!.trim();
+    }
+    payload.documentExpiries = documentExpiries;
 
     for (const key of DRIVER_COMPLIANCE_UPLOAD_KEYS) {
       if (vf[key]) {
@@ -281,7 +301,13 @@ export default function DriverRegisterPage() {
 
       if (data.success) {
         setSubmitSuccess(true);
-        setDriverInfo(data.driver);
+        const appId =
+          typeof data?.application?.id === "string"
+            ? data.application.id
+            : typeof data?.applicationId === "string"
+              ? data.applicationId
+              : "";
+        setApplicationInfo({ applicationId: appId, name: (vf.name ? name.trim() : inviteData?.name || "") || "Driver" });
       } else {
         setSubmitError(data.error || "Registration failed. Please try again.");
       }
@@ -314,40 +340,34 @@ export default function DriverRegisterPage() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-3">Invalid Invitation</h1>
           <p className="text-gray-600 mb-6">{validationError}</p>
-          <Link
-            href="/"
-            className="inline-block bg-[#C9A063] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#B8905A] transition-colors"
-          >
-            Return to Homepage
-          </Link>
         </div>
       </main>
     );
   }
 
   // Success state
-  if (submitSuccess && driverInfo) {
+  if (submitSuccess && applicationInfo) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
           <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-10 h-10 text-green-500" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-3">Registration Successful!</h1>
-          <p className="text-gray-600 mb-6">
-            Welcome to SARJ Worldwide, {driverInfo.name}! Your driver ID is{" "}
-            <span className="font-bold text-[#C9A063]">{driverInfo.driverId}</span>.
+          <h1 className="text-2xl font-bold text-gray-900 mb-3">Application Submitted</h1>
+          <p className="text-gray-700 mb-3">
+            Thank you, <span className="font-semibold">{applicationInfo.name}</span>. Your details have been received
+            successfully.
           </p>
-          <p className="text-gray-500 text-sm mb-6">
-            Check your email for a confirmation message and your driver app login password. Our team will contact you
-            shortly.
+          <p className="text-gray-500 text-sm mb-6 leading-relaxed">
+            Please stay connected to your email. After our team reviews and approves your information and documents, you
+            will be informed there.
           </p>
-          <Link
-            href="/"
-            className="inline-block bg-[#C9A063] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#B8905A] transition-colors"
-          >
-            Return to Homepage
-          </Link>
+          {applicationInfo.applicationId ? (
+            <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-left">
+              <p className="text-xs text-gray-500 mb-1">Reference ID</p>
+              <p className="text-sm font-mono text-gray-800 break-all">{applicationInfo.applicationId}</p>
+            </div>
+          ) : null}
         </div>
       </main>
     );
@@ -376,7 +396,7 @@ export default function DriverRegisterPage() {
         <div className="text-center mb-6 sm:mb-8 px-1">
           <Link href="/" className="inline-block mb-4 sm:mb-6">
             <Image
-              src="/sarjlogo.png"
+              src="/logo1.png"
               alt="SARJ Worldwide"
               width={180}
               height={60}
@@ -578,8 +598,11 @@ export default function DriverRegisterPage() {
                           <h2 className="text-base sm:text-lg font-semibold text-gray-900 tracking-tight">
                             Documents
                           </h2>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            Compliance uploads — PDF or clear images (max 12MB each).
+                          <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                            Upload PDF or clear images (max 12MB each). For each file, enter the{" "}
+                            <span className="font-semibold text-gray-700">expiry date</span> exactly as on the document.
+                            Use the calendar or type <span className="font-mono font-semibold">YYYY-MM-DD</span> (year–month–day), e.g.{" "}
+                            <span className="font-mono">2030-11-05</span>.
                           </p>
                         </div>
                       </div>
@@ -618,6 +641,30 @@ export default function DriverRegisterPage() {
                                 </span>
                               )}
                             </div>
+
+                            {uploaded && (
+                              <div className="mt-3 rounded-xl bg-white border border-gray-200 p-3 space-y-2">
+                                <label className="block text-xs font-semibold text-gray-800">
+                                  Expiry date on this document{" "}
+                                  <span className="text-red-500 font-bold">*</span>
+                                </label>
+                                <input
+                                  type="date"
+                                  value={documentExpiryDates[key] ?? ""}
+                                  onChange={(e) =>
+                                    setDocumentExpiryDates((prev) => ({
+                                      ...prev,
+                                      [key]: e.target.value,
+                                    }))
+                                  }
+                                  className="w-full max-w-[220px] px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063]"
+                                />
+                                <p className="text-[11px] text-gray-500 leading-snug">
+                                  Match the &quot;expiry&quot;, &quot;valid until&quot;, or &quot;expiration&quot; date on the uploaded file. Stored as{" "}
+                                  <span className="font-mono">YYYY-MM-DD</span>.
+                                </p>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -636,8 +683,9 @@ export default function DriverRegisterPage() {
                           <h2 className="text-base sm:text-lg font-semibold text-gray-900 tracking-tight">
                             Vehicle
                           </h2>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            Vehicle insurance and registration documents.
+                          <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                            Vehicle insurance and registration — same rules: upload + expiry date (
+                            <span className="font-mono font-semibold">YYYY-MM-DD</span>).
                           </p>
                         </div>
                       </div>
@@ -676,6 +724,30 @@ export default function DriverRegisterPage() {
                                 </span>
                               )}
                             </div>
+
+                            {uploaded && (
+                              <div className="mt-3 rounded-xl bg-white border border-gray-200 p-3 space-y-2">
+                                <label className="block text-xs font-semibold text-gray-800">
+                                  Expiry date on this document{" "}
+                                  <span className="text-red-500 font-bold">*</span>
+                                </label>
+                                <input
+                                  type="date"
+                                  value={documentExpiryDates[key] ?? ""}
+                                  onChange={(e) =>
+                                    setDocumentExpiryDates((prev) => ({
+                                      ...prev,
+                                      [key]: e.target.value,
+                                    }))
+                                  }
+                                  className="w-full max-w-[220px] px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063]"
+                                />
+                                <p className="text-[11px] text-gray-500 leading-snug">
+                                  Match the date printed on this document. Format:{" "}
+                                  <span className="font-mono">YYYY-MM-DD</span>.
+                                </p>
+                              </div>
+                            )}
                           </div>
                         );
                       })}

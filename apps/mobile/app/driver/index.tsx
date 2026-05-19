@@ -18,13 +18,14 @@ import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useDriverAuth } from "../../contexts/DriverAuthContext";
 import { getDriverRides, acceptRide, rejectRide, DriverRide } from "../../services/api";
+import { syncDriverLiveTracking, syncLiveTrackingFromRideList } from "../../services/driver-live-session";
 
 type TabType = "requests" | "upcoming";
 
 const POLL_INTERVAL = 5000; // 5 seconds
 
 export default function DriverDashboard() {
-  const { driver, toggleActive } = useDriverAuth();
+  const { driver, toggleActive, refreshProfile } = useDriverAuth();
   const [isActive, setIsActive] = useState(driver?.isActive || false);
   const [activeTab, setActiveTab] = useState<TabType>("requests");
   const [rides, setRides] = useState<DriverRide[]>([]);
@@ -42,6 +43,9 @@ export default function DriverDashboard() {
         if (tab === "requests") {
           setRequestCount(data.rides.length);
         }
+        if (tab === "upcoming") {
+          syncLiveTrackingFromRideList(data.rides).catch(() => {});
+        }
       }
     } catch {
       // Silently fail
@@ -52,6 +56,14 @@ export default function DriverDashboard() {
       }
     }
   }, []);
+
+  // Admin may change name/photo in dashboard — re-fetch profile when this screen is shown
+  useFocusEffect(
+    useCallback(() => {
+      refreshProfile();
+      syncDriverLiveTracking().catch(() => {});
+    }, [refreshProfile])
+  );
 
   // Auto-poll: fetch rides every 5 seconds for real-time updates
   useFocusEffect(
@@ -111,11 +123,19 @@ export default function DriverDashboard() {
     }
   };
 
-  const handleAcceptRide = async (bookingId: string) => {
+  const performAcceptRide = async (bookingId: string) => {
     try {
       const result = await acceptRide(bookingId);
       if (result.success) {
-        Alert.alert("Success", "Ride accepted!");
+        Alert.alert(
+          "Ride accepted",
+          "It's now in the Upcoming Rides tab. Open it and tap \"On The Way\" when you head to pickup.",
+          [
+            { text: "Stay here", style: "cancel" },
+            { text: "Open Upcoming", onPress: () => setActiveTab("upcoming") },
+          ]
+        );
+        syncDriverLiveTracking().catch(() => {});
         fetchRides(activeTab);
       } else {
         Alert.alert("Error", "Failed to accept ride");
@@ -123,6 +143,17 @@ export default function DriverDashboard() {
     } catch {
       Alert.alert("Error", "Something went wrong");
     }
+  };
+
+  const handleAcceptRide = (bookingId: string) => {
+    Alert.alert(
+      "Accept this ride?",
+      "It will move from Requests to the Upcoming Rides tab. The trip itself only starts when you tap \"On The Way\" on the ride screen.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Accept", onPress: () => performAcceptRide(bookingId) },
+      ]
+    );
   };
 
   const handleRejectRide = async (bookingId: string) => {
@@ -135,6 +166,7 @@ export default function DriverDashboard() {
           try {
             const result = await rejectRide(bookingId);
             if (result.success) {
+              syncDriverLiveTracking().catch(() => {});
               fetchRides(activeTab);
             } else {
               Alert.alert("Error", "Failed to reject ride");
@@ -188,7 +220,11 @@ export default function DriverDashboard() {
             </TouchableOpacity>
             <TouchableOpacity style={styles.avatarContainer} onPress={() => router.push("/driver/profile")}>
               {driver?.photo ? (
-                <Image source={{ uri: driver.photo }} style={styles.avatar} />
+                <Image
+                  key={driver.photo}
+                  source={{ uri: driver.photo }}
+                  style={styles.avatar}
+                />
               ) : (
                 <View style={[styles.avatar, { backgroundColor: '#D4A04A', justifyContent: 'center', alignItems: 'center' }]}>
                   <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>{driver?.name?.[0] || 'D'}</Text>
@@ -200,7 +236,7 @@ export default function DriverDashboard() {
 
         {/* Greeting */}
         <View style={styles.greeting}>
-          <Text style={styles.greetingTitle}>Hi, {driver?.name?.split(' ')[0] || 'Driver'} 🤚</Text>
+          <Text style={styles.greetingTitle}>Hi, {driver?.name?.split(' ')[0] || "Driver"}</Text>
           <Text style={styles.greetingSubtitle}>Good to see you back on work!</Text>
         </View>
 
@@ -279,6 +315,18 @@ export default function DriverDashboard() {
                   </View>
                 </View>
 
+                {/* Inline hint — only on incoming requests */}
+                {activeTab === "requests" ? (
+                  <View style={styles.acceptHintBox}>
+                    <Ionicons name="information-circle-outline" size={16} color="#1d4ed8" />
+                    <Text style={styles.acceptHintText}>
+                      Accepting moves this ride to{" "}
+                      <Text style={styles.acceptHintBold}>Upcoming Rides</Text>. You'll start the trip from there
+                      by tapping <Text style={styles.acceptHintBold}>On The Way</Text>.
+                    </Text>
+                  </View>
+                ) : null}
+
                 {/* Action Buttons */}
                 <View style={styles.actionButtons}>
                   <TouchableOpacity style={styles.rejectButton} onPress={() => handleRejectRide(ride.bookingId)}>
@@ -290,7 +338,7 @@ export default function DriverDashboard() {
                     </TouchableOpacity>
                   ) : (
                     <TouchableOpacity style={styles.acceptButton} onPress={() => router.push({ pathname: "/driver/ride-details", params: { bookingId: ride.bookingId } })}>
-                      <Text style={styles.acceptButtonText}>Start Ride</Text>
+                      <Text style={styles.acceptButtonText}>Open Ride</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -505,6 +553,29 @@ const styles = StyleSheet.create({
     color: "#333",
     flex: 1,
     lineHeight: 18,
+  },
+  acceptHintBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  acceptHintText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+    color: "#1E3A8A",
+  },
+  acceptHintBold: {
+    fontWeight: "700",
+    color: "#1E3A8A",
   },
   actionButtons: {
     flexDirection: "row",

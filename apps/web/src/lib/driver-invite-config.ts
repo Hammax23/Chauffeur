@@ -89,7 +89,24 @@ export const DEFAULT_VISIBLE_FIELDS: VisibleFieldsMap = {
 };
 
 /** Fields where "closed" can be left empty (optional admin / driver). */
+/** Profile & vehicle basics must stay on the public registration form; invite modal hides Open/Closed for these. */
+export function isInviteFieldVisibilityLocked(key: DriverInviteFieldKey): boolean {
+  return DRIVER_PROFILE_FIELD_KEYS.includes(key);
+}
+
+/** Ensure locked fields are always visible on driver-register (cannot be closed). */
+export function enforceLockedInviteVisibility(visible: VisibleFieldsMap): VisibleFieldsMap {
+  const out = { ...visible };
+  for (const key of DRIVER_PROFILE_FIELD_KEYS) {
+    out[key] = true;
+  }
+  return out;
+}
+
 export function isPrefilledOptionalWhenClosed(key: DriverInviteFieldKey): boolean {
+  // If a compliance document field is closed, it means "do not request it on the public form".
+  // It should not block invite link generation unless the admin explicitly provides a value.
+  if (DRIVER_COMPLIANCE_UPLOAD_KEYS.includes(key)) return true;
   return key === "photo";
 }
 

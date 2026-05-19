@@ -5,16 +5,18 @@ import {
   Search, RefreshCw, Filter, ExternalLink, Phone, Mail,
   Car, MapPin, Clock, Users, ChevronDown, ChevronUp,
   Loader2, AlertCircle, Eye, Copy, Check, Pencil, Trash2, X, Save,
-  CreditCard, DollarSign, UserX, UserCheck, RotateCcw, Shield
+  CreditCard, DollarSign, UserX, UserCheck, RotateCcw, Shield,
 } from "lucide-react";
+import DriverTripTimingPanel from "@/components/DriverTripTimingPanel";
 
-const STATUS_OPTIONS = ["ALL", "PENDING", "ON THE WAY", "ARRIVED", "CIC", "DONE"];
+const STATUS_OPTIONS = ["ALL", "PENDING", "ON THE WAY", "ARRIVED", "CIC", "STOP", "DONE"];
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
   PENDING: { bg: "bg-gray-100", text: "text-gray-700", dot: "bg-gray-400" },
   "ON THE WAY": { bg: "bg-blue-50", text: "text-blue-700", dot: "bg-blue-500" },
   ARRIVED: { bg: "bg-yellow-50", text: "text-yellow-700", dot: "bg-yellow-500" },
   CIC: { bg: "bg-purple-50", text: "text-purple-700", dot: "bg-purple-500" },
+  STOP: { bg: "bg-red-50", text: "text-red-800", dot: "bg-red-500" },
   DONE: { bg: "bg-green-50", text: "text-green-700", dot: "bg-green-500" },
 };
 
@@ -70,6 +72,11 @@ interface Reservation {
   driverResponse?: string | null;
   driverRespondedAt?: string | null;
   rejectedDriverIds?: string | null;
+  /** ISO — trip timer starts when driver reaches On The Way */
+  driverOnTheWayAt?: string | null;
+  /** JSON [{ start, end? }] mid-trip Stop → Continue */
+  driverStopPeriodsJson?: string | null;
+  completedAt?: string | null;
 }
 
 export default function ReservationsPage() {
@@ -526,6 +533,16 @@ export default function ReservationsPage() {
                             {r.duration && <p><span className="text-gray-500">Duration:</span> {r.duration}</p>}
                             {r.stops && <p><span className="text-gray-500">Stops:</span> {r.stops}</p>}
                           </div>
+                        </div>
+
+                        {/* Actual driver trip timing (from driver app) */}
+                        <div className="lg:col-span-3">
+                          <DriverTripTimingPanel
+                            status={r.status}
+                            driverOnTheWayAt={r.driverOnTheWayAt}
+                            driverStopPeriodsJson={r.driverStopPeriodsJson}
+                            completedAt={r.completedAt}
+                          />
                         </div>
 
                         {/* Billing */}

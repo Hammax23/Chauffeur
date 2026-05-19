@@ -8,6 +8,8 @@ import Constants from 'expo-constants';
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
@@ -39,20 +41,41 @@ export async function registerForPushNotificationsAsync() {
       return null;
     }
     
-    const projectId =
+    const rawProjectId =
       Constants.easConfig?.projectId ??
       ((Constants.expoConfig?.extra as any)?.eas?.projectId as string | undefined) ??
       ((Constants.expoConfig?.extra as any)?.EAS_PROJECT_ID as string | undefined);
 
     const isUuid = (value: string | undefined) =>
-      !!value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+      !!value &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
-    // If we have a valid EAS projectId, pass it. Otherwise, let Expo infer it.
-    token = (
-      await Notifications.getExpoPushTokenAsync(
-        isUuid(projectId) ? { projectId } : undefined
-      )
-    ).data;
+    const projectId =
+      typeof rawProjectId === "string" &&
+      rawProjectId.trim().length > 0 &&
+      !rawProjectId.includes("REPLACE") &&
+      isUuid(rawProjectId.trim())
+        ? rawProjectId.trim()
+        : undefined;
+
+    // Must pass a valid UUID when the native manifest does not include projectId (Expo Go / dev).
+    if (!projectId) {
+      if (__DEV__) {
+        console.warn(
+          "[Push] Missing EAS projectId. Add EAS_PROJECT_ID to apps/mobile/.env (see app.config.js). Push tokens disabled until then."
+        );
+      }
+      return null;
+    }
+
+    try {
+      token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+    } catch (e) {
+      if (__DEV__) {
+        console.warn("[Push] getExpoPushTokenAsync failed:", e);
+      }
+      return null;
+    }
   } else {
     console.log('Must use physical device for Push Notifications');
   }
@@ -88,7 +111,9 @@ export async function registerPushToken(authToken: string) {
       return false;
     }
   } catch (error) {
-    console.error('Error registering push token:', error);
+    if (__DEV__) {
+      console.warn('Push token registration skipped or failed:', error);
+    }
     return false;
   }
 }

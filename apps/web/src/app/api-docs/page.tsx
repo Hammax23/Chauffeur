@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import "swagger-ui-react/swagger-ui.css";
 
 const SwaggerUI = dynamic(() => import("swagger-ui-react"), { ssr: false });
@@ -18,12 +19,12 @@ export default function ApiDocsPage() {
             <span className="bg-green-500/20 text-green-400 px-3 py-1 rounded-full text-sm">
               v1.0.0
             </span>
-            <a 
-              href="/" 
+            <Link
+              href="/"
               className="text-[#C9A063] hover:underline text-sm"
             >
               ← Back to Website
-            </a>
+            </Link>
           </div>
         </div>
       </div>

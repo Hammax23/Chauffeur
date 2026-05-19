@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -9,389 +9,551 @@ import {
   Image,
   Platform,
   Animated,
+  Pressable,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import { useAuth } from "../../contexts/AuthContext";
-import { getReservations, Reservation } from "../../services/api";
+import { getReservations, Reservation, getFleetVehicles, type FleetVehicleDto } from "../../services/api";
+import { useReservationStream } from "../../hooks/useReservationStream";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-const fleetVehicles = [
-  {
-    id: "1",
-    name: "Mercedes-Maybach\nS-Class",
-    price: "$450",
-    image: "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=400&q=80",
-    tag: "Luxury Sedan",
-    seats: 3,
-  },
-  {
-    id: "2",
-    name: "Tesla\nModel S",
-    price: "$450",
-    image: "https://images.unsplash.com/photo-1536700503339-1e4b06520771?w=400&q=80",
-    tag: "Electric Premium",
-    seats: 3,
-  },
-  {
-    id: "3",
-    name: "Mercedes\nG Wagon AMG",
-    price: "$450",
-    image: "https://images.unsplash.com/photo-1520031441872-265e4ff70366?w=400&q=80",
-    tag: "Luxury SUV",
-    seats: 5,
-  },
-  {
-    id: "4",
-    name: "Porsche\nCarrera GT",
-    price: "$450",
-    image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=400&q=80",
-    tag: "Sports",
-    seats: 2,
-  },
-];
-
-const serviceOptions = [
-  { id: "1", icon: "navigate-circle", title: "Airport Transfer", desc: "Pickups & drop-offs", color: "#007AFF" },
-  { id: "2", icon: "timer", title: "Hourly Chauffeur", desc: "By the hour", color: "#D4A04A" },
-  { id: "3", icon: "globe", title: "Corporate Travel", desc: "Business trips", color: "#34C759" },
-  { id: "4", icon: "sparkles", title: "Special Events", desc: "Weddings & more", color: "#AF52DE" },
-];
+const ACCENT = "#C9A063";
+const ACCENT_DARK = "#A67C32";
+const SLATE_900 = "#0f172a";
+const SLATE_600 = "#475569";
+const SLATE_400 = "#94a3b8";
 
 const trustPoints = [
-  { id: "1", icon: "shield-checkmark", title: "Licensed & Insured", desc: "All drivers verified" },
-  { id: "2", icon: "star", title: "4.9 Average Rating", desc: "From 2,000+ rides" },
-  { id: "3", icon: "time", title: "24/7 Availability", desc: "Anytime, anywhere" },
+  { id: "1", icon: "shield-checkmark-outline" as const, title: "Licensed & insured", desc: "Vetted professional chauffeurs" },
+  { id: "2", icon: "diamond-outline" as const, title: "5-star service", desc: "Premium standards, every ride" },
+  { id: "3", icon: "headset-outline" as const, title: "24/7 concierge", desc: "Real people, anytime you call" },
 ];
+
+function displayFullName(first?: string | null, last?: string | null): string {
+  const full = [first, last].filter((s) => s?.trim()).join(" ").trim();
+  return full || "there";
+}
+
+/** First segment of address; short airport-style tokens shown uppercase for readability */
+function formatPlaceShort(loc: string): string {
+  const raw = loc.split(",")[0]?.trim() || loc;
+  if (!raw) return "";
+  const compact = raw.replace(/\s+/g, " ").trim();
+  if (compact.length <= 5 && /^[a-z]+$/i.test(compact.replace(/\s/g, ""))) {
+    return compact.toUpperCase();
+  }
+  return compact.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+const ACTIVE_TRIP_STATUSES = new Set(["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP"]);
 
 export default function CustomerHomeScreen() {
   const { user } = useAuth();
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
+  const fadeAnim = useMemo(() => new Animated.Value(0), []);
+  const slideAnim = useMemo(() => new Animated.Value(16), []);
+  // iOS-style spring scale on the hero press.
+  const heroScale = useRef(new Animated.Value(1)).current;
+  // Subtle breathing on the hero CTA arrow.
+  const heroArrowAnim = useRef(new Animated.Value(0)).current;
+  // Press feedback + live-dot pulse for the chauffeur status card.
+  const liveScale = useRef(new Animated.Value(1)).current;
+  const livePulse = useRef(new Animated.Value(0.45)).current;
   const [activeRide, setActiveRide] = useState<Reservation | null>(null);
+  const [fleetPreview, setFleetPreview] = useState<FleetVehicleDto[]>([]);
+  const [fleetLoading, setFleetLoading] = useState(true);
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 600,
-        useNativeDriver: true,
-      }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 520, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 520, useNativeDriver: true }),
     ]).start();
+  }, [fadeAnim, slideAnim]);
+
+  // Gentle, looped horizontal breath on the hero arrow — communicates "tap me"
+  // without being noisy. Eased so it feels Apple-like rather than mechanical.
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(heroArrowAnim, {
+          toValue: 1,
+          duration: 1400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(heroArrowAnim, {
+          toValue: 0,
+          duration: 1400,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [heroArrowAnim]);
+
+  const handleHeroPressIn = useCallback(() => {
+    Animated.spring(heroScale, {
+      toValue: 0.97,
+      useNativeDriver: true,
+      speed: 30,
+      bounciness: 0,
+    }).start();
+  }, [heroScale]);
+  const handleHeroPressOut = useCallback(() => {
+    Animated.spring(heroScale, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 18,
+      bounciness: 6,
+    }).start();
+  }, [heroScale]);
+
+  const heroArrowTranslate = heroArrowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 3],
+  });
+
+  // Pulsing dot on the chauffeur-status card — runs whenever a ride is active.
+  useEffect(() => {
+    if (!activeRide) {
+      livePulse.stopAnimation();
+      livePulse.setValue(0.45);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(livePulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(livePulse, { toValue: 0.45, duration: 900, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [activeRide, livePulse]);
+
+  const handleLivePressIn = useCallback(() => {
+    Animated.spring(liveScale, {
+      toValue: 0.98,
+      useNativeDriver: true,
+      speed: 30,
+      bounciness: 0,
+    }).start();
+  }, [liveScale]);
+  const handleLivePressOut = useCallback(() => {
+    Animated.spring(liveScale, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 18,
+      bounciness: 5,
+    }).start();
+  }, [liveScale]);
+
+  const friendlyStatus = (s: string) => (s === "ACCEPTED" ? "Driver assigned" : s === "CIC" ? "In car" : s);
+
+  const loadFleetPreview = useCallback(async () => {
+    setFleetLoading(true);
+    try {
+      const { vehicles } = await getFleetVehicles();
+      setFleetPreview(vehicles.slice(0, 8));
+    } catch {
+      setFleetPreview([]);
+    } finally {
+      setFleetLoading(false);
+    }
   }, []);
 
-  // Fetch active ride on focus
   useFocusEffect(
     useCallback(() => {
+      loadFleetPreview();
       (async () => {
         try {
           const data = await getReservations();
           if (data.success) {
-            const active = data.reservations.find(
-              (r) => r.status === "ON THE WAY" || r.status === "ARRIVED" || r.status === "CIC"
-            );
+            const active = data.reservations.find((r) => ACTIVE_TRIP_STATUSES.has(r.status));
             setActiveRide(active || null);
           }
         } catch {
-          // Silently fail
+          setActiveRide(null);
         }
       })();
-    }, [])
+    }, [loadFleetPreview])
   );
 
+  // Live-update the active-ride pill via SSE so the status reflects driver
+  // changes instantly while the home screen is open.
+  const liveBookingId = activeRide?.bookingId ?? null;
+  const liveActive = useReservationStream(liveBookingId);
+  useEffect(() => {
+    const next = liveActive.data;
+    if (!next || !activeRide) return;
+    if (next.status === activeRide.status) return;
+    if (!ACTIVE_TRIP_STATUSES.has(next.status)) {
+      setActiveRide(null);
+      return;
+    }
+    setActiveRide({ ...activeRide, status: next.status });
+  }, [liveActive.data, activeRide]);
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FAFAFA" />
+    <LinearGradient colors={["#f1f4f9", "#fafbfc", "#ffffff"]} locations={[0, 0.38, 1]} style={styles.gradientFill}>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <StatusBar barStyle="dark-content" />
 
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <Animated.View
-          style={[styles.header, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
         >
-          <TouchableOpacity style={styles.headerLeft} activeOpacity={0.8} onPress={() => router.push("/customer/profile")}>
-            <View style={styles.avatarContainer}>
-              {user?.photo ? (
-                <Image source={{ uri: user.photo }} style={styles.avatar} />
-              ) : (
-                <View style={[styles.avatar, styles.avatarFallback]}>
-                  <Text style={styles.avatarText}>
-                    {(user?.firstName?.[0] || "C")}
-                    {(user?.lastName?.[0] || "")}
-                  </Text>
-                </View>
-              )}
-              <View style={styles.onlineIndicator} />
-            </View>
-            <View>
-              <Text style={styles.welcomeText}>Welcome back</Text>
-              <Text style={styles.userName}>{user?.firstName} {user?.lastName}</Text>
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.notificationBtn}>
-            <Ionicons name="notifications-outline" size={22} color="#1a1a1a" />
-            <View style={styles.notificationDot} />
-          </TouchableOpacity>
-        </Animated.View>
-
-        {/* Active Ride Banner */}
-        {activeRide && (
-        <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
-          <TouchableOpacity
-            style={styles.activeRideBanner}
-            activeOpacity={0.9}
-            onPress={() => router.push({ pathname: "/customer/track-ride", params: { bookingId: activeRide.bookingId } })}
-          >
-            <LinearGradient
-              colors={["#D4A04A", "#C49A3A"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.activeRideGradient}
-            >
-              <View style={styles.activeRideLeft}>
-                <View style={styles.activeRidePulse}>
-                  <View style={styles.activeRideDot} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.activeRideLabel}>RIDE IN PROGRESS</Text>
-                  <Text style={styles.activeRideRoute} numberOfLines={1}>{activeRide.pickupLocation.split(",")[0]} → {activeRide.dropoffLocation.split(",")[0]}</Text>
-                </View>
-              </View>
-              <View style={styles.activeRideArrow}>
-                <Ionicons name="chevron-forward" size={18} color="#D4A04A" />
-              </View>
-            </LinearGradient>
-          </TouchableOpacity>
-        </Animated.View>
-        )}
-
-        {/* Hero Card – Book */}
-        <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
-          <TouchableOpacity
-            style={styles.heroCard}
-            activeOpacity={0.95}
-            onPress={() => router.push("/customer/create-reservation")}
-          >
-            <LinearGradient
-              colors={["#111111", "#1e1e1e"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.heroGradient}
-            >
-              <View style={styles.heroContent}>
-                <View style={styles.heroIconWrapper}>
-                  <LinearGradient colors={["#D4A04A", "#C49A3A"]} style={styles.heroIcon}>
-                    <Ionicons name="car-sport" size={26} color="#fff" />
-                  </LinearGradient>
-                </View>
-                <View style={styles.heroTextContainer}>
-                  <Text style={styles.heroTitle}>Book a Chauffeur</Text>
-                  <Text style={styles.heroSubtitle}>Premium rides at your fingertips</Text>
-                </View>
-              </View>
-              <View style={styles.heroArrow}>
-                <Ionicons name="arrow-forward" size={20} color="#D4A04A" />
-              </View>
-            </LinearGradient>
-          </TouchableOpacity>
-        </Animated.View>
-
-        {/* Services */}
-        <Animated.View style={{ opacity: fadeAnim }}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Our Services</Text>
-          </View>
-        </Animated.View>
-        <Animated.View style={{ opacity: fadeAnim }}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.servicesScroll}
-            decelerationRate="fast"
-            snapToInterval={SCREEN_WIDTH * 0.44 + 10}
-          >
-            {serviceOptions.map((service) => (
-              <TouchableOpacity
-                key={service.id}
-                style={styles.serviceCard}
-                activeOpacity={0.7}
-                onPress={() => router.push("/customer/create-reservation")}
-              >
-                <View style={[styles.serviceIconCircle, { backgroundColor: service.color + "18" }]}>
-                  <Ionicons name={service.icon as any} size={20} color={service.color} />
-                </View>
-                <View style={styles.serviceTextRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.serviceTitle}>{service.title}</Text>
-                    <Text style={styles.serviceDesc}>{service.desc}</Text>
+          {/* Top bar */}
+          <Animated.View style={[styles.topBar, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+            <TouchableOpacity style={styles.profileTap} activeOpacity={0.85} onPress={() => router.push("/customer/profile")}>
+              <View style={styles.avatarWrap}>
+                {user?.photo ? (
+                  <Image source={{ uri: user.photo }} style={styles.avatar} />
+                ) : (
+                  <View style={[styles.avatar, styles.avatarFallback]}>
+                    <Text style={styles.avatarInitials}>
+                      {(user?.firstName?.[0] || "S")}
+                      {(user?.lastName?.[0] || "")}
+                    </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={16} color="#ccc" />
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </Animated.View>
-
-        {/* Our Fleet – Horizontal Scroll */}
-        <Animated.View style={{ opacity: fadeAnim }}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Our Fleet</Text>
-            <TouchableOpacity>
-              <Text style={styles.viewAll}>View All</Text>
+                )}
+              </View>
+              <View style={styles.greetingBlock}>
+                <Text style={styles.greetingLine} numberOfLines={1} ellipsizeMode="tail">
+                  <Text style={styles.greetingHi}>Hi, </Text>
+                  <Text style={styles.greetingName}>{displayFullName(user?.firstName, user?.lastName)}</Text>
+                </Text>
+              </View>
             </TouchableOpacity>
-          </View>
-        </Animated.View>
+            <View style={styles.topActions}>
+              <TouchableOpacity style={styles.iconBtn} activeOpacity={0.85} onPress={() => router.push("/customer/reservations")}>
+                <Ionicons name="calendar-outline" size={22} color={SLATE_900} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.iconBtn} activeOpacity={0.85} onPress={() => router.push("/customer/profile")}>
+                <Ionicons name="notifications-outline" size={22} color={SLATE_900} />
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
 
-        <Animated.View style={{ opacity: fadeAnim }}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.fleetScroll}
-            decelerationRate="fast"
-            snapToInterval={SCREEN_WIDTH * 0.6 + 12}
-          >
-            {fleetVehicles.map((v) => (
-              <TouchableOpacity key={v.id} style={styles.fleetCard} activeOpacity={0.9}>
-                <Image source={{ uri: v.image }} style={styles.fleetImage} resizeMode="cover" />
-                <LinearGradient
-                  colors={["transparent", "rgba(0,0,0,0.8)"]}
-                  style={styles.fleetOverlay}
-                />
-                <View style={styles.fleetTag}>
-                  <Text style={styles.fleetTagText}>{v.tag}</Text>
-                </View>
-                <View style={styles.fleetInfo}>
-                  <Text style={styles.fleetName}>{v.name}</Text>
-                  <View style={styles.fleetMeta}>
-                    <Text style={styles.fleetPrice}>{v.price}<Text style={styles.fleetPriceUnit}>/hr</Text></Text>
-                    <View style={styles.fleetSeats}>
-                      <Ionicons name="people" size={12} color="rgba(255,255,255,0.7)" />
-                      <Text style={styles.fleetSeatsText}>{v.seats}</Text>
+          {/* Active ride — slim live status card */}
+          {activeRide ? (
+            <Animated.View
+              style={{
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }, { scale: liveScale }],
+              }}
+            >
+              <Pressable
+                onPress={() =>
+                  router.push({ pathname: "/customer/track-ride", params: { bookingId: activeRide.bookingId } })
+                }
+                onPressIn={handleLivePressIn}
+                onPressOut={handleLivePressOut}
+                android_ripple={{ color: "rgba(16,185,129,0.10)", borderless: false, radius: 220 }}
+              >
+                <View style={styles.liveCard}>
+                  {/* Row 1 — eyebrow + status */}
+                  <View style={styles.liveTopRow}>
+                    <View style={styles.liveDotWrap}>
+                      <Animated.View style={[styles.liveDotHalo, { opacity: livePulse }]} />
+                      <View style={styles.liveDot} />
+                    </View>
+                    <Text style={styles.liveEyebrow} numberOfLines={1}>
+                      Your Chauffeur Status
+                    </Text>
+                    <View style={styles.liveStatusChip}>
+                      <Text style={styles.liveStatusChipText} numberOfLines={1}>
+                        {friendlyStatus(activeRide.status)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.liveDivider} />
+
+                  {/* Row 2 — route + track */}
+                  <View style={styles.liveBottomRow}>
+                    <View style={styles.liveRouteCol}>
+                      <Text style={styles.liveRouteText} numberOfLines={1}>
+                        <Text style={styles.liveRoutePlace}>{formatPlaceShort(activeRide.pickupLocation)}</Text>
+                        <Text style={styles.liveRouteArrow}>  →  </Text>
+                        <Text style={styles.liveRoutePlace}>{formatPlaceShort(activeRide.dropoffLocation)}</Text>
+                      </Text>
+                      <Text style={styles.liveBookingMono} numberOfLines={1}>
+                        {activeRide.bookingId}
+                      </Text>
+                    </View>
+                    <View style={styles.liveTrackBtn}>
+                      <Text style={styles.liveTrackBtnText}>Track</Text>
+                      <Ionicons name="chevron-forward" size={14} color={ACCENT_DARK} />
                     </View>
                   </View>
                 </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </Animated.View>
+              </Pressable>
+            </Animated.View>
+          ) : null}
 
-        {/* Trust Section */}
-        <Animated.View style={{ opacity: fadeAnim }}>
-          <View style={[styles.sectionHeader, { marginTop: 8 }]}>
-            <Text style={styles.sectionTitle}>Why Choose Us</Text>
-          </View>
-          <View style={styles.trustSection}>
-            {trustPoints.map((item, index) => (
-              <View
-                key={item.id}
-                style={[styles.trustItem, index < trustPoints.length - 1 && styles.trustItemBorder]}
-              >
-                <View style={styles.trustIcon}>
-                  <Ionicons name={item.icon as any} size={20} color="#D4A04A" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.trustTitle}>{item.title}</Text>
-                  <Text style={styles.trustDesc}>{item.desc}</Text>
+          {/* Hero CTA */}
+          <Animated.View
+            style={[
+              styles.heroWrap,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }, { scale: heroScale }],
+              },
+            ]}
+          >
+            <Pressable
+              onPress={() => router.push("/customer/create-reservation")}
+              onPressIn={handleHeroPressIn}
+              onPressOut={handleHeroPressOut}
+              android_ripple={{ color: "rgba(201,160,99,0.08)", borderless: false, radius: 220 }}
+            >
+              <View style={styles.heroCard}>
+                <LinearGradient
+                  colors={["#0E172A", "#0A1120", "#070B14"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                {/* Very subtle gold ambient on the CTA side only */}
+                <LinearGradient
+                  colors={["rgba(201,160,99,0.18)", "rgba(201,160,99,0)"]}
+                  start={{ x: 1, y: 0.4 }}
+                  end={{ x: 0.4, y: 0.7 }}
+                  style={styles.heroGlow}
+                  pointerEvents="none"
+                />
+                {/* iOS glass top edge */}
+                <View style={styles.heroTopHairline} pointerEvents="none" />
+
+                <View style={styles.heroInner}>
+                  <View style={styles.heroCopy}>
+                    <Text style={styles.heroKicker}>CHAUFFEUR SERVICE</Text>
+                    <Text style={styles.heroTitle} numberOfLines={1} ellipsizeMode="tail">
+                      Reserve your next ride
+                    </Text>
+                    <Text style={styles.heroSub} numberOfLines={1} ellipsizeMode="tail">
+                      Airport · hourly · point-to-point
+                    </Text>
+                  </View>
+
+                  <View style={styles.heroCtaOuter}>
+                    <BlurView intensity={Platform.OS === "ios" ? 32 : 0} tint="dark" style={styles.heroCtaGlass}>
+                      <LinearGradient
+                        colors={["#E2B772", ACCENT, ACCENT_DARK]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.heroCtaDisc}
+                      >
+                        <Animated.View style={{ transform: [{ translateX: heroArrowTranslate }] }}>
+                          <Ionicons name="arrow-forward" size={16} color="#fff" />
+                        </Animated.View>
+                      </LinearGradient>
+                    </BlurView>
+                  </View>
                 </View>
               </View>
-            ))}
-          </View>
-        </Animated.View>
+            </Pressable>
+          </Animated.View>
 
-        <View style={{ height: 90 }} />
-      </ScrollView>
-    </SafeAreaView>
+          {/* Fleet */}
+          <Animated.View style={[styles.sectionBlock, { opacity: fadeAnim }]}>
+            <View style={styles.sectionHeadingRow}>
+              <View>
+                <Text style={styles.sectionEyebrow}>FLEET</Text>
+                <Text style={styles.sectionTitle}>Premium vehicles</Text>
+              </View>
+              <TouchableOpacity onPress={() => router.push("/customer/create-reservation")} hitSlop={12}>
+                <Text style={styles.linkText}>Book a vehicle</Text>
+              </TouchableOpacity>
+            </View>
+
+            {fleetLoading ? (
+              <View style={styles.fleetLoading}>
+                <ActivityIndicator color={ACCENT} />
+                <Text style={styles.fleetLoadingText}>Loading fleet…</Text>
+              </View>
+            ) : fleetPreview.length === 0 ? (
+              <Text style={styles.fleetEmpty}>Fleet preview unavailable. You can still book from the next step.</Text>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.fleetScroll}
+                decelerationRate="fast"
+              >
+                {fleetPreview.map((v) => (
+                  <TouchableOpacity
+                    key={v.id}
+                    style={styles.fleetCard}
+                    activeOpacity={0.92}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/customer/create-reservation",
+                        params: { vehicleId: v.id },
+                      })
+                    }
+                  >
+                    <Image source={{ uri: v.imageUrl }} style={styles.fleetImage} resizeMode="cover" />
+                    <LinearGradient colors={["transparent", "rgba(15,23,42,0.92)"]} style={styles.fleetOverlay} />
+                    <View style={styles.fleetTag}>
+                      <Text style={styles.fleetTagText}>{v.category}</Text>
+                    </View>
+                    <View style={styles.fleetInfo}>
+                      <Text style={styles.fleetName} numberOfLines={2}>
+                        {v.name}
+                      </Text>
+                      <View style={styles.fleetMeta}>
+                        <Text style={styles.fleetPrice}>
+                          ${v.pricePerKm.toFixed(2)}
+                          <Text style={styles.fleetPriceUnit}>/km</Text>
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </Animated.View>
+
+          {/* Trust */}
+          <Animated.View style={[styles.sectionBlock, { opacity: fadeAnim, paddingBottom: 8 }]}>
+            <View style={styles.trustHeadingRow}>
+              <View>
+                <Text style={styles.sectionEyebrow}>WHY SARJ</Text>
+                <Text style={styles.trustSectionTitle}>The chauffeur standard</Text>
+              </View>
+              <View style={styles.trustHeadingMark} />
+            </View>
+            <View style={styles.trustCard}>
+              {trustPoints.map((item, index) => (
+                <View key={item.id} style={styles.trustRow}>
+                  <View style={styles.trustIconTile}>
+                    <Ionicons name={item.icon} size={15} color={ACCENT_DARK} />
+                  </View>
+                  <View style={styles.trustCopyCol}>
+                    <Text style={styles.trustTitle} numberOfLines={1}>{item.title}</Text>
+                    <Text style={styles.trustDesc} numberOfLines={1}>{item.desc}</Text>
+                  </View>
+                  {index < trustPoints.length - 1 ? (
+                    <View style={styles.trustRowDivider} pointerEvents="none" />
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          </Animated.View>
+
+          <Text style={styles.footerBrand}></Text>
+          <View style={{ height: 96 }} />
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  gradientFill: {
+    flex: 1,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: "transparent",
   },
   container: {
     flex: 1,
   },
   contentContainer: {
     paddingHorizontal: 20,
-    paddingTop: 8,
+    paddingTop: 6,
   },
-  header: {
+
+  topBar: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-    paddingTop: 8,
+    marginBottom: 22,
+    paddingTop: 4,
   },
-  headerLeft: {
+  profileTap: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
     gap: 12,
   },
-  avatarContainer: {
-    position: "relative",
+  avatarWrap: {
+    borderRadius: 26,
+    padding: 2,
+    backgroundColor: "#fff",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#0f172a",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+      },
+      android: { elevation: 3 },
+    }),
   },
   avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     borderWidth: 2,
-    borderColor: "#D4A04A",
+    borderColor: ACCENT,
   },
   avatarFallback: {
-    backgroundColor: "#D4A04A",
+    backgroundColor: ACCENT,
     justifyContent: "center",
     alignItems: "center",
+    borderColor: ACCENT,
   },
-  avatarText: {
+  avatarInitials: {
     color: "#fff",
-    fontSize: 16,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-  },
-  onlineIndicator: {
-    position: "absolute",
-    bottom: 2,
-    right: 2,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#4CAF50",
-    borderWidth: 2,
-    borderColor: "#FAFAFA",
-  },
-  welcomeText: {
-    fontSize: 12,
-    color: "#888",
-    fontWeight: "500",
-  },
-  userName: {
     fontSize: 17,
     fontWeight: "700",
-    color: "#1a1a1a",
   },
-  notificationBtn: {
+  greetingBlock: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: "center",
+  },
+  greetingLine: {
+    fontSize: 16,
+    lineHeight: 21,
+  },
+  greetingHi: {
+    color: SLATE_600,
+    fontWeight: "600",
+    fontSize: 16,
+  },
+  greetingName: {
+    color: SLATE_900,
+    fontWeight: "700",
+    fontSize: 16,
+  },
+  topActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  iconBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255,255,255,0.85)",
+    borderWidth: 1,
+    borderColor: "rgba(15,23,42,0.06)",
     justifyContent: "center",
     alignItems: "center",
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
+        shadowColor: "#0f172a",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.06,
         shadowRadius: 8,
@@ -399,461 +561,441 @@ const styles = StyleSheet.create({
       android: { elevation: 2 },
     }),
   },
-  notificationDot: {
-    position: "absolute",
-    top: 11,
-    right: 12,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#E53935",
-  },
 
-  /* Active Ride Banner */
-  activeRideBanner: {
-    borderRadius: 14,
-    marginBottom: 16,
-    overflow: "hidden",
+  liveCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(15, 23, 42, 0.08)",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 18,
     ...Platform.select({
       ios: {
-        shadowColor: "#D4A04A",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 12,
+        shadowColor: "#0f172a",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.06,
+        shadowRadius: 14,
+      },
+      android: { elevation: 2 },
+    }),
+  },
+  liveTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  liveDotWrap: {
+    width: 14,
+    height: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+  },
+  liveDotHalo: {
+    position: "absolute",
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "rgba(16,185,129,0.35)",
+  },
+  liveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "#10B981",
+  },
+  liveEyebrow: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 11,
+    fontWeight: "700",
+    color: SLATE_600,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+  },
+  liveStatusChip: {
+    flexShrink: 0,
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(16, 185, 129, 0.28)",
+  },
+  liveStatusChipText: {
+    fontSize: 10.5,
+    fontWeight: "800",
+    color: "#047857",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  liveDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(15,23,42,0.08)",
+    marginVertical: 10,
+  },
+  liveBottomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  liveRouteCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  liveRouteText: {
+    fontSize: 13.5,
+    fontWeight: "600",
+    color: SLATE_900,
+    letterSpacing: -0.1,
+  },
+  liveRoutePlace: {
+    color: SLATE_900,
+  },
+  liveRouteArrow: {
+    color: SLATE_400,
+    fontWeight: "500",
+  },
+  liveBookingMono: {
+    marginTop: 2,
+    fontSize: 10.5,
+    fontWeight: "600",
+    color: SLATE_400,
+    letterSpacing: 0.4,
+    ...Platform.select({
+      ios: { fontFamily: "Menlo" },
+      android: { fontFamily: "monospace" },
+    }),
+  },
+  liveTrackBtn: {
+    flexShrink: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "rgba(201,160,99,0.10)",
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(201,160,99,0.30)",
+  },
+  liveTrackBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: ACCENT_DARK,
+    letterSpacing: 0.2,
+  },
+
+  heroWrap: {
+    marginBottom: 24,
+  },
+  heroCard: {
+    position: "relative",
+    borderRadius: 18,
+    overflow: "hidden",
+    backgroundColor: "#0A1120",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.05)",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#020617",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.22,
+        shadowRadius: 22,
       },
       android: { elevation: 6 },
     }),
   },
-  activeRideGradient: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+  heroGlow: {
+    position: "absolute",
+    top: -30,
+    right: -40,
+    width: 200,
+    height: 160,
+    borderRadius: 200,
   },
-  activeRideLeft: {
+  heroTopHairline: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(255,255,255,0.10)",
+  },
+  heroInner: {
     flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    gap: 14,
+  },
+  heroCopy: {
     flex: 1,
-    gap: 12,
+    minWidth: 0,
   },
-  activeRidePulse: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  activeRideDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#fff",
-  },
-  activeRideLabel: {
+  heroKicker: {
     fontSize: 10,
     fontWeight: "700",
-    color: "rgba(255,255,255,0.85)",
-    letterSpacing: 1,
-    marginBottom: 2,
-  },
-  activeRideRoute: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  activeRideArrow: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  /* Hero Card */
-  heroCard: {
-    borderRadius: 18,
-    marginBottom: 18,
-    overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.12,
-        shadowRadius: 16,
-      },
-      android: { elevation: 6 },
-    }),
-  },
-  heroGradient: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 18,
-  },
-  heroContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  heroIconWrapper: {
-    marginRight: 14,
-  },
-  heroIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  heroTextContainer: {
-    flex: 1,
+    color: "rgba(201,160,99,0.85)",
+    letterSpacing: 2,
+    marginBottom: 6,
   },
   heroTitle: {
     fontSize: 17,
     fontWeight: "700",
     color: "#fff",
-    marginBottom: 3,
+    letterSpacing: -0.3,
+    lineHeight: 22,
   },
-  heroSubtitle: {
+  heroSub: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.6)",
+    color: "rgba(226, 232, 240, 0.55)",
+    lineHeight: 16,
+    marginTop: 3,
+    letterSpacing: 0.1,
   },
-  heroArrow: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  /* Section Header */
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 14,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#1a1a1a",
-  },
-  viewAll: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#D4A04A",
-  },
-
-  /* Services */
-  servicesScroll: {
-    paddingRight: 10,
-    marginBottom: 24,
-  },
-  serviceCard: {
-    width: SCREEN_WIDTH * 0.44,
-    marginRight: 10,
-    borderRadius: 16,
-    backgroundColor: "#fff",
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#eee",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 10,
-      },
-      android: { elevation: 2 },
-    }),
-  },
-  serviceIconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 14,
-  },
-  serviceTextRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  serviceTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1a1a1a",
-    marginBottom: 2,
-  },
-  serviceDesc: {
-    fontSize: 11,
-    color: "#888",
-    fontWeight: "400",
-  },
-
-  /* Recent Booking */
-  recentCard: {
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 22,
-    borderWidth: 1,
-    borderColor: "#f0f0f0",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 8,
-      },
-      android: { elevation: 1 },
-    }),
-  },
-  recentTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  recentInfo: {
-    flex: 1,
-  },
-  recentId: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#1a1a1a",
-    marginBottom: 6,
-  },
-  recentStatusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#E8F5E9",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    gap: 5,
-  },
-  recentStatusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#4CAF50",
-  },
-  recentStatusText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#4CAF50",
-  },
-  recentPrice: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#D4A04A",
-  },
-  recentMidRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  recentVehicle: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  recentVehicleText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#1a1a1a",
-  },
-  recentDriver: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  recentDriverAvatar: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-  },
-  recentDriverName: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: "#666",
-  },
-  recentDivider: {
-    height: 1,
-    backgroundColor: "#f0f0f0",
-    marginVertical: 12,
-  },
-  recentBottom: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-  },
-  recentRoute: {
-    flex: 1,
-    marginRight: 12,
-  },
-  recentLocationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  recentDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  recentLocationText: {
-    fontSize: 12,
-    color: "#555",
-    flex: 1,
-  },
-  recentRouteLine: {
-    width: 1,
-    height: 14,
-    backgroundColor: "#ddd",
-    marginLeft: 3.5,
-    marginVertical: 2,
-  },
-  recentDate: {
-    fontSize: 11,
-    color: "#999",
-    fontWeight: "500",
-  },
-
-  /* Fleet Horizontal */
-  fleetScroll: {
-    paddingRight: 20,
-    marginBottom: 22,
-  },
-  fleetCard: {
-    width: SCREEN_WIDTH * 0.6,
-    height: 220,
-    borderRadius: 16,
+  heroCtaOuter: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    padding: 2,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.10)",
     overflow: "hidden",
-    marginRight: 12,
+    justifyContent: "center",
+    alignItems: "center",
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
+        shadowColor: ACCENT_DARK,
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
+        shadowOpacity: 0.28,
+        shadowRadius: 8,
       },
       android: { elevation: 4 },
     }),
   },
+  heroCtaGlass: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: "hidden",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  heroCtaDisc: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  sectionBlock: {
+    marginBottom: 28,
+  },
+  sectionHeading: {
+    marginBottom: 14,
+  },
+  sectionHeadingRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    marginBottom: 14,
+  },
+  sectionEyebrow: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: SLATE_400,
+    letterSpacing: 2,
+    marginBottom: 6,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: SLATE_900,
+    letterSpacing: -0.4,
+  },
+  linkText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: ACCENT_DARK,
+  },
+
+  fleetLoading: {
+    paddingVertical: 28,
+    alignItems: "center",
+    gap: 10,
+  },
+  fleetLoadingText: {
+    fontSize: 13,
+    color: SLATE_600,
+  },
+  fleetEmpty: {
+    fontSize: 13,
+    color: SLATE_600,
+    lineHeight: 20,
+  },
+  fleetScroll: {
+    paddingRight: 8,
+    gap: 12,
+  },
+  fleetCard: {
+    width: SCREEN_WIDTH * 0.58,
+    height: 200,
+    borderRadius: 18,
+    overflow: "hidden",
+    marginRight: 12,
+    backgroundColor: "#e2e8f0",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#0f172a",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.12,
+        shadowRadius: 14,
+      },
+      android: { elevation: 5 },
+    }),
+  },
   fleetImage: {
-    width: "100%",
-    height: "100%",
+    ...StyleSheet.absoluteFillObject,
   },
   fleetOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: "70%",
+    ...StyleSheet.absoluteFillObject,
   },
   fleetTag: {
     position: "absolute",
     top: 12,
     left: 12,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    paddingHorizontal: 8,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 8,
   },
   fleetTagText: {
     fontSize: 10,
-    fontWeight: "600",
-    color: "#fff",
-    letterSpacing: 0.5,
+    fontWeight: "800",
+    color: SLATE_900,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
   },
   fleetInfo: {
     position: "absolute",
-    bottom: 14,
-    left: 14,
-    right: 14,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 14,
   },
   fleetName: {
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#fff",
-    marginBottom: 4,
-    lineHeight: 19,
+    marginBottom: 6,
+    lineHeight: 20,
   },
   fleetMeta: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
   },
   fleetPrice: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#D4A04A",
+    fontSize: 16,
+    fontWeight: "800",
+    color: ACCENT,
   },
   fleetPriceUnit: {
-    fontSize: 11,
-    fontWeight: "500",
-    color: "rgba(255,255,255,0.6)",
-  },
-  fleetSeats: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  fleetSeatsText: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.7)",
-    fontWeight: "500",
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.75)",
   },
 
-  /* Trust Section */
-  trustSection: {
+  trustHeadingRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    marginBottom: 12,
+  },
+  trustSectionTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: SLATE_900,
+    letterSpacing: -0.3,
+  },
+  trustHeadingMark: {
+    width: 28,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: ACCENT,
+    opacity: 0.85,
+    marginBottom: 6,
+  },
+  trustCard: {
     backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: "#f0f0f0",
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(15,23,42,0.08)",
+    overflow: "hidden",
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
+        shadowColor: "#0f172a",
+        shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.04,
-        shadowRadius: 6,
+        shadowRadius: 10,
       },
       android: { elevation: 1 },
     }),
   },
-  trustItem: {
+  trustRow: {
+    position: "relative",
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 14,
-    gap: 14,
+    gap: 12,
   },
-  trustItemBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#f5f5f5",
+  trustRowDivider: {
+    position: "absolute",
+    left: 14 + 28 + 12,
+    right: 14,
+    bottom: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(15,23,42,0.08)",
   },
-  trustIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: "rgba(212,160,74,0.08)",
+  trustIconTile: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    backgroundColor: "rgba(201,160,99,0.10)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(201,160,99,0.30)",
     justifyContent: "center",
     alignItems: "center",
   },
+  trustCopyCol: {
+    flex: 1,
+    minWidth: 0,
+  },
   trustTitle: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: "600",
-    color: "#1a1a1a",
-    marginBottom: 2,
+    color: SLATE_900,
+    letterSpacing: -0.1,
+    marginBottom: 1,
   },
   trustDesc: {
-    fontSize: 12,
-    color: "#999",
+    fontSize: 11.5,
+    color: SLATE_600,
+    lineHeight: 15,
+    letterSpacing: 0.05,
+  },
+
+  footerBrand: {
+    textAlign: "center",
+    fontSize: 11,
+    fontWeight: "700",
+    color: SLATE_400,
+    letterSpacing: 2,
+    marginTop: 8,
   },
 });

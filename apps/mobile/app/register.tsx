@@ -209,27 +209,6 @@ export default function RegisterScreen() {
           <Text style={styles.signInLink}>Sign In</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Divider */}
-      <View style={styles.dividerContainer}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>Or sign up with</Text>
-        <View style={styles.dividerLine} />
-      </View>
-
-      {/* Social Buttons */}
-      <TouchableOpacity style={styles.socialButton}>
-        <Image
-          source={{ uri: "https://www.google.com/favicon.ico" }}
-          style={styles.socialIcon}
-        />
-        <Text style={styles.socialText}>Continue with Google</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.socialButton}>
-        <Ionicons name="logo-apple" size={20} color="#000" />
-        <Text style={styles.socialText}>Continue with Apple</Text>
-      </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -388,40 +367,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#000",
     fontWeight: "600",
-  },
-  dividerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#e0e0e0",
-  },
-  dividerText: {
-    paddingHorizontal: 16,
-    fontSize: 14,
-    color: "#666",
-  },
-  socialButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-    borderRadius: 30,
-    paddingVertical: 14,
-    marginBottom: 12,
-    gap: 10,
-  },
-  socialIcon: {
-    width: 20,
-    height: 20,
-  },
-  socialText: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: "#000",
   },
 });

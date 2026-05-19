@@ -1,4 +1,5 @@
 import prisma from "./prisma";
+import { TERMINAL_RESERVATION_STATUSES } from "./reservation-driver-assignment";
 
 // Reservation interface for API compatibility
 export interface ReservationData {
@@ -56,7 +57,14 @@ export interface DriverData {
   vehicleCode?: string;
   status?: "available" | "on_trip" | "offline";
   isActive?: boolean;
-  photo?: string;
+  photo?: string | null;
+  backgroundCheckUrl?: string | null;
+  commercialInsuranceUrl?: string | null;
+  driverLicenceUrl?: string | null;
+  proofOfWorkEligibilityUrl?: string | null;
+  municipalTaxiLimoLicenceUrl?: string | null;
+  vehicleInsuranceUrl?: string | null;
+  vehicleRegistrationUrl?: string | null;
   rating?: number;
   totalTrips?: number;
   createdAt?: string;
@@ -68,9 +76,22 @@ export async function getReservations() {
     orderBy: { createdAt: "desc" },
     include: { assignedDriver: true },
   });
-  return reservations.map((r: typeof reservations[number]) => ({
-    ...r,
+  return reservations.map((r: typeof reservations[number]) => {
+    const { assignedDriver, ...rest } = r;
+    const safeAssigned =
+      assignedDriver == null
+        ? null
+        : (() => {
+            const { password: _pw, ...d } = assignedDriver;
+            return d;
+          })();
+    return {
+    ...rest,
+    assignedDriver: safeAssigned,
     dateSubmitted: r.dateSubmitted.toISOString(),
+    driverOnTheWayAt: r.driverOnTheWayAt?.toISOString() ?? null,
+    driverStopPeriodsJson: r.driverStopPeriodsJson ?? null,
+    completedAt: r.completedAt?.toISOString() ?? null,
     childSeats: r.childSeats || 0,
     childSeatType: r.childSeatType || "",
     stops: r.stops || "",
@@ -90,7 +111,8 @@ export async function getReservations() {
     driverResponse: r.driverResponse || null,
     driverRespondedAt: r.driverRespondedAt ? r.driverRespondedAt.toISOString() : null,
     rejectedDriverIds: r.rejectedDriverIds || null,
-  }));
+  };
+  });
 }
 
 // Add a new reservation
@@ -171,9 +193,35 @@ export async function getReservationById(bookingId: string) {
   return reservation;
 }
 
-// Assign driver to reservation
-export async function assignDriverToReservation(bookingId: string, driverId: string) {
+/** Another active booking already uses this driver (not DONE/CANCELLED). */
+export async function driverHasActiveAssignmentElsewhere(
+  driverId: string,
+  excludeBookingId: string
+): Promise<boolean> {
+  const row = await prisma.reservation.findFirst({
+    where: {
+      assignedDriverId: driverId,
+      bookingId: { not: excludeBookingId },
+      status: { notIn: [...TERMINAL_RESERVATION_STATUSES] },
+    },
+    select: { id: true },
+  });
+  return !!row;
+}
+
+export type AssignDriverToReservationResult =
+  | { ok: true }
+  | { ok: false; reason: "busy" | "failed" };
+
+// Assign driver to reservation (blocks if driver already on another active ride)
+export async function assignDriverToReservation(
+  bookingId: string,
+  driverId: string
+): Promise<AssignDriverToReservationResult> {
   try {
+    if (await driverHasActiveAssignmentElsewhere(driverId, bookingId)) {
+      return { ok: false, reason: "busy" };
+    }
     await prisma.reservation.update({
       where: { bookingId },
       data: {
@@ -182,9 +230,9 @@ export async function assignDriverToReservation(bookingId: string, driverId: str
         driverRespondedAt: null,
       },
     });
-    return true;
+    return { ok: true };
   } catch {
-    return false;
+    return { ok: false, reason: "failed" };
   }
 }
 
@@ -230,6 +278,13 @@ export async function getDrivers() {
     status: d.status as "available" | "on_trip" | "offline",
     isActive: d.isActive,
     photo: d.photo,
+    backgroundCheckUrl: d.backgroundCheckUrl,
+    commercialInsuranceUrl: d.commercialInsuranceUrl,
+    driverLicenceUrl: d.driverLicenceUrl,
+    proofOfWorkEligibilityUrl: d.proofOfWorkEligibilityUrl,
+    municipalTaxiLimoLicenceUrl: d.municipalTaxiLimoLicenceUrl,
+    vehicleInsuranceUrl: d.vehicleInsuranceUrl,
+    vehicleRegistrationUrl: d.vehicleRegistrationUrl,
     rating: d.rating,
     totalTrips: d.totalTrips,
     createdAt: d.createdAt.toISOString(),
@@ -251,6 +306,13 @@ export async function addDriver(data: Omit<DriverData, "id" | "driverId" | "crea
       vehicleCode: data.vehicleCode || null,
       status: data.status || "available",
       photo: data.photo,
+      backgroundCheckUrl: data.backgroundCheckUrl ?? null,
+      commercialInsuranceUrl: data.commercialInsuranceUrl ?? null,
+      driverLicenceUrl: data.driverLicenceUrl ?? null,
+      proofOfWorkEligibilityUrl: data.proofOfWorkEligibilityUrl ?? null,
+      municipalTaxiLimoLicenceUrl: data.municipalTaxiLimoLicenceUrl ?? null,
+      vehicleInsuranceUrl: data.vehicleInsuranceUrl ?? null,
+      vehicleRegistrationUrl: data.vehicleRegistrationUrl ?? null,
       rating: data.rating || 5.0,
       totalTrips: data.totalTrips || 0,
     },
@@ -267,6 +329,13 @@ export async function addDriver(data: Omit<DriverData, "id" | "driverId" | "crea
     status: driver.status as "available" | "on_trip" | "offline",
     isActive: driver.isActive,
     photo: driver.photo,
+    backgroundCheckUrl: driver.backgroundCheckUrl,
+    commercialInsuranceUrl: driver.commercialInsuranceUrl,
+    driverLicenceUrl: driver.driverLicenceUrl,
+    proofOfWorkEligibilityUrl: driver.proofOfWorkEligibilityUrl,
+    municipalTaxiLimoLicenceUrl: driver.municipalTaxiLimoLicenceUrl,
+    vehicleInsuranceUrl: driver.vehicleInsuranceUrl,
+    vehicleRegistrationUrl: driver.vehicleRegistrationUrl,
     rating: driver.rating,
     totalTrips: driver.totalTrips,
     createdAt: driver.createdAt.toISOString(),
@@ -316,6 +385,13 @@ export async function getDriverById(id: string) {
     status: driver.status as "available" | "on_trip" | "offline",
     isActive: driver.isActive,
     photo: driver.photo,
+    backgroundCheckUrl: driver.backgroundCheckUrl,
+    commercialInsuranceUrl: driver.commercialInsuranceUrl,
+    driverLicenceUrl: driver.driverLicenceUrl,
+    proofOfWorkEligibilityUrl: driver.proofOfWorkEligibilityUrl,
+    municipalTaxiLimoLicenceUrl: driver.municipalTaxiLimoLicenceUrl,
+    vehicleInsuranceUrl: driver.vehicleInsuranceUrl,
+    vehicleRegistrationUrl: driver.vehicleRegistrationUrl,
     rating: driver.rating,
     totalTrips: driver.totalTrips,
     createdAt: driver.createdAt.toISOString(),

@@ -1,3 +1,5 @@
+import "../services/driver-location-task";
+
 import { Stack } from "expo-router";
 import { AuthProvider } from "../contexts/AuthContext";
 import { DriverAuthProvider } from "../contexts/DriverAuthContext";

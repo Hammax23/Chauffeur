@@ -8,6 +8,7 @@ import {
   FileText,
 } from "lucide-react";
 import Image from "next/image";
+import DriverStatusBadge from "@/components/DriverStatusBadge";
 import {
   DEFAULT_VISIBLE_FIELDS,
   DRIVER_INVITE_FIELD_KEYS,
@@ -18,9 +19,12 @@ import {
   emptyPrefilledFieldsRecord,
   isDocumentUploadField,
   isPrefilledOptionalWhenClosed,
+  isInviteFieldVisibilityLocked,
+  enforceLockedInviteVisibility,
   type DriverInviteFieldKey,
   type VisibleFieldsMap,
 } from "@/lib/driver-invite-config";
+import { adminDocumentDownloadHref, adminDocumentViewHref } from "@/lib/cloudinary-download";
 
 interface Reservation {
   bookingId: string;
@@ -54,23 +58,78 @@ interface Driver {
   vehicle: string;
   vehiclePlate: string;
   status: "available" | "on_trip" | "offline";
-  photo?: string;
+  photo?: string | null;
+  backgroundCheckUrl?: string | null;
+  commercialInsuranceUrl?: string | null;
+  driverLicenceUrl?: string | null;
+  proofOfWorkEligibilityUrl?: string | null;
+  municipalTaxiLimoLicenceUrl?: string | null;
+  vehicleInsuranceUrl?: string | null;
+  vehicleRegistrationUrl?: string | null;
   rating: number;
   totalTrips: number;
   createdAt: string;
 }
 
-const STATUS_COLORS = {
-  available: { bg: "bg-green-100", text: "text-green-700", dot: "bg-green-500" },
-  on_trip: { bg: "bg-blue-100", text: "text-blue-700", dot: "bg-blue-500" },
-  offline: { bg: "bg-gray-100", text: "text-gray-500", dot: "bg-gray-400" },
-};
+interface DriverApplication {
+  id: string;
+  inviteId: string;
+  status: "SUBMITTED" | "APPROVED" | "REJECTED";
+  rejectionReason: string | null;
+  name: string;
+  email: string;
+  phone: string;
+  vehicle: string;
+  vehiclePlate: string;
+  photo: string | null;
+  backgroundCheckUrl: string | null;
+  commercialInsuranceUrl: string | null;
+  driverLicenceUrl: string | null;
+  proofOfWorkEligibilityUrl: string | null;
+  municipalTaxiLimoLicenceUrl: string | null;
+  vehicleInsuranceUrl: string | null;
+  vehicleRegistrationUrl: string | null;
+  submittedAt: string;
+  reviewedAt: string | null;
+  documents?: {
+    id: string;
+    key: string;
+    url: string;
+    extractedExpiryDate: string | null;
+    confirmedExpiryDate: string | null;
+    expirySource: string;
+    status: string;
+    ocrConfidence: number | null;
+    overrideReason: string | null;
+  }[];
+}
 
-const STATUS_LABELS = {
-  available: "Available",
-  on_trip: "On Trip",
-  offline: "Offline",
-};
+/** Compliance file URLs stored on the application (when OCR rows are not created). */
+function docKeyLabel(key: string): string {
+  return key in DRIVER_INVITE_FIELD_LABELS
+    ? DRIVER_INVITE_FIELD_LABELS[key as DriverInviteFieldKey]
+    : key;
+}
+
+function getSubmittedDocumentLinks(app: DriverApplication): { label: string; url: string }[] {
+  const pairs: Array<[keyof DriverApplication, DriverInviteFieldKey]> = [
+    ["backgroundCheckUrl", "backgroundCheck"],
+    ["commercialInsuranceUrl", "commercialInsurance"],
+    ["driverLicenceUrl", "driverLicence"],
+    ["proofOfWorkEligibilityUrl", "proofOfWorkEligibility"],
+    ["municipalTaxiLimoLicenceUrl", "municipalTaxiLimoLicence"],
+    ["vehicleInsuranceUrl", "vehicleInsurance"],
+    ["vehicleRegistrationUrl", "vehicleRegistration"],
+  ];
+  const out: { label: string; url: string }[] = [];
+  for (const [field, labelKey] of pairs) {
+    const raw = app[field];
+    if (typeof raw === "string" && raw.trim()) {
+      out.push({ label: DRIVER_INVITE_FIELD_LABELS[labelKey], url: raw.trim() });
+    }
+  }
+  return out;
+}
 
 export default function DriversPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -97,6 +156,13 @@ export default function DriversPage() {
     vehiclePlate: "",
     status: "available" as Driver["status"],
     photo: "",
+    backgroundCheckUrl: "",
+    commercialInsuranceUrl: "",
+    driverLicenceUrl: "",
+    proofOfWorkEligibilityUrl: "",
+    municipalTaxiLimoLicenceUrl: "",
+    vehicleInsuranceUrl: "",
+    vehicleRegistrationUrl: "",
     password: "",
   });
   const [uploading, setUploading] = useState(false);
@@ -117,6 +183,18 @@ export default function DriversPage() {
   const [copySuccess, setCopySuccess] = useState(false);
   const [deletingInvite, setDeletingInvite] = useState<string | null>(null);
 
+  // Driver Applications (approval workflow)
+  const [applications, setApplications] = useState<DriverApplication[]>([]);
+  const [loadingApplications, setLoadingApplications] = useState(false);
+  const [showApplicationsModal, setShowApplicationsModal] = useState(false);
+  const [selectedApplication, setSelectedApplication] = useState<DriverApplication | null>(null);
+  const [approvingApplication, setApprovingApplication] = useState(false);
+  const [rejectingApplication, setRejectingApplication] = useState(false);
+  const [applicationPassword, setApplicationPassword] = useState("");
+  const [applicationRejectReason, setApplicationRejectReason] = useState("");
+  const [allowExpiredOverride, setAllowExpiredOverride] = useState(false);
+  const [overrideReason, setOverrideReason] = useState("");
+
   const fetchDrivers = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/drivers");
@@ -134,14 +212,120 @@ export default function DriversPage() {
     }
   }, []);
 
+  const fetchApplications = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true;
+    if (!silent) setLoadingApplications(true);
+    try {
+      const res = await fetch("/api/admin/driver-applications?status=SUBMITTED");
+      const data = await res.json();
+      if (data.success) {
+        setApplications(data.applications || []);
+      } else if (!silent) {
+        setError(data.error || "Failed to load applications");
+      }
+    } catch {
+      if (!silent) setError("Failed to load applications");
+    } finally {
+      if (!silent) setLoadingApplications(false);
+    }
+  }, []);
+
+  const openApplicationsModal = async () => {
+    setShowApplicationsModal(true);
+    setSelectedApplication(null);
+    setApplicationPassword("");
+    setApplicationRejectReason("");
+    setAllowExpiredOverride(false);
+    setOverrideReason("");
+    await fetchApplications();
+  };
+
+  const openApplicationDetail = async (id: string) => {
+    try {
+      const res = await fetch(`/api/admin/driver-applications/${id}`);
+      const data = await res.json();
+      if (data.success) {
+        setSelectedApplication(data.application);
+        setApplicationPassword("");
+        setAllowExpiredOverride(false);
+        setOverrideReason("");
+      } else {
+        setError(data.error || "Failed to load application");
+      }
+    } catch {
+      setError("Failed to load application");
+    }
+  };
+
+  const approveSelectedApplication = async () => {
+    if (!selectedApplication) return;
+    if (!applicationPassword.trim()) {
+      setError("Password is required to approve (min 6 chars)");
+      return;
+    }
+    setApprovingApplication(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/driver-applications/${selectedApplication.id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password: applicationPassword.trim(),
+          allowExpiredOverride,
+          overrideReason: overrideReason.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchApplications({ silent: true });
+        await fetchDrivers();
+        setSelectedApplication(null);
+        setApplicationPassword("");
+      } else {
+        setError(data.error || "Failed to approve");
+      }
+    } catch {
+      setError("Failed to approve application");
+    } finally {
+      setApprovingApplication(false);
+    }
+  };
+
+  const rejectSelectedApplication = async () => {
+    if (!selectedApplication) return;
+    setRejectingApplication(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/driver-applications/${selectedApplication.id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: applicationRejectReason.trim() || undefined }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchApplications({ silent: true });
+        setSelectedApplication(null);
+        setApplicationRejectReason("");
+      } else {
+        setError(data.error || "Failed to reject");
+      }
+    } catch {
+      setError("Failed to reject application");
+    } finally {
+      setRejectingApplication(false);
+    }
+  };
+
   useEffect(() => {
     fetchDrivers();
-    // Auto-refresh every 5 seconds to show real-time driver status (active/inactive)
+    fetchApplications({ silent: true });
+    // Auto-refresh: drivers status + pending application count for badge
     const interval = setInterval(() => {
       fetchDrivers();
+      fetchApplications({ silent: true });
     }, 5000);
     return () => clearInterval(interval);
-  }, [fetchDrivers]);
+  }, [fetchDrivers, fetchApplications]);
 
   const filtered = drivers.filter((d) => {
     const query = searchQuery.toLowerCase();
@@ -157,7 +341,23 @@ export default function DriversPage() {
 
   const openAddModal = () => {
     setEditingDriver(null);
-    setForm({ name: "", phone: "", email: "", vehicle: "", vehiclePlate: "", status: "available", photo: "", password: "" });
+    setForm({
+      name: "",
+      phone: "",
+      email: "",
+      vehicle: "",
+      vehiclePlate: "",
+      status: "available",
+      photo: "",
+      backgroundCheckUrl: "",
+      commercialInsuranceUrl: "",
+      driverLicenceUrl: "",
+      proofOfWorkEligibilityUrl: "",
+      municipalTaxiLimoLicenceUrl: "",
+      vehicleInsuranceUrl: "",
+      vehicleRegistrationUrl: "",
+      password: "",
+    });
     setShowModal(true);
   };
 
@@ -171,6 +371,13 @@ export default function DriversPage() {
       vehiclePlate: driver.vehiclePlate,
       status: driver.status,
       photo: driver.photo || "",
+      backgroundCheckUrl: driver.backgroundCheckUrl || "",
+      commercialInsuranceUrl: driver.commercialInsuranceUrl || "",
+      driverLicenceUrl: driver.driverLicenceUrl || "",
+      proofOfWorkEligibilityUrl: driver.proofOfWorkEligibilityUrl || "",
+      municipalTaxiLimoLicenceUrl: driver.municipalTaxiLimoLicenceUrl || "",
+      vehicleInsuranceUrl: driver.vehicleInsuranceUrl || "",
+      vehicleRegistrationUrl: driver.vehicleRegistrationUrl || "",
       password: "",
     });
     setShowModal(true);
@@ -201,6 +408,40 @@ export default function DriversPage() {
       setError("Failed to upload photo");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleDriverDocUpload = async (
+    key:
+      | "backgroundCheckUrl"
+      | "commercialInsuranceUrl"
+      | "driverLicenceUrl"
+      | "proofOfWorkEligibilityUrl"
+      | "municipalTaxiLimoLicenceUrl"
+      | "vehicleInsuranceUrl"
+      | "vehicleRegistrationUrl",
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", "driver-document");
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      if (data.success) {
+        setForm((prev) => ({ ...prev, [key]: data.url }));
+      } else {
+        setError(data.error || "Upload failed");
+      }
+    } catch {
+      setError("Upload failed");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
     }
   };
 
@@ -341,7 +582,8 @@ export default function DriversPage() {
   };
 
   const renderInviteFieldRow = (key: DriverInviteFieldKey) => {
-    const open = fieldVisibility[key];
+    const locked = isInviteFieldVisibilityLocked(key);
+    const open = locked ? true : fieldVisibility[key];
     const label = DRIVER_INVITE_FIELD_LABELS[key];
     const docKind = isDocumentUploadField(key);
     const showDocClosedUi = !open && docKind;
@@ -354,28 +596,35 @@ export default function DriversPage() {
       >
         <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <span className="text-sm font-medium text-gray-800 min-w-0 break-words pr-1">{label}</span>
-          <div className="flex w-full sm:w-auto rounded-lg border border-gray-200 bg-white overflow-hidden shrink-0">
-            <button
-              type="button"
-              onClick={() => setFieldVisibility((prev) => ({ ...prev, [key]: true }))}
-              className={`flex flex-1 sm:flex-initial items-center justify-center gap-1.5 px-3 py-2.5 sm:px-2.5 sm:py-1.5 min-h-[44px] sm:min-h-0 text-xs font-medium transition-colors ${
-                open ? "bg-emerald-600 text-white" : "text-gray-600 hover:bg-gray-50"
-              }`}
-            >
+          {locked ? (
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-800 shrink-0">
               <Eye className="w-3.5 h-3.5 shrink-0" />
-              Open
-            </button>
-            <button
-              type="button"
-              onClick={() => setFieldVisibility((prev) => ({ ...prev, [key]: false }))}
-              className={`flex flex-1 sm:flex-initial items-center justify-center gap-1.5 px-3 py-2.5 sm:px-2.5 sm:py-1.5 min-h-[44px] sm:min-h-0 text-xs font-medium transition-colors ${
-                !open ? "bg-gray-700 text-white" : "text-gray-600 hover:bg-gray-50"
-              }`}
-            >
-              <EyeOff className="w-3.5 h-3.5 shrink-0" />
-              Closed
-            </button>
-          </div>
+              Required on form
+            </span>
+          ) : (
+            <div className="flex w-full sm:w-auto rounded-lg border border-gray-200 bg-white overflow-hidden shrink-0">
+              <button
+                type="button"
+                onClick={() => setFieldVisibility((prev) => ({ ...prev, [key]: true }))}
+                className={`flex flex-1 sm:flex-initial items-center justify-center gap-1.5 px-3 py-2.5 sm:px-2.5 sm:py-1.5 min-h-[44px] sm:min-h-0 text-xs font-medium transition-colors ${
+                  open ? "bg-emerald-600 text-white" : "text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                <Eye className="w-3.5 h-3.5 shrink-0" />
+                Open
+              </button>
+              <button
+                type="button"
+                onClick={() => setFieldVisibility((prev) => ({ ...prev, [key]: false }))}
+                className={`flex flex-1 sm:flex-initial items-center justify-center gap-1.5 px-3 py-2.5 sm:px-2.5 sm:py-1.5 min-h-[44px] sm:min-h-0 text-xs font-medium transition-colors ${
+                  !open ? "bg-gray-700 text-white" : "text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                <EyeOff className="w-3.5 h-3.5 shrink-0" />
+                Closed
+              </button>
+            </div>
+          )}
         </div>
 
         {open && (key === "name" || key === "email") && (
@@ -400,11 +649,9 @@ export default function DriversPage() {
 
         {open && key !== "name" && key !== "email" && (
           <p className="text-xs text-gray-500 leading-relaxed">
-            {key === "photo"
-              ? "Driver will upload a profile photo on the registration page."
-              : docKind && key !== "photo"
-                ? "Driver will upload this document (PDF or image) on the registration page."
-                : "Driver will enter this on the registration page."}
+            {docKind
+              ? "Driver will upload this file (PDF or image) on the registration page."
+              : "Driver will enter this on the registration page."}
           </p>
         )}
 
@@ -507,7 +754,7 @@ export default function DriversPage() {
           email: fieldVisibility.email ? inviteForm.email.trim() || undefined : undefined,
           name: fieldVisibility.name ? inviteForm.name.trim() || undefined : undefined,
           expiryHours: inviteForm.expiryHours,
-          visibleFields: fieldVisibility,
+          visibleFields: enforceLockedInviteVisibility(fieldVisibility),
           prefilledFields,
         }),
       });
@@ -585,6 +832,21 @@ export default function DriversPage() {
         </div>
         <div className="flex flex-col min-[480px]:flex-row flex-wrap gap-2 w-full sm:w-auto">
           <button
+            onClick={openApplicationsModal}
+            className="flex flex-1 min-[480px]:flex-initial items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-all"
+          >
+            <FileText className="w-4 h-4 shrink-0" />
+            Applications
+            {applications.length > 0 && (
+              <span
+                className="ml-1 inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-full bg-red-600 text-white text-[11px] font-bold shadow-sm"
+                aria-label={`${applications.length} pending applications`}
+              >
+                {applications.length > 99 ? "99+" : applications.length}
+              </span>
+            )}
+          </button>
+          <button
             onClick={openInvitesList}
             className="flex flex-1 min-[480px]:flex-initial items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-all"
           >
@@ -655,7 +917,6 @@ export default function DriversPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((driver) => {
-            const statusStyle = STATUS_COLORS[driver.status];
             return (
               <div
                 key={driver.id}
@@ -675,10 +936,7 @@ export default function DriversPage() {
                       <p className="text-xs text-gray-500">{driver.id}</p>
                     </div>
                   </div>
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusStyle.bg} ${statusStyle.text} flex items-center gap-1.5`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot} ${driver.status === "on_trip" ? "animate-pulse" : ""}`} />
-                    {STATUS_LABELS[driver.status]}
-                  </span>
+                  <DriverStatusBadge status={driver.status} />
                 </div>
 
                 <div className="space-y-2 text-sm text-gray-600 mb-4">
@@ -859,6 +1117,52 @@ export default function DriversPage() {
                 </select>
               </div>
 
+              <div className="border-t border-gray-100 pt-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-gray-500" />
+                  Documents
+                </p>
+                <div className="space-y-3">
+                  {[
+                    { key: "backgroundCheckUrl", label: DRIVER_INVITE_FIELD_LABELS.backgroundCheck },
+                    { key: "commercialInsuranceUrl", label: DRIVER_INVITE_FIELD_LABELS.commercialInsurance },
+                    { key: "driverLicenceUrl", label: DRIVER_INVITE_FIELD_LABELS.driverLicence },
+                    { key: "proofOfWorkEligibilityUrl", label: DRIVER_INVITE_FIELD_LABELS.proofOfWorkEligibility },
+                    { key: "municipalTaxiLimoLicenceUrl", label: DRIVER_INVITE_FIELD_LABELS.municipalTaxiLimoLicence },
+                    { key: "vehicleInsuranceUrl", label: DRIVER_INVITE_FIELD_LABELS.vehicleInsurance },
+                    { key: "vehicleRegistrationUrl", label: DRIVER_INVITE_FIELD_LABELS.vehicleRegistration },
+                  ].map(({ key, label }) => (
+                    <div key={key} className="rounded-xl border border-gray-200 bg-gray-50/80 p-3 sm:p-3.5 space-y-2">
+                      <span className="text-sm font-medium text-gray-800 min-w-0 break-words pr-1">{label}</span>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+                        <input
+                          type="text"
+                          value={(form as any)[key] || ""}
+                          onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                          className="w-full flex-1 min-w-0 px-3 py-2.5 sm:py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
+                          placeholder="https://..."
+                        />
+                        <label className="flex sm:flex-shrink-0 items-center justify-center gap-2 w-full sm:w-11 h-11 rounded-lg border border-gray-200 bg-white cursor-pointer hover:bg-gray-50 py-2 sm:py-0 text-xs sm:text-[0] font-medium text-gray-600 sm:font-normal">
+                          {uploading ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-[#C9A063]" />
+                          ) : (
+                            <Upload className="w-4 h-4 text-gray-600" />
+                          )}
+                          <span className="sm:hidden">Upload file</span>
+                          <input
+                            type="file"
+                            accept="image/*,application/pdf"
+                            className="hidden"
+                            disabled={uploading}
+                            onChange={(e) => handleDriverDocUpload(key as any, e)}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Password {editingDriver && <span className="text-xs text-gray-500">(leave blank to keep current)</span>}
@@ -1011,6 +1315,9 @@ export default function DriversPage() {
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
                       Profile &amp; vehicle
                     </p>
+                    <p className="text-xs text-gray-500 mb-2 leading-relaxed">
+                      These fields are always shown to the driver on registration (Open/Closed is not available here).
+                    </p>
                     <div className="space-y-3">
                       {DRIVER_PROFILE_FIELD_KEYS.map(renderInviteFieldRow)}
                     </div>
@@ -1153,6 +1460,293 @@ export default function DriversPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Driver Applications Modal */}
+      {showApplicationsModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-0 sm:p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowApplicationsModal(false)} />
+          <div className="relative bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-3xl max-h-[92dvh] sm:max-h-[90vh] overflow-hidden shadow-xl flex flex-col">
+            <div className="p-4 sm:p-6 border-b border-gray-100 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Driver Applications</h2>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                  Submitted invites waiting for admin approval
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowApplicationsModal(false)}
+                className="p-2.5 min-h-[44px] min-w-[44px] shrink-0 flex items-center justify-center hover:bg-gray-100 rounded-lg"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              {loadingApplications ? (
+                <div className="py-12 text-center">
+                  <Loader2 className="w-6 h-6 animate-spin text-[#C9A063] mx-auto mb-2" />
+                  <p className="text-gray-500 text-sm">Loading applications...</p>
+                </div>
+              ) : applications.length === 0 ? (
+                <div className="py-12 text-center">
+                  <FileText className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 text-sm">No pending applications</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    {applications.map((a) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() => openApplicationDetail(a.id)}
+                        className={`w-full text-left rounded-xl border p-3 hover:border-[#C9A063]/60 transition-colors ${
+                          selectedApplication?.id === a.id ? "border-[#C9A063]" : "border-gray-200"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-semibold text-gray-900 text-sm break-words">{a.name}</p>
+                          <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
+                            SUBMITTED
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1 break-all">{a.email}</p>
+                        <p className="text-xs text-gray-600 mt-1">{a.vehicle} • {a.vehiclePlate}</p>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="rounded-2xl border border-gray-200 p-4">
+                    {!selectedApplication ? (
+                      <div className="py-10 text-center">
+                        <p className="text-sm text-gray-500">Select an application to review.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-full bg-gray-100 overflow-hidden border border-gray-200 flex items-center justify-center">
+                            {selectedApplication.photo ? (
+                              <Image
+                                src={selectedApplication.photo}
+                                alt="Driver"
+                                width={48}
+                                height={48}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <User className="w-6 h-6 text-gray-400" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-bold text-gray-900">{selectedApplication.name}</p>
+                            <p className="text-xs text-gray-500 break-all">{selectedApplication.email}</p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                          <div className="rounded-xl border border-gray-200 p-3">
+                            <p className="text-xs text-gray-500">Phone</p>
+                            <p className="font-semibold text-gray-900 mt-1">{selectedApplication.phone}</p>
+                          </div>
+                          <div className="rounded-xl border border-gray-200 p-3">
+                            <p className="text-xs text-gray-500">Vehicle</p>
+                            <p className="font-semibold text-gray-900 mt-1">
+                              {selectedApplication.vehicle} • {selectedApplication.vehiclePlate}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-gray-100 pt-4">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Documents</p>
+                          <p className="text-xs text-gray-500 mb-2 leading-relaxed">
+                            <span className="font-medium text-gray-600">View</span> opens an in-browser preview (same admin session;
+                            PDFs/images). <span className="font-medium text-gray-600">Download</span> saves with a proper filename.
+                          </p>
+                          <div className="space-y-2 text-sm">
+                            {(selectedApplication.documents || []).length > 0 ? (
+                              selectedApplication.documents!.map((d) => {
+                                const expired = d.status === "EXPIRED";
+                                const confirmed = d.confirmedExpiryDate ? String(d.confirmedExpiryDate).slice(0, 10) : null;
+                                const extracted = d.extractedExpiryDate ? String(d.extractedExpiryDate).slice(0, 10) : null;
+                                return (
+                                  <div key={d.id} className="rounded-lg border border-gray-200 px-3 py-2 space-y-1">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-gray-800 font-semibold text-xs break-words">
+                                        {docKeyLabel(d.key)}
+                                      </span>
+                                      <span
+                                        className={`text-[11px] font-bold px-2 py-1 rounded-full border ${
+                                          expired
+                                            ? "bg-red-50 text-red-700 border-red-100"
+                                            : "bg-emerald-50 text-emerald-700 border-emerald-100"
+                                        }`}
+                                      >
+                                        {d.status}
+                                      </span>
+                                    </div>
+                                    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-gray-600">
+                                      <span>Extracted: {extracted || "—"}</span>
+                                      <span>Confirmed: {confirmed || "—"}</span>
+                                    </div>
+                                    <div className="flex flex-wrap items-center justify-between gap-2 gap-y-1">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <a
+                                          href={adminDocumentViewHref(d.url, docKeyLabel(d.key))}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="text-[#C9A063] text-xs font-bold hover:underline"
+                                        >
+                                          View
+                                        </a>
+                                        <span className="text-gray-300 select-none" aria-hidden>
+                                          |
+                                        </span>
+                                        <a
+                                          href={adminDocumentDownloadHref(d.url, docKeyLabel(d.key))}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="text-gray-700 text-xs font-bold hover:underline"
+                                        >
+                                          Download
+                                        </a>
+                                      </div>
+                                      {d.overrideReason ? (
+                                        <span className="text-[11px] text-gray-500">Override: {d.overrideReason}</span>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              (() => {
+                                const links = getSubmittedDocumentLinks(selectedApplication);
+                                if (links.length === 0) {
+                                  return (
+                                    <div className="text-xs text-gray-500">
+                                      No compliance documents were uploaded with this application.
+                                    </div>
+                                  );
+                                }
+                                return links.map((item) => (
+                                  <div
+                                    key={item.label + item.url}
+                                    className="rounded-lg border border-gray-200 px-3 py-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+                                  >
+                                    <span className="text-gray-800 font-semibold text-xs break-words">{item.label}</span>
+                                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                      <a
+                                        href={adminDocumentViewHref(item.url, item.label)}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-[#C9A063] text-xs font-bold hover:underline"
+                                      >
+                                        View
+                                      </a>
+                                      <span className="text-gray-300 select-none" aria-hidden>
+                                        |
+                                      </span>
+                                      <a
+                                        href={adminDocumentDownloadHref(item.url, item.label)}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-gray-700 text-xs font-bold hover:underline"
+                                      >
+                                        Download
+                                      </a>
+                                    </div>
+                                  </div>
+                                ));
+                              })()
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="border-t border-gray-100 pt-4 space-y-3">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Set Driver Password (required to approve)
+                            </label>
+                            <input
+                              type="password"
+                              id={selectedApplication ? `driver-app-password-${selectedApplication.id}` : "driver-app-password"}
+                              name="admin-set-driver-password"
+                              autoComplete="new-password"
+                              value={applicationPassword}
+                              onChange={(e) => setApplicationPassword(e.target.value)}
+                              minLength={6}
+                              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
+                              placeholder="Enter password (min 6 chars)"
+                            />
+                          </div>
+
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            <button
+                              type="button"
+                              onClick={rejectSelectedApplication}
+                              disabled={rejectingApplication || approvingApplication}
+                              className="w-full sm:flex-1 px-4 py-3 sm:py-2.5 min-h-[48px] border border-red-200 text-red-700 rounded-xl text-sm font-bold hover:bg-red-50 disabled:opacity-50"
+                            >
+                              {rejectingApplication ? "Rejecting..." : "Reject"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={approveSelectedApplication}
+                              disabled={approvingApplication || rejectingApplication}
+                              className="w-full sm:flex-1 px-4 py-3 sm:py-2.5 min-h-[48px] bg-[#C9A063] text-white rounded-xl text-sm font-bold hover:bg-[#B8904F] disabled:opacity-50"
+                            >
+                              {approvingApplication ? "Approving..." : "Approve"}
+                            </button>
+                          </div>
+
+                          {(() => {
+                            const expiredCount = (selectedApplication.documents || []).filter((d) => d.status === "EXPIRED").length;
+                            if (!expiredCount) return null;
+                            return (
+                              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
+                                <p className="text-xs font-bold text-amber-900">
+                                  {expiredCount} document(s) are expired. Approval is blocked unless you override.
+                                </p>
+                                <label className="flex items-center gap-2 text-xs font-semibold text-amber-900">
+                                  <input
+                                    type="checkbox"
+                                    checked={allowExpiredOverride}
+                                    onChange={(e) => setAllowExpiredOverride(e.target.checked)}
+                                  />
+                                  Allow override approval
+                                </label>
+                                <input
+                                  type="text"
+                                  value={overrideReason}
+                                  onChange={(e) => setOverrideReason(e.target.value)}
+                                  className="w-full px-3 py-2 border border-amber-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
+                                  placeholder="Override reason (required)"
+                                />
+                              </div>
+                            );
+                          })()}
+
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">Reject reason (optional)</label>
+                            <input
+                              type="text"
+                              value={applicationRejectReason}
+                              onChange={(e) => setApplicationRejectReason(e.target.value)}
+                              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:border-[#C9A063] focus:ring-2 focus:ring-[#C9A063]/10"
+                              placeholder="Reason"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

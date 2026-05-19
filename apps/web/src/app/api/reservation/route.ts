@@ -4,6 +4,8 @@ import { sanitizeInput, sanitizeArray } from "@/lib/sanitize";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { addReservation } from "@/lib/data-store";
+import { verifyAdminAuth } from "@/lib/admin-auth";
+import { verifyOperationalManagerAuth } from "@/lib/operational-manager-auth";
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,8 +21,20 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
-    // Turnstile verification (skip for admin-created reservations)
-    if (!body.skipTurnstile) {
+    // Staff-only path (admin or operational manager). Never allow public skip of Turnstile.
+    const wantsSkipTurnstile = body.skipTurnstile === true;
+    if (wantsSkipTurnstile) {
+      const adminAuth = await verifyAdminAuth(request);
+      if (!adminAuth.authenticated) {
+        const opsAuth = await verifyOperationalManagerAuth(request);
+        if (!opsAuth.authenticated) {
+          return NextResponse.json(
+            { error: "Sign in as admin or operational manager to create a reservation without verification." },
+            { status: 401 }
+          );
+        }
+      }
+    } else {
       const turnstileResult = await verifyTurnstile(body.turnstileToken, clientIp);
       if (!turnstileResult.success) {
         return NextResponse.json({ error: turnstileResult.error }, { status: 403 });

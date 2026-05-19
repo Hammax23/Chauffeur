@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { assignDriverToReservation } from "@/lib/data-store";
 import { verifyAdminAuth } from "@/lib/admin-auth";
 import { sendPushNotification } from "@/lib/push-notifications";
+import { publishReservationFromDb } from "@/lib/realtime-bus";
 import prisma from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
@@ -21,9 +22,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const success = await assignDriverToReservation(bookingId, driverId);
+    const result = await assignDriverToReservation(bookingId, driverId);
 
-    if (!success) {
+    if (result.ok) {
+      // Live update for any customer streaming this reservation
+      await publishReservationFromDb(bookingId, "driver_assigned");
+    }
+
+    if (!result.ok) {
+      if (result.reason === "busy") {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "This driver is already assigned to another active reservation. Finish or cancel that booking first, or pick another driver.",
+          },
+          { status: 409 }
+        );
+      }
       return NextResponse.json(
         { success: false, error: "Failed to assign driver" },
         { status: 500 }

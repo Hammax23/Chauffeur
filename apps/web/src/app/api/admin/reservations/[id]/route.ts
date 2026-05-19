@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getReservationById, updateReservation, deleteReservation } from "@/lib/data-store";
 import { verifyAdminAuth } from "@/lib/admin-auth";
+import { publishReservationFromDb } from "@/lib/realtime-bus";
 
 export async function GET(
   request: NextRequest,
@@ -44,6 +45,9 @@ export async function PUT(
     if (!success) {
       return NextResponse.json({ success: false, error: "Reservation not found" }, { status: 404 });
     }
+
+    // Notify any customer subscribed via SSE that this booking changed.
+    await publishReservationFromDb(id, "status_changed");
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

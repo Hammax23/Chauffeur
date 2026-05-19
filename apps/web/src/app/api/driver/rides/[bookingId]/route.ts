@@ -1,8 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
+import { publishReservationFromDb } from "@/lib/realtime-bus";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
+
+type StopPeriod = { start: string; end?: string };
+
+function parseStopPeriods(json: string | null | undefined): StopPeriod[] {
+  if (!json) return [];
+  try {
+    const p = JSON.parse(json) as unknown;
+    return Array.isArray(p) ? p : [];
+  } catch {
+    return [];
+  }
+}
 
 function getDriverFromToken(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -61,6 +74,9 @@ export async function GET(
         duration: reservation.duration || "",
         total: reservation.total,
         createdAt: reservation.createdAt.toISOString(),
+        driverOnTheWayAt: reservation.driverOnTheWayAt?.toISOString() ?? null,
+        driverStopPeriodsJson: reservation.driverStopPeriodsJson ?? null,
+        completedAt: reservation.completedAt?.toISOString() ?? null,
       },
     });
   } catch (error) {
@@ -84,7 +100,7 @@ export async function PATCH(
     const body = await req.json();
     const { status } = body;
 
-    const validStatuses = ["ON THE WAY", "ARRIVED", "CIC", "DONE"];
+    const validStatuses = ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP", "DONE"];
     if (!validStatuses.includes(status)) {
       return NextResponse.json(
         { success: false, error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` },
@@ -100,16 +116,52 @@ export async function PATCH(
       return NextResponse.json({ success: false, error: "Ride not found" }, { status: 404 });
     }
 
+    const now = new Date();
     const updateData: Record<string, unknown> = {
       status,
-      statusUpdatedAt: new Date(),
+      statusUpdatedAt: now,
       driverResponse: "ACCEPTED",
-      driverRespondedAt: new Date(),
+      driverRespondedAt: now,
     };
 
+    const periods = parseStopPeriods(reservation.driverStopPeriodsJson);
+
+    if (status === "ON THE WAY" && !reservation.driverOnTheWayAt) {
+      updateData.driverOnTheWayAt = now;
+    }
+
+    if (status === "STOP") {
+      if (reservation.status !== "CIC") {
+        return NextResponse.json(
+          { success: false, error: "Stop is only available after Customer In Car" },
+          { status: 400 }
+        );
+      }
+      const open = periods.find((x) => !x.end);
+      if (open) {
+        return NextResponse.json({ success: false, error: "Already at a stop — tap Continue first" }, { status: 400 });
+      }
+      periods.push({ start: now.toISOString() });
+      updateData.driverStopPeriodsJson = JSON.stringify(periods);
+    }
+
+    if (status === "CIC" && reservation.status === "STOP") {
+      const last = periods[periods.length - 1];
+      if (!last || last.end) {
+        return NextResponse.json({ success: false, error: "No active stop to continue from" }, { status: 400 });
+      }
+      last.end = now.toISOString();
+      updateData.driverStopPeriodsJson = JSON.stringify(periods);
+    }
+
     if (status === "DONE") {
-      updateData.completedAt = new Date();
-      // Increment driver's total trips
+      const doneAt = now;
+      updateData.completedAt = doneAt;
+      const last = periods[periods.length - 1];
+      if (last && !last.end) {
+        last.end = doneAt.toISOString();
+        updateData.driverStopPeriodsJson = JSON.stringify(periods);
+      }
       await prisma.driver.update({
         where: { id: tokenData.id },
         data: { totalTrips: { increment: 1 } },
@@ -120,6 +172,9 @@ export async function PATCH(
       where: { id: reservation.id },
       data: updateData,
     });
+
+    // Push real-time update to subscribed customers (track-ride / home).
+    await publishReservationFromDb(bookingId, "status_changed");
 
     return NextResponse.json({ success: true, message: `Status updated to ${status}` });
   } catch (error) {
@@ -162,6 +217,8 @@ export async function DELETE(
         rejectedDriverIds: rejectedList,
       },
     });
+
+    await publishReservationFromDb(bookingId, "driver_unassigned");
 
     return NextResponse.json({ success: true, message: "Ride rejected" });
   } catch (error) {

@@ -9,7 +9,10 @@ export interface FleetVehicle {
   category: FleetCategory;
   seating: string;
   luggage: string;
+  /** Hourly rate (used for reservation pricing). */
   price: number;
+  /** Public per-kilometre rate shown in mobile fleet preview cards. */
+  pricePerKm: number;
 }
 
 export const fleetData: FleetVehicle[] = [
@@ -23,6 +26,7 @@ export const fleetData: FleetVehicle[] = [
     seating: "3 maximum, 3 comfortable",
     luggage: "2 large, 2 medium",
     price: 115,
+    pricePerKm: 3.05,
   },
   {
     id: "chevrolet-suburban",
@@ -34,6 +38,7 @@ export const fleetData: FleetVehicle[] = [
     seating: "6 maximum, 5 comfortable",
     luggage: "5 large, 2 medium, 4 small",
     price: 145,
+    pricePerKm: 3.47,
   },
   {
     id: "cadillac-escalade",
@@ -45,6 +50,7 @@ export const fleetData: FleetVehicle[] = [
     seating: "6 maximum, 5 comfortable",
     luggage: "5 large, 2 medium, 4 small",
     price: 175,
+    pricePerKm: 3.99,
   },
   {
     id: "mercedes-s-class",
@@ -56,6 +62,7 @@ export const fleetData: FleetVehicle[] = [
     seating: "3 maximum, 3 comfortable",
     luggage: "3 pieces",
     price: 295,
+    pricePerKm: 5.50,
   },
   {
     id: "sprinter-van",
@@ -67,6 +74,7 @@ export const fleetData: FleetVehicle[] = [
     seating: "16 maximum, 16 comfortable",
     luggage: "16 large",
     price: 285,
+    pricePerKm: 5.50,
   },
   {
     id: "cadillac-lyric",
@@ -78,6 +86,7 @@ export const fleetData: FleetVehicle[] = [
     seating: "3 maximum, 3 comfortable",
     luggage: "2 large, 2 medium",
     price: 135,
+    pricePerKm: 3.05,
   },
 ];
 

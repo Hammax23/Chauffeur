@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { Resend } from "resend";
-import bcrypt from "bcryptjs";
-import crypto from "crypto";
+import { escapeHtml, sendTransactionalEmail } from "@/lib/email-delivery";
 import {
   mergeDriverInviteRegistration,
   getVisibleComplianceDocKeys,
@@ -12,8 +10,28 @@ import {
   type MergedDriverRegistration,
 } from "@/lib/driver-invite-config";
 
-// Initialize Resend only if API key exists
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const ISO_DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** Parse YYYY-MM-DD as UTC midnight; invalid calendar dates return null. */
+function parseDateOnlyUtc(iso: unknown): Date | null {
+  if (typeof iso !== "string") return null;
+  const m = iso.trim().match(ISO_DATE_ONLY);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null;
+  return dt;
+}
+
+/** Expiry date is valid through end of that calendar day (UTC). */
+function documentStatusForExpiry(expiryUtc: Date): "VALID" | "EXPIRED" {
+  const now = new Date();
+  const todayStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const expiryStart = Date.UTC(expiryUtc.getUTCFullYear(), expiryUtc.getUTCMonth(), expiryUtc.getUTCDate());
+  return expiryStart < todayStart ? "EXPIRED" : "VALID";
+}
 
 // Rate limiting map
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -90,6 +108,7 @@ export async function POST(request: NextRequest) {
       municipalTaxiLimoLicence,
       vehicleInsurance,
       vehicleRegistration,
+      documentExpiries: rawDocumentExpiries,
     } = body;
 
     if (!token || typeof token !== "string") {
@@ -151,6 +170,12 @@ export async function POST(request: NextRequest) {
     }
 
     const visibleParsed = parseVisibleFieldsFromDb(invite.visibleFields);
+    const documentExpiries =
+      rawDocumentExpiries && typeof rawDocumentExpiries === "object" && !Array.isArray(rawDocumentExpiries)
+        ? (rawDocumentExpiries as Record<string, unknown>)
+        : {};
+
+    const complianceExpiryUtc = new Map<DriverInviteFieldKey, Date>();
     for (const key of getVisibleComplianceDocKeys(visibleParsed)) {
       const val = merged[key as keyof MergedDriverRegistration];
       if (val == null || (typeof val === "string" && !val.trim())) {
@@ -162,6 +187,17 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      const exp = parseDateOnlyUtc(documentExpiries[key]);
+      if (!exp) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Enter the expiry date on the document using format YYYY-MM-DD (year-month-day), e.g. 2030-08-21 — for: ${DRIVER_INVITE_FIELD_LABELS[key as DriverInviteFieldKey]}`,
+          },
+          { status: 400 }
+        );
+      }
+      complianceExpiryUtc.set(key, exp);
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -221,38 +257,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const plainPassword = crypto.randomBytes(18).toString("base64url").slice(0, 20);
-    const hashedPassword = await bcrypt.hash(plainPassword, 12);
-
-    // Generate unique driver ID
-    let driverId = generateDriverId();
-    let idExists = true;
-    let attempts = 0;
-
-    while (idExists && attempts < 10) {
-      const existing = await prisma.driver.findUnique({
-        where: { driverId },
-      });
-      if (!existing) {
-        idExists = false;
-      } else {
-        driverId = generateDriverId();
-        attempts++;
-      }
-    }
-
-    // Create driver using transaction
+    // Create pending application (admin must approve before driver account is created)
     const result = await prisma.$transaction(async (tx) => {
-      // Create the driver
-      const driver = await tx.driver.create({
+      // Block token reuse immediately on first submit (enterprise: one-time onboarding link)
+      await tx.driverInvite.update({
+        where: { id: invite.id },
+        data: { status: "USED", usedAt: new Date() },
+      });
+
+      const app = await tx.driverApplication.create({
         data: {
-          driverId,
+          inviteId: invite.id,
+          status: "SUBMITTED",
           name: sanitizeInput(merged.name),
           phone: sanitizeInput(merged.phone),
           email: sanitizeInput(merged.email),
           vehicle: sanitizeInput(merged.vehicle),
           vehiclePlate: sanitizeInput(merged.vehiclePlate).toUpperCase(),
-          password: hashedPassword,
           photo: merged.photo || null,
           backgroundCheckUrl: sanitizeDocUrl(merged.backgroundCheck),
           commercialInsuranceUrl: sanitizeDocUrl(merged.commercialInsurance),
@@ -261,74 +282,84 @@ export async function POST(request: NextRequest) {
           municipalTaxiLimoLicenceUrl: sanitizeDocUrl(merged.municipalTaxiLimoLicence),
           vehicleInsuranceUrl: sanitizeDocUrl(merged.vehicleInsurance),
           vehicleRegistrationUrl: sanitizeDocUrl(merged.vehicleRegistration),
-          status: "available",
-          rating: 5.0,
-          totalTrips: 0,
         },
       });
 
-      // Mark invite as used
-      await tx.driverInvite.update({
-        where: { id: invite.id },
-        data: {
-          status: "USED",
-          usedAt: new Date(),
-        },
-      });
+      const urlByKey: Partial<Record<DriverInviteFieldKey, string | null>> = {
+        backgroundCheck: sanitizeDocUrl(merged.backgroundCheck),
+        commercialInsurance: sanitizeDocUrl(merged.commercialInsurance),
+        driverLicence: sanitizeDocUrl(merged.driverLicence),
+        proofOfWorkEligibility: sanitizeDocUrl(merged.proofOfWorkEligibility),
+        municipalTaxiLimoLicence: sanitizeDocUrl(merged.municipalTaxiLimoLicence),
+        vehicleInsurance: sanitizeDocUrl(merged.vehicleInsurance),
+        vehicleRegistration: sanitizeDocUrl(merged.vehicleRegistration),
+      };
 
-      return driver;
+      for (const key of getVisibleComplianceDocKeys(visibleParsed)) {
+        const url = urlByKey[key];
+        const exp = complianceExpiryUtc.get(key);
+        if (!url || !exp) continue;
+        await tx.driverApplicationDocument.create({
+          data: {
+            applicationId: app.id,
+            key,
+            url,
+            confirmedExpiryDate: exp,
+            expirySource: "DRIVER",
+            status: documentStatusForExpiry(exp),
+          },
+        });
+      }
+
+      return app;
     });
 
-    // Send notification emails (only if Resend is configured)
-    if (resend) {
-      // Send notification email to admin
-      try {
-        await resend.emails.send({
-          from: "SARJ Worldwide <no-reply@sarjworldwide.com>",
-          to: process.env.ADMIN_EMAIL || "reserve@sarjworldwide.com",
-          subject: `New Driver Registration: ${result.name}`,
-          html: `
+    const safeName = escapeHtml(result.name);
+    const refId = escapeHtml(result.id);
+    const adm = {
+      name: escapeHtml(result.name),
+      email: escapeHtml(result.email),
+      phone: escapeHtml(result.phone),
+      vehicle: escapeHtml(result.vehicle),
+      vehiclePlate: escapeHtml(result.vehiclePlate),
+    };
+
+    const adminEmailHtml = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
               <div style="background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); padding: 30px; text-align: center;">
-                <h1 style="color: #C9A063; margin: 0; font-size: 24px;">New Driver Registration</h1>
+                <h1 style="color: #C9A063; margin: 0; font-size: 24px;">New Driver Application</h1>
               </div>
               <div style="padding: 30px; background: #ffffff;">
                 <p style="color: #333; font-size: 16px; margin-bottom: 20px;">
-                  A new driver has registered through the invitation link.
+                  A driver has submitted the invitation registration form. Admin approval is required before the driver can log in.
                 </p>
-                
                 <div style="background: #f8f8f8; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
                   <h3 style="color: #C9A063; margin-top: 0;">Driver Details</h3>
                   <table style="width: 100%; border-collapse: collapse;">
                     <tr>
-                      <td style="padding: 8px 0; color: #666; width: 40%;">Driver ID:</td>
-                      <td style="padding: 8px 0; color: #333; font-weight: bold;">${result.driverId}</td>
-                    </tr>
-                    <tr>
                       <td style="padding: 8px 0; color: #666;">Name:</td>
-                      <td style="padding: 8px 0; color: #333; font-weight: bold;">${result.name}</td>
+                      <td style="padding: 8px 0; color: #333; font-weight: bold;">${adm.name}</td>
                     </tr>
                     <tr>
                       <td style="padding: 8px 0; color: #666;">Email:</td>
-                      <td style="padding: 8px 0; color: #333;">${result.email}</td>
+                      <td style="padding: 8px 0; color: #333;">${adm.email}</td>
                     </tr>
                     <tr>
                       <td style="padding: 8px 0; color: #666;">Phone:</td>
-                      <td style="padding: 8px 0; color: #333;">${result.phone}</td>
+                      <td style="padding: 8px 0; color: #333;">${adm.phone}</td>
                     </tr>
                     <tr>
                       <td style="padding: 8px 0; color: #666;">Vehicle:</td>
-                      <td style="padding: 8px 0; color: #333;">${result.vehicle}</td>
+                      <td style="padding: 8px 0; color: #333;">${adm.vehicle}</td>
                     </tr>
                     <tr>
                       <td style="padding: 8px 0; color: #666;">Vehicle Plate:</td>
-                      <td style="padding: 8px 0; color: #333; font-weight: bold;">${result.vehiclePlate}</td>
+                      <td style="padding: 8px 0; color: #333; font-weight: bold;">${adm.vehiclePlate}</td>
                     </tr>
                   </table>
                 </div>
-                
                 <p style="color: #666; font-size: 14px;">
-                  You can view and manage this driver in your admin panel.
+                  Please review documents and approve/reject in the admin panel.
                 </p>
               </div>
               <div style="background: #f5f5f5; padding: 20px; text-align: center;">
@@ -337,65 +368,65 @@ export async function POST(request: NextRequest) {
                 </p>
               </div>
             </div>
-          `,
-        });
-      } catch (emailError) {
-        console.error("Failed to send admin notification email:", emailError);
-      }
+          `;
 
-      // Send confirmation email to driver
-      try {
-        await resend.emails.send({
-          from: "SARJ Worldwide <no-reply@sarjworldwide.com>",
-          to: result.email,
-          subject: "Welcome to SARJ Worldwide - Registration Complete",
-          html: `
+    const driverEmailHtml = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <div style="background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); padding: 30px; text-align: center;">
-                <h1 style="color: #C9A063; margin: 0; font-size: 24px;">Welcome to SARJ Worldwide</h1>
+              <div style="background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); padding: 28px; text-align: center;">
+                <h1 style="color: #C9A063; margin: 0; font-size: 22px;">Application Submitted</h1>
               </div>
-              <div style="padding: 30px; background: #ffffff;">
-                <p style="color: #333; font-size: 16px; margin-bottom: 20px;">
-                  Dear ${result.name},
+              <div style="padding: 28px 30px; background: #ffffff;">
+                <p style="color: #333; font-size: 16px; margin: 0 0 16px 0;">
+                  Thank you, <strong>${safeName}</strong>. Your details have been received successfully.
                 </p>
-                <p style="color: #333; font-size: 16px; margin-bottom: 20px;">
-                  Thank you for registering as a driver with SARJ Worldwide. Your registration has been successfully completed.
+                <p style="color: #555; font-size: 14px; line-height: 1.6; margin: 0 0 22px 0;">
+                  Please stay connected to your email. After our team reviews and approves your information and documents,
+                  you will be informed there.
                 </p>
-                
-                <div style="background: #f8f8f8; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-                  <h3 style="color: #C9A063; margin-top: 0;">Your Details</h3>
-                  <p style="margin: 5px 0;"><strong>Driver ID:</strong> ${result.driverId}</p>
-                  <p style="margin: 5px 0;"><strong>Vehicle:</strong> ${result.vehicle}</p>
-                  <p style="margin: 5px 0;"><strong>Plate:</strong> ${result.vehiclePlate}</p>
-                  <p style="margin: 12px 0 0 0; padding-top: 12px; border-top: 1px solid #ddd; color: #333;"><strong>Driver app login password:</strong></p>
-                  <p style="margin: 8px 0 0 0; font-family: monospace; font-size: 15px; font-weight: bold; letter-spacing: 0.5px;">${plainPassword}</p>
-                  <p style="margin: 8px 0 0 0; font-size: 13px; color: #666;">Use this email and password to sign in to the driver app. Store it securely.</p>
+                <div style="background: #f8f8f8; border: 1px solid #e5e5e5; border-radius: 10px; padding: 16px 18px;">
+                  <p style="color: #888; font-size: 12px; margin: 0 0 6px 0; text-transform: uppercase; letter-spacing: 0.04em;">
+                    Reference ID
+                  </p>
+                  <p style="color: #1a1a1a; font-size: 15px; font-family: ui-monospace, Consolas, monospace; margin: 0; word-break: break-all;">
+                    ${refId}
+                  </p>
                 </div>
-                
-                <p style="color: #666; font-size: 14px;">
-                  Our team will be in touch with you shortly regarding next steps and trip assignments.
+                <p style="color: #999; font-size: 12px; margin: 22px 0 0 0;">
+                  Keep this email for your records. If you did not submit this application, please contact support.
                 </p>
               </div>
-              <div style="background: #f5f5f5; padding: 20px; text-align: center;">
+              <div style="background: #f5f5f5; padding: 18px; text-align: center;">
                 <p style="color: #999; font-size: 12px; margin: 0;">
                   © ${new Date().getFullYear()} SARJ Worldwide. All rights reserved.
                 </p>
               </div>
             </div>
-          `,
-        });
-      } catch (emailError) {
-        console.error("Failed to send driver confirmation email:", emailError);
-      }
+          `;
+
+    const adminTo = process.env.ADMIN_EMAIL || "reserve@sarjworldwide.com";
+
+    const adminSent = await sendTransactionalEmail({
+      to: adminTo,
+      subject: `Driver Application Submitted: ${result.name}`,
+      html: adminEmailHtml,
+      logLabel: "driver-register-admin",
+    });
+
+    const driverSent = await sendTransactionalEmail({
+      to: result.email,
+      subject: "Application submitted — SARJ Worldwide",
+      html: driverEmailHtml,
+      logLabel: "driver-register-driver",
+    });
+
+    if (!adminSent || !driverSent) {
+      console.warn("[driver-register] Email incomplete:", { adminSent, driverSent });
     }
 
     return NextResponse.json({
       success: true,
-      message: "Registration successful! Welcome to SARJ Worldwide.",
-      driver: {
-        driverId: result.driverId,
-        name: result.name,
-      },
+      message: "Application submitted. Admin approval is required before you can sign in.",
+      application: { id: result.id },
     });
   } catch (error: any) {
     console.error("Driver registration error:", error);

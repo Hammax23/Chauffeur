@@ -35,8 +35,9 @@ export async function GET(req: NextRequest) {
       // New ride requests: assigned to driver but still PENDING
       whereClause.status = "PENDING";
     } else if (tab === "upcoming") {
-      // Upcoming rides: accepted (ON THE WAY, ARRIVED, CIC)
-      whereClause.status = { in: ["ON THE WAY", "ARRIVED", "CIC"] };
+      // Upcoming rides: accepted-but-not-yet-started OR actively in progress
+      // (includes STOP = paused mid-trip)
+      whereClause.status = { in: ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP"] };
     } else if (tab === "completed") {
       whereClause.status = { in: ["DONE", "CANCELLED"] };
     }
@@ -51,6 +52,9 @@ export async function GET(req: NextRequest) {
       id: r.id,
       bookingId: r.bookingId,
       status: r.status,
+      driverOnTheWayAt: r.driverOnTheWayAt?.toISOString() ?? null,
+      driverStopPeriodsJson: r.driverStopPeriodsJson ?? null,
+      completedAt: r.completedAt?.toISOString() ?? null,
       customerName: `${r.firstName} ${r.lastName}`,
       phone: r.phone,
       email: r.email,

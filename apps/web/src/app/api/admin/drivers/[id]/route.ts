@@ -40,6 +40,29 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
+    const normalizeUrlField = (v: unknown): string | null | undefined => {
+      if (v === undefined) return undefined;
+      if (v === null) return null;
+      if (typeof v !== "string") return null;
+      const t = v.trim();
+      return t.length ? t : null;
+    };
+
+    for (const key of [
+      "photo",
+      "backgroundCheckUrl",
+      "commercialInsuranceUrl",
+      "driverLicenceUrl",
+      "proofOfWorkEligibilityUrl",
+      "municipalTaxiLimoLicenceUrl",
+      "vehicleInsuranceUrl",
+      "vehicleRegistrationUrl",
+    ] as const) {
+      if (key in body) {
+        body[key] = normalizeUrlField(body[key]);
+      }
+    }
+
     // If password is provided, hash it before updating
     if (body.password && body.password.trim() !== "") {
       body.password = await bcrypt.hash(body.password, 12);

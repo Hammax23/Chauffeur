@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
+import { publishReservationFromDb } from "@/lib/realtime-bus";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
@@ -187,6 +188,10 @@ export async function POST(req: NextRequest) {
         paymentStatus: stripePaymentMethodId ? "AUTHORIZED" : "PENDING",
       },
     });
+
+    // Push the new booking to the customer's live stream (reservations list /
+    // home screen) so it shows up instantly without a manual refresh.
+    await publishReservationFromDb(reservation.bookingId, "reservation_created");
 
     return NextResponse.json({
       success: true,

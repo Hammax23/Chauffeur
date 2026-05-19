@@ -77,6 +77,22 @@ export default function CustomerLayout() {
         }}
       />
       <Tabs.Screen
+        name="history"
+        options={{
+          title: "History",
+          tabBarIcon: ({ color, focused }) => (
+            <View style={styles.iconWrapper}>
+              {focused && <View style={styles.activeIndicator} />}
+              <Ionicons
+                name={focused ? "time" : "time-outline"}
+                size={24}
+                color={color}
+              />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",

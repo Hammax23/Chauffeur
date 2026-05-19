@@ -36,13 +36,19 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
 
   const extra = (Constants.expoConfig?.extra || {}) as Record<string, string>;
-  const googleExpoClientId = extra.GOOGLE_EXPO_CLIENT_ID;
-  const googleIosClientId = extra.GOOGLE_IOS_CLIENT_ID;
-  const googleAndroidClientId = extra.GOOGLE_ANDROID_CLIENT_ID;
-  const googleWebClientId = extra.GOOGLE_WEB_CLIENT_ID;
+  /** Never pass placeholder strings into native Google auth — invalid IDs have caused Android crashes. */
+  const sanitizeGoogleClientId = (id: string | undefined) => {
+    const t = id?.trim();
+    if (!t || t.includes("REPLACE")) return undefined;
+    return t;
+  };
+  const googleExpoClientId = sanitizeGoogleClientId(extra.GOOGLE_EXPO_CLIENT_ID);
+  const googleIosClientId = sanitizeGoogleClientId(extra.GOOGLE_IOS_CLIENT_ID);
+  const googleAndroidClientId = sanitizeGoogleClientId(extra.GOOGLE_ANDROID_CLIENT_ID);
+  const googleWebClientId = sanitizeGoogleClientId(extra.GOOGLE_WEB_CLIENT_ID);
 
   const [googleRequest, googleResponse, promptGoogle] = Google.useIdTokenAuthRequest({
-    expoClientId: googleExpoClientId,
+    clientId: googleExpoClientId,
     iosClientId: googleIosClientId,
     androidClientId: googleAndroidClientId,
     webClientId: googleWebClientId,
@@ -56,7 +62,7 @@ export default function LoginScreen() {
         googleIosClientId ||
         googleAndroidClientId ||
         googleWebClientId;
-      if (!anyId || anyId === "REPLACE_ME") {
+      if (!anyId) {
         Alert.alert(
           "Config Missing",
           "Google OAuth client IDs are not set. Add GOOGLE_EXPO_CLIENT_ID (for Expo Go) and platform client IDs in app.json extra."

@@ -9,13 +9,14 @@ import {
   CalendarCheck,
   Users,
   Car,
-  Settings,
   Menu,
   X,
   LogOut,
   ChevronRight,
   PlusCircle,
   FileText,
+  MapPin,
+  UserCog,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -24,6 +25,8 @@ const NAV_ITEMS = [
   { href: "/admin/custom-reservation", label: "Custom Reservation", icon: PlusCircle },
   { href: "/admin/quotes", label: "Online Quotes", icon: FileText },
   { href: "/admin/drivers", label: "Drivers", icon: Car },
+  { href: "/admin/track-drivers", label: "Track Drivers", icon: MapPin },
+  { href: "/admin/operational-managers", label: "Operational Managers", icon: UserCog },
   { href: "/admin/customers", label: "Customers", icon: Users },
   { href: "/admin/app-customers", label: "App Customers", icon: Users },
 ];

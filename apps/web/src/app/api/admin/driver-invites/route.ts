@@ -6,6 +6,7 @@ import {
   normalizeVisibleFields,
   normalizePrefilledFields,
   validatePrefilledForHidden,
+  enforceLockedInviteVisibility,
   type PrefilledFieldsMap,
   type VisibleFieldsMap,
   DRIVER_INVITE_FIELD_KEYS,
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { email, name, expiryHours = 48, visibleFields: rawVisible, prefilledFields: rawPrefilled } = body;
 
-    const visibleFields = normalizeVisibleFields(rawVisible);
+    const visibleFields = enforceLockedInviteVisibility(normalizeVisibleFields(rawVisible));
     const prefilledFields = normalizePrefilledFields(rawPrefilled);
 
     const prefilledErr = validatePrefilledForHidden(visibleFields, prefilledFields);

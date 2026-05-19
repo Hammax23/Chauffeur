@@ -6,9 +6,13 @@ import {
   loginDriver,
   logoutDriver,
   getDriverProfile,
+  setStoredUser,
+  type CustomerProfile,
   toggleDriverActive as apiToggleActive,
 } from "../services/api";
+import { InteractionManager } from "react-native";
 import { registerPushToken } from "../services/notifications";
+import { stopDriverLocationTracking } from "../services/driver-location";
 
 interface DriverAuthContextType {
   driver: DriverProfile | null;
@@ -39,6 +43,7 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
             const data = await getDriverProfile();
             if (data.success && data.driver) {
               setDriver(data.driver);
+              await setStoredUser(data.driver as unknown as CustomerProfile);
             }
           } catch {
             // Token might be expired
@@ -57,14 +62,19 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
       const data = await loginDriver(email, password);
       if (data.success) {
         setDriver(data.driver);
-        
-        // Register push notification token after successful login
+
+        // Live GPS is synced from `driver-live-session` when layout mounts / dashboard focuses — only if
+        // server reports an active trip (ON THE WAY / ARRIVED / CIC). Deferred push avoids native races.
+
+        // Defer push registration until after the navigation transition (fewer native crashes on some devices).
         if (data.token) {
-          registerPushToken(data.token).catch(err => 
-            console.log('Failed to register push token:', err)
-          );
+          InteractionManager.runAfterInteractions(() => {
+            registerPushToken(data.token!).catch((err) =>
+              console.log("Failed to register push token:", err)
+            );
+          });
         }
-        
+
         return { success: true };
       }
       return { success: false, error: data.error || "Login failed" };
@@ -75,6 +85,7 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   const logout = useCallback(async () => {
+    await stopDriverLocationTracking();
     await logoutDriver();
     setDriver(null);
   }, []);
@@ -84,6 +95,7 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
       const data = await getDriverProfile();
       if (data.success && data.driver) {
         setDriver(data.driver);
+        await setStoredUser(data.driver as unknown as CustomerProfile);
       }
     } catch {
       // Silently fail

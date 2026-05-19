@@ -29,7 +29,24 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, phone, email, vehicle, vehiclePlate, vehicleCode, status, photo, password } = body;
+    const {
+      name,
+      phone,
+      email,
+      vehicle,
+      vehiclePlate,
+      vehicleCode,
+      status,
+      photo,
+      password,
+      backgroundCheckUrl,
+      commercialInsuranceUrl,
+      driverLicenceUrl,
+      proofOfWorkEligibilityUrl,
+      municipalTaxiLimoLicenceUrl,
+      vehicleInsuranceUrl,
+      vehicleRegistrationUrl,
+    } = body;
 
     if (!name || !phone || !email || !vehicle || !vehiclePlate || !password) {
       return NextResponse.json({ success: false, error: "All fields including password are required" }, { status: 400 });
@@ -37,6 +54,12 @@ export async function POST(request: NextRequest) {
 
     // Hash the admin-provided password
     const hashedPassword = await bcrypt.hash(password, 12);
+
+    const urlOrNull = (v: unknown): string | null => {
+      if (typeof v !== "string") return null;
+      const t = v.trim();
+      return t.length ? t : null;
+    };
 
     const newDriver = await addDriver({
       name,
@@ -47,7 +70,14 @@ export async function POST(request: NextRequest) {
       vehiclePlate,
       vehicleCode: vehicleCode || null,
       status: status || "available",
-      photo: photo || null,
+      photo: urlOrNull(photo),
+      backgroundCheckUrl: urlOrNull(backgroundCheckUrl),
+      commercialInsuranceUrl: urlOrNull(commercialInsuranceUrl),
+      driverLicenceUrl: urlOrNull(driverLicenceUrl),
+      proofOfWorkEligibilityUrl: urlOrNull(proofOfWorkEligibilityUrl),
+      municipalTaxiLimoLicenceUrl: urlOrNull(municipalTaxiLimoLicenceUrl),
+      vehicleInsuranceUrl: urlOrNull(vehicleInsuranceUrl),
+      vehicleRegistrationUrl: urlOrNull(vehicleRegistrationUrl),
       rating: 5.0,
       totalTrips: 0,
     });

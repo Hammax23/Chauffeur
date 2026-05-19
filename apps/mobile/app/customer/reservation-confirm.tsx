@@ -15,28 +15,86 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { createReservation } from "../../services/api";
 
-export default function ReservationConfirmScreen() {
-  const params = useLocalSearchParams<{
-    serviceType: string;
-    pickupAddress: string;
-    dropoffAddress: string;
-    stopAddress: string;
-    pickupTime: string;
-    passengers: string;
-    vehicle: string;
-    vehiclePrice: string;
-    tollRoute: string;
-    childSeatCount: string;
-    firstName: string;
-    lastName: string;
-    phoneNumber: string;
-    email: string;
-  }>();
+/** Expo Router may give string | string[] for the same key */
+function qp(v: string | string[] | undefined): string {
+  if (v == null) return "";
+  return Array.isArray(v) ? String(v[0] ?? "") : String(v);
+}
 
-  const childSeats = parseInt(params.childSeatCount || "0");
-  const rideFare = 115; // base rate
+export default function ReservationConfirmScreen() {
+  const raw = useLocalSearchParams();
+
+  const params = {
+    serviceType: qp(raw.serviceType),
+    pickupAddress: qp(raw.pickupAddress),
+    dropoffAddress: qp(raw.dropoffAddress),
+    stopAddress: qp(raw.stopAddress),
+    pickupTime: qp(raw.pickupTime),
+    serviceDate: qp(raw.serviceDate),
+    serviceTime: qp(raw.serviceTime),
+    pickupTimeDisplay: qp(raw.pickupTimeDisplay),
+    passengers: qp(raw.passengers),
+    vehicle: qp(raw.vehicle),
+    vehicleId: qp(raw.vehicleId),
+    vehiclePrice: qp(raw.vehiclePrice),
+    vehicleSubtitle: qp(raw.vehicleSubtitle),
+    rideFare: qp(raw.rideFare),
+    pricePerKm: qp(raw.pricePerKm),
+    hourlyRate: qp(raw.hourlyRate),
+    distanceText: qp(raw.distanceText),
+    durationText: qp(raw.durationText),
+    distanceMeters: qp(raw.distanceMeters),
+    durationSeconds: qp(raw.durationSeconds),
+    tollRoute: qp(raw.tollRoute),
+    childSeatCount: qp(raw.childSeatCount),
+    firstName: qp(raw.firstName),
+    lastName: qp(raw.lastName),
+    phoneNumber: qp(raw.phoneNumber),
+    email: qp(raw.email),
+  };
+
+  const childSeats = parseInt(params.childSeatCount || "0", 10);
+
+  /**
+   * Distance-based fare math.
+   *
+   *   distanceKm × pricePerKm     — full decimal precision (e.g. 1.7 × 3.05 = 5.185)
+   *   Only the final display is rounded to 2 dp with toFixed(2).
+   *
+   * Falls back to the route fare passed from the previous screen if the raw
+   * distance / per-km values are missing (older deep link, etc.). As a last
+   * resort, falls back to the legacy hourly rate.
+   */
+  const distanceMeters = Math.max(0, parseFloat(params.distanceMeters) || 0);
+  const distanceKm = distanceMeters / 1000;
+  const pricePerKm = Math.max(0, parseFloat(params.pricePerKm) || 0);
+  const passedRideFare = Math.max(0, parseFloat(params.rideFare) || 0);
+  const hourlyFallback = Math.max(0, parseFloat(params.hourlyRate) || 115);
+
+  const rideFare =
+    distanceKm > 0 && pricePerKm > 0
+      ? distanceKm * pricePerKm
+      : passedRideFare > 0
+        ? passedRideFare
+        : hourlyFallback;
+
+  const stopChargeCalc = params.stopAddress.trim() ? 15 : 0;
   const childSeatCharge = childSeats * 25;
-  const subtotalCalc = rideFare + childSeatCharge;
+  const subtotalCalc = rideFare + stopChargeCalc + childSeatCharge;
+
+  const resolvedServiceDate =
+    (params.serviceDate && String(params.serviceDate).trim()) ||
+    params.pickupTime?.split(",")[0]?.trim() ||
+    new Date().toISOString().split("T")[0];
+
+  const resolvedServiceTime =
+    (params.serviceTime && String(params.serviceTime).trim()) ||
+    params.pickupTime?.split(",")[1]?.trim() ||
+    "12:00";
+
+  const dateTimeSummary =
+    params.pickupTimeDisplay?.trim() ||
+    `${resolvedServiceDate} · ${resolvedServiceTime}`;
   const hstCalc = subtotalCalc * 0.13;
   const gratuityAmount = subtotalCalc * 0.15;
   const totalCalc = subtotalCalc + hstCalc + gratuityAmount;
@@ -59,17 +117,20 @@ export default function ReservationConfirmScreen() {
     setIsSubmitting(true);
     try {
       const result = await createReservation({
-        serviceType: params.serviceType || "Airport Transfer",
+        serviceType: params.serviceType || "Airport Transfer pick-up/drop-off",
         vehicle: params.vehicle || "Mercedes-Maybach S-Class",
-        passengers: parseInt(params.passengers || "1"),
+        passengers: parseInt(params.passengers || "1", 10),
         childSeats,
-        etr407: params.tollRoute || "No",
-        serviceDate: params.pickupTime?.split(",")[0]?.trim() || new Date().toISOString().split("T")[0],
-        serviceTime: params.pickupTime?.split(",")[1]?.trim() || "09:00 AM",
+        etr407: params.tollRoute === "Yes" ? "Yes" : "No",
+        serviceDate: resolvedServiceDate,
+        serviceTime: resolvedServiceTime,
         pickupLocation: params.pickupAddress || "",
         stops: params.stopAddress || undefined,
         dropoffLocation: params.dropoffAddress || "",
+        distance: params.distanceText || "—",
+        duration: params.durationText || "—",
         rideFare,
+        stopCharge: stopChargeCalc,
         childSeatCharge,
         subtotal: subtotalCalc,
         hst: hstCalc,
@@ -132,11 +193,22 @@ export default function ReservationConfirmScreen() {
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Vehicle</Text>
-              <Text style={styles.summaryValue}>{params.vehicle || "N/A"}</Text>
+              <View style={{ flex: 1, alignItems: "flex-end" }}>
+                <Text style={[styles.summaryValue, { textAlign: "right" }]} numberOfLines={3}>
+                  {params.vehicle || "N/A"}
+                </Text>
+                {params.vehicleSubtitle ? (
+                  <Text style={styles.vehicleSubtitle} numberOfLines={2}>
+                    {params.vehicleSubtitle}
+                  </Text>
+                ) : null}
+              </View>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Date & Time</Text>
-              <Text style={styles.summaryValue}>{params.pickupTime || "N/A"}</Text>
+              <Text style={[styles.summaryValue, { flex: 1, textAlign: "right" }]} numberOfLines={2}>
+                {dateTimeSummary}
+              </Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Passengers</Text>
@@ -148,15 +220,44 @@ export default function ReservationConfirmScreen() {
             </View>
             
             <View style={styles.divider} />
-            
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Rate</Text>
-              <Text style={styles.summaryValue}>$115/hr</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Duration (billable)</Text>
-              <Text style={styles.summaryValue}>1hr</Text>
-            </View>
+
+            {distanceKm > 0 && pricePerKm > 0 ? (
+              <>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Distance</Text>
+                  <Text style={styles.summaryValue}>
+                    {params.distanceText || `${distanceKm.toFixed(2)} km`}
+                  </Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Rate</Text>
+                  <Text style={styles.summaryValue}>${pricePerKm.toFixed(2)}/km</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Ride fare</Text>
+                  <Text style={styles.summaryValue}>${rideFare.toFixed(2)}</Text>
+                </View>
+                {params.durationText ? (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Estimated duration</Text>
+                    <Text style={styles.summaryValue}>{params.durationText}</Text>
+                  </View>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Ride fare</Text>
+                  <Text style={styles.summaryValue}>${rideFare.toFixed(2)}</Text>
+                </View>
+              </>
+            )}
+            {stopChargeCalc > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Stop charge</Text>
+                <Text style={styles.summaryValue}>${stopChargeCalc.toFixed(2)}</Text>
+              </View>
+            )}
             {childSeats > 0 && (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Child Seat ({childSeats} x $25)</Text>
@@ -448,6 +549,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
     color: "#1a1a1a",
+  },
+  vehicleSubtitle: {
+    marginTop: 4,
+    fontSize: 11,
+    fontWeight: "500",
+    color: "#64748b",
+    textAlign: "right",
+    lineHeight: 15,
   },
   divider: {
     height: 1,

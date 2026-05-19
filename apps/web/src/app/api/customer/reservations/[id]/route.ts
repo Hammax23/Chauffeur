@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
+import { publishReservationFromDb } from "@/lib/realtime-bus";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
@@ -126,6 +127,8 @@ export async function DELETE(
       where: { id: reservation.id },
       data: { status: "CANCELLED" },
     });
+
+    await publishReservationFromDb(id, "reservation_cancelled");
 
     return NextResponse.json({ success: true, message: "Reservation cancelled successfully" });
   } catch (error) {
