@@ -2,8 +2,8 @@ module.exports = {
   apps: [
     {
       name: "sarj-worldwide",
-      script: "node_modules/.bin/next",
-      args: "start -p 3000",
+      script: "npm",
+      args: "start",
       cwd: "/var/www/sarjworldwide/apps/web",
       instances: 1,
       autorestart: true,
