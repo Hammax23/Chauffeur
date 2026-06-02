@@ -10,8 +10,9 @@ const nextConfig: NextConfig = {
   // Compression
   compress: true,
   
-  // Image optimization
+  // Image optimization - disabled for VPS compatibility
   images: {
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: "https",
