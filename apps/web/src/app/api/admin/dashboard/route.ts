@@ -10,6 +10,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    console.log("[Dashboard] DATABASE_URL exists:", !!process.env.DATABASE_URL);
+    console.log("[Dashboard] DATABASE_URL:", process.env.DATABASE_URL?.substring(0, 30) + "...");
     console.log("[Dashboard] Fetching reservations...");
     const reservations = await getReservations();
     console.log("[Dashboard] Got reservations:", reservations.length);
