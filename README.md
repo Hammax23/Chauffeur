@@ -77,20 +77,37 @@ eas build --platform ios
 
 ## Web Deployment (VPS)
 
+Path on server (adjust if different): `/var/www/sarjworldwide/apps/web`
+
 ```bash
-# SSH into VPS
-ssh user@your-vps
+ssh root@your-vps
+cd /var/www/sarjworldwide
+git pull
 
-# Pull latest code
-cd /var/www/chauffeur
-git pull origin main
-
-# Build and restart
 cd apps/web
 npm install
+npx prisma generate
+# DATABASE_URL must point to Postgres ON THE VPS (see .env.production.example)
+npx prisma db push   # first deploy only, if schema not applied yet
+
+cp .env.production.example .env   # then edit .env with real DATABASE_URL, JWT_SECRET, etc.
 npm run build
-pm2 restart chauffeur
+
+cd /var/www/sarjworldwide
+pm2 start ecosystem.config.js    # first time
+# OR after code/env changes:
+pm2 restart sarj-worldwide --update-env
+
+pm2 logs sarj-worldwide --lines 50   # if dashboard shows errors / high ↺ restarts
 ```
+
+**Dashboard shows "Failed to fetch dashboard data"** — almost always:
+
+1. **`DATABASE_URL` missing** — PM2 only had `PORT`/`NODE_ENV`; copy `.env` from local to VPS and restart with `--update-env`.
+2. **Postgres not running or wrong host** — local `localhost:5433` does not exist on VPS unless you installed PostgreSQL there and imported data.
+3. **Empty database** — connection works but no rows yet (stats show 0, not an error). Error banner = API crash, not empty data.
+
+Use `apps/web/.env.production.example` as the checklist of required variables.
 
 ## Mobile Deployment
 

@@ -52,7 +52,14 @@ export default function AdminDashboard() {
         setRecentReservations(data.recentReservations || []);
         setError("");
       } else {
-        setError(data.error || "Failed to fetch");
+        const detail =
+          typeof data.actualError === "string" ? data.actualError : "";
+        const dbHint = data.dbUrl === "NOT SET" ? " (DATABASE_URL not set on server)" : "";
+        setError(
+          detail
+            ? `${data.error || "Failed to fetch"}: ${detail}${dbHint}`
+            : (data.error || "Failed to fetch") + dbHint
+        );
       }
     } catch {
       setError("Failed to connect to server");
