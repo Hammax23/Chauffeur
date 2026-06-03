@@ -5,107 +5,59 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 
-// FIFA World Cup 2026 Corner Ribbon Banner
+// FIFA World Cup 2026 Promotional Banner
 const FifaPromoBanner = () => {
   const [isVisible, setIsVisible] = useState(true);
 
   if (!isVisible) return null;
 
-  const S = 350; // triangle size
-
   return (
-    <div className="fixed top-[90px] left-0 z-40 pointer-events-none">
-      <div className="relative pointer-events-auto" style={{ width: S, height: S }}>
-        <svg
-          width={S}
-          height={S}
-          viewBox={`0 0 ${S} ${S}`}
-          style={{ position: 'absolute', top: 0, left: 0, filter: 'drop-shadow(6px 6px 18px rgba(0,0,0,0.8))' }}
-        >
-          <defs>
-            {/* Gold gradient border */}
-            <linearGradient id="borderGold" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#FFD700" />
-              <stop offset="50%" stopColor="#C9A063" />
-              <stop offset="100%" stopColor="#8B6914" />
-            </linearGradient>
-            {/* Clip to triangle */}
-            <clipPath id="triClip">
-              <polygon points={`0,0 ${S},0 0,${S}`} />
-            </clipPath>
-            {/* Bottom golden gradient for text area */}
-            <linearGradient id="goldArea" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#C9A063" stopOpacity="0.97" />
-              <stop offset="100%" stopColor="#7a5010" stopOpacity="0.97" />
-            </linearGradient>
-          </defs>
-
-          {/* Transparent base */}
-          <polygon points={`0,0 ${S},0 0,${S}`} fill="transparent" />
-
-          {/* FIFA image — top portion only */}
-          <image
-            href="/fifa.png"
-            x="-80" y="0"
-            width={S}
-            height={S * 0.62}
-            preserveAspectRatio="xMidYMid slice"
-            clipPath="url(#triClip)"
+    <div className="fixed bottom-8 left-6 z-50 pointer-events-none">
+      <div
+        className="pointer-events-auto w-[300px] rounded-2xl overflow-hidden shadow-2xl"
+        style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,160,99,0.3)' }}
+      >
+        {/* Image section */}
+        <div className="relative w-full h-[160px]">
+          <img
+            src="/fifa.png"
+            alt="FIFA World Cup 2026"
+            className="w-full h-full object-cover object-center"
           />
+          {/* Dark gradient over image bottom */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0f0f0f] via-transparent to-transparent" />
 
-          {/* Dark gradient fade at bottom for text readability */}
-          <defs>
-            <linearGradient id="fadeDown" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="transparent" />
-              <stop offset="55%" stopColor="transparent" />
-              <stop offset="100%" stopColor="rgba(0,0,0,0.75)" stopOpacity="1" />
-            </linearGradient>
-          </defs>
-          <polygon points={`0,0 ${S},0 0,${S}`} fill="url(#fadeDown)" />
+          {/* Close button */}
+          <button
+            onClick={() => setIsVisible(false)}
+            className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/80 flex items-center justify-center transition-colors"
+            aria-label="Close"
+          >
+            <span className="text-white text-xs font-bold">✕</span>
+          </button>
 
-          {/* Thin gold border on hypotenuse */}
-          <line x1={S} y1="0" x2="0" y2={S} stroke="url(#borderGold)" strokeWidth="3" opacity="0.7" />
+          {/* Badge */}
+          <div className="absolute top-3 left-3 bg-gradient-to-r from-[#C9A063] to-[#8B6914] text-black text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full">
+            Exclusive Offer
+          </div>
+        </div>
 
-          {/* ── TEXT AREA (bottom-left of triangle) ── */}
-          {/* FIFA WORLD CUP label */}
-          <text x="14" y={S * 0.62} fontSize="9.5" fill="rgba(255,255,255,0.7)" fontWeight="700" letterSpacing="2" fontFamily="Arial, sans-serif">FIFA WORLD CUP 2026</text>
-
-          {/* 15% OFF - rotated along triangle diagonal */}
-          <text
-            x={S * 0.18}
-            y={S * 0.82}
-            fontSize="42"
-            fill="white"
-            fontWeight="900"
-            fontFamily="Arial Black, Arial, sans-serif"
-            transform={`rotate(-45, ${S * 0.18}, ${S * 0.82})`}
-            style={{textShadow:'0 2px 8px rgba(0,0,0,0.6)'}}
-          >15% OFF</text>
-
-          {/* Subtitle */}
-          <text x="14" y={S * 0.62 + 58} fontSize="10" fill="rgba(255,255,255,0.85)" fontFamily="Arial, sans-serif">On All Luxury Chauffeur Rides</text>
-
-          {/* BOOK NOW pill */}
-          <rect x="14" y={S * 0.62 + 66} width="116" height="26" rx="13" fill="rgba(0,0,0,0.35)" />
-          <text x="72" y={S * 0.62 + 83} textAnchor="middle" fontSize="9.5" fill="white" fontWeight="800" letterSpacing="1.5" fontFamily="Arial, sans-serif">BOOK NOW →</text>
-
-          {/* Close X */}
-          <circle cx={S * 0.72} cy="22" r="13" fill="rgba(0,0,0,0.45)" />
-          <text x={S * 0.72} y="27" textAnchor="middle" fontSize="13" fill="rgba(255,255,255,0.9)" fontFamily="Arial, sans-serif">✕</text>
-        </svg>
-
-        {/* Invisible click zones */}
-        <Link
-          href="/reservation?promo=FIFA2026"
-          className="absolute"
-          style={{ top: `${S * 0.62 + 66}px`, left: '14px', width: '116px', height: '26px', borderRadius: '13px' }}
-        />
-        <button
-          onClick={() => setIsVisible(false)}
-          className="absolute"
-          style={{ top: '9px', left: `${S * 0.72 - 13}px`, width: '26px', height: '26px', borderRadius: '50%' }}
-          aria-label="Close"
-        />
+        {/* Content section */}
+        <div className="bg-[#0f0f0f] px-4 py-3">
+          <p className="text-[#C9A063] text-[11px] font-bold uppercase tracking-widest mb-1">FIFA World Cup 2026</p>
+          <div className="flex items-baseline gap-2 mb-1">
+            <span className="text-white text-3xl font-black">15% OFF</span>
+            <span className="text-white/50 text-xs">on all rides</span>
+          </div>
+          <p className="text-white/50 text-[11px] mb-3">Book your luxury chauffeur for FIFA events across Canada.</p>
+          <Link
+            href="/reservation?promo=FIFA2026"
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-gradient-to-r from-[#C9A063] to-[#8B6914] hover:from-[#D4AF37] hover:to-[#C9A063] text-black font-bold text-xs uppercase tracking-wide transition-all duration-300"
+          >
+            Book Now
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
       </div>
     </div>
   );
