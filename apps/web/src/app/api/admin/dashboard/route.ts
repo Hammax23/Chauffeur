@@ -57,7 +57,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ 
       success: false, 
       error: "Failed to fetch dashboard data",
-      debug: process.env.NODE_ENV !== "production" ? error?.message : undefined
+      actualError: error?.message || String(error),
+      stack: error?.stack?.split('\n').slice(0, 5),
+      dbUrl: process.env.DATABASE_URL ? "SET" : "NOT SET"
     }, { status: 500 });
   }
 }
