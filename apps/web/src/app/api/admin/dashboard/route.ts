@@ -10,8 +10,13 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    console.log("[Dashboard] Fetching reservations...");
     const reservations = await getReservations();
+    console.log("[Dashboard] Got reservations:", reservations.length);
+    
+    console.log("[Dashboard] Fetching drivers...");
     const drivers = await getDrivers();
+    console.log("[Dashboard] Got drivers:", drivers.length);
 
     const today = new Date().toDateString();
     const todayReservations = reservations.filter(r => {
@@ -45,7 +50,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, stats, recentReservations });
   } catch (error: any) {
-    console.error("Dashboard error:", error);
-    return NextResponse.json({ success: false, error: "Failed to fetch dashboard data" }, { status: 500 });
+    console.error("[Dashboard] ERROR:", error?.message || error);
+    console.error("[Dashboard] Stack:", error?.stack);
+    return NextResponse.json({ 
+      success: false, 
+      error: "Failed to fetch dashboard data",
+      debug: process.env.NODE_ENV !== "production" ? error?.message : undefined
+    }, { status: 500 });
   }
 }
