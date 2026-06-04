@@ -27,9 +27,10 @@ function loadEnvFile(filePath) {
 // VPS path from your screenshot — change if your deploy folder differs
 const webDir = process.env.SARJ_WEB_DIR || "/var/www/sarjworldwide/apps/web";
 
+// PM2 on VPS: do NOT load apps/web/.env.local (laptop DATABASE_URL localhost:5433 overrides production).
 const envFromFiles = {
+  ...loadEnvFile(path.join(path.dirname(webDir), ".env")),
   ...loadEnvFile(path.join(webDir, ".env")),
-  ...loadEnvFile(path.join(webDir, ".env.local")),
   ...loadEnvFile(path.join(webDir, ".env.production")),
 };
 
