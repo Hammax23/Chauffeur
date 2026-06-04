@@ -1,67 +1,9 @@
 "use client";
-import { User, Mail, Phone, Plus, Trophy, Sparkles, ArrowRight } from 'lucide-react';
+import { User, Mail, Phone, Plus } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-
-// FIFA World Cup 2026 Promotional Banner
-const FifaPromoBanner = () => {
-  const [isVisible, setIsVisible] = useState(true);
-
-  if (!isVisible) return null;
-
-  return (
-    <div className="fixed bottom-8 left-6 z-50 pointer-events-none">
-      <div
-        className="pointer-events-auto w-[300px] rounded-2xl overflow-hidden shadow-2xl"
-        style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,160,99,0.3)' }}
-      >
-        {/* Image section */}
-        <div className="relative w-full h-[160px]">
-          <img
-            src="/fifa.png"
-            alt="FIFA World Cup 2026"
-            className="w-full h-full object-cover object-center"
-          />
-          {/* Dark gradient over image bottom */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0f0f0f] via-transparent to-transparent" />
-
-          {/* Close button */}
-          <button
-            onClick={() => setIsVisible(false)}
-            className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/80 flex items-center justify-center transition-colors"
-            aria-label="Close"
-          >
-            <span className="text-white text-xs font-bold">✕</span>
-          </button>
-
-          {/* Badge */}
-          <div className="absolute top-3 left-3 bg-gradient-to-r from-[#C9A063] to-[#8B6914] text-black text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full">
-            Exclusive Offer
-          </div>
-        </div>
-
-        {/* Content section */}
-        <div className="bg-[#0f0f0f] px-4 py-3">
-          <p className="text-[#C9A063] text-[11px] font-bold uppercase tracking-widest mb-1">FIFA World Cup 2026</p>
-          <div className="flex items-baseline gap-2 mb-1">
-            <span className="text-white text-3xl font-black">15% OFF</span>
-            <span className="text-white/50 text-xs">on all rides</span>
-          </div>
-          <p className="text-white/50 text-[11px] mb-3">Book your luxury chauffeur for FIFA events across Canada.</p>
-          <Link
-            href="/reservation?promo=FIFA2026"
-            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-gradient-to-r from-[#C9A063] to-[#8B6914] hover:from-[#D4AF37] hover:to-[#C9A063] text-black font-bold text-xs uppercase tracking-wide transition-all duration-300"
-          >
-            Book Now
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const heroServices = [
   { title: "Airport Transfers", href: "/services/airport-transfers", image: "/heropics/airportTransfers.png" },
@@ -114,9 +56,6 @@ const HeroSection = () => {
 
   return (
     <section className="relative min-h-screen w-full overflow-hidden">
-      {/* FIFA World Cup 2026 Promotional Banner */}
-      <FifaPromoBanner />
-      
       {/* Fallback background image while video loads */}
       <div 
         className="absolute inset-0 w-full h-full bg-cover bg-center bg-no-repeat"

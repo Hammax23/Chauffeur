@@ -27,11 +27,17 @@ const GoogleReviews = () => {
     const fetchReviews = async () => {
       try {
         const res = await fetch("/api/google-reviews");
-        if (!res.ok) throw new Error("Failed to fetch");
-        const json = await res.json();
-        setData(json);
+        const json = (await res.json()) as ReviewsData & {
+          error?: string;
+          source?: string;
+        };
+        if (json.reviews?.length > 0) {
+          setData(json);
+        } else if (json.error) {
+          console.warn("[GoogleReviews]", json.error, "— enable Places API on server key or set GOOGLE_PLACE_ID");
+        }
       } catch (err) {
-        console.error("Error fetching Google reviews:", err);
+        console.warn("[GoogleReviews] Network error:", err);
       } finally {
         setLoading(false);
       }
