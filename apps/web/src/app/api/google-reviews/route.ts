@@ -15,23 +15,33 @@ function resolveGoogleKey(): string | undefined {
   return process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim() || undefined;
 }
 
+type GoogleReview = {
+  author: string;
+  rating: number;
+  text: string;
+  relativeTime: string;
+  time: number;
+  profilePhoto: string;
+};
+
+type ReviewsPayload = {
+  name: string;
+  rating: number;
+  totalReviews: number;
+  reviews: GoogleReview[];
+  source?: "google" | "fallback" | "cache";
+};
+
 /** Shown when Google API is unavailable — keeps homepage stable. */
-const FALLBACK_RESPONSE = {
+const FALLBACK_RESPONSE: ReviewsPayload = {
   name: "SARJ Worldwide Chauffeur Services",
   rating: 5,
   totalReviews: 0,
-  reviews: [] as Array<{
-    author: string;
-    rating: number;
-    text: string;
-    relativeTime: string;
-    time: number;
-    profilePhoto: string;
-  }>,
-  source: "fallback" as const,
+  reviews: [],
+  source: "fallback",
 };
 
-let cachedReviews: typeof FALLBACK_RESPONSE | null = null;
+let cachedReviews: ReviewsPayload | null = null;
 let cacheTimestamp = 0;
 const CACHE_DURATION = 1000 * 60 * 60; // 1 hour
 
@@ -117,7 +127,7 @@ export async function GET() {
 
     const { name, rating, user_ratings_total, reviews } = detailsData.result;
 
-    const response = {
+    const response: ReviewsPayload = {
       name: name || FALLBACK_RESPONSE.name,
       rating: rating ?? 5,
       totalReviews: user_ratings_total ?? 0,
@@ -129,7 +139,7 @@ export async function GET() {
         time: review.time,
         profilePhoto: review.profile_photo_url,
       })),
-      source: "google" as const,
+      source: "google",
     };
 
     if (response.reviews.length > 0) {
