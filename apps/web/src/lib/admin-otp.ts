@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import jwt from "jsonwebtoken";
+import { buildAdminOtpEmail } from "@/lib/email-templates";
 
 // OTP settings
 const OTP_LENGTH = 6;
@@ -130,65 +131,8 @@ export async function sendOTPEmail(otp: string): Promise<{ success: boolean; err
     await transporter.sendMail({
       from: `"SARJ Worldwide Security" <${smtpUser}>`,
       to: adminEmail,
-      subject: "🔐 Admin Login Verification Code",
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="margin: 0; padding: 0; background-color: #1C1C1E; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #1C1C1E; padding: 40px 20px;">
-            <tr>
-              <td align="center">
-                <table width="100%" max-width="500" cellpadding="0" cellspacing="0" style="background: linear-gradient(135deg, #2C2C2E 0%, #1C1C1E 100%); border-radius: 16px; border: 1px solid rgba(201, 160, 99, 0.3); overflow: hidden;">
-                  <!-- Header -->
-                  <tr>
-                    <td style="padding: 30px 40px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                      <h1 style="margin: 0; color: #C9A063; font-size: 24px; font-weight: 600;">SARJ Worldwide</h1>
-                      <p style="margin: 8px 0 0 0; color: #888; font-size: 14px;">Admin Panel Security</p>
-                    </td>
-                  </tr>
-                  
-                  <!-- Content -->
-                  <tr>
-                    <td style="padding: 40px;">
-                      <p style="margin: 0 0 20px 0; color: #fff; font-size: 16px; line-height: 1.6;">
-                        A login attempt was made to your admin panel. Use the verification code below to complete your login:
-                      </p>
-                      
-                      <!-- OTP Box -->
-                      <div style="background: rgba(201, 160, 99, 0.1); border: 2px solid #C9A063; border-radius: 12px; padding: 25px; text-align: center; margin: 25px 0;">
-                        <p style="margin: 0 0 10px 0; color: #888; font-size: 12px; text-transform: uppercase; letter-spacing: 2px;">Verification Code</p>
-                        <p style="margin: 0; color: #C9A063; font-size: 36px; font-weight: 700; letter-spacing: 8px;">${otp}</p>
-                      </div>
-                      
-                      <p style="margin: 20px 0 0 0; color: #888; font-size: 14px; line-height: 1.6;">
-                        ⏱️ This code expires in <strong style="color: #fff;">${OTP_EXPIRY_MINUTES} minutes</strong>
-                      </p>
-                      
-                      <p style="margin: 15px 0 0 0; color: #888; font-size: 14px; line-height: 1.6;">
-                        🔒 If you didn't request this code, please ignore this email and ensure your password is secure.
-                      </p>
-                    </td>
-                  </tr>
-                  
-                  <!-- Footer -->
-                  <tr>
-                    <td style="padding: 20px 40px; background: rgba(0,0,0,0.2); border-top: 1px solid rgba(255,255,255,0.1);">
-                      <p style="margin: 0; color: #666; font-size: 12px; text-align: center;">
-                        © ${new Date().getFullYear()} SARJ Worldwide Chauffeur Services
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-        </html>
-      `,
+      subject: "Admin login verification — SARJ Worldwide",
+      html: buildAdminOtpEmail(otp, OTP_EXPIRY_MINUTES),
     });
 
     return { success: true };

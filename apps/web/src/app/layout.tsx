@@ -51,7 +51,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_GB",
-    url: "https://luxride-chauffeur.vercel.app",
+    url: "https://sarjworldwide.ca",
     siteName: "SARJ Worldwide Chauffeur Services",
     title: "SARJ Worldwide Chauffeur Services | Premium Luxury Transportation",
     description: "Experience world-class luxury chauffeur services. Airport transfers, corporate travel, weddings & VIP transport. Book your premium ride today!",
@@ -68,11 +68,11 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "SARJ Worldwide Chauffeur Services | Premium Luxury Transportation",
     description: "Experience world-class luxury chauffeur services. Airport transfers, corporate travel, weddings & VIP transport.",
-    images: ["https://luxride-chauffeur.vercel.app/logo1.png"],
+    images: ["https://sarjworldwide.ca/logo1.png"],
     creator: "@sarjworldwide",
   },
   alternates: {
-    canonical: "https://luxride-chauffeur.vercel.app",
+    canonical: "https://sarjworldwide.ca",
   },
   category: "transportation",
 };
@@ -84,7 +84,7 @@ export const viewport: Viewport = {
 };
 
 // JSON-LD Structured Data - Organization & WebSite
-const baseUrl = "https://luxride-chauffeur.vercel.app";
+const baseUrl = "https://sarjworldwide.ca";
 const jsonLdOrg = {
   "@context": "https://schema.org",
   "@type": "LocalBusiness",

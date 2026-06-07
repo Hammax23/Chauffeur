@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { escapeHtml, sendTransactionalEmail } from "@/lib/email-delivery";
+import { sendTransactionalEmail } from "@/lib/email-delivery";
+import { buildDriverRegisterAdminEmail, buildDriverRegisterUserEmail } from "@/lib/email-templates";
 import {
   mergeDriverInviteRegistration,
   getVisibleComplianceDocKeys,
@@ -314,94 +315,18 @@ export async function POST(request: NextRequest) {
       return app;
     });
 
-    const safeName = escapeHtml(result.name);
-    const refId = escapeHtml(result.id);
-    const adm = {
-      name: escapeHtml(result.name),
-      email: escapeHtml(result.email),
-      phone: escapeHtml(result.phone),
-      vehicle: escapeHtml(result.vehicle),
-      vehiclePlate: escapeHtml(result.vehiclePlate),
-    };
+    const adminEmailHtml = buildDriverRegisterAdminEmail({
+      name: result.name,
+      email: result.email,
+      phone: result.phone,
+      vehicle: result.vehicle,
+      vehiclePlate: result.vehiclePlate,
+    });
 
-    const adminEmailHtml = `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <div style="background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); padding: 30px; text-align: center;">
-                <h1 style="color: #C9A063; margin: 0; font-size: 24px;">New Driver Application</h1>
-              </div>
-              <div style="padding: 30px; background: #ffffff;">
-                <p style="color: #333; font-size: 16px; margin-bottom: 20px;">
-                  A driver has submitted the invitation registration form. Admin approval is required before the driver can log in.
-                </p>
-                <div style="background: #f8f8f8; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-                  <h3 style="color: #C9A063; margin-top: 0;">Driver Details</h3>
-                  <table style="width: 100%; border-collapse: collapse;">
-                    <tr>
-                      <td style="padding: 8px 0; color: #666;">Name:</td>
-                      <td style="padding: 8px 0; color: #333; font-weight: bold;">${adm.name}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 8px 0; color: #666;">Email:</td>
-                      <td style="padding: 8px 0; color: #333;">${adm.email}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 8px 0; color: #666;">Phone:</td>
-                      <td style="padding: 8px 0; color: #333;">${adm.phone}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 8px 0; color: #666;">Vehicle:</td>
-                      <td style="padding: 8px 0; color: #333;">${adm.vehicle}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 8px 0; color: #666;">Vehicle Plate:</td>
-                      <td style="padding: 8px 0; color: #333; font-weight: bold;">${adm.vehiclePlate}</td>
-                    </tr>
-                  </table>
-                </div>
-                <p style="color: #666; font-size: 14px;">
-                  Please review documents and approve/reject in the admin panel.
-                </p>
-              </div>
-              <div style="background: #f5f5f5; padding: 20px; text-align: center;">
-                <p style="color: #999; font-size: 12px; margin: 0;">
-                  This is an automated notification from SARJ Worldwide.
-                </p>
-              </div>
-            </div>
-          `;
-
-    const driverEmailHtml = `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <div style="background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); padding: 28px; text-align: center;">
-                <h1 style="color: #C9A063; margin: 0; font-size: 22px;">Application Submitted</h1>
-              </div>
-              <div style="padding: 28px 30px; background: #ffffff;">
-                <p style="color: #333; font-size: 16px; margin: 0 0 16px 0;">
-                  Thank you, <strong>${safeName}</strong>. Your details have been received successfully.
-                </p>
-                <p style="color: #555; font-size: 14px; line-height: 1.6; margin: 0 0 22px 0;">
-                  Please stay connected to your email. After our team reviews and approves your information and documents,
-                  you will be informed there.
-                </p>
-                <div style="background: #f8f8f8; border: 1px solid #e5e5e5; border-radius: 10px; padding: 16px 18px;">
-                  <p style="color: #888; font-size: 12px; margin: 0 0 6px 0; text-transform: uppercase; letter-spacing: 0.04em;">
-                    Reference ID
-                  </p>
-                  <p style="color: #1a1a1a; font-size: 15px; font-family: ui-monospace, Consolas, monospace; margin: 0; word-break: break-all;">
-                    ${refId}
-                  </p>
-                </div>
-                <p style="color: #999; font-size: 12px; margin: 22px 0 0 0;">
-                  Keep this email for your records. If you did not submit this application, please contact support.
-                </p>
-              </div>
-              <div style="background: #f5f5f5; padding: 18px; text-align: center;">
-                <p style="color: #999; font-size: 12px; margin: 0;">
-                  © ${new Date().getFullYear()} SARJ Worldwide. All rights reserved.
-                </p>
-              </div>
-            </div>
-          `;
+    const driverEmailHtml = buildDriverRegisterUserEmail({
+      name: result.name,
+      referenceId: result.id,
+    });
 
     const adminTo = process.env.ADMIN_EMAIL || "reserve@sarjworldwide.com";
 

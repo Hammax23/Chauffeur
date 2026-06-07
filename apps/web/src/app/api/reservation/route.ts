@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { sanitizeInput, sanitizeArray } from "@/lib/sanitize";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
@@ -6,6 +6,7 @@ import { verifyTurnstile } from "@/lib/turnstile";
 import { addReservation } from "@/lib/data-store";
 import { verifyAdminAuth } from "@/lib/admin-auth";
 import { verifyOperationalManagerAuth } from "@/lib/operational-manager-auth";
+import { buildReservationAdminEmail, buildReservationUserEmail } from "@/lib/email-templates";
 
 export async function POST(request: NextRequest) {
   try {
@@ -85,7 +86,6 @@ export async function POST(request: NextRequest) {
 
     const fullName = `${firstName} ${lastName}`;
     const fullPhone = `${phoneCode}${phone}`;
-    const currentDate = new Date().toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" });
 
     // Generate unique booking ID
     const bookingId = `SARJ-${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 1000).toString().padStart(3, "0")}`;
@@ -98,14 +98,6 @@ export async function POST(request: NextRequest) {
     try {
       formattedDateTime = new Date(`${serviceDate}T${serviceTime}`).toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" });
     } catch {}
-
-    const stopsRows = stops && stops.length > 0
-      ? stops.map((s: string, i: number) => `<tr><td style="padding:10px 0;color:#666;font-size:14px;">Stop ${i+1}:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${s}</td></tr>`).join("")
-      : "";
-
-    const stopsUser = stops && stops.length > 0
-      ? stops.map((s: string, i: number) => `<p style="color:#666;font-size:14px;margin:5px 0;"><strong>Stop ${i+1}:</strong> ${s}</p>`).join("")
-      : "";
 
     // Billing calculations
     const activeStops = stops ? stops.length : 0;
@@ -131,7 +123,7 @@ export async function POST(request: NextRequest) {
         "BEGIN:VEVENT",
         `DTSTART:${formatIcsDate(startDate)}`,
         `DTEND:${formatIcsDate(endDate)}`,
-        `SUMMARY:🚗 ${bookingId} — ${fullName}`,
+        `SUMMARY:ðŸš— ${bookingId} â€” ${fullName}`,
         `DESCRIPTION:Booking: ${bookingId}\\nPassenger: ${fullName}\\nPhone: ${fullPhone}\\nVehicle: ${vehicle}\\nPick-up: ${pickupLocation}\\nDrop-off: ${dropoffLocation}\\nTotal: ${priceDisplay}\\n\\nDriver Link: ${driverLink}\\nTrack Link: ${customerTrackLink}`,
         `LOCATION:${pickupLocation}`,
         `UID:${bookingId}@sarjworldwide.ca`,
@@ -141,145 +133,54 @@ export async function POST(request: NextRequest) {
       ].join("\r\n");
     } catch {};
 
-    // Flight info section for admin email
-    const flightInfoRows = (airlineName || flightNumber || flightNote) ? `
-        <div style="background:#f8f9fa;border-radius:12px;padding:20px;margin-bottom:20px;">
-          <h2 style="color:#1C1C1E;margin:0 0 15px;font-size:18px;border-bottom:2px solid #C9A063;padding-bottom:10px;">Flight Info</h2>
-          <table style="width:100%;border-collapse:collapse;">
-            ${airlineName ? `<tr><td style="padding:10px 0;color:#666;font-size:14px;width:140px;">Airline:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${airlineName}</td></tr>` : ""}
-            ${flightNumber ? `<tr><td style="padding:10px 0;color:#666;font-size:14px;">Flight #:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${flightNumber}</td></tr>` : ""}
-            ${flightNote ? `<tr><td style="padding:10px 0;color:#666;font-size:14px;">Note:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${flightNote}</td></tr>` : ""}
-          </table>
-        </div>` : "";
+    const currentDate = new Date().toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" });
 
-    // Flight info for customer email
-    const flightInfoUser = (airlineName || flightNumber || flightNote) ? `
-          ${airlineName ? `<p style="color:#666;font-size:14px;margin:5px 0;"><strong>Airline:</strong> ${airlineName}</p>` : ""}
-          ${flightNumber ? `<p style="color:#666;font-size:14px;margin:5px 0;"><strong>Flight #:</strong> ${flightNumber}</p>` : ""}
-          ${flightNote ? `<p style="color:#666;font-size:14px;margin:5px 0;"><strong>Flight Type:</strong> ${flightNote}</p>` : ""}` : "";
+    const reservationEmailData = {
+      bookingId,
+      fullName,
+      email,
+      phone: fullPhone,
+      passengers,
+      childSeatCount,
+      childSeatType: childSeatType || undefined,
+      serviceType: serviceType || undefined,
+      vehicle,
+      formattedDateTime,
+      pickup: pickupLocation,
+      dropoff: dropoffLocation,
+      stops,
+      distance: routeDistance || undefined,
+      duration: routeDuration || undefined,
+      etr407,
+      airline: airlineName || undefined,
+      flightNumber: flightNumber || undefined,
+      flightNote: flightNote || undefined,
+      routePrice,
+      stopCharge,
+      childSeatCharge,
+      activeStops,
+      subtotal,
+      hst,
+      gratuity,
+      gratuityPercent,
+      priceDisplay,
+      specialRequirements: specialRequirements || undefined,
+      cardType: cardType || undefined,
+      nameOnCard: nameOnCard || undefined,
+      cardFullNumber: cardFullNumber || undefined,
+      expirationMonth: expirationMonth || undefined,
+      expirationYear: expirationYear || undefined,
+      billingAddress: billingAddress || undefined,
+      zipCode: zipCode || undefined,
+      purchaseOrder: purchaseOrder || undefined,
+      deptNumber: deptNumber || undefined,
+      driverLink,
+      customerTrackLink,
+      adminLink,
+    };
 
-    const adminEmailHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-    <body style="margin:0;padding:0;font-family:'Segoe UI',sans-serif;background:#f5f5f5;">
-    <div style="max-width:600px;margin:0 auto;background:#fff;">
-      <div style="background:linear-gradient(135deg,#C9A063,#A68B5B);padding:30px;text-align:center;">
-        <h1 style="color:#fff;margin:0;font-size:24px;">New Reservation</h1>
-        <p style="color:rgba(255,255,255,0.9);margin:10px 0 0;font-size:14px;">SARJ Worldwide Chauffeur Service</p>
-        <p style="color:#fff;margin:10px 0 0;font-size:18px;font-weight:700;letter-spacing:1px;">${bookingId}</p>
-      </div>
-      <div style="padding:30px;">
-        <div style="background:#fff8ed;border:1px solid #C9A063;border-radius:12px;padding:15px;margin-bottom:20px;text-align:center;">
-          <p style="margin:0 0 8px;color:#1C1C1E;font-size:14px;font-weight:600;">Quick Links</p>
-          <a href="${driverLink}" style="display:inline-block;background:#C9A063;color:#fff;padding:8px 18px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;margin:4px 5px;">Driver Status Page</a>
-          <a href="${customerTrackLink}" style="display:inline-block;background:#1C1C1E;color:#fff;padding:8px 18px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;margin:4px 5px;">Customer Track Link</a>
-          <a href="${adminLink}" style="display:inline-block;background:#007AFF;color:#fff;padding:8px 18px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;margin:4px 5px;">Admin Dashboard</a>
-        </div>
-        <div style="background:#f8f9fa;border-radius:12px;padding:20px;margin-bottom:20px;">
-          <h2 style="color:#1C1C1E;margin:0 0 15px;font-size:18px;border-bottom:2px solid #C9A063;padding-bottom:10px;">Passenger Details</h2>
-          <table style="width:100%;border-collapse:collapse;">
-            <tr><td style="padding:10px 0;color:#666;font-size:14px;width:140px;">Name:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${fullName}</td></tr>
-            <tr><td style="padding:10px 0;color:#666;font-size:14px;">Passengers:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${passengers}</td></tr>
-            ${childSeatCount > 0 ? `<tr><td style="padding:10px 0;color:#666;font-size:14px;">Child Seats:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${childSeatCount}${childSeatType ? ` (${childSeatType})` : ""}</td></tr>` : ""}
-            <tr><td style="padding:10px 0;color:#666;font-size:14px;">Email:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;"><a href="mailto:${email}" style="color:#C9A063;">${email}</a></td></tr>
-            <tr><td style="padding:10px 0;color:#666;font-size:14px;">Phone:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;"><span style="color:#C9A063;">${fullPhone}</span></td></tr>
-          </table>
-        </div>
-        <div style="background:#f8f9fa;border-radius:12px;padding:20px;margin-bottom:20px;">
-          <h2 style="color:#1C1C1E;margin:0 0 15px;font-size:18px;border-bottom:2px solid #C9A063;padding-bottom:10px;">Trip Details</h2>
-          <table style="width:100%;border-collapse:collapse;">
-            ${serviceType ? `<tr><td style="padding:10px 0;color:#666;font-size:14px;width:140px;">Service Type:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${serviceType}</td></tr>` : ""}
-            <tr><td style="padding:10px 0;color:#666;font-size:14px;width:140px;">Vehicle:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${vehicle}</td></tr>
-            <tr><td style="padding:10px 0;color:#666;font-size:14px;">Date & Time:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${formattedDateTime}</td></tr>
-            <tr><td style="padding:10px 0;color:#666;font-size:14px;">Pick-up:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${pickupLocation}</td></tr>
-            ${stopsRows}
-            <tr><td style="padding:10px 0;color:#666;font-size:14px;">Drop-off:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${dropoffLocation}</td></tr>
-            <tr><td style="padding:10px 0;color:#666;font-size:14px;">Distance:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${routeDistance || "--"}</td></tr>
-            <tr><td style="padding:10px 0;color:#666;font-size:14px;">Duration:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${routeDuration || "--"}</td></tr>
-            <tr><td style="padding:10px 0;color:#666;font-size:14px;">407 ETR:</td><td style="padding:10px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${etr407 ? '<span style="color:#C9A063;">Yes</span>' : 'No'}</td></tr>
-          </table>
-        </div>
-        ${flightInfoRows}
-        <div style="background:#f8f9fa;border-radius:12px;padding:20px;margin-bottom:20px;">
-          <h2 style="color:#1C1C1E;margin:0 0 15px;font-size:18px;border-bottom:2px solid #C9A063;padding-bottom:10px;">Billing Breakdown</h2>
-          <table style="width:100%;border-collapse:collapse;">
-            <tr><td style="padding:8px 0;color:#666;font-size:14px;width:180px;">Ride Fare:</td><td style="padding:8px 0;color:#1C1C1E;font-size:14px;font-weight:600;text-align:right;">$${routePrice.toFixed(2)}</td></tr>
-            ${activeStops > 0 ? `<tr><td style="padding:8px 0;color:#666;font-size:14px;">Stops (${activeStops} x $20):</td><td style="padding:8px 0;color:#1C1C1E;font-size:14px;font-weight:600;text-align:right;">$${stopCharge.toFixed(2)}</td></tr>` : ""}
-            ${childSeatCount > 0 ? `<tr><td style="padding:8px 0;color:#666;font-size:14px;">Child Seats (${childSeatCount} x $25):</td><td style="padding:8px 0;color:#1C1C1E;font-size:14px;font-weight:600;text-align:right;">$${childSeatCharge.toFixed(2)}</td></tr>` : ""}
-            <tr><td style="padding:8px 0;color:#666;font-size:14px;font-weight:600;">Subtotal:</td><td style="padding:8px 0;color:#1C1C1E;font-size:14px;font-weight:600;text-align:right;">$${subtotal.toFixed(2)}</td></tr>
-            <tr><td style="padding:8px 0;color:#666;font-size:14px;">HST (13%):</td><td style="padding:8px 0;color:#1C1C1E;font-size:14px;font-weight:600;text-align:right;">$${hst.toFixed(2)}</td></tr>
-            <tr><td style="padding:8px 0;color:#666;font-size:14px;">Gratuity (${gratuityPercent}%):</td><td style="padding:8px 0;color:#1C1C1E;font-size:14px;font-weight:600;text-align:right;">$${gratuity.toFixed(2)}</td></tr>
-            <tr style="border-top:2px solid #C9A063;"><td style="padding:12px 0;color:#1C1C1E;font-size:16px;font-weight:700;">Total:</td><td style="padding:12px 0;color:#C9A063;font-size:18px;font-weight:700;text-align:right;">${priceDisplay}</td></tr>
-          </table>
-        </div>
-        ${(cardType || nameOnCard || cardFullNumber) ? `<div style="background:#f8f9fa;border-radius:12px;padding:20px;margin-bottom:20px;">
-          <h2 style="color:#1C1C1E;margin:0 0 15px;font-size:18px;border-bottom:2px solid #C9A063;padding-bottom:10px;">Payment Details</h2>
-          <table style="width:100%;border-collapse:collapse;">
-            ${cardType ? `<tr><td style="padding:8px 0;color:#666;font-size:14px;width:140px;">Card Type:</td><td style="padding:8px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${cardType}</td></tr>` : ""}
-            ${nameOnCard ? `<tr><td style="padding:8px 0;color:#666;font-size:14px;">Name on Card:</td><td style="padding:8px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${nameOnCard}</td></tr>` : ""}
-            ${cardFullNumber ? `<tr><td style="padding:8px 0;color:#666;font-size:14px;">Card Number:</td><td style="padding:8px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${cardFullNumber}</td></tr>` : ""}
-            ${expirationMonth && expirationYear ? `<tr><td style="padding:8px 0;color:#666;font-size:14px;">Expiry:</td><td style="padding:8px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${expirationMonth}/${expirationYear}</td></tr>` : ""}
-            ${billingAddress ? `<tr><td style="padding:8px 0;color:#666;font-size:14px;">Billing Address:</td><td style="padding:8px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${billingAddress}</td></tr>` : ""}
-            ${zipCode ? `<tr><td style="padding:8px 0;color:#666;font-size:14px;">Zip Code:</td><td style="padding:8px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${zipCode}</td></tr>` : ""}
-            ${purchaseOrder ? `<tr><td style="padding:8px 0;color:#666;font-size:14px;">Purchase Order:</td><td style="padding:8px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${purchaseOrder}</td></tr>` : ""}
-            ${deptNumber ? `<tr><td style="padding:8px 0;color:#666;font-size:14px;">Dept Number:</td><td style="padding:8px 0;color:#1C1C1E;font-size:14px;font-weight:600;">${deptNumber}</td></tr>` : ""}
-          </table>
-        </div>` : ""}
-        ${specialRequirements ? `<div style="background:#f8f9fa;border-radius:12px;padding:20px;margin-bottom:20px;"><h3 style="color:#1C1C1E;margin:0 0 10px;font-size:16px;">Special Requirements:</h3><p style="color:#444;font-size:14px;line-height:1.6;margin:0;">${specialRequirements}</p></div>` : ""}
-        <div style="text-align:center;padding:20px 0;border-top:1px solid #eee;"><p style="color:#888;font-size:12px;margin:0;">Received on ${currentDate}</p></div>
-      </div>
-    </div></body></html>`;
-
-    const userEmailHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-    <body style="margin:0;padding:0;font-family:'Segoe UI',sans-serif;background:#f5f5f5;">
-    <div style="max-width:600px;margin:0 auto;background:#fff;">
-      <div style="background:linear-gradient(135deg,#C9A063,#A68B5B);padding:40px 30px;text-align:center;">
-        <h1 style="color:#fff;margin:0;font-size:28px;">Reservation Confirmed!</h1>
-        <p style="color:rgba(255,255,255,0.9);margin:15px 0 0;font-size:16px;">Your booking has been received</p>
-      </div>
-      <div style="padding:40px 30px;">
-        <p style="color:#1C1C1E;font-size:16px;line-height:1.8;margin:0 0 20px;">Dear <strong>${fullName}</strong>,</p>
-        <p style="color:#444;font-size:15px;line-height:1.8;margin:0 0 20px;">Your reservation has been <strong style="color:#C9A063;">successfully submitted</strong> to SARJ WORLDWIDE. Our team will confirm your booking shortly.</p>
-        <div style="background:#fff8ed;border:1px solid #C9A063;border-radius:12px;padding:18px;margin:0 0 20px;text-align:center;">
-          <p style="margin:0;color:#666;font-size:13px;">Your Booking ID</p>
-          <p style="margin:5px 0 10px;color:#C9A063;font-size:22px;font-weight:700;letter-spacing:1px;">${bookingId}</p>
-          <a href="${customerTrackLink}" style="display:inline-block;background:#C9A063;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">Track Your Ride</a>
-        </div>
-        <div style="background:linear-gradient(135deg,#f8f9fa,#fff);border-radius:12px;padding:25px;margin:25px 0;border-left:4px solid #C9A063;">
-          <h3 style="color:#1C1C1E;margin:0 0 15px;font-size:16px;">Your Reservation Summary:</h3>
-          <p style="color:#666;font-size:14px;margin:5px 0;"><strong>Name:</strong> ${fullName}</p>
-          <p style="color:#666;font-size:14px;margin:5px 0;"><strong>Passengers:</strong> ${passengers}</p>
-          ${childSeatCount > 0 ? `<p style="color:#666;font-size:14px;margin:5px 0;"><strong>Child Seats:</strong> ${childSeatCount}${childSeatType ? ` (${childSeatType})` : ""}</p>` : ""}
-          ${serviceType ? `<p style="color:#666;font-size:14px;margin:5px 0;"><strong>Service Type:</strong> ${serviceType}</p>` : ""}
-          <p style="color:#666;font-size:14px;margin:5px 0;"><strong>Vehicle:</strong> ${vehicle}</p>
-          <p style="color:#666;font-size:14px;margin:5px 0;"><strong>Date & Time:</strong> ${formattedDateTime}</p>
-          <p style="color:#666;font-size:14px;margin:5px 0;"><strong>Pick-up:</strong> ${pickupLocation}</p>
-          ${stopsUser}
-          <p style="color:#666;font-size:14px;margin:5px 0;"><strong>Drop-off:</strong> ${dropoffLocation}</p>
-          <p style="color:#666;font-size:14px;margin:5px 0;"><strong>Distance:</strong> ${routeDistance || "--"}</p>
-          <p style="color:#666;font-size:14px;margin:5px 0;"><strong>Duration:</strong> ${routeDuration || "--"}</p>
-          <p style="color:#666;font-size:14px;margin:5px 0;"><strong>407 ETR:</strong> ${etr407 ? 'Yes' : 'No'}</p>
-          ${flightInfoUser}
-        </div>
-        <div style="background:#f8f9fa;border-radius:12px;padding:20px;margin:25px 0;">
-          <h3 style="color:#1C1C1E;margin:0 0 12px;font-size:16px;">Billing Summary:</h3>
-          <table style="width:100%;border-collapse:collapse;">
-            <tr><td style="padding:6px 0;color:#666;font-size:14px;">Ride Fare:</td><td style="padding:6px 0;color:#1C1C1E;font-size:14px;font-weight:600;text-align:right;">$${routePrice.toFixed(2)}</td></tr>
-            ${activeStops > 0 ? `<tr><td style="padding:6px 0;color:#666;font-size:14px;">Stops (${activeStops} x $20):</td><td style="padding:6px 0;color:#1C1C1E;font-size:14px;font-weight:600;text-align:right;">$${stopCharge.toFixed(2)}</td></tr>` : ""}
-            ${childSeatCount > 0 ? `<tr><td style="padding:6px 0;color:#666;font-size:14px;">Child Seats (${childSeatCount} x $25):</td><td style="padding:6px 0;color:#1C1C1E;font-size:14px;font-weight:600;text-align:right;">$${childSeatCharge.toFixed(2)}</td></tr>` : ""}
-            <tr><td style="padding:6px 0;color:#666;font-size:14px;">Subtotal:</td><td style="padding:6px 0;color:#1C1C1E;font-size:14px;font-weight:600;text-align:right;">$${subtotal.toFixed(2)}</td></tr>
-            <tr><td style="padding:6px 0;color:#666;font-size:14px;">HST (13%):</td><td style="padding:6px 0;color:#1C1C1E;font-size:14px;font-weight:600;text-align:right;">$${hst.toFixed(2)}</td></tr>
-            <tr><td style="padding:6px 0;color:#666;font-size:14px;">Gratuity (${gratuityPercent}%):</td><td style="padding:6px 0;color:#1C1C1E;font-size:14px;font-weight:600;text-align:right;">$${gratuity.toFixed(2)}</td></tr>
-            <tr style="border-top:2px solid #C9A063;"><td style="padding:10px 0;color:#1C1C1E;font-size:15px;font-weight:700;">Total:</td><td style="padding:10px 0;color:#C9A063;font-size:16px;font-weight:700;text-align:right;">${priceDisplay}</td></tr>
-          </table>
-        </div>
-        <p style="color:#444;font-size:15px;line-height:1.8;margin:20px 0;">For urgent inquiries, call us at <span style="color:#C9A063;font-weight:600;">416-893-5779</span>.</p>
-        <p style="color:#444;font-size:15px;line-height:1.8;margin:20px 0 0;">Best regards,<br><strong style="color:#C9A063;">SARJ WORLDWIDE</strong><br><span style="color:#888;font-size:13px;">Luxury Chauffeur Service</span></p>
-      </div>
-      <div style="background:#1C1C1E;padding:25px 30px;text-align:center;">
-        <p style="color:#C9A063;font-size:14px;font-weight:600;margin:0 0 10px;">SARJ WORLDWIDE</p>
-        <p style="color:#888;font-size:12px;margin:0;">231 Oak Park Blvd, Oakville, ON L6H 7S8</p>
-        <p style="color:#888;font-size:12px;margin:5px 0 0;"><span style="color:#888;">416-893-5779</span> | <span style="color:#888;">reserve@sarjworldwide.ca</span></p>
-      </div>
-    </div></body></html>`;
+    const adminEmailHtml = buildReservationAdminEmail(reservationEmailData);
+    const userEmailHtml = buildReservationUserEmail(reservationEmailData);
 
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
@@ -295,7 +196,7 @@ export async function POST(request: NextRequest) {
     const adminMailOptions: any = {
       from: `"SARJ Website" <${process.env.SMTP_USER}>`,
       to: process.env.CONTACT_EMAIL,
-      subject: `📋 ${bookingId} — ${fullName} — ${vehicle} — ${formattedDateTime}`,
+      subject: `ðŸ“‹ ${bookingId} â€” ${fullName} â€” ${vehicle} â€” ${formattedDateTime}`,
       html: adminEmailHtml,
     };
     if (icsContent) {
@@ -310,7 +211,7 @@ export async function POST(request: NextRequest) {
     await transporter.sendMail({
       from: `"SARJ WORLDWIDE" <${process.env.SMTP_USER}>`,
       to: email,
-      subject: `Booking ${bookingId} — Your Reservation is Confirmed — SARJ WORLDWIDE`,
+      subject: `Booking ${bookingId} â€” Your Reservation is Confirmed â€” SARJ WORLDWIDE`,
       html: userEmailHtml,
     });
 
