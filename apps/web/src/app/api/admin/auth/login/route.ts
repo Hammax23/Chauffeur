@@ -6,6 +6,7 @@ import {
   clearAttempts,
   getClientIP,
   COOKIE_NAME,
+  getAdminSessionCookieOptions,
 } from "@/lib/admin-auth";
 
 export async function POST(request: NextRequest) {
@@ -59,13 +60,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Set secure HTTP-only cookie
-    response.cookies.set(COOKIE_NAME, result.token!, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 60 * 60 * 24, // 24 hours
-      path: "/",
-    });
+    response.cookies.set(COOKIE_NAME, result.token!, getAdminSessionCookieOptions());
 
     return response;
   } catch (error: any) {

@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateToken, clearAttempts, getClientIP, COOKIE_NAME } from "@/lib/admin-auth";
+import {
+  generateToken,
+  clearAttempts,
+  getClientIP,
+  COOKIE_NAME,
+  getAdminSessionCookieOptions,
+} from "@/lib/admin-auth";
 import { verifyOTP } from "@/lib/admin-otp";
 
 export async function POST(request: NextRequest) {
@@ -36,13 +42,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Set secure HTTP-only cookie
-    response.cookies.set(COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 60 * 60 * 24, // 24 hours
-      path: "/",
-    });
+    response.cookies.set(COOKIE_NAME, token, getAdminSessionCookieOptions());
 
     return response;
   } catch (error: any) {

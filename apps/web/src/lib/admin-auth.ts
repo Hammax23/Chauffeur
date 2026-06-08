@@ -7,9 +7,20 @@ import { NextRequest } from "next/server";
 const JWT_SECRET = process.env.JWT_SECRET || "sarj-admin-jwt-secret-key-2024-secure";
 const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || "$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.R8YjpYB7pXvN3S"; // Default: "sarj@admin2024"
 
-// Token expiration time (24 hours)
-const TOKEN_EXPIRY = "24h";
 const COOKIE_NAME = "sarj_admin_token";
+
+/** Persistent until explicit logout — cookie max-age (~10 years) */
+export const ADMIN_SESSION_COOKIE_MAX_AGE = 60 * 60 * 24 * 365 * 10;
+
+export function getAdminSessionCookieOptions() {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict" as const,
+    maxAge: ADMIN_SESSION_COOKIE_MAX_AGE,
+    path: "/",
+  };
+}
 
 // Rate limiting storage (in production, use Redis)
 const loginAttempts: Map<string, { count: number; lastAttempt: number }> = new Map();
@@ -18,8 +29,8 @@ const LOCKOUT_TIME = 15 * 60 * 1000; // 15 minutes
 
 export interface AdminTokenPayload {
   role: "admin";
-  iat: number;
-  exp: number;
+  iat?: number;
+  exp?: number;
 }
 
 /**
@@ -39,12 +50,9 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 /**
  * Generate JWT token for admin
  */
+/** No JWT expiry — session ends only on logout or JWT_SECRET rotation */
 export function generateToken(): string {
-  return jwt.sign(
-    { role: "admin" },
-    JWT_SECRET,
-    { expiresIn: TOKEN_EXPIRY }
-  );
+  return jwt.sign({ role: "admin" }, JWT_SECRET);
 }
 
 /**
