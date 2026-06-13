@@ -37,7 +37,7 @@ const Footer = () => {
             
             {/* Description */}
             <p className="text-gray-400 text-[14px] leading-relaxed max-w-[280px] font-light">
-              Premium rides crafted with elegance, reliability, and world-class service standards.
+              Premier provider of executive transportation, specializing in airport transfers, special and corporate events.
             </p>
           </div>
 

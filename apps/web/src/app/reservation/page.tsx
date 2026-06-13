@@ -29,7 +29,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import StripeProvider from "@/components/StripeProvider";
 import CardValidationForm from "@/components/CardValidationForm";
 import Turnstile from "@/components/Turnstile";
-import { fleetData } from "@/data/fleet";
+import { fleetData, RESERVATION_HIDE_HOURLY_RATE_IDS } from "@/data/fleet";
 import { GoogleMapsProvider } from "@/components/GoogleMapsProvider";
 
 const COUNTRY_CODES = [
@@ -557,7 +557,9 @@ export default function ReservationPage() {
                                     <span className="text-xs sm:text-sm font-medium text-gray-800">{vehicle.luggage}</span>
                                   </div>
                                 </div>
-                                <span className="font-bold text-[#C9A063] text-sm">From ${vehicle.price}/hr</span>
+                                {!RESERVATION_HIDE_HOURLY_RATE_IDS.has(vehicle.id) && (
+                                  <span className="font-bold text-[#C9A063] text-sm">From ${vehicle.price}/hr</span>
+                                )}
                               </div>
                             </button>
                           ))}
@@ -822,12 +824,14 @@ export default function ReservationPage() {
                               {routeDistance !== "--" && routeDuration !== "--" ? `${routeDistance} / ${routeDuration}` : "--"}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between p-4">
-                            <span className="text-[13px] font-medium text-gray-600">Rate</span>
-                            <span className="text-[13px] font-semibold text-gray-900">
-                              ${fleetData.find((v) => v.id === selectedVehicle)?.price ?? 0}/hr
-                            </span>
-                          </div>
+                          {!RESERVATION_HIDE_HOURLY_RATE_IDS.has(selectedVehicle) && (
+                            <div className="flex items-center justify-between p-4">
+                              <span className="text-[13px] font-medium text-gray-600">Rate</span>
+                              <span className="text-[13px] font-semibold text-gray-900">
+                                ${fleetData.find((v) => v.id === selectedVehicle)?.price ?? 0}/hr
+                              </span>
+                            </div>
+                          )}
                           <div className="flex items-center justify-between p-4">
                             <span className="text-[13px] font-medium text-gray-600">Duration (billable)</span>
                             <span className="text-[13px] font-semibold text-gray-900">

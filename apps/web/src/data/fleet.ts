@@ -91,3 +91,9 @@ export const fleetData: FleetVehicle[] = [
 ];
 
 export const fleetCategories: FleetCategory[] = ["Sedan", "Executive", "SUV", "Van", "Coach"];
+
+/** No hourly rate on Online Reservation vehicle cards or confirmation for these vehicles. */
+export const RESERVATION_HIDE_HOURLY_RATE_IDS = new Set([
+  "cadillac-escalade",
+  "sprinter-van",
+]);

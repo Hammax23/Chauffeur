@@ -5,6 +5,7 @@ export type ServiceIconKey =
   | "Timer"
   | "Gem"
   | "Landmark"
+  | "Handshake"
   | "ShieldCheck"
   | "Car"
   | "CarFront"
@@ -101,20 +102,20 @@ export const services: Service[] = [
     icon: "Gem",
   },
   {
-    slug: "city-tours",
-    title: "City Tours & Sightseeing",
-    shortDesc: "Half or full-day packages",
+    slug: "meet-greet",
+    title: "Meet & Greet",
+    shortDesc: "Personal airport assistance at arrivals & departures",
     description:
-      "Discover the city in comfort and style with our luxury sightseeing tours. Customisable itineraries, photo stops at iconic landmarks, and the flexibility to go at your pace—all from the comfort of our premium vehicles. Whether you are a first-time visitor or hosting VIP guests, our experienced drivers know the best routes and hidden gems. Half-day, full-day, and multi-day packages are available, with optional multi-language support.",
+      "Travel through YYZ, YTZ, and other major airports with a dedicated meet & greet agent at your side. From the moment you land—or before you depart—we coordinate a smooth handover with a displayed name board, luggage assistance, and escort to your chauffeur or gate. Ideal for business travellers, families, VIP guests, and anyone who wants a stress-free airport experience without navigating crowds alone.",
     features: [
-      "Custom tour routes designed around your interests",
-      "Half-day, full-day & multi-day packages",
-      "Photo stops at landmarks & scenic spots",
-      "Multi-language support on request",
-      "Knowledgeable chauffeurs with local insight",
-      "Luxury sedans & SUVs for small groups",
+      "Name board meet at arrivals or curb-side departures",
+      "Luggage assistance from gate to vehicle",
+      "YYZ & YTZ airport coverage",
+      "Coordinated with your chauffeur pickup",
+      "Flight monitoring for timely meet-up",
+      "Discreet, professional airport agents",
     ],
-    icon: "Landmark",
+    icon: "Handshake",
   },
   {
     slug: "vip-transport",

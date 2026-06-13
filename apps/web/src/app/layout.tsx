@@ -125,7 +125,7 @@ const jsonLdOrg = {
     { "@type": "Service", "name": "Wedding Transportation", "description": "Elegant wedding car and bridal services" },
     { "@type": "Service", "name": "VIP Transport", "description": "Discreet and secure VIP transportation" },
     { "@type": "Service", "name": "Point-to-Point Transfers", "description": "Door-to-door luxury between any destinations" },
-    { "@type": "Service", "name": "City Tours", "description": "Luxury sightseeing and guided tours" }
+    { "@type": "Service", "name": "Meet & Greet", "description": "Personal airport meet & greet with luggage assistance" }
   ]
 };
 const jsonLdWebSite = {
