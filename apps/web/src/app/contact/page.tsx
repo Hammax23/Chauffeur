@@ -21,6 +21,11 @@ import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Turnstile from "@/components/Turnstile";
+import PlacesAutocomplete from "@/components/PlacesAutocomplete";
+import { GoogleMapsProvider } from "@/components/GoogleMapsProvider";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { CONTACT_SERVICE_TYPES } from "@/lib/contact-service-types";
 
 const contactCards = [
   {
@@ -107,6 +112,10 @@ export default function ContactPage() {
   const countryDropdownRef = useRef<HTMLDivElement>(null);
   const selectedCountry = COUNTRY_CODES.find((c) => c.code === countryCode && c.label === countryLabel) ?? COUNTRY_CODES[0];
   const [additionalNotes, setAdditionalNotes] = useState("");
+  const [serviceType, setServiceType] = useState("");
+  const [pickup, setPickup] = useState("");
+  const [dropoff, setDropoff] = useState("");
+  const [pickupDateTime, setPickupDateTime] = useState<Date | null>(null);
   
   // Form submission states
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -130,8 +139,20 @@ export default function ContactPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setSubmitError(null);
+
+    if (!fullName.trim() || !email.trim() || !phone.trim() || !serviceType) {
+      setSubmitError("Please fill in all required fields.");
+      return;
+    }
+
+    const turnstileRequired = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
+    if (turnstileRequired && !turnstileToken) {
+      setSubmitError("Please complete the CAPTCHA verification.");
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       const response = await fetch("/api/contact", {
@@ -142,6 +163,19 @@ export default function ContactPage() {
           email,
           phone,
           phoneCode: countryCode,
+          serviceType,
+          pickup,
+          dropoff,
+          pickupTime: pickupDateTime
+            ? pickupDateTime.toLocaleString("en-US", {
+                month: "2-digit",
+                day: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+              })
+            : "",
           additionalNotes,
           turnstileToken,
         }),
@@ -150,14 +184,19 @@ export default function ContactPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.details || data.error || "Failed to send message");
+        throw new Error(data.error || "Failed to send message");
       }
 
       setSubmitSuccess(true);
+      setTurnstileToken("");
       // Reset form
       setFullName("");
       setEmail("");
       setPhone("");
+      setServiceType("");
+      setPickup("");
+      setDropoff("");
+      setPickupDateTime(null);
       setAdditionalNotes("");
     } catch (error: any) {
       setSubmitError(error.message || "Something went wrong. Please try again.");
@@ -167,6 +206,7 @@ export default function ContactPage() {
   };
 
   return (
+    <GoogleMapsProvider>
     <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
       <Suspense fallback={null}>
         <ContactFormWithParams 
@@ -295,7 +335,7 @@ export default function ContactPage() {
                       </div>
                       <div>
                         <h3 className="text-green-800 font-semibold text-[15px] mb-1">Message Sent Successfully!</h3>
-                        <p className="text-green-700 text-[14px]">Your booking form has been submitted to SARJ WORLDWIDE. We&apos;ll get back to you within 24 hours. A confirmation email has been sent to your email address.</p>
+                        <p className="text-green-700 text-[14px]">Thank you — your enquiry has been submitted. We&apos;ll get back to you shortly. A confirmation email has been sent to your inbox.</p>
                       </div>
                     </div>
                   )}
@@ -401,6 +441,82 @@ export default function ContactPage() {
                   </div>
 
                   <div>
+                    <label className="block text-gray-800 text-[14px] font-medium mb-2">
+                      Service Type <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={serviceType}
+                      onChange={(e) => setServiceType(e.target.value)}
+                      required
+                      className="w-full px-4 py-3.5 border border-gray-300 rounded-xl text-[15px] text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all"
+                    >
+                      <option value="">Select service type</option>
+                      {CONTACT_SERVICE_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-800 text-[14px] font-medium mb-2">Pick-up Location</label>
+                    <div className="relative">
+                      <PlacesAutocomplete
+                        value={pickup}
+                        onChange={setPickup}
+                        placeholder="Address or landmark"
+                        className="w-full px-4 py-3.5 pr-11 border border-gray-300 rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all"
+                      />
+                      <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-800 text-[14px] font-medium mb-2">Drop off location</label>
+                    <div className="relative">
+                      <PlacesAutocomplete
+                        value={dropoff}
+                        onChange={setDropoff}
+                        placeholder="Address or landmark"
+                        className="w-full px-4 py-3.5 pr-11 border border-gray-300 rounded-xl text-[15px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all"
+                      />
+                      <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.5} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">
+                      Pick-up Time
+                    </label>
+                    <div className="relative reservation-datepicker">
+                      <DatePicker
+                        selected={pickupDateTime}
+                        onChange={(date: Date | null) => setPickupDateTime(date)}
+                        showTimeSelect
+                        timeIntervals={15}
+                        timeCaption="Time"
+                        dateFormat="MMMM d, yyyy  h:mm aa"
+                        timeFormat="h:mm aa"
+                        minDate={new Date()}
+                        placeholderText="Select date & time"
+                        className="w-full px-4 py-3.5 pr-11 border border-gray-300 rounded-xl text-[15px] text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/30 focus:border-[#C9A063] transition-all duration-200"
+                        withPortal
+                      />
+                      <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                        <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={1.5}
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
                     <label className="block text-gray-800 text-[14px] font-medium mb-2">Additional notes</label>
                     <textarea
                       value={additionalNotes}
@@ -476,5 +592,6 @@ export default function ContactPage() {
 
       <Footer />
     </main>
+    </GoogleMapsProvider>
   );
 }

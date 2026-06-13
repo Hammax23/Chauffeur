@@ -1,13 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
-import { sanitizeInput } from "@/lib/sanitize";
+import { sanitizeInput, isValidEmail } from "@/lib/sanitize";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { buildContactAdminEmail, buildContactUserEmail } from "@/lib/email-templates";
+import { CONTACT_SERVICE_TYPE_SET } from "@/lib/contact-service-types";
+import prisma from "@/lib/prisma";
+
+function contactRecipientEmail(): string | undefined {
+  return (
+    process.env.CONTACT_EMAIL?.trim() ||
+    process.env.ADMIN_EMAIL?.trim() ||
+    process.env.SMTP_USER?.trim() ||
+    undefined
+  );
+}
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting: 5 requests per minute per IP
     const clientIp = getClientIp(request);
     const rateLimit = checkRateLimit(`contact:${clientIp}`, { maxRequests: 5, windowMs: 60 * 1000 });
     if (!rateLimit.success) {
@@ -19,26 +29,47 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
-    // Turnstile verification
     const turnstileResult = await verifyTurnstile(body.turnstileToken, clientIp);
     if (!turnstileResult.success) {
       return NextResponse.json({ error: turnstileResult.error }, { status: 403 });
     }
 
-    // Sanitize all inputs
     const fullName = sanitizeInput(body.fullName);
     const email = sanitizeInput(body.email);
     const phone = sanitizeInput(body.phone);
-    const phoneCode = sanitizeInput(body.phoneCode);
+    const phoneCode = sanitizeInput(body.phoneCode) || "+1";
+    const serviceType = sanitizeInput(body.serviceType);
     const pickup = sanitizeInput(body.pickup);
     const dropoff = sanitizeInput(body.dropoff);
+    const pickupTime = sanitizeInput(body.pickupTime);
     const additionalNotes = sanitizeInput(body.additionalNotes);
 
-    // Validate required fields
-    if (!fullName || !email || !phone) {
+    if (!fullName || !email || !phone || !serviceType) {
+      return NextResponse.json({ error: "Please fill in all required fields" }, { status: 400 });
+    }
+
+    if (!isValidEmail(email)) {
+      return NextResponse.json({ error: "Please enter a valid email address" }, { status: 400 });
+    }
+
+    if (!CONTACT_SERVICE_TYPE_SET.has(serviceType)) {
+      return NextResponse.json({ error: "Please select a valid service type" }, { status: 400 });
+    }
+
+    const adminTo = contactRecipientEmail();
+    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
+      console.error("Contact form: SMTP not configured");
       return NextResponse.json(
-        { error: "Please fill in all required fields" },
-        { status: 400 }
+        { error: "Email service is not configured. Please try again later or call us directly." },
+        { status: 503 }
+      );
+    }
+
+    if (!adminTo) {
+      console.error("Contact form: no CONTACT_EMAIL / ADMIN_EMAIL / SMTP_USER");
+      return NextResponse.json(
+        { error: "Email service is not configured. Please try again later or call us directly." },
+        { status: 503 }
       );
     }
 
@@ -48,8 +79,10 @@ export async function POST(request: NextRequest) {
       fullName,
       email,
       phone: fullPhone,
+      serviceType,
       pickup: pickup || undefined,
       dropoff: dropoff || undefined,
+      pickupTime: pickupTime || undefined,
       notes: additionalNotes || undefined,
     });
 
@@ -57,11 +90,13 @@ export async function POST(request: NextRequest) {
       fullName,
       email,
       phone: fullPhone,
+      serviceType,
       pickup: pickup || undefined,
       dropoff: dropoff || undefined,
+      pickupTime: pickupTime || undefined,
+      notes: additionalNotes || undefined,
     });
 
-    // Create transporter with Hostinger SMTP
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT) || 465,
@@ -70,50 +105,58 @@ export async function POST(request: NextRequest) {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASSWORD,
       },
-      tls: {
-        rejectUnauthorized: false,
-      },
-      debug: true,
-      logger: true,
+      tls: { rejectUnauthorized: false },
     });
 
-    // Verify connection
     await transporter.verify();
-    console.log("SMTP connection verified successfully");
 
-    // Send email to admin
     await transporter.sendMail({
       from: `"SARJ Website" <${process.env.SMTP_USER}>`,
-      to: process.env.CONTACT_EMAIL,
-      subject: `New Contact Form: ${fullName}`,
+      to: adminTo,
+      subject: `New Contact Form: ${fullName} — ${serviceType}`,
       html: adminEmailHtml,
     });
 
-    // Send confirmation email to user
     await transporter.sendMail({
       from: `"SARJ WORLDWIDE" <${process.env.SMTP_USER}>`,
       to: email,
-      subject: "Your Booking Form is Successfully Submitted - SARJ WORLDWIDE",
+      subject: "Your Message Has Been Received - SARJ WORLDWIDE",
       html: userEmailHtml,
+    });
+
+    const quoteId = `CF-${Date.now().toString(36).toUpperCase()}`;
+    await prisma.quote.create({
+      data: {
+        quoteId,
+        passengerName: fullName,
+        passengers: "N/A",
+        phone: fullPhone,
+        email,
+        serviceType,
+        vehicle: null,
+        pickupTime: pickupTime || null,
+        pickupLocation: pickup || "Not provided",
+        dropoffLocation: dropoff || "Not provided",
+        additionalNotes: additionalNotes || null,
+        status: "NEW",
+      },
     });
 
     return NextResponse.json({
       success: true,
       message: "Your message has been sent successfully!",
     });
-  } catch (error: any) {
-    console.error("Email error:", error);
-    
+  } catch (error: unknown) {
+    console.error("Contact form error:", error);
+    const err = error as { code?: string; message?: string };
+
     let errorMessage = "Failed to send message. Please try again later.";
-    if (error.code === "EAUTH") {
-      errorMessage = "Email authentication failed. Check email password in Hostinger.";
-    } else if (error.code === "ECONNECTION" || error.code === "ESOCKET") {
-      errorMessage = "Could not connect to email server.";
+    if (err.code === "EAUTH") {
+      errorMessage = "Email authentication failed. Please try again later or call us directly.";
+    } else if (err.code === "ECONNECTION" || err.code === "ESOCKET") {
+      errorMessage = "Could not connect to email server. Please try again later.";
     }
-    
-    return NextResponse.json(
-      { error: errorMessage, details: error.message },
-      { status: 500 }
-    );
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

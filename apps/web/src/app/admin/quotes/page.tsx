@@ -15,13 +15,22 @@ interface Quote {
   phone: string;
   email: string;
   serviceType: string;
-  vehicle: string;
-  pickupTime: string;
+  vehicle: string | null;
+  pickupTime: string | null;
   pickupLocation: string;
   stops: string | null;
   dropoffLocation: string;
   additionalNotes: string | null;
   createdAt: string;
+}
+
+function displayValue(value: string | null | undefined, fallback = "Not provided") {
+  const v = value?.trim();
+  return v ? v : fallback;
+}
+
+function isContactFormQuote(quoteId: string) {
+  return quoteId.startsWith("CF-");
 }
 
 const STATUS_OPTIONS = ["NEW", "CONTACTED", "QUOTED", "CONVERTED", "CLOSED"];
@@ -73,7 +82,9 @@ export default function QuotesPage() {
       q.email?.toLowerCase().includes(query) ||
       q.phone?.toLowerCase().includes(query) ||
       q.quoteId?.toLowerCase().includes(query) ||
-      q.serviceType?.toLowerCase().includes(query)
+      q.serviceType?.toLowerCase().includes(query) ||
+      q.pickupLocation?.toLowerCase().includes(query) ||
+      q.dropoffLocation?.toLowerCase().includes(query)
     );
   });
 
@@ -220,7 +231,14 @@ export default function QuotesPage() {
                       <h3 className="font-semibold text-gray-900 truncate">{quote.passengerName}</h3>
                       <span className="text-xs text-gray-400">{quote.quoteId}</span>
                     </div>
-                    <p className="text-sm text-gray-500 truncate">{quote.serviceType} • {quote.vehicle}</p>
+                    <p className="text-sm text-gray-500 truncate">
+                      {quote.serviceType}
+                      {isContactFormQuote(quote.quoteId)
+                        ? " • Contact Us"
+                        : quote.vehicle
+                          ? ` • ${quote.vehicle}`
+                          : ""}
+                    </p>
                   </div>
                   <div className="flex items-center gap-3">
                     <select
@@ -393,14 +411,19 @@ export default function QuotesPage() {
                             <p className="text-xs text-gray-500 uppercase font-medium mb-1">Service</p>
                             <p className="text-sm text-gray-700">{quote.serviceType}</p>
                             <p className="text-sm text-gray-700 flex items-center gap-1.5 mt-1">
-                              <Car className="w-3.5 h-3.5 text-gray-400" /> {quote.vehicle}
+                              <Car className="w-3.5 h-3.5 text-gray-400" />{" "}
+                              {isContactFormQuote(quote.quoteId)
+                                ? "Contact Us form"
+                                : displayValue(quote.vehicle, "Not specified")}
                             </p>
-                            <p className="text-sm text-gray-700 mt-1">{quote.passengers} passengers</p>
+                            <p className="text-sm text-gray-700 mt-1">
+                              {quote.passengers === "N/A" ? "Contact enquiry" : `${quote.passengers} passengers`}
+                            </p>
                           </div>
                           <div>
                             <p className="text-xs text-gray-500 uppercase font-medium mb-1">Pickup Time</p>
                             <p className="text-sm text-gray-700 flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5 text-gray-400" /> {quote.pickupTime}
+                              <Clock className="w-3.5 h-3.5 text-gray-400" /> {displayValue(quote.pickupTime)}
                             </p>
                           </div>
                         </div>

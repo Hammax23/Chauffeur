@@ -207,15 +207,19 @@ export function buildContactAdminEmail(p: {
   fullName: string;
   email: string;
   phone: string;
+  serviceType?: string;
   pickup?: string;
   dropoff?: string;
+  pickupTime?: string;
   notes?: string;
 }): string {
   let rows = emailDataRow("Name", p.fullName);
   rows += emailDataRow("Email", `mailto:${p.email}`, { link: true });
   rows += emailDataRow("Phone", `tel:${p.phone}`, { link: true });
-  if (p.pickup) rows += emailDataRow("Pickup", p.pickup);
-  if (p.dropoff) rows += emailDataRow("Drop-off", p.dropoff);
+  if (p.serviceType) rows += emailDataRow("Service type", p.serviceType);
+  if (p.pickup) rows += emailDataRow("Pick-up location", p.pickup);
+  if (p.dropoff) rows += emailDataRow("Drop-off location", p.dropoff);
+  if (p.pickupTime) rows += emailDataRow("Pick-up time", p.pickupTime);
   const notes = p.notes ? emailSection("Additional notes", `<p style="margin:0;color:#475569;font-size:14px;line-height:1.65;">${e(p.notes)}</p>`) : "";
   return emailDocument(
     emailHeader({ eyebrow: "Operations", title: "New contact enquiry", subtitle: "Website contact form", badge: "Action required" }) +
@@ -228,14 +232,22 @@ export function buildContactUserEmail(p: {
   fullName: string;
   email: string;
   phone: string;
+  serviceType?: string;
   pickup?: string;
   dropoff?: string;
+  pickupTime?: string;
+  notes?: string;
 }): string {
   let summary = emailDataRow("Name", p.fullName);
   summary += emailDataRow("Email", p.email);
   summary += emailDataRow("Phone", p.phone);
-  if (p.pickup) summary += emailDataRow("Pickup", p.pickup);
-  if (p.dropoff) summary += emailDataRow("Drop-off", p.dropoff);
+  if (p.serviceType) summary += emailDataRow("Service type", p.serviceType);
+  if (p.pickup) summary += emailDataRow("Pick-up location", p.pickup);
+  if (p.dropoff) summary += emailDataRow("Drop-off location", p.dropoff);
+  if (p.pickupTime) summary += emailDataRow("Pick-up time", p.pickupTime);
+  const notesBlock = p.notes
+    ? emailSection("Additional notes", `<p style="margin:0;color:#475569;font-size:14px;line-height:1.65;">${e(p.notes)}</p>`)
+    : "";
   return emailDocument(
     emailHeader({ eyebrow: "SARJ Worldwide", title: "Message received", subtitle: "We'll respond within 24 hours", tone: "success" }) +
       emailBody(
@@ -244,6 +256,7 @@ export function buildContactUserEmail(p: {
             `Your enquiry has been <strong style="color:${GOLD};">successfully submitted</strong>. Our dispatch team will review your request and contact you shortly.`
           ) +
           emailSection("Submission summary", emailDataTable(summary)) +
+          notesBlock +
           emailParagraph(`Urgent? Call <a href="tel:+14168935779" style="color:${GOLD};font-weight:600;text-decoration:none;">416-893-5779</a> anytime.`) +
           emailSignoff()
       ) +
