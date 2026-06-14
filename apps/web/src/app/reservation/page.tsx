@@ -17,7 +17,8 @@ import {
   ChevronUp,
   Pencil,
   AlertCircle,
-  Loader2
+  Loader2,
+  Handshake,
 } from "lucide-react";
 import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
@@ -31,6 +32,8 @@ import CardValidationForm from "@/components/CardValidationForm";
 import Turnstile from "@/components/Turnstile";
 import { fleetData, RESERVATION_HIDE_HOURLY_RATE_IDS } from "@/data/fleet";
 import { GoogleMapsProvider } from "@/components/GoogleMapsProvider";
+
+const MEET_GREET_CHARGE = 95;
 
 const COUNTRY_CODES = [
   { code: "+1", label: "CA", name: "Canada", flagCode: "ca" },
@@ -56,6 +59,7 @@ export default function ReservationPage() {
   const [childSeatCount, setChildSeatCount] = useState(0);
   const [childSeatType, setChildSeatType] = useState("");
   const [etr407, setEtr407] = useState(false);
+  const [meetGreet, setMeetGreet] = useState(false);
 
   // Contact Info states
   const [firstName, setFirstName] = useState("");
@@ -135,6 +139,7 @@ export default function ReservationPage() {
           childSeatCount,
           childSeatType,
           etr407,
+          meetGreet,
           specialRequirements,
           routeDistance, routeDuration, routePrice,
           gratuityPercent,
@@ -158,7 +163,7 @@ export default function ReservationPage() {
     } finally {
       setEmailSending(false);
     }
-  }, [firstName, lastName, email, phone, countryCode, serviceType, pickupLocation, dropoffLocation, stops, pickupDateTime, selectedVehicle, passengersCount, childSeatCount, childSeatType, etr407, specialRequirements, routeDistance, routeDuration, routePrice, gratuityPercent, airlineName, flightNumber, flightNote, cardType, cardBrand, nameOnCard, cardLast4, stripePaymentMethodId, stripeCustomerId, billingAddress, zipCode, purchaseOrder, deptNumber, turnstileToken]);
+  }, [firstName, lastName, email, phone, countryCode, serviceType, pickupLocation, dropoffLocation, stops, pickupDateTime, selectedVehicle, passengersCount, childSeatCount, childSeatType, etr407, meetGreet, specialRequirements, routeDistance, routeDuration, routePrice, gratuityPercent, airlineName, flightNumber, flightNote, cardType, cardBrand, nameOnCard, cardLast4, stripePaymentMethodId, stripeCustomerId, billingAddress, zipCode, purchaseOrder, deptNumber, turnstileToken]);
 
   // Store route data; price is recalculated via useEffect when vehicle or route changes
   const handleRouteCalculated = useCallback((distance: string, duration: string, distanceValue: number, durationValue: number) => {
@@ -453,14 +458,57 @@ export default function ReservationPage() {
                         </div>
                       ))}
 
-                      <button
-                        type="button"
-                        onClick={() => setStops([...stops, ""])}
-                        className="flex items-center gap-2 text-[#007AFF] text-[15px] font-medium"
-                      >
-                        <Plus className="w-4 h-4" strokeWidth={2.5} />
-                        Add Stop
-                      </button>
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setStops([...stops, ""])}
+                          className="flex items-center gap-2 text-[#007AFF] text-[15px] font-medium self-start"
+                        >
+                          <Plus className="w-4 h-4" strokeWidth={2.5} />
+                          Add Stop
+                        </button>
+
+                        <label
+                          className={`group relative flex items-center gap-3 px-4 py-2.5 rounded-xl border-2 cursor-pointer transition-all duration-300 self-start sm:self-auto ${
+                            meetGreet
+                              ? "border-[#C9A063] bg-gradient-to-r from-[#C9A063]/10 to-[#C9A063]/5 shadow-md shadow-[#C9A063]/15"
+                              : "border-gray-200 bg-white hover:border-[#C9A063]/40 hover:bg-[#C9A063]/[0.03]"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={meetGreet}
+                            onChange={(e) => setMeetGreet(e.target.checked)}
+                            className="sr-only"
+                          />
+                          <div
+                            className={`relative flex-shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all duration-300 ${
+                              meetGreet
+                                ? "border-[#C9A063] bg-[#C9A063]"
+                                : "border-gray-300 bg-white group-hover:border-[#C9A063]/60"
+                            }`}
+                          >
+                            {meetGreet && (
+                              <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
+                                <path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors duration-300 ${
+                              meetGreet ? "bg-[#C9A063] text-white" : "bg-[#f2f2f7] text-[#C9A063]"
+                            }`}>
+                              <Handshake className="w-4 h-4" strokeWidth={2} />
+                            </div>
+                            <div className="min-w-0">
+                              <span className="flex items-center gap-2 text-[14px] font-semibold text-gray-900 leading-tight">
+                                Meet & Greet
+                                <span className="text-[12px] font-bold text-[#C9A063]">+$95</span>
+                              </span>
+                            </div>
+                          </div>
+                        </label>
+                      </div>
 
                       {/* Pick-up Date & Time - Combined */}
                       <div>
@@ -838,6 +886,12 @@ export default function ReservationPage() {
                               {routeDurationValue > 0 ? `${Math.max(1, Math.ceil(routeDurationValue / 3600))} hr` : "--"}
                             </span>
                           </div>
+                          {meetGreet && (
+                            <div className="flex items-center justify-between p-4">
+                              <span className="text-[13px] font-medium text-gray-600">Meet & Greet</span>
+                              <span className="text-[13px] font-semibold text-gray-900">${MEET_GREET_CHARGE.toFixed(2)}</span>
+                            </div>
+                          )}
                           {stops.filter((s) => s.trim() !== "").length > 0 && (
                             <div className="flex items-center justify-between p-4">
                               <span className="text-[13px] font-medium text-gray-600">
@@ -862,7 +916,8 @@ export default function ReservationPage() {
                             const activeStops = stops.filter((s) => s.trim() !== "").length;
                             const stopCharge = activeStops * 20;
                             const childSeatCharge = childSeatCount * 25;
-                            const subtotal = routePrice + stopCharge + childSeatCharge;
+                            const meetGreetCharge = meetGreet ? MEET_GREET_CHARGE : 0;
+                            const subtotal = routePrice + stopCharge + childSeatCharge + meetGreetCharge;
                             const hst = subtotal * 0.13;
                             const gratuity = subtotal * gratuityPercent / 100;
                             const total = subtotal + hst + gratuity;

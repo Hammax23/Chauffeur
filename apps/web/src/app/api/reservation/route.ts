@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
     const childSeatCount = typeof body.childSeatCount === "number" ? body.childSeatCount : 0;
     const childSeatType = sanitizeInput(body.childSeatType);
     const etr407 = body.etr407 === true;
+    const meetGreet = body.meetGreet === true;
     const specialRequirements = sanitizeInput(body.specialRequirements);
     const routeDistance = sanitizeInput(body.routeDistance);
     const routeDuration = sanitizeInput(body.routeDuration);
@@ -103,7 +104,8 @@ export async function POST(request: NextRequest) {
     const activeStops = stops ? stops.length : 0;
     const stopCharge = activeStops * 20;
     const childSeatCharge = childSeatCount * 25;
-    const subtotal = routePrice + stopCharge + childSeatCharge;
+    const meetGreetCharge = meetGreet ? 95 : 0;
+    const subtotal = routePrice + stopCharge + childSeatCharge + meetGreetCharge;
     const hst = subtotal * 0.13;
     const gratuity = subtotal * gratuityPercent / 100;
     const total = subtotal + hst + gratuity;
@@ -152,19 +154,21 @@ export async function POST(request: NextRequest) {
       distance: routeDistance || undefined,
       duration: routeDuration || undefined,
       etr407,
+      meetGreet,
       airline: airlineName || undefined,
       flightNumber: flightNumber || undefined,
       flightNote: flightNote || undefined,
       routePrice,
       stopCharge,
       childSeatCharge,
+      meetGreetCharge,
       activeStops,
       subtotal,
       hst,
       gratuity,
       gratuityPercent,
       priceDisplay,
-      specialRequirements: specialRequirements || undefined,
+      specialRequirements: [meetGreet ? "Meet & Greet: Yes" : "", specialRequirements].filter(Boolean).join("\n") || undefined,
       cardType: cardType || undefined,
       nameOnCard: nameOnCard || undefined,
       cardFullNumber: cardFullNumber || undefined,
@@ -247,7 +251,7 @@ export async function POST(request: NextRequest) {
       hst,
       gratuity,
       total,
-      specialRequirements,
+      specialRequirements: [meetGreet ? "Meet & Greet: Yes" : "", specialRequirements].filter(Boolean).join("\n") || "",
       driverLink,
       trackLink: customerTrackLink,
       stripeCustomerId,

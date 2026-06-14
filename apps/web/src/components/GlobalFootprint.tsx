@@ -254,10 +254,10 @@ const GlobalFootprint = () => {
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { icon: Wifi, title: "In-Vehicle WiFi", desc: "Ask your Chauffeur for more Details" },
+              { icon: Wifi, title: "In-Vehicle WiFi", desc: "Check your emails/browse the internet while traveling to your destination. Ask your Chauffeur for more details." },
               { icon: MapPin, title: "GPS Tracking", desc: "Real-time fleet visibility and safety." },
               { icon: Clock, title: "24/7 Dispatch", desc: "Round-the-clock Online reservation support" },
-              { icon: Shield, title: "Insured Fleet", desc: "Fully licensed professional chauffeurs." },
+              { icon: Shield, title: "Certified & Insured", desc: "Fully licensed professional chauffeurs." },
             ].map(({ icon: Icon, title, desc }) => (
               <div key={title} className="p-5 rounded-lg bg-white border border-slate-100">
                 <Icon className="w-5 h-5 text-[#8B7355] mb-2" strokeWidth={1.5} />

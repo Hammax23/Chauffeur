@@ -38,7 +38,7 @@ const contactCards = [
   {
     icon: Mail,
     title: "Email us",
-    value: "reserve@sarjworldwide.com",
+    value: "reserve@sarjworldwide.ca",
     href: "",
     sub: "We respond as soon as possible.",
   },

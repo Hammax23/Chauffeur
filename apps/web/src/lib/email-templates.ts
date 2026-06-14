@@ -339,12 +339,14 @@ export interface ReservationEmailData {
   distance?: string;
   duration?: string;
   etr407?: boolean;
+  meetGreet?: boolean;
   airline?: string;
   flightNumber?: string;
   flightNote?: string;
   routePrice: number;
   stopCharge: number;
   childSeatCharge: number;
+  meetGreetCharge?: number;
   activeStops: number;
   subtotal: number;
   hst: number;
@@ -390,6 +392,7 @@ function reservationTripRows(d: ReservationEmailData): string {
   if (d.distance) r += emailDataRow("Distance", d.distance);
   if (d.duration) r += emailDataRow("Duration", d.duration);
   r += emailDataRow("407 ETR", d.etr407 ? "Yes" : "No");
+  r += emailDataRow("Meet & Greet", d.meetGreet ? "Yes" : "No");
   return r;
 }
 
@@ -398,6 +401,9 @@ function reservationBillingTable(d: ReservationEmailData): string {
   if (d.activeStops > 0) t += emailBillingRow(`Stops (${d.activeStops} × $20)`, `$${d.stopCharge.toFixed(2)}`);
   if (d.childSeatCount && d.childSeatCount > 0) {
     t += emailBillingRow(`Child seats (${d.childSeatCount} × $25)`, `$${d.childSeatCharge.toFixed(2)}`);
+  }
+  if (d.meetGreetCharge && d.meetGreetCharge > 0) {
+    t += emailBillingRow("Meet & Greet", `$${d.meetGreetCharge.toFixed(2)}`);
   }
   t += emailBillingRow("Subtotal", `$${d.subtotal.toFixed(2)}`, true);
   t += emailBillingRow(`HST (13%)`, `$${d.hst.toFixed(2)}`);
