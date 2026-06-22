@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { 
@@ -45,7 +45,7 @@ const COUNTRY_CODES = [
   { code: "+49", label: "DE", name: "Germany", flagCode: "de" },
 ];
 
-export default function ReservationPage() {
+function ReservationPageContent() {
   const searchParams = useSearchParams();
   
   const [currentStep, setCurrentStep] = useState(1);
@@ -1523,5 +1523,19 @@ export default function ReservationPage() {
       <Footer />
     </main>
     </GoogleMapsProvider>
+  );
+}
+
+export default function ReservationPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-[#f5f5f7] flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-[#C9A063] animate-spin" />
+        </main>
+      }
+    >
+      <ReservationPageContent />
+    </Suspense>
   );
 }

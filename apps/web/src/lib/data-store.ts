@@ -29,16 +29,27 @@ export interface ReservationData {
   rideFare?: number;
   stopCharge?: number;
   childSeatCharge?: number;
+  meetGreetCharge?: number;
+  bouquetCharge?: number;
   subtotal?: number;
   hst?: number;
   gratuity?: number;
   total?: number;
+  bookingMode?: string;
+  transferType?: string;
+  adultsCount?: number;
+  childrenCount?: number;
+  hourlyDuration?: number;
+  returnDateTime?: string;
+  meetGreet?: string;
+  bouquetFlowers?: string;
   specialRequirements?: string;
   driverLink?: string;
   trackLink?: string;
   assignedDriverId?: string;
   stripeCustomerId?: string;
   stripePaymentMethodId?: string;
+  stripePaymentIntentId?: string;
   cardType?: string;
   cardLast4?: string;
   paymentStatus?: string;
@@ -117,6 +128,19 @@ export async function getReservations() {
 
 // Add a new reservation
 export async function addReservation(data: ReservationData) {
+  const specialRequirements = [
+    data.bookingMode ? `Booking mode: ${data.bookingMode}` : "",
+    data.transferType ? `Transfer type: ${data.transferType}` : "",
+    data.adultsCount != null ? `Adults: ${data.adultsCount}` : "",
+    data.childrenCount != null ? `Children: ${data.childrenCount}` : "",
+    data.hourlyDuration ? `Duration (hours): ${data.hourlyDuration}` : "",
+    data.returnDateTime ? `Return: ${data.returnDateTime}` : "",
+    data.stripePaymentIntentId ? `Stripe payment: ${data.stripePaymentIntentId}` : "",
+    data.specialRequirements || "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
   const reservation = await prisma.reservation.create({
     data: {
       bookingId: data.bookingId,
@@ -148,7 +172,7 @@ export async function addReservation(data: ReservationData) {
       hst: data.hst || 0,
       gratuity: data.gratuity || 0,
       total: data.total || 0,
-      specialRequirements: data.specialRequirements,
+      specialRequirements: specialRequirements || null,
       driverLink: data.driverLink,
       trackLink: data.trackLink,
       stripeCustomerId: data.stripeCustomerId,

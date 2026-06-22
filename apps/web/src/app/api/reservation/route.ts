@@ -314,7 +314,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Save reservation to local data store
-    addReservation({
+    await addReservation({
       bookingId,
       dateSubmitted: currentDate,
       status: "PENDING",
