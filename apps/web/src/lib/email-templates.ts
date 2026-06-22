@@ -328,6 +328,12 @@ export interface ReservationEmailData {
   email: string;
   phone: string;
   passengers: string | number;
+  bookingMode?: string;
+  transferType?: string;
+  adultsCount?: number;
+  childrenCount?: number;
+  hourlyDuration?: number;
+  returnDateTime?: string;
   childSeatCount?: number;
   childSeatType?: string;
   serviceType?: string;
@@ -340,6 +346,7 @@ export interface ReservationEmailData {
   duration?: string;
   etr407?: boolean;
   meetGreet?: boolean;
+  bouquetFlowers?: boolean;
   airline?: string;
   flightNumber?: string;
   flightNote?: string;
@@ -347,6 +354,7 @@ export interface ReservationEmailData {
   stopCharge: number;
   childSeatCharge: number;
   meetGreetCharge?: number;
+  bouquetCharge?: number;
   activeStops: number;
   subtotal: number;
   hst: number;
@@ -381,18 +389,32 @@ function reservationPassengerRows(d: ReservationEmailData): string {
 
 function reservationTripRows(d: ReservationEmailData): string {
   let r = "";
+  r += emailDataRow("Booking Mode", d.bookingMode === "hourly" ? "Hourly" : "Distance Based");
+  if (d.bookingMode !== "hourly") {
+    const transferTypeDisplay = d.transferType === "oneWay" ? "One Way" : d.transferType === "return" ? "Return" : "Return (New Ride)";
+    r += emailDataRow("Transfer Type", transferTypeDisplay);
+  }
   if (d.serviceType) r += emailDataRow("Service", d.serviceType);
   r += emailDataRow("Vehicle", d.vehicle);
   r += emailDataRow("Date & time", d.formattedDateTime);
+  if (d.bookingMode === "hourly" && d.hourlyDuration) {
+    r += emailDataRow("Duration", `${d.hourlyDuration} hours`);
+  }
   r += emailDataRow("Pick-up", d.pickup);
   (d.stops ?? []).forEach((s, i) => {
     r += emailDataRow(`Stop ${i + 1}`, s);
   });
-  r += emailDataRow("Drop-off", d.dropoff);
+  if (d.bookingMode !== "hourly") {
+    r += emailDataRow("Drop-off", d.dropoff);
+  }
+  if (d.bookingMode !== "hourly" && d.returnDateTime) {
+    r += emailDataRow("Return Date & Time", d.returnDateTime);
+  }
   if (d.distance) r += emailDataRow("Distance", d.distance);
-  if (d.duration) r += emailDataRow("Duration", d.duration);
+  if (d.duration) r += emailDataRow("Est. Travel Time", d.duration);
   r += emailDataRow("407 ETR", d.etr407 ? "Yes" : "No");
   r += emailDataRow("Meet & Greet", d.meetGreet ? "Yes" : "No");
+  r += emailDataRow("Bouquet of Flowers", d.bouquetFlowers ? "Yes" : "No");
   return r;
 }
 
@@ -404,6 +426,9 @@ function reservationBillingTable(d: ReservationEmailData): string {
   }
   if (d.meetGreetCharge && d.meetGreetCharge > 0) {
     t += emailBillingRow("Meet & Greet", `$${d.meetGreetCharge.toFixed(2)}`);
+  }
+  if (d.bouquetCharge && d.bouquetCharge > 0) {
+    t += emailBillingRow("Bouquet of Flowers", `$${d.bouquetCharge.toFixed(2)}`);
   }
   t += emailBillingRow("Subtotal", `$${d.subtotal.toFixed(2)}`, true);
   t += emailBillingRow(`HST (13%)`, `$${d.hst.toFixed(2)}`);

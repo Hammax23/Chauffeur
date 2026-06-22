@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useGoogleMaps } from "./GoogleMapsProvider";
-import { MapPin, Navigation, Plane, Building2, Search } from "lucide-react";
+import { MapPin, Navigation, Plane, Building2 } from "lucide-react";
 
 interface PlacesAutocompleteProps {
   value: string;
@@ -51,13 +51,13 @@ export default function PlacesAutocomplete({
     if (inputRef.current) {
       const rect = inputRef.current.getBoundingClientRect();
       const isMobile = window.innerWidth < 640;
-      // On mobile, use full width with small margin. On desktop, extend slightly.
-      const left = isMobile ? 16 : Math.max(16, rect.left - 16);
-      const width = isMobile ? window.innerWidth - 32 : Math.min(rect.width + 32, window.innerWidth - 32);
+      // Fixed width dropdown, centered below input or full width on mobile
+      const dropdownWidth = isMobile ? window.innerWidth - 32 : 400;
+      const left = isMobile ? 16 : Math.max(16, rect.left + (rect.width / 2) - (dropdownWidth / 2));
       setDropdownPosition({
         top: rect.bottom + 8,
-        left: left,
-        width: width,
+        left: Math.min(left, window.innerWidth - dropdownWidth - 16),
+        width: dropdownWidth,
       });
     }
   }, []);
@@ -194,64 +194,36 @@ export default function PlacesAutocomplete({
             width: dropdownPosition.width,
             zIndex: 99999,
           }}
-          className="bg-white rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] border border-gray-100 overflow-hidden"
+          className="bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden"
         >
-          {/* Search Header */}
-          <div className="px-5 py-4 bg-gradient-to-r from-[#1C1C1E] to-[#2C2C2E] border-b border-gray-800">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-[#C9A063]/20 flex items-center justify-center">
-                <Search className="w-4 h-4 text-[#C9A063]" strokeWidth={2} />
-              </div>
-              <div>
-                <p className="text-white text-sm font-medium">Location Suggestions</p>
-                <p className="text-gray-400 text-xs">{predictions.length} results found</p>
-              </div>
-            </div>
-          </div>
-
           {/* Suggestions List */}
-          <div className="max-h-[320px] overflow-y-auto">
+          <div className="max-h-[280px] overflow-y-auto py-2">
             {predictions.map((prediction) => (
               <button
                 key={prediction.place_id}
                 type="button"
                 onClick={() => handleSelect(prediction)}
-                className="w-full flex items-center gap-4 px-5 py-4 text-left bg-white hover:bg-gradient-to-r hover:from-[#C9A063]/5 hover:to-transparent active:bg-[#C9A063]/10 transition-all duration-200 group border-b border-gray-50 last:border-b-0"
+                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors duration-150 group"
               >
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center flex-shrink-0 group-hover:from-[#C9A063]/10 group-hover:to-[#C9A063]/5 group-hover:shadow-lg transition-all duration-300 border border-gray-100 group-hover:border-[#C9A063]/20">
+                <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 group-hover:bg-[#C9A063]/10 transition-colors">
                   {getIcon(prediction.types)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[15px] font-semibold text-gray-900 truncate group-hover:text-[#C9A063] transition-colors duration-200">
+                  <div className="text-[14px] font-medium text-gray-900 truncate">
                     {prediction.structured_formatting.main_text}
                   </div>
-                  <div className="text-[13px] text-gray-500 truncate mt-1 flex items-center gap-1.5">
-                    <MapPin className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                  <div className="text-[12px] text-gray-500 truncate">
                     {prediction.structured_formatting.secondary_text}
                   </div>
-                </div>
-                <div className="w-8 h-8 rounded-full bg-transparent group-hover:bg-[#C9A063]/10 flex items-center justify-center transition-all duration-200">
-                  <svg className="w-4 h-4 text-gray-300 group-hover:text-[#C9A063] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
                 </div>
               </button>
             ))}
           </div>
 
-          {/* Footer */}
-          <div className="px-5 py-3 bg-gradient-to-r from-gray-50 to-white border-t border-gray-100">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="flex -space-x-1">
-                  <div className="w-4 h-4 rounded-full bg-[#4285F4]"></div>
-                  <div className="w-4 h-4 rounded-full bg-[#EA4335]"></div>
-                  <div className="w-4 h-4 rounded-full bg-[#FBBC05]"></div>
-                  <div className="w-4 h-4 rounded-full bg-[#34A853]"></div>
-                </div>
-                <span className="text-[11px] font-medium text-gray-500">Powered by Google</span>
-              </div>
-              <span className="text-[10px] text-gray-400">Click to select</span>
+          {/* Google Attribution */}
+          <div className="px-4 py-2 bg-gray-50 border-t border-gray-100">
+            <div className="flex items-center gap-1.5">
+              <img src="https://maps.gstatic.com/mapfiles/api-3/images/powered-by-google-on-white3.png" alt="Powered by Google" className="h-3" />
             </div>
           </div>
         </div>,

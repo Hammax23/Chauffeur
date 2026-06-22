@@ -15,11 +15,13 @@ const stripePromise = loadStripe(
 );
 
 interface PaymentFormProps {
+  amountLabel: string;
+  disabled?: boolean;
   onSuccess: (paymentIntentId: string) => void;
   onError: (error: string) => void;
 }
 
-function PaymentForm({ onSuccess, onError }: PaymentFormProps) {
+function PaymentForm({ amountLabel, disabled, onSuccess, onError }: PaymentFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -28,7 +30,7 @@ function PaymentForm({ onSuccess, onError }: PaymentFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!stripe || !elements) {
+    if (!stripe || !elements || disabled) {
       return;
     }
 
@@ -59,9 +61,12 @@ function PaymentForm({ onSuccess, onError }: PaymentFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="bg-white rounded-xl border border-gray-200/60 p-4 sm:p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <CreditCard className="w-5 h-5 text-[#C9A063]" />
-          <span className="text-[15px] font-semibold text-gray-900">Payment Details</span>
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-[#C9A063]" />
+            <span className="text-[15px] font-semibold text-gray-900">Payment Details</span>
+          </div>
+          <span className="text-[15px] font-bold text-[#1C1C1E]">{amountLabel}</span>
         </div>
         <PaymentElement
           options={{
@@ -89,7 +94,7 @@ function PaymentForm({ onSuccess, onError }: PaymentFormProps) {
 
       <button
         type="submit"
-        disabled={!stripe || isProcessing}
+        disabled={!stripe || isProcessing || disabled}
         className="w-full flex items-center justify-center gap-2 bg-[#C9A063] text-white px-6 py-4 rounded-xl text-[16px] font-semibold hover:bg-[#B8935A] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-[#C9A063]/20"
       >
         {isProcessing ? (
@@ -100,7 +105,7 @@ function PaymentForm({ onSuccess, onError }: PaymentFormProps) {
         ) : (
           <>
             <CreditCard className="w-5 h-5" />
-            Pay Now
+            Pay & Confirm Reservation
           </>
         )}
       </button>
@@ -108,19 +113,39 @@ function PaymentForm({ onSuccess, onError }: PaymentFormProps) {
   );
 }
 
-interface StripePaymentProps {
-  amount: number;
+export interface StripePaymentProps {
+  amountCents: number;
+  amountLabel: string;
   vehicleId: string;
-  durationValue: number;
+  bookingMode: "distance" | "hourly";
+  distanceMeters: number;
+  hourlyDuration: number;
+  stopCount: number;
+  childSeatCount: number;
+  meetGreet: boolean;
+  bouquetFlowers: boolean;
+  gratuityPercent: number;
+  email: string;
+  disabled?: boolean;
   onSuccess: (paymentIntentId: string) => void;
   onError: (error: string) => void;
   metadata?: Record<string, string>;
 }
 
 export default function StripePayment({
-  amount,
+  amountCents,
+  amountLabel,
   vehicleId,
-  durationValue,
+  bookingMode,
+  distanceMeters,
+  hourlyDuration,
+  stopCount,
+  childSeatCount,
+  meetGreet,
+  bouquetFlowers,
+  gratuityPercent,
+  email,
+  disabled,
   onSuccess,
   onError,
   metadata,
@@ -130,37 +155,68 @@ export default function StripePayment({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (amount <= 0) {
-      setError("Invalid amount");
+    if (amountCents <= 0) {
+      setError("Invalid amount. Please complete your booking details.");
       setLoading(false);
       return;
     }
 
+    setLoading(true);
+    setError(null);
+
     fetch("/api/create-payment-intent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amount, vehicleId, durationValue, currency: "cad", metadata }),
+      body: JSON.stringify({
+        amount: amountCents,
+        vehicleId,
+        bookingMode,
+        distanceMeters,
+        hourlyDuration,
+        stopCount,
+        childSeatCount,
+        meetGreet,
+        bouquetFlowers,
+        gratuityPercent,
+        currency: "cad",
+        email,
+        metadata,
+      }),
     })
       .then((res) => res.json())
       .then((data) => {
         if (data.error) {
           setError(data.error);
+          setClientSecret(null);
         } else {
           setClientSecret(data.clientSecret);
         }
         setLoading(false);
       })
-      .catch((err) => {
+      .catch(() => {
         setError("Failed to initialize payment");
         setLoading(false);
       });
-  }, [amount, vehicleId, durationValue, metadata]);
+  }, [
+    amountCents,
+    vehicleId,
+    bookingMode,
+    distanceMeters,
+    hourlyDuration,
+    stopCount,
+    childSeatCount,
+    meetGreet,
+    bouquetFlowers,
+    gratuityPercent,
+    email,
+    metadata,
+  ]);
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <Loader2 className="w-8 h-8 text-[#C9A063] animate-spin mb-3" />
-        <p className="text-gray-600 text-[14px]">Initializing payment...</p>
+        <p className="text-gray-600 text-[14px]">Initializing secure payment...</p>
       </div>
     );
   }
@@ -201,7 +257,12 @@ export default function StripePayment({
         },
       }}
     >
-      <PaymentForm onSuccess={onSuccess} onError={onError} />
+      <PaymentForm
+        amountLabel={amountLabel}
+        disabled={disabled}
+        onSuccess={onSuccess}
+        onError={onError}
+      />
     </Elements>
   );
 }

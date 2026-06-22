@@ -1,9 +1,12 @@
 "use client";
-import { User, Mail, Phone, Plus } from 'lucide-react';
+import { MapPin, Clock, Plus, ChevronDown, HelpCircle } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import PlacesAutocomplete from '@/components/PlacesAutocomplete';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 const heroServices = [
   { title: "Airport Transfers", href: "/services/airport-transfers", image: "/heropics/airportTransfers.png" },
@@ -15,9 +18,12 @@ const heroServices = [
 const HeroSection = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const router = useRouter();
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [bookingMode, setBookingMode] = useState<"distance" | "hourly">("distance");
+  const [pickup, setPickup] = useState("");
+  const [dropoff, setDropoff] = useState("");
+  const [pickupDateTime, setPickupDateTime] = useState<Date | null>(null);
+  const [duration, setDuration] = useState(3);
+  const [durationDropdownOpen, setDurationDropdownOpen] = useState(false);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [videoError, setVideoError] = useState(false);
 
@@ -32,11 +38,8 @@ const HeroSection = () => {
   useEffect(() => {
     const video = videoRef.current;
     if (video) {
-      // Set up optimized loading
       video.addEventListener('loadeddata', handleVideoLoad);
       video.addEventListener('error', handleVideoError);
-      
-      // Try to load the video
       video.load();
       
       return () => {
@@ -48,10 +51,18 @@ const HeroSection = () => {
 
   const handleNext = () => {
     const params = new URLSearchParams();
-    if (fullName.trim()) params.set("name", fullName.trim());
-    if (email.trim()) params.set("email", email.trim());
-    if (phone.trim()) params.set("phone", phone.trim());
-    router.push(`/contact${params.toString() ? "?" + params.toString() : ""}`);
+    params.set("mode", bookingMode);
+    if (pickup.trim()) params.set("pickup", pickup.trim());
+    if (bookingMode === "distance" && dropoff.trim()) {
+      params.set("dropoff", dropoff.trim());
+    }
+    if (pickupDateTime) {
+      params.set("date", pickupDateTime.toISOString());
+    }
+    if (bookingMode === "hourly") {
+      params.set("duration", duration.toString());
+    }
+    router.push(`/reservation${params.toString() ? "?" + params.toString() : ""}`);
   };
 
   return (
@@ -103,62 +114,165 @@ const HeroSection = () => {
           </div>
         </div>
 
-        <div id="book" className="w-full max-w-[720px] mt-4 sm:mt-6 md:mt-8 lg:mt-10 mb-8 sm:mb-10 mx-auto px-4 sm:px-6 md:px-8">
-          <div className="bg-white rounded-3xl md:rounded-full shadow-2xl px-4 py-3 sm:px-5 sm:py-3 md:px-5 md:py-3">
-            <div className="flex flex-col md:flex-row md:flex-wrap lg:flex-nowrap lg:items-center gap-2.5 sm:gap-2.5 lg:gap-3 overflow-hidden">
-              <div className="flex items-center gap-2 sm:gap-2.5 flex-1 min-w-0 basis-0 lg:min-w-0 lg:max-w-[180px]">
-                <User className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 flex-shrink-0" strokeWidth={1.5} />
+        <div id="book" className="w-full max-w-[900px] mt-4 sm:mt-6 md:mt-8 lg:mt-10 mb-8 sm:mb-10 mx-auto px-4 sm:px-6 md:px-8">
+          {/* Booking Mode Toggle */}
+          <div className="flex justify-center mb-4">
+            <div className="inline-flex rounded-full p-1 bg-gradient-to-r from-[#1a1a2e]/90 to-[#16213e]/90 backdrop-blur-md border border-[#C9A063]/30 shadow-xl">
+              <button
+                type="button"
+                onClick={() => setBookingMode("distance")}
+                className={`relative px-6 sm:px-8 py-2.5 rounded-full text-[12px] sm:text-[13px] font-semibold tracking-wide transition-all duration-300 ${
+                  bookingMode === "distance"
+                    ? "bg-gradient-to-r from-[#C9A063] to-[#D4AF6F] text-white shadow-lg"
+                    : "text-white/90 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                DISTANCE
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setBookingMode("hourly");
+                  setDropoff("");
+                }}
+                className={`relative px-6 sm:px-8 py-2.5 rounded-full text-[12px] sm:text-[13px] font-semibold tracking-wide transition-all duration-300 ${
+                  bookingMode === "hourly"
+                    ? "bg-gradient-to-r from-[#C9A063] to-[#D4AF6F] text-white shadow-lg"
+                    : "text-white/90 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                HOURLY
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl md:rounded-full shadow-2xl px-4 py-4 sm:px-5 sm:py-4 md:px-6 md:py-4">
+            <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-0">
+              {/* Pickup Location */}
+              <div className="flex items-center gap-2.5 flex-1 min-w-0 md:px-2">
+                <div className="w-8 h-8 rounded-full bg-[#C9A063]/10 flex items-center justify-center flex-shrink-0">
+                  <MapPin className="w-4 h-4 text-[#C9A063]" strokeWidth={2} />
+                </div>
                 <div className="flex flex-col flex-1 min-w-0">
-                  <label className="text-[12px] sm:text-[13px] md:text-[14px] font-semibold text-gray-900 mb-1 block">Full Name</label>
-                  <input
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Your name"
-                    className="text-[13px] sm:text-[14px] md:text-[15px] text-gray-700 placeholder:text-gray-400 outline-none bg-transparent w-full min-h-[36px] py-1 border-0 focus:ring-0"
+                  <label className="text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Pickup</label>
+                  <PlacesAutocomplete
+                    value={pickup}
+                    onChange={setPickup}
+                    placeholder="Enter pickup location"
+                    className="text-[14px] sm:text-[15px] text-gray-900 placeholder:text-gray-400 outline-none bg-transparent w-full py-0.5 border-0 focus:ring-0"
                   />
                 </div>
               </div>
 
-              <div className="hidden md:block w-px self-center h-8 bg-gray-300 flex-shrink-0"></div>
+              {bookingMode === "distance" && (
+                <>
+                  <div className="hidden md:block w-px self-stretch bg-gray-200 flex-shrink-0 mx-2"></div>
+                  <div className="md:hidden h-px w-full bg-gray-200 flex-shrink-0"></div>
+
+                  {/* Drop-off Location */}
+                  <div className="flex items-center gap-2.5 flex-1 min-w-0 md:px-2">
+                    <div className="w-8 h-8 rounded-full bg-[#C9A063]/10 flex items-center justify-center flex-shrink-0">
+                      <MapPin className="w-4 h-4 text-[#C9A063]" strokeWidth={2} />
+                    </div>
+                    <div className="flex flex-col flex-1 min-w-0">
+                      <label className="text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Drop-off</label>
+                      <PlacesAutocomplete
+                        value={dropoff}
+                        onChange={setDropoff}
+                        placeholder="Enter drop-off location"
+                        className="text-[14px] sm:text-[15px] text-gray-900 placeholder:text-gray-400 outline-none bg-transparent w-full py-0.5 border-0 focus:ring-0"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="hidden md:block w-px self-stretch bg-gray-200 flex-shrink-0 mx-2"></div>
               <div className="md:hidden h-px w-full bg-gray-200 flex-shrink-0"></div>
 
-              <div className="flex items-center gap-2 sm:gap-2.5 flex-1 min-w-0 basis-0 lg:min-w-0 lg:max-w-[180px]">
-                <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 flex-shrink-0" strokeWidth={1.5} />
+              {/* Pick-up Time */}
+              <div className="flex items-center gap-2.5 flex-1 min-w-0 md:px-2 hero-datepicker">
+                <div className="w-8 h-8 rounded-full bg-[#C9A063]/10 flex items-center justify-center flex-shrink-0">
+                  <Clock className="w-4 h-4 text-[#C9A063]" strokeWidth={2} />
+                </div>
                 <div className="flex flex-col flex-1 min-w-0">
-                  <label className="text-[12px] sm:text-[13px] md:text-[14px] font-semibold text-gray-900 mb-1 block">Email</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="example@gmail.com"
-                    className="text-[13px] sm:text-[14px] md:text-[15px] text-gray-700 placeholder:text-gray-400 outline-none bg-transparent w-full min-h-[36px] py-1 border-0 focus:ring-0"
+                  <label className="text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Pick-up Time</label>
+                  <DatePicker
+                    selected={pickupDateTime}
+                    onChange={(date: Date | null) => setPickupDateTime(date)}
+                    showTimeSelect
+                    timeIntervals={15}
+                    timeCaption="Time"
+                    dateFormat="MMM d, h:mm aa"
+                    timeFormat="h:mm aa"
+                    minDate={new Date()}
+                    placeholderText="Select date & time"
+                    className="text-[14px] sm:text-[15px] text-gray-900 placeholder:text-gray-400 outline-none bg-transparent w-full py-0.5 border-0 focus:ring-0 cursor-pointer"
                   />
                 </div>
               </div>
 
-              <div className="hidden md:block w-px self-center h-8 bg-gray-300 flex-shrink-0"></div>
-              <div className="md:hidden h-px w-full bg-gray-200 flex-shrink-0"></div>
+              {/* Duration Field - Only shows for Hourly mode */}
+              {bookingMode === "hourly" && (
+                <>
+                  <div className="hidden md:block w-px self-stretch bg-gray-200 flex-shrink-0 mx-2"></div>
+                  <div className="md:hidden h-px w-full bg-gray-200 flex-shrink-0"></div>
+                  
+                  <div className="flex items-center gap-2.5 flex-1 min-w-0 md:px-2 relative">
+                    <div className="w-8 h-8 rounded-full bg-[#C9A063]/10 flex items-center justify-center flex-shrink-0">
+                      <HelpCircle className="w-4 h-4 text-[#C9A063]" strokeWidth={2} />
+                    </div>
+                    <div className="flex flex-col flex-1 min-w-0 relative">
+                      <label className="text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5 flex items-center gap-1">
+                        Duration (in hours)
+                        <span 
+                          className="text-[#C9A063] cursor-help" 
+                          title="Minimum 3 hours required for hourly booking"
+                        >
+                          <HelpCircle className="w-3 h-3" />
+                        </span>
+                      </label>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setDurationDropdownOpen(!durationDropdownOpen)}
+                          className="w-full flex items-center justify-between text-[14px] sm:text-[15px] text-gray-900 outline-none bg-transparent py-0.5"
+                        >
+                          <span>{duration} hours</span>
+                          <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${durationDropdownOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        
+                        {durationDropdownOpen && (
+                          <div className="absolute top-full left-0 mt-2 w-full bg-white rounded-xl shadow-xl border border-gray-100 z-50 max-h-[200px] overflow-y-auto">
+                            {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((hours) => (
+                              <button
+                                key={hours}
+                                type="button"
+                                onClick={() => {
+                                  setDuration(hours);
+                                  setDurationDropdownOpen(false);
+                                }}
+                                className={`w-full px-4 py-2.5 text-left text-[14px] hover:bg-[#C9A063]/10 transition-colors ${
+                                  duration === hours ? 'bg-[#C9A063]/10 text-[#C9A063] font-semibold' : 'text-gray-700'
+                                }`}
+                              >
+                                {hours} hours
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
 
-              <div className="flex items-center gap-2 sm:gap-2.5 flex-1 min-w-0 basis-0 lg:min-w-0 lg:max-w-[180px]">
-                <Phone className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 flex-shrink-0" strokeWidth={1.5} />
-                <div className="flex flex-col flex-1 min-w-0">
-                  <label className="text-[12px] sm:text-[13px] md:text-[14px] font-semibold text-gray-900 mb-1 block">Phone</label>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="416-893-5779"
-                    className="text-[13px] sm:text-[14px] md:text-[15px] text-gray-700 placeholder:text-gray-400 outline-none bg-transparent w-full min-h-[36px] py-1 border-0 focus:ring-0"
-                  />
-                </div>
-              </div>
-
-              <div className="w-full md:w-auto flex-shrink-0 mt-3 md:mt-0 lg:ml-0 flex items-center justify-center md:justify-end">
+              {/* Next Button */}
+              <div className="flex-shrink-0 mt-3 md:mt-0 md:ml-3">
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="w-full md:w-auto bg-gradient-to-r from-black via-gray-900 to-black text-white px-5 py-2.5 sm:px-5 sm:py-3 md:px-6 md:py-3 rounded-full text-[13px] sm:text-[14px] font-semibold hover:from-gray-900 hover:via-black hover:to-gray-900 hover:scale-105 hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-all duration-300 backdrop-blur-sm border border-white/10 whitespace-nowrap min-h-[40px]"
+                  className="w-full md:w-auto bg-gradient-to-r from-black via-gray-900 to-black text-white px-6 py-3 sm:px-7 sm:py-3.5 rounded-full text-[13px] sm:text-[14px] font-semibold hover:from-gray-900 hover:via-black hover:to-gray-900 hover:scale-105 hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-all duration-300 backdrop-blur-sm border border-white/10 whitespace-nowrap"
                 >
                   NEXT
                 </button>
@@ -226,6 +340,18 @@ const HeroSection = () => {
           </div>
         </div>
       </div>
+
+      <style jsx global>{`
+        .hero-datepicker .react-datepicker-wrapper {
+          width: 100%;
+        }
+        .hero-datepicker .react-datepicker__input-container input {
+          width: 100%;
+        }
+        .hero-datepicker .react-datepicker-popper {
+          z-index: 50;
+        }
+      `}</style>
     </section>
   );
 };

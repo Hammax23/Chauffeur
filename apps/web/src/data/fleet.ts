@@ -25,8 +25,8 @@ export const fleetData: FleetVehicle[] = [
     category: "Sedan",
     seating: "3 maximum, 3 comfortable",
     luggage: "2 large, 2 medium",
-    price: 115,
-    pricePerKm: 3.05,
+    price: 120,
+    pricePerKm: 3.10,
   },
   {
     id: "chevrolet-suburban",
@@ -37,8 +37,8 @@ export const fleetData: FleetVehicle[] = [
     category: "SUV",
     seating: "6 maximum, 5 comfortable",
     luggage: "5 large, 2 medium, 4 small",
-    price: 145,
-    pricePerKm: 3.47,
+    price: 150,
+    pricePerKm: 3.52,
   },
   {
     id: "cadillac-escalade",
@@ -49,8 +49,8 @@ export const fleetData: FleetVehicle[] = [
     category: "SUV",
     seating: "6 maximum, 5 comfortable",
     luggage: "5 large, 2 medium, 4 small",
-    price: 175,
-    pricePerKm: 3.99,
+    price: 180,
+    pricePerKm: 4.04,
   },
   {
     id: "mercedes-s-class",
@@ -61,8 +61,8 @@ export const fleetData: FleetVehicle[] = [
     category: "Executive",
     seating: "3 maximum, 3 comfortable",
     luggage: "3 pieces",
-    price: 295,
-    pricePerKm: 5.50,
+    price: 300,
+    pricePerKm: 5.55,
   },
   {
     id: "sprinter-van",
@@ -73,8 +73,8 @@ export const fleetData: FleetVehicle[] = [
     category: "Van",
     seating: "16 maximum, 16 comfortable",
     luggage: "16 large",
-    price: 285,
-    pricePerKm: 5.50,
+    price: 290,
+    pricePerKm: 5.55,
   },
   {
     id: "cadillac-lyric",
@@ -85,8 +85,8 @@ export const fleetData: FleetVehicle[] = [
     category: "Sedan",
     seating: "3 maximum, 3 comfortable",
     luggage: "2 large, 2 medium",
-    price: 135,
-    pricePerKm: 3.05,
+    price: 140,
+    pricePerKm: 3.10,
   },
 ];
 
