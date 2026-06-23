@@ -43,6 +43,7 @@ for (let row = 0; row < 10; row++) {
 // City positions on dotted map (x, y coordinates) - full width version
 const CITY_POSITIONS: Record<string, { x: number; y: number }> = {
   windsor: { x: 70, y: 340 },
+  detroit: { x: 78, y: 372 },
   london: { x: 140, y: 295 },
   kitchener: { x: 210, y: 250 },
   hamilton: { x: 305, y: 300 },
@@ -161,7 +162,7 @@ const GlobalFootprint = () => {
   const [activeId, setActiveId] = useState<string | null>(null);
 
   return (
-    <section className="relative py-16 sm:py-20 md:py-24 bg-gradient-to-b from-[#fafbfc] to-white">
+    <section className="relative pt-16 sm:pt-20 md:pt-24 pb-4 sm:pb-6 bg-gradient-to-b from-[#fafbfc] to-white">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-4 sm:mb-6 md:mb-8">
@@ -193,7 +194,7 @@ const GlobalFootprint = () => {
         </div>
 
         {/* Dotted Map */}
-        <div className="relative mb-8">
+        <div className="relative mb-8 max-w-6xl mx-auto">
           <div className="relative bg-transparent overflow-hidden p-2 sm:p-4">
             <svg
               viewBox="0 50 1200 350"
@@ -463,7 +464,13 @@ const GlobalFootprint = () => {
                       <div>
                         <p className="text-gray-900 font-semibold">{city.name}</p>
                         <p className="text-gray-500 text-sm">
-                          {city.province === "ON" ? "Ontario" : city.province === "QC" ? "Quebec" : "ON / NY"}
+                          {city.province === "ON"
+                            ? "Ontario"
+                            : city.province === "QC"
+                              ? "Quebec"
+                              : city.province === "MI"
+                                ? "Michigan"
+                                : "ON / NY"}
                         </p>
                       </div>
                     </div>

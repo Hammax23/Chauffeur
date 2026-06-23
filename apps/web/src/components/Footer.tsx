@@ -16,10 +16,10 @@ const Footer = () => {
       
       <div className="max-w-[1400px] mx-auto px-6 sm:px-8 md:px-12 relative z-10">
         {/* Main Footer Content */}
-        <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr] gap-8 md:gap-12 lg:gap-16 py-10 sm:py-12 md:py-14 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr] gap-6 md:gap-8 lg:gap-10 py-6 sm:py-8 items-start">
           
           {/* Left Section - Brand */}
-          <div className="space-y-5">
+          <div className="space-y-3">
             {/* Logo with iOS effect */}
             <Link href="/" className="group block">
               <div className="relative inline-block">
@@ -27,27 +27,27 @@ const Footer = () => {
                 <Image 
                   src="/logo1.png" 
                   alt="SARJ Worldwide Logo" 
-                  width={180}
-                  height={80}
-                  className="h-14 sm:h-16 md:h-[80px] w-auto relative z-10 group-hover:scale-105 transition-transform duration-300"
+                  width={150}
+                  height={56}
+                  className="h-10 sm:h-11 md:h-12 w-auto relative z-10 group-hover:scale-105 transition-transform duration-300"
                   unoptimized
                 />
               </div>
             </Link>
             
             {/* Description */}
-            <p className="text-gray-400 text-[14px] leading-relaxed max-w-[280px] font-light">
+            <p className="text-gray-400 text-[13px] leading-relaxed max-w-[280px] font-light">
               Premier provider of executive transportation, specializing in airport transfers, special and corporate events.
             </p>
           </div>
 
           {/* Middle Section - Navigation */}
           <div>
-            <h3 className="text-white text-[13px] font-semibold mb-5 tracking-widest uppercase flex items-center gap-2">
+            <h3 className="text-white text-[12px] font-semibold mb-3 tracking-widest uppercase flex items-center gap-2">
               <div className="w-1 h-1 rounded-full bg-[#C9A063]"></div>
               Navigation
             </h3>
-            <ul className="space-y-3">
+            <ul className="space-y-2">
               <li>
                 <Link 
                   href="/" 
@@ -116,7 +116,7 @@ const Footer = () => {
 
           {/* Right Section - Social Media */}
           <div>
-            <h3 className="text-white text-[13px] font-semibold mb-5 tracking-widest uppercase flex items-center gap-2">
+            <h3 className="text-white text-[12px] font-semibold mb-3 tracking-widest uppercase flex items-center gap-2">
               <div className="w-1 h-1 rounded-full bg-[#C9A063]"></div>
               Follow Us
             </h3>
@@ -125,7 +125,7 @@ const Footer = () => {
                 href="https://facebook.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group relative w-11 h-11 rounded-full border border-white/20 hover:border-[#C9A063]/60 bg-white/5 hover:bg-[#C9A063]/10 backdrop-blur-sm flex items-center justify-center transition-all duration-300 hover:scale-110 shadow-lg shadow-black/20 hover:shadow-[#C9A063]/20"
+                className="group relative w-9 h-9 rounded-full border border-white/20 hover:border-[#C9A063]/60 bg-white/5 hover:bg-[#C9A063]/10 backdrop-blur-sm flex items-center justify-center transition-all duration-300 hover:scale-110 shadow-lg shadow-black/20 hover:shadow-[#C9A063]/20"
               >
                 <div className="absolute inset-0 rounded-full bg-[#C9A063]/0 group-hover:bg-[#C9A063]/5 transition-all duration-300"></div>
                 <Facebook className="w-[18px] h-[18px] text-white/80 group-hover:text-[#C9A063] transition-colors duration-300 relative z-10" strokeWidth={1.5} fill="currentColor" />
@@ -134,7 +134,7 @@ const Footer = () => {
                 href="https://instagram.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group relative w-11 h-11 rounded-full border border-white/20 hover:border-[#C9A063]/60 bg-white/5 hover:bg-[#C9A063]/10 backdrop-blur-sm flex items-center justify-center transition-all duration-300 hover:scale-110 shadow-lg shadow-black/20 hover:shadow-[#C9A063]/20"
+                className="group relative w-9 h-9 rounded-full border border-white/20 hover:border-[#C9A063]/60 bg-white/5 hover:bg-[#C9A063]/10 backdrop-blur-sm flex items-center justify-center transition-all duration-300 hover:scale-110 shadow-lg shadow-black/20 hover:shadow-[#C9A063]/20"
               >
                 <div className="absolute inset-0 rounded-full bg-[#C9A063]/0 group-hover:bg-[#C9A063]/5 transition-all duration-300"></div>
                 <Instagram className="w-[18px] h-[18px] text-white/80 group-hover:text-[#C9A063] transition-colors duration-300 relative z-10" strokeWidth={1.5} />
@@ -143,7 +143,7 @@ const Footer = () => {
                 href="https://linkedin.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group relative w-11 h-11 rounded-full border border-white/20 hover:border-[#C9A063]/60 bg-white/5 hover:bg-[#C9A063]/10 backdrop-blur-sm flex items-center justify-center transition-all duration-300 hover:scale-110 shadow-lg shadow-black/20 hover:shadow-[#C9A063]/20"
+                className="group relative w-9 h-9 rounded-full border border-white/20 hover:border-[#C9A063]/60 bg-white/5 hover:bg-[#C9A063]/10 backdrop-blur-sm flex items-center justify-center transition-all duration-300 hover:scale-110 shadow-lg shadow-black/20 hover:shadow-[#C9A063]/20"
               >
                 <div className="absolute inset-0 rounded-full bg-[#C9A063]/0 group-hover:bg-[#C9A063]/5 transition-all duration-300"></div>
                 <Linkedin className="w-[18px] h-[18px] text-white/80 group-hover:text-[#C9A063] transition-colors duration-300 relative z-10" strokeWidth={1.5} fill="currentColor" />
@@ -154,7 +154,7 @@ const Footer = () => {
         </div>
 
         {/* Bottom Bar */}
-        <div className="border-t border-white/10 py-5">
+        <div className="border-t border-white/10 py-3">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             {/* Copyright */}
             <p className="text-gray-400 text-[13px] font-light">

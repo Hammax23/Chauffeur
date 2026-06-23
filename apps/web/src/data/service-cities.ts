@@ -1,7 +1,7 @@
 export type ServiceCity = {
   id: string;
   name: string;
-  province: "ON" | "QC" | "ON/NY";
+  province: "ON" | "QC" | "ON/NY" | "MI";
   lng: number;
   lat: number;
   slug?: string;
@@ -11,6 +11,7 @@ export type ServiceCity = {
 /** SARJ service cities — Ontario, Quebec & Golden Horseshoe */
 export const SERVICE_CITIES: ServiceCity[] = [
   { id: "windsor", name: "Windsor", province: "ON", lng: -83.0, lat: 42.31 },
+  { id: "detroit", name: "Detroit", province: "MI", lng: -83.05, lat: 42.33 },
   { id: "london", name: "London", province: "ON", lng: -81.15, lat: 43.04, slug: "london" },
   { id: "kitchener", name: "Kitchener", province: "ON", lng: -80.49, lat: 43.45 },
   { id: "hamilton", name: "Hamilton", province: "ON", lng: -79.94, lat: 43.17, slug: "hamilton" },

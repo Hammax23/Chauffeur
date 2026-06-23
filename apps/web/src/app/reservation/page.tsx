@@ -31,7 +31,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import StripePayment from "@/components/StripePayment";
 import Turnstile from "@/components/Turnstile";
-import { fleetData, RESERVATION_HIDE_HOURLY_RATE_IDS } from "@/data/fleet";
+import { fleetData, RESERVATION_HIDE_HOURLY_RATE_IDS, getFleetForReservation, type FleetVehicle } from "@/data/fleet";
 import { calculateReservationPricing } from "@/lib/reservation-pricing";
 import { GoogleMapsProvider } from "@/components/GoogleMapsProvider";
 
@@ -51,6 +51,7 @@ function ReservationPageContent() {
   const [currentStep, setCurrentStep] = useState(1);
   const [stops, setStops] = useState<string[]>([]);
   const [selectedVehicle, setSelectedVehicle] = useState("");
+  const [reservationFleet, setReservationFleet] = useState<FleetVehicle[]>(fleetData);
   const [countryCode, setCountryCode] = useState(COUNTRY_CODES[0].code);
   const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
   
@@ -89,10 +90,42 @@ function ReservationPageContent() {
       if (!isNaN(dur) && dur >= 3) setHourlyDuration(dur);
     }
   }, [searchParams]);
+
+  // Keep Select Vehicle in sync with /api/fleet (same source as homepage fleet)
+  useEffect(() => {
+    fetch("/api/fleet")
+      .then((res) => res.json())
+      .then((data: { success?: boolean; vehicles?: FleetVehicle[] }) => {
+        if (data?.success && Array.isArray(data.vehicles) && data.vehicles.length > 0) {
+          setReservationFleet(data.vehicles);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Pre-select vehicle from URL (e.g. Discover Fleet card)
+  useEffect(() => {
+    const vehicleIdParam = searchParams.get("vehicleId");
+    if (!vehicleIdParam) return;
+    const exists = reservationFleet.some((v) => v.id === vehicleIdParam);
+    if (exists) setSelectedVehicle(vehicleIdParam);
+  }, [searchParams, reservationFleet]);
+
   const [transferType, setTransferType] = useState<"oneWay" | "return" | "returnNewRide">("oneWay");
   const [adultsCount, setAdultsCount] = useState(1);
   const [childrenCount, setChildrenCount] = useState(0);
   const passengersCount = adultsCount + childrenCount;
+
+  const availableVehicles = useMemo(
+    () => getFleetForReservation(passengersCount, reservationFleet),
+    [passengersCount, reservationFleet]
+  );
+
+  const resolveVehicle = useCallback(
+    (vehicleId: string) =>
+      reservationFleet.find((v) => v.id === vehicleId) ?? fleetData.find((v) => v.id === vehicleId),
+    [reservationFleet]
+  );
   const [returnDateTime, setReturnDateTime] = useState<Date | null>(null);
   const [childSeatCount, setChildSeatCount] = useState(0);
   const [childSeatType, setChildSeatType] = useState("");
@@ -154,7 +187,7 @@ function ReservationPageContent() {
     setEmailSending(true);
     setEmailError("");
     try {
-      const vehicleName = fleetData.find((v) => v.id === selectedVehicle)?.name || selectedVehicle;
+      const vehicleName = resolveVehicle(selectedVehicle)?.name || selectedVehicle;
       const res = await fetch("/api/reservation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -199,7 +232,7 @@ function ReservationPageContent() {
     } finally {
       setEmailSending(false);
     }
-  }, [firstName, lastName, email, phone, countryCode, serviceType, bookingMode, transferType, adultsCount, childrenCount, hourlyDuration, returnDateTime, pickupLocation, dropoffLocation, stops, pickupDateTime, selectedVehicle, passengersCount, childSeatCount, childSeatType, etr407, meetGreet, bouquetFlowers, specialRequirements, routeDistance, routeDuration, routePrice, routeDistanceValue, gratuityPercent, airlineName, flightNumber, flightNote, billingAddress, zipCode, purchaseOrder, deptNumber, turnstileToken]);
+  }, [firstName, lastName, email, phone, countryCode, serviceType, bookingMode, transferType, adultsCount, childrenCount, hourlyDuration, returnDateTime, pickupLocation, dropoffLocation, stops, pickupDateTime, selectedVehicle, passengersCount, childSeatCount, childSeatType, etr407, meetGreet, bouquetFlowers, specialRequirements, routeDistance, routeDuration, routePrice, routeDistanceValue, gratuityPercent, airlineName, flightNumber, flightNote, billingAddress, zipCode, purchaseOrder, deptNumber, turnstileToken, resolveVehicle]);
 
   // Store route data; price is recalculated via useEffect when vehicle or route changes
   const handleRouteCalculated = useCallback((distance: string, duration: string, distanceValue: number, durationValue: number) => {
@@ -211,7 +244,7 @@ function ReservationPageContent() {
 
   // Recalculate price whenever vehicle selection, route data, or transfer type changes
   useEffect(() => {
-    const vehicle = fleetData.find((v) => v.id === selectedVehicle);
+    const vehicle = resolveVehicle(selectedVehicle);
     if (!vehicle) {
       setRoutePrice(0);
       return;
@@ -231,7 +264,7 @@ function ReservationPageContent() {
       const calculatedPrice = vehicle.pricePerKm * distanceKm;
       setRoutePrice(calculatedPrice);
     }
-  }, [selectedVehicle, routeDistanceValue, bookingMode, hourlyDuration]);
+  }, [selectedVehicle, routeDistanceValue, bookingMode, hourlyDuration, resolveVehicle]);
 
   const activeStopCount = stops.filter((s) => s.trim() !== "").length;
 
@@ -682,11 +715,8 @@ function ReservationPageContent() {
                     <div className="space-y-6">
                       <div>
                         <h3 className="text-lg font-semibold text-gray-900 mb-6">Choose Your Luxury Vehicle</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {fleetData.filter((vehicle) => {
-                            const maxSeats = parseInt(vehicle.seating);
-                            return !isNaN(maxSeats) && maxSeats >= passengersCount;
-                          }).map((vehicle) => (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {availableVehicles.map((vehicle) => (
                             <button
                               key={vehicle.id}
                               onClick={() => { setSelectedVehicle(vehicle.id); setStepError(""); }}
@@ -716,8 +746,12 @@ function ReservationPageContent() {
                                     <span className="text-xs sm:text-sm font-medium text-gray-800">{vehicle.luggage}</span>
                                   </div>
                                 </div>
-                                {!RESERVATION_HIDE_HOURLY_RATE_IDS.has(vehicle.id) && (
-                                  <span className="font-bold text-[#C9A063] text-sm">From ${vehicle.price}/hr</span>
+                                {(bookingMode === "distance" || !RESERVATION_HIDE_HOURLY_RATE_IDS.has(vehicle.id)) && (
+                                  <span className="font-bold text-[#C9A063] text-sm">
+                                    {bookingMode === "hourly"
+                                      ? `From $${vehicle.price}/hr`
+                                      : `From $${vehicle.pricePerKm}/km`}
+                                  </span>
                                 )}
                               </div>
                             </button>
@@ -1013,7 +1047,7 @@ function ReservationPageContent() {
                           <div className="flex items-center justify-between p-4">
                             <span className="text-[13px] font-medium text-gray-600">Vehicle</span>
                             <span className="text-[13px] font-semibold text-gray-900">
-                              {fleetData.find((v) => v.id === selectedVehicle)?.name ?? "--"}
+                              {resolveVehicle(selectedVehicle)?.name ?? "--"}
                             </span>
                           </div>
                           <div className="flex items-center justify-between p-4">
@@ -1047,8 +1081,8 @@ function ReservationPageContent() {
                               <span className="text-[13px] font-medium text-gray-600">Rate</span>
                               <span className="text-[13px] font-semibold text-gray-900">
                                 {bookingMode === "hourly" 
-                                  ? `$${fleetData.find((v) => v.id === selectedVehicle)?.price ?? 0}/hr`
-                                  : `$${fleetData.find((v) => v.id === selectedVehicle)?.pricePerKm ?? 0}/km`}
+                                  ? `$${resolveVehicle(selectedVehicle)?.price ?? 0}/hr`
+                                  : `$${resolveVehicle(selectedVehicle)?.pricePerKm ?? 0}/km`}
                               </span>
                             </div>
                           )}
@@ -1436,7 +1470,7 @@ function ReservationPageContent() {
 
                     {/* Selected Vehicle - Show on Contact Info (Step 3) & Confirmation (Step 4) */}
                     {currentStep >= 3 && selectedVehicle && (() => {
-                      const vehicle = fleetData.find((v) => v.id === selectedVehicle);
+                      const vehicle = resolveVehicle(selectedVehicle);
                       if (!vehicle) return null;
                       return (
                         <div>

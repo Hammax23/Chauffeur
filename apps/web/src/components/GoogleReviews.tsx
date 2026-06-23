@@ -66,7 +66,7 @@ const GoogleReviews = () => {
 
   if (loading) {
     return (
-      <section className="py-16 sm:py-20 bg-[#FAFAFA]">
+      <section className="pt-8 sm:pt-10 pb-16 sm:pb-20 bg-[#FAFAFA]">
         <div className="max-w-7xl mx-auto px-6 sm:px-8">
           <div className="flex flex-col items-center gap-6">
             <div className="w-48 h-6 bg-gray-200 rounded-lg animate-pulse" />
@@ -85,7 +85,7 @@ const GoogleReviews = () => {
   if (!data || !data.reviews || data.reviews.length === 0) return null;
 
   return (
-    <section className="py-16 sm:py-20 bg-[#FAFAFA]">
+    <section className="pt-8 sm:pt-10 pb-16 sm:pb-20 bg-[#FAFAFA]">
       <div className="max-w-7xl mx-auto px-6 sm:px-8">
         {/* Header */}
         <div className="text-center mb-12 sm:mb-16">
