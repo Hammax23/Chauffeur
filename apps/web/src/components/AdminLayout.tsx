@@ -17,6 +17,7 @@ import {
   FileText,
   MapPin,
   UserCog,
+  DollarSign,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: "/admin/reservations", label: "Reservations", icon: CalendarCheck },
   { href: "/admin/custom-reservation", label: "Custom Reservation", icon: PlusCircle },
   { href: "/admin/quotes", label: "Online Quotes", icon: FileText },
+  { href: "/admin/fleet", label: "Fleet Pricing", icon: DollarSign },
   { href: "/admin/drivers", label: "Drivers", icon: Car },
   { href: "/admin/track-drivers", label: "Track Drivers", icon: MapPin },
   { href: "/admin/operational-managers", label: "Operational Managers", icon: UserCog },

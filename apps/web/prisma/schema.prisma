@@ -272,3 +272,42 @@ model OperationalManager {
 
   @@index([isActive])
 }
+
+/// Fleet vehicles for online reservation pricing
+model FleetVehicle {
+  id            String   @id @default(cuid())
+  vehicleId     String   @unique  // e.g. "cadillac-xts"
+  name          String             // e.g. "Cadillac XTS"
+  dropdownName  String             // e.g. "LUXURY SEDAN"
+  description   String
+  image         String
+  category      String             // Sedan, SUV, Van, Executive, Coach
+  seating       String             // e.g. "3 maximum, 3 comfortable"
+  luggage       String             // e.g. "2 large, 2 medium"
+  
+  // Pricing
+  hourlyRate    Float              // Hourly rate for reservation
+  pricePerKm    Float              // Per-kilometer rate
+  
+  // Settings
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
+/// Extra charges configuration for reservations
+model ReservationCharges {
+  id              String   @id @default(cuid())
+  chargeKey       String   @unique  // e.g. "stop", "childSeat", "meetGreet", "bouquet"
+  chargeName      String             // Display name
+  amount          Float              // Charge amount in dollars
+  isPercentage    Boolean  @default(false)  // If true, amount is percentage
+  isActive        Boolean  @default(true)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}

@@ -25,7 +25,7 @@ export const fleetData: FleetVehicle[] = [
     category: "Sedan",
     seating: "3 maximum, 3 comfortable",
     luggage: "2 large, 2 medium",
-    price: 120,
+    price: 125,
     pricePerKm: 3.10,
   },
   {
@@ -37,7 +37,7 @@ export const fleetData: FleetVehicle[] = [
     category: "Sedan",
     seating: "3 maximum, 3 comfortable",
     luggage: "2 large, 2 medium",
-    price: 140,
+    price: 125,
     pricePerKm: 3.10,
   },
   {
@@ -49,7 +49,7 @@ export const fleetData: FleetVehicle[] = [
     category: "Sedan",
     seating: "3 maximum, 3 comfortable",
     luggage: "2 large, 2 medium",
-    price: 100,
+    price: 125,
     pricePerKm: 3.05,
   },
   {
@@ -61,7 +61,7 @@ export const fleetData: FleetVehicle[] = [
     category: "Sedan",
     seating: "3 maximum, 3 comfortable",
     luggage: "2 large, 2 medium",
-    price: 100,
+    price: 125,
     pricePerKm: 3.05,
   },
   {

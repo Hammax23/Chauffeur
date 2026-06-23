@@ -175,6 +175,12 @@ function ReservationPageContent() {
   const [routeDistanceValue, setRouteDistanceValue] = useState(0);
   const [routeDurationValue, setRouteDurationValue] = useState(0);
 
+  // Dynamic pricing config from database
+  const [pricingConfig, setPricingConfig] = useState({
+    baseDistanceKm: 17,
+    extraKmRate: 3.2,
+  });
+
   // Email states
   const [emailSending, setEmailSending] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
@@ -242,6 +248,21 @@ function ReservationPageContent() {
     setRouteDurationValue(durationValue);
   }, []);
 
+  // Fetch dynamic pricing config from database
+  useEffect(() => {
+    fetch("/api/pricing-config")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.charges) {
+          setPricingConfig({
+            baseDistanceKm: data.charges.baseDistanceKm ?? 17,
+            extraKmRate: data.charges.extraKmRate ?? 3.2,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Recalculate price whenever vehicle selection, route data, or transfer type changes
   useEffect(() => {
     const vehicle = resolveVehicle(selectedVehicle);
@@ -255,16 +276,19 @@ function ReservationPageContent() {
       const calculatedPrice = vehicle.price * hourlyDuration;
       setRoutePrice(calculatedPrice);
     } else {
-      // Distance mode: pricePerKm × distance
+      // Distance mode: Base price covers first X km, then extra $/km after
       if (routeDistanceValue <= 0) {
         setRoutePrice(0);
         return;
       }
       const distanceKm = routeDistanceValue / 1000;
-      const calculatedPrice = vehicle.pricePerKm * distanceKm;
+      const basePrice = vehicle.price;
+      const extraKm = Math.max(0, distanceKm - pricingConfig.baseDistanceKm);
+      const extraCharge = extraKm * pricingConfig.extraKmRate;
+      const calculatedPrice = basePrice + extraCharge;
       setRoutePrice(calculatedPrice);
     }
-  }, [selectedVehicle, routeDistanceValue, bookingMode, hourlyDuration, resolveVehicle]);
+  }, [selectedVehicle, routeDistanceValue, bookingMode, hourlyDuration, resolveVehicle, pricingConfig]);
 
   const activeStopCount = stops.filter((s) => s.trim() !== "").length;
 
@@ -750,7 +774,7 @@ function ReservationPageContent() {
                                   <span className="font-bold text-[#C9A063] text-sm">
                                     {bookingMode === "hourly"
                                       ? `From $${vehicle.price}/hr`
-                                      : `From $${vehicle.pricePerKm}/km`}
+                                      : `From $${vehicle.price}`}
                                   </span>
                                 )}
                               </div>
@@ -1078,11 +1102,23 @@ function ReservationPageContent() {
                           )}
                           {!RESERVATION_HIDE_HOURLY_RATE_IDS.has(selectedVehicle) && (
                             <div className="flex items-center justify-between p-4">
-                              <span className="text-[13px] font-medium text-gray-600">Rate</span>
+                              <span className="text-[13px] font-medium text-gray-600">
+                                {bookingMode === "hourly" ? "Rate" : `Base (up to ${pricingConfig.baseDistanceKm}km)`}
+                              </span>
                               <span className="text-[13px] font-semibold text-gray-900">
                                 {bookingMode === "hourly" 
                                   ? `$${resolveVehicle(selectedVehicle)?.price ?? 0}/hr`
-                                  : `$${resolveVehicle(selectedVehicle)?.pricePerKm ?? 0}/km`}
+                                  : `$${resolveVehicle(selectedVehicle)?.price ?? 0}`}
+                              </span>
+                            </div>
+                          )}
+                          {bookingMode === "distance" && routeDistanceValue > pricingConfig.baseDistanceKm * 1000 && (
+                            <div className="flex items-center justify-between p-4">
+                              <span className="text-[13px] font-medium text-gray-600">
+                                Extra KM ({((routeDistanceValue / 1000) - pricingConfig.baseDistanceKm).toFixed(1)} × ${pricingConfig.extraKmRate.toFixed(2)})
+                              </span>
+                              <span className="text-[13px] font-semibold text-gray-900">
+                                ${(((routeDistanceValue / 1000) - pricingConfig.baseDistanceKm) * pricingConfig.extraKmRate).toFixed(2)}
                               </span>
                             </div>
                           )}
