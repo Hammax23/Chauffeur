@@ -638,7 +638,7 @@ export default function FleetManagementPage() {
       <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <h3 className="font-semibold text-blue-900 mb-2">How Fleet Pricing Works</h3>
         <ul className="text-sm text-blue-800 space-y-1">
-          <li>• <strong>Base Price:</strong> Each vehicle's hourly rate is also its base price for distance bookings (covers first {pricingSettings.baseDistanceKm}km)</li>
+          <li>• <strong>Base Price:</strong> Each vehicle&apos;s hourly rate is also its base price for distance bookings (covers first {pricingSettings.baseDistanceKm}km)</li>
           <li>• <strong>Extra KM:</strong> After {pricingSettings.baseDistanceKm}km, ${pricingSettings.extraKmRate.toFixed(2)} is charged per additional KM</li>
           <li>• <strong>Hourly Rate:</strong> Used for hourly bookings (minimum 3 hours)</li>
           <li>• <strong>Active:</strong> Only active vehicles appear in the reservation form</li>
