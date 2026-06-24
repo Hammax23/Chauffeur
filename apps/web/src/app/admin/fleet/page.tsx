@@ -35,6 +35,7 @@ export default function FleetManagementPage() {
   const [saving, setSaving] = useState(false);
   const [seedMessage, setSeedMessage] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [seeding, setSeeding] = useState(false);
 
   // Pricing settings
   const [pricingSettings, setPricingSettings] = useState<PricingSettings>({
@@ -247,6 +248,30 @@ export default function FleetManagementPage() {
     }
   };
 
+  const handleSeed = async () => {
+    if (!confirm("This will import all static fleet data into the database. Existing vehicles will be skipped. Continue?")) return;
+    
+    setSeeding(true);
+    setSeedMessage("");
+    setError("");
+
+    try {
+      const res = await fetch("/api/admin/fleet/seed", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        setSeedMessage(`Seeded ${data.vehiclesCreated} vehicles and ${data.chargesCreated} charges!`);
+        await fetchVehicles();
+        await fetchPricingSettings();
+      } else {
+        setError(data.error || "Failed to seed data");
+      }
+    } catch (err) {
+      setError("Failed to seed data");
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-6">
@@ -267,6 +292,14 @@ export default function FleetManagementPage() {
           <h1 className="text-2xl font-bold text-gray-900">Fleet Pricing</h1>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleSeed}
+            disabled={seeding}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            <Download className="w-4 h-4" />
+            {seeding ? "Importing..." : "Import Static Data"}
+          </button>
           <button
             onClick={handleAddNew}
             className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
