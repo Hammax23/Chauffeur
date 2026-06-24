@@ -3,16 +3,37 @@ import { verifyAdminAuth } from "@/lib/admin-auth";
 import { v2 as cloudinary } from "cloudinary";
 
 // Configure Cloudinary
+const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+const apiKey = process.env.CLOUDINARY_API_KEY;
+const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
+  cloud_name: cloudName,
+  api_key: apiKey,
+  api_secret: apiSecret,
 });
 
+console.log("[Cloudinary Config]", { cloudName, apiKey: apiKey ? "SET" : "MISSING", apiSecret: apiSecret ? "SET" : "MISSING" });
+
 export async function POST(request: NextRequest) {
+  // Log credentials check on each request
+  console.log("[Upload API] Cloudinary check:", { 
+    cloudName: cloudName || "MISSING", 
+    apiKey: apiKey ? `SET (${apiKey.length} chars)` : "MISSING",
+    apiSecret: apiSecret ? "SET" : "MISSING"
+  });
+
   const auth = await verifyAdminAuth(request);
   if (!auth.authenticated) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Check if Cloudinary is configured
+  if (!cloudName || !apiKey || !apiSecret) {
+    return NextResponse.json({ 
+      success: false, 
+      error: "Cloudinary not configured. Check CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET in .env.local" 
+    }, { status: 500 });
   }
 
   try {

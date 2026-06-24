@@ -1,23 +1,55 @@
 "use client";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { ChevronRight, Users, Briefcase } from "lucide-react";
-import { fleetData } from "@/data/fleet";
+
+interface FleetVehicle {
+  id: string;
+  name: string;
+  category: string;
+  imageUrl: string;
+  seating: string;
+  luggage: string;
+}
 
 function parsePassengers(seating: string): number {
-  const match = seating.match(/(\d+)\s+maximum/i);
+  const match = seating.match(/(\d+)/);
   return match ? parseInt(match[1], 10) : 3;
 }
 
 function parseLuggage(luggage: string): number {
-  const large = luggage.match(/(\d+)\s+large/i);
-  if (large) return parseInt(large[1], 10);
-  const pieces = luggage.match(/(\d+)\s+pieces?/i);
-  if (pieces) return parseInt(pieces[1], 10);
-  return 2;
+  const match = luggage.match(/(\d+)/);
+  return match ? parseInt(match[1], 10) : 2;
 }
 
 const DiscoverFleet = () => {
+  const [fleetData, setFleetData] = useState<FleetVehicle[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/fleet")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.vehicles) {
+          setFleetData(data.vehicles);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <section className="py-12 sm:py-16 md:py-20 bg-white">
+        <div className="max-w-[1800px] mx-auto px-4 sm:px-6 md:px-8">
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="py-12 sm:py-16 md:py-20 bg-white">
       <div className="max-w-[1800px] mx-auto px-4 sm:px-6 md:px-8">
@@ -49,7 +81,7 @@ const DiscoverFleet = () => {
               <div className="px-5 pb-4">
                 <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-lg overflow-hidden h-[160px] sm:h-[180px] flex items-center justify-center">
                   <img
-                    src={vehicle.image}
+                    src={vehicle.imageUrl}
                     alt={vehicle.name}
                     className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
                   />
