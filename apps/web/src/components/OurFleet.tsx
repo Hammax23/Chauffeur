@@ -1,11 +1,37 @@
 "use client";
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Users, Briefcase, ArrowUpRight } from 'lucide-react';
+import Link from 'next/link';
+
+interface FleetVehicle {
+  id: string;
+  name: string;
+  description: string;
+  imageUrl: string;
+  seating: string;
+  luggage: string;
+  category: string;
+}
 
 const OurFleet = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
+  const [fleetData, setFleetData] = useState<FleetVehicle[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch fleet data from API
+  useEffect(() => {
+    fetch("/api/fleet")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.vehicles) {
+          setFleetData(data.vehicles);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   const checkScrollButtons = useCallback(() => {
     if (scrollRef.current) {
@@ -35,64 +61,16 @@ const OurFleet = () => {
     return () => window.removeEventListener('resize', checkScrollButtons);
   }, [checkScrollButtons]);
 
-  const fleetData = [
-    {
-      title: "Electric Class",
-      description: "Mercedes-Benz EQS, BMW 7 Series, Audi A8 or similar",
-      image: "https://images.unsplash.com/photo-1617814076367-b759c7d7e738?w=800&auto=format&fit=crop",
-      passengers: 4,
-      luggage: 2
-    },
-    {
-      title: "Luxury Class",
-      description: "Mercedes-Benz E-Class, BMW 5 Series, Cadillac XTS or similar",
-      image: "https://images.unsplash.com/photo-1563720360172-67b8f3dce741?w=800&auto=format&fit=crop",
-      passengers: 4,
-      luggage: 3
-    },
-    {
-      title: "SUV Class",
-      description: "Mercedes-Benz V-Class, Chevrolet Suburban, Cadillac",
-      image: "https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?w=800&auto=format&fit=crop",
-      passengers: 4,
-      luggage: 3
-    },
-    {
-      title: "Business Van/SUV",
-      description: "Mercedes-Benz V-Class, Chevrolet Suburban, Cadillac",
-      image: "https://images.unsplash.com/photo-1664574654529-b60630f33fdb?w=800&auto=format&fit=crop",
-      passengers: 4,
-      luggage: 2
-    },
-    {
-      title: "First Class",
-      description: "Mercedes-Benz S-Class, BMW 7 Series, Audi A8 or similar",
-      image: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&auto=format&fit=crop",
-      passengers: 3,
-      luggage: 2
-    },
-    {
-      title: "Premium SUV",
-      description: "Range Rover, Cadillac Escalade, Lincoln Navigator",
-      image: "https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=800&auto=format&fit=crop",
-      passengers: 6,
-      luggage: 4
-    },
-    {
-      title: "Executive Sedan",
-      description: "Mercedes-Benz S-Class, BMW 7 Series Long",
-      image: "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=800&auto=format&fit=crop",
-      passengers: 3,
-      luggage: 2
-    },
-    {
-      title: "Luxury Van",
-      description: "Mercedes-Benz V-Class, Volkswagen Multivan",
-      image: "https://images.unsplash.com/photo-1559416523-140ddc3d238c?w=800&auto=format&fit=crop",
-      passengers: 7,
-      luggage: 5
-    }
-  ];
+  // Helper to extract number from seating string like "3-4" or "6"
+  const getPassengers = (seating: string) => {
+    const match = seating.match(/\d+/);
+    return match ? parseInt(match[0]) : 4;
+  };
+
+  const getLuggage = (luggage: string) => {
+    const match = luggage.match(/\d+/);
+    return match ? parseInt(match[0]) : 2;
+  };
 
   return (
     <section className="py-20 bg-white">
@@ -107,6 +85,13 @@ const OurFleet = () => {
         </div>
 
         {/* Fleet Cards Container - Connected Design */}
+        {loading ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+          </div>
+        ) : fleetData.length === 0 ? (
+          <div className="text-center py-16 text-gray-500">No fleet vehicles available</div>
+        ) : (
         <div className="relative">
           {/* Left Red Curved Border */}
           <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-red-500 via-red-500 to-red-400 rounded-full z-10"></div>
@@ -122,14 +107,14 @@ const OurFleet = () => {
             <div className="inline-flex border border-gray-300 rounded-lg bg-white">
               {fleetData.map((vehicle, index) => (
                 <div
-                  key={index}
+                  key={vehicle.id || index}
                   className={`flex-shrink-0 w-[420px] bg-white transition-all duration-300 hover:bg-gray-50/80 ${
                     index !== fleetData.length - 1 ? 'border-r border-gray-300' : ''
                   }`}
                 >
                   {/* Card Header */}
                   <div className="p-6 pb-4">
-                    <h3 className="text-lg font-bold text-gray-900 mb-2">{vehicle.title}</h3>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">{vehicle.name}</h3>
                     <p className="text-sm text-gray-500 leading-relaxed min-h-[40px]">
                       {vehicle.description}
                     </p>
@@ -139,8 +124,8 @@ const OurFleet = () => {
                   <div className="px-6 pb-4">
                     <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-md overflow-hidden aspect-[4/3]">
                       <img
-                        src={vehicle.image}
-                        alt={vehicle.title}
+                        src={vehicle.imageUrl}
+                        alt={vehicle.name}
                         className="w-full h-full object-cover mix-blend-multiply"
                       />
                     </div>
@@ -151,24 +136,25 @@ const OurFleet = () => {
                     <div className="flex items-center gap-8">
                       <div className="flex items-center gap-2">
                         <Users className="w-5 h-5 text-gray-800" strokeWidth={2.5} />
-                        <span className="text-sm font-normal text-gray-900">Passengers {vehicle.passengers}</span>
+                        <span className="text-sm font-normal text-gray-900">Passengers {getPassengers(vehicle.seating)}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Briefcase className="w-5 h-5 text-gray-800" strokeWidth={2.5} />
-                        <span className="text-sm font-normal text-gray-900">Luggage {vehicle.luggage}</span>
+                        <span className="text-sm font-normal text-gray-900">Luggage {getLuggage(vehicle.luggage)}</span>
                       </div>
                     </div>
-                    <button className="relative flex items-center gap-2 px-4 py-2 bg-black text-white rounded-full text-sm font-medium hover:bg-gray-800 transition-all group overflow-hidden">
+                    <Link href="/reservation" className="relative flex items-center gap-2 px-4 py-2 bg-black text-white rounded-full text-sm font-medium hover:bg-gray-800 transition-all group overflow-hidden">
                       <span className="absolute inset-0 shimmer-effect"></span>
                       <span className="relative z-10">Book Now</span>
                       <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform relative z-10" strokeWidth={2.5} />
-                    </button>
+                    </Link>
                   </div>
                 </div>
               ))}
             </div>
           </div>
         </div>
+        )}
 
         {/* Navigation Arrows */}
         <div className="flex items-center gap-3 mt-10">
