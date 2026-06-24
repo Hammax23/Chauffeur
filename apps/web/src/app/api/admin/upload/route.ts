@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminAuth } from "@/lib/admin-auth";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
+import { v2 as cloudinary } from "cloudinary";
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export async function POST(request: NextRequest) {
   const auth = await verifyAdminAuth(request);
@@ -29,28 +35,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "File too large. Maximum size is 5MB." }, { status: 400 });
     }
 
-    // Generate unique filename
-    const ext = file.name.split(".").pop()?.toLowerCase() || "png";
-    const timestamp = Date.now();
-    const randomStr = Math.random().toString(36).substring(2, 8);
-    const filename = `vehicle-${timestamp}-${randomStr}.${ext}`;
-
-    // Ensure fleet directory exists
-    const uploadDir = path.join(process.cwd(), "public", "fleet");
-    await mkdir(uploadDir, { recursive: true });
-
-    // Save file
+    // Convert file to base64
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    const filepath = path.join(uploadDir, filename);
-    await writeFile(filepath, buffer);
+    const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
 
-    // Return the URL path
-    const imageUrl = `/fleet/${filename}`;
+    // Upload to Cloudinary
+    const result = await cloudinary.uploader.upload(base64, {
+      folder: "fleet",
+      resource_type: "image",
+      transformation: [
+        { width: 800, height: 600, crop: "limit" },
+        { quality: "auto" },
+        { fetch_format: "auto" },
+      ],
+    });
 
     return NextResponse.json({
       success: true,
-      imageUrl,
+      imageUrl: result.secure_url,
       message: "Image uploaded successfully",
     });
   } catch (error: any) {
