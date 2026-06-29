@@ -16,7 +16,7 @@ const Footer = () => {
       
       <div className="max-w-[1400px] mx-auto px-6 sm:px-8 md:px-12 relative z-10">
         {/* Main Footer Content */}
-        <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr] gap-6 md:gap-8 lg:gap-10 py-6 sm:py-8 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr] gap-5 md:gap-8 lg:gap-10 py-4 sm:py-5 items-start">
           
           {/* Left Section - Brand */}
           <div className="space-y-3">
@@ -47,11 +47,11 @@ const Footer = () => {
               <div className="w-1 h-1 rounded-full bg-[#C9A063]"></div>
               Navigation
             </h3>
-            <ul className="space-y-2">
+            <ul className="grid grid-cols-2 gap-x-6 gap-y-1.5">
               <li>
                 <Link 
                   href="/" 
-                  className="group inline-flex items-center gap-2 text-gray-400 text-[14px] font-light hover:text-[#C9A063] transition-all duration-300"
+                  className="group inline-flex items-center gap-2 text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-all duration-300"
                 >
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   Home
@@ -60,7 +60,7 @@ const Footer = () => {
               <li>
                 <Link 
                   href="/about" 
-                  className="group inline-flex items-center gap-2 text-gray-400 text-[14px] font-light hover:text-[#C9A063] transition-all duration-300"
+                  className="group inline-flex items-center gap-2 text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-all duration-300"
                 >
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   About
@@ -69,7 +69,7 @@ const Footer = () => {
               <li>
                 <Link 
                   href="/fleet" 
-                  className="group inline-flex items-center gap-2 text-gray-400 text-[14px] font-light hover:text-[#C9A063] transition-all duration-300"
+                  className="group inline-flex items-center gap-2 text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-all duration-300"
                 >
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   Fleet
@@ -78,7 +78,7 @@ const Footer = () => {
               <li>
                 <Link 
                   href="/services" 
-                  className="group inline-flex items-center gap-2 text-gray-400 text-[14px] font-light hover:text-[#C9A063] transition-all duration-300"
+                  className="group inline-flex items-center gap-2 text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-all duration-300"
                 >
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   Services
@@ -87,7 +87,7 @@ const Footer = () => {
               <li>
                 <Link 
                   href="/quote" 
-                  className="group inline-flex items-center gap-2 text-gray-400 text-[14px] font-light hover:text-[#C9A063] transition-all duration-300"
+                  className="group inline-flex items-center gap-2 text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-all duration-300"
                 >
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   Online Quote
@@ -96,7 +96,7 @@ const Footer = () => {
               <li>
                 <Link 
                   href="/contact" 
-                  className="group inline-flex items-center gap-2 text-gray-400 text-[14px] font-light hover:text-[#C9A063] transition-all duration-300"
+                  className="group inline-flex items-center gap-2 text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-all duration-300"
                 >
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   Contact
@@ -105,7 +105,7 @@ const Footer = () => {
               <li>
                 <Link 
                   href="/reservation" 
-                  className="group inline-flex items-center gap-2 text-gray-400 text-[14px] font-light hover:text-[#C9A063] transition-all duration-300"
+                  className="group inline-flex items-center gap-2 text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-all duration-300"
                 >
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   Online Reservation
@@ -154,7 +154,7 @@ const Footer = () => {
         </div>
 
         {/* Bottom Bar */}
-        <div className="border-t border-white/10 py-3">
+        <div className="border-t border-white/10 py-2.5">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             {/* Copyright */}
             <p className="text-gray-400 text-[13px] font-light">

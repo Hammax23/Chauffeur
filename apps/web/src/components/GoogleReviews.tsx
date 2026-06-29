@@ -85,10 +85,10 @@ const GoogleReviews = () => {
   if (!data || !data.reviews || data.reviews.length === 0) return null;
 
   return (
-    <section className="pt-8 sm:pt-10 pb-16 sm:pb-20 bg-[#FAFAFA]">
+    <section className="pt-6 sm:pt-8 pb-10 sm:pb-12 bg-[#FAFAFA]">
       <div className="max-w-7xl mx-auto px-6 sm:px-8">
         {/* Header */}
-        <div className="text-center mb-12 sm:mb-16">
+        <div className="text-center mb-7 sm:mb-9">
           <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full border border-gray-200 bg-white mb-6">
             <svg viewBox="0 0 24 24" className="w-5 h-5" xmlns="http://www.w3.org/2000/svg">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
@@ -99,12 +99,12 @@ const GoogleReviews = () => {
             <span className="text-[13px] font-medium text-gray-600 tracking-wide uppercase">Google Reviews</span>
           </div>
 
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-gray-900 mb-4">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold text-gray-900 mb-3">
             What Our Clients Say
           </h2>
 
           {/* Overall Rating */}
-          <div className="flex items-center justify-center gap-3 mt-6">
+          <div className="flex items-center justify-center gap-3 mt-4">
             <div className="flex items-center gap-1.5">
               <span className="text-3xl font-bold text-gray-900">{data.rating?.toFixed(1)}</span>
               <div className="flex flex-col items-start">
@@ -129,7 +129,7 @@ const GoogleReviews = () => {
         </div>
 
         {/* Reviews Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {data.reviews
             .filter((r) => !r.author.toLowerCase().includes("zaid"))
             .sort((a, b) => (a.author.toLowerCase().includes("alexandra") ? -1 : b.author.toLowerCase().includes("alexandra") ? 1 : 0))
@@ -137,11 +137,11 @@ const GoogleReviews = () => {
             .map((review, index) => (
             <div
               key={index}
-              className="bg-white rounded-2xl border border-gray-100 p-6 sm:p-7 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 flex flex-col"
+              className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 flex flex-col"
             >
               {/* Author Row */}
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-11 h-11 rounded-full overflow-hidden flex-shrink-0 bg-gradient-to-br from-[#C9A063]/20 to-[#C9A063]/5 border border-[#C9A063]/10">
+              <div className="flex items-center gap-2.5 mb-3">
+                <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-gradient-to-br from-[#C9A063]/20 to-[#C9A063]/5 border border-[#C9A063]/10">
                   {review.profilePhoto ? (
                     <img
                       src={review.profilePhoto}
@@ -150,24 +150,24 @@ const GoogleReviews = () => {
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-[#C9A063] font-semibold text-lg">
+                    <div className="w-full h-full flex items-center justify-center text-[#C9A063] font-semibold text-base">
                       {review.author.charAt(0)}
                     </div>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-[15px] font-semibold text-gray-900 truncate">{review.author}</h4>
-                  <p className="text-[12px] text-gray-400">{review.relativeTime}</p>
+                  <h4 className="text-[14px] font-semibold text-gray-900 truncate">{review.author}</h4>
+                  <p className="text-[11px] text-gray-400">{review.relativeTime}</p>
                 </div>
               </div>
 
               {/* Stars */}
-              <div className="mb-3">
+              <div className="mb-2">
                 {renderStars(review.rating)}
               </div>
 
               {/* Review Text */}
-              <p className="text-[14px] text-gray-600 leading-relaxed flex-1 line-clamp-4">
+              <p className="text-[13px] text-gray-600 leading-relaxed flex-1 line-clamp-3">
                 {review.text || "Great experience!"}
               </p>
             </div>
@@ -175,7 +175,7 @@ const GoogleReviews = () => {
         </div>
 
         {/* View All on Google */}
-        <div className="text-center mt-10">
+        <div className="text-center mt-7">
           <a
             href="https://www.google.com/maps/place/SARJ+Chauffeur/@43.5075535,-79.6693308,17z/data=!4m8!3m7!1s0xa415b193b964f1a7:0x897cefc473b0f490!8m2!3d43.5075535!4d-79.6693308!9m1!1b1!16s%2Fg%2F11ltb61n1w"
             target="_blank"
