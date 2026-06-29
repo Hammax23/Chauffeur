@@ -47,7 +47,7 @@ const Footer = () => {
               <div className="w-1 h-1 rounded-full bg-[#C9A063]"></div>
               Navigation
             </h3>
-            <ul className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+            <ul className="space-y-1">
               <li>
                 <Link 
                   href="/" 
