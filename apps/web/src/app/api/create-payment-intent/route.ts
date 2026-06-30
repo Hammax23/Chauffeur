@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { sanitizeInput } from "@/lib/sanitize";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
-import { fleetData } from "@/data/fleet";
 import { reservationTotalCents } from "@/lib/reservation-pricing";
+import { getPricingConfig } from "@/lib/get-pricing-config";
+import { getPublicFleet } from "@/lib/get-fleet";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -39,22 +40,30 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const vehicle = fleetData.find((v) => v.id === vehicleId);
+    const [pricingConfig, publicFleet] = await Promise.all([
+      getPricingConfig(),
+      getPublicFleet(),
+    ]);
+    const vehicle = publicFleet.find((v) => v.id === vehicleId);
     if (!vehicle) {
       return NextResponse.json({ error: "Invalid vehicle selection" }, { status: 400 });
     }
 
-    const serverAmountCents = reservationTotalCents({
-      vehicleId,
-      bookingMode,
-      distanceMeters,
-      hourlyDuration,
-      stopCount,
-      childSeatCount,
-      meetGreet,
-      bouquetFlowers,
-      gratuityPercent,
-    });
+    const serverAmountCents = reservationTotalCents(
+      {
+        vehicleId,
+        bookingMode,
+        distanceMeters,
+        hourlyDuration,
+        stopCount,
+        childSeatCount,
+        meetGreet,
+        bouquetFlowers,
+        gratuityPercent,
+      },
+      pricingConfig.fleet,
+      pricingConfig.charges
+    );
 
     if (!serverAmountCents || serverAmountCents < 50) {
       return NextResponse.json(

@@ -9,6 +9,7 @@ import { verifyAdminAuth } from "@/lib/admin-auth";
 import { verifyOperationalManagerAuth } from "@/lib/operational-manager-auth";
 import { buildReservationAdminEmail, buildReservationUserEmail } from "@/lib/email-templates";
 import { calculateReservationPricing } from "@/lib/reservation-pricing";
+import { getPricingConfig } from "@/lib/get-pricing-config";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -141,17 +142,22 @@ export async function POST(request: NextRequest) {
     let resolvedCardType = cardType;
 
     if (!wantsSkipTurnstile) {
-      const serverPricing = calculateReservationPricing({
-        vehicleId,
-        bookingMode,
-        distanceMeters: routeDistanceValue,
-        hourlyDuration,
-        stopCount: activeStops,
-        childSeatCount,
-        meetGreet,
-        bouquetFlowers,
-        gratuityPercent,
-      });
+      const pricingConfig = await getPricingConfig();
+      const serverPricing = calculateReservationPricing(
+        {
+          vehicleId,
+          bookingMode,
+          distanceMeters: routeDistanceValue,
+          hourlyDuration,
+          stopCount: activeStops,
+          childSeatCount,
+          meetGreet,
+          bouquetFlowers,
+          gratuityPercent,
+        },
+        pricingConfig.fleet,
+        pricingConfig.charges
+      );
 
       if (!serverPricing) {
         return NextResponse.json({ error: "Unable to verify booking price." }, { status: 400 });

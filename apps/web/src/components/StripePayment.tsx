@@ -156,7 +156,7 @@ export default function StripePayment({
 
   useEffect(() => {
     if (amountCents <= 0) {
-      setError("Invalid amount. Please complete your booking details.");
+      setError("Invalid amount. Please complete your trip details and wait for the route/price to calculate.");
       setLoading(false);
       return;
     }
@@ -228,9 +228,11 @@ export default function StripePayment({
           <AlertCircle className="w-6 h-6 text-red-500" />
         </div>
         <p className="text-red-600 text-[14px] text-center mb-4">{error}</p>
-        <p className="text-gray-500 text-[13px] text-center">
-          Please check your Stripe API keys in .env.local
-        </p>
+        {error.toLowerCase().includes("stripe") && (
+          <p className="text-gray-500 text-[13px] text-center">
+            Please check your Stripe API keys in .env.local
+          </p>
+        )}
       </div>
     );
   }

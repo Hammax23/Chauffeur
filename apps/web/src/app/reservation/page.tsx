@@ -35,8 +35,6 @@ import { fleetData, RESERVATION_HIDE_HOURLY_RATE_IDS, getFleetForReservation, ty
 import { calculateReservationPricing } from "@/lib/reservation-pricing";
 import { GoogleMapsProvider } from "@/components/GoogleMapsProvider";
 
-const MEET_GREET_CHARGE = 95;
-
 const COUNTRY_CODES = [
   { code: "+1", label: "CA", name: "Canada", flagCode: "ca" },
   { code: "+1", label: "US", name: "United States", flagCode: "us" },
@@ -175,10 +173,16 @@ function ReservationPageContent() {
   const [routeDistanceValue, setRouteDistanceValue] = useState(0);
   const [routeDurationValue, setRouteDurationValue] = useState(0);
 
-  // Dynamic pricing config from database
+  // Dynamic pricing config from database (admin panel). All charges flow from here
+  // so the displayed total and the actually-charged amount always match the server.
   const [pricingConfig, setPricingConfig] = useState({
     baseDistanceKm: 17,
     extraKmRate: 3.2,
+    stop: 20,
+    childSeat: 25,
+    meetGreet: 95,
+    bouquet: 75,
+    hstRate: 0.13,
   });
 
   // Email states
@@ -257,6 +261,11 @@ function ReservationPageContent() {
           setPricingConfig({
             baseDistanceKm: data.charges.baseDistanceKm ?? 17,
             extraKmRate: data.charges.extraKmRate ?? 3.2,
+            stop: data.charges.stop ?? 20,
+            childSeat: data.charges.childSeat ?? 25,
+            meetGreet: data.charges.meetGreet ?? 95,
+            bouquet: data.charges.bouquet ?? 75,
+            hstRate: data.charges.hstRate ?? 0.13,
           });
         }
       })
@@ -292,19 +301,41 @@ function ReservationPageContent() {
 
   const activeStopCount = stops.filter((s) => s.trim() !== "").length;
 
+  const pricingFleetSource = useMemo(
+    () =>
+      reservationFleet.map((vehicle) => ({
+        id: vehicle.id,
+        price: vehicle.price,
+        pricePerKm: vehicle.pricePerKm,
+      })),
+    [reservationFleet]
+  );
+
   const pricingSummary = useMemo(() => {
     if (!selectedVehicle) return null;
-    return calculateReservationPricing({
-      vehicleId: selectedVehicle,
-      bookingMode,
-      distanceMeters: routeDistanceValue,
-      hourlyDuration,
-      stopCount: activeStopCount,
-      childSeatCount,
-      meetGreet,
-      bouquetFlowers,
-      gratuityPercent,
-    });
+    return calculateReservationPricing(
+      {
+        vehicleId: selectedVehicle,
+        bookingMode,
+        distanceMeters: routeDistanceValue,
+        hourlyDuration,
+        stopCount: activeStopCount,
+        childSeatCount,
+        meetGreet,
+        bouquetFlowers,
+        gratuityPercent,
+      },
+      pricingFleetSource,
+      {
+        baseDistanceKm: pricingConfig.baseDistanceKm,
+        extraKmRate: pricingConfig.extraKmRate,
+        stop: pricingConfig.stop,
+        childSeat: pricingConfig.childSeat,
+        meetGreet: pricingConfig.meetGreet,
+        bouquet: pricingConfig.bouquet,
+        hstRate: pricingConfig.hstRate,
+      }
+    );
   }, [
     selectedVehicle,
     bookingMode,
@@ -315,6 +346,8 @@ function ReservationPageContent() {
     meetGreet,
     bouquetFlowers,
     gratuityPercent,
+    pricingFleetSource,
+    pricingConfig,
   ]);
 
   const paymentAmountCents = pricingSummary ? Math.round(pricingSummary.total * 100) : 0;
@@ -824,7 +857,7 @@ function ReservationPageContent() {
                               <div className="flex items-center justify-between">
                                 <div>
                                   <span className="block text-[14px] font-medium text-gray-900">Child Seat</span>
-                                  <span className="block text-[12px] text-gray-500">$25 per seat</span>
+                                  <span className="block text-[12px] text-gray-500">${pricingConfig.childSeat.toFixed(0)} per seat</span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <button
@@ -861,7 +894,7 @@ function ReservationPageContent() {
                             <div className="px-4 py-3 flex items-center justify-between">
                               <div>
                                 <span className="block text-[14px] font-medium text-gray-900">Meet & Greet</span>
-                                <span className="block text-[12px] text-gray-500">Personal airport assistance <span className="text-[#C9A063] font-semibold">+$95</span></span>
+                                <span className="block text-[12px] text-gray-500">Personal airport assistance <span className="text-[#C9A063] font-semibold">+${pricingConfig.meetGreet.toFixed(0)}</span></span>
                               </div>
                               <button
                                 type="button"
@@ -876,7 +909,7 @@ function ReservationPageContent() {
                             <div className="px-4 py-3 flex items-center justify-between">
                               <div>
                                 <span className="block text-[14px] font-medium text-gray-900">Bouquet of Flowers</span>
-                                <span className="block text-[12px] text-gray-500">Fresh flowers for your ride <span className="text-[#C9A063] font-semibold">+$50</span></span>
+                                <span className="block text-[12px] text-gray-500">Fresh flowers for your ride <span className="text-[#C9A063] font-semibold">+${pricingConfig.bouquet.toFixed(0)}</span></span>
                               </div>
                               <button
                                 type="button"
@@ -1125,45 +1158,40 @@ function ReservationPageContent() {
                           {meetGreet && (
                             <div className="flex items-center justify-between p-4">
                               <span className="text-[13px] font-medium text-gray-600">Meet & Greet</span>
-                              <span className="text-[13px] font-semibold text-gray-900">${MEET_GREET_CHARGE.toFixed(2)}</span>
+                              <span className="text-[13px] font-semibold text-gray-900">${pricingConfig.meetGreet.toFixed(2)}</span>
                             </div>
                           )}
-                          {stops.filter((s) => s.trim() !== "").length > 0 && (
+                          {activeStopCount > 0 && (
                             <div className="flex items-center justify-between p-4">
                               <span className="text-[13px] font-medium text-gray-600">
-                                Stops ({stops.filter((s) => s.trim() !== "").length} × $20)
+                                Stops ({activeStopCount} × ${pricingConfig.stop.toFixed(2)})
                               </span>
                               <span className="text-[13px] font-semibold text-gray-900">
-                                ${(stops.filter((s) => s.trim() !== "").length * 20).toFixed(2)}
+                                ${(activeStopCount * pricingConfig.stop).toFixed(2)}
                               </span>
                             </div>
                           )}
                           {childSeatCount > 0 && (
                             <div className="flex items-center justify-between p-4">
                               <span className="text-[13px] font-medium text-gray-600">
-                                Child Seat ({childSeatCount} × $25)
+                                Child Seat ({childSeatCount} × ${pricingConfig.childSeat.toFixed(2)})
                               </span>
                               <span className="text-[13px] font-semibold text-gray-900">
-                                ${(childSeatCount * 25).toFixed(2)}
+                                ${(childSeatCount * pricingConfig.childSeat).toFixed(2)}
                               </span>
                             </div>
                           )}
                           {bouquetFlowers && (
                             <div className="flex items-center justify-between p-4">
                               <span className="text-[13px] font-medium text-gray-600">Bouquet of Flowers</span>
-                              <span className="text-[13px] font-semibold text-gray-900">$75.00</span>
+                              <span className="text-[13px] font-semibold text-gray-900">${pricingConfig.bouquet.toFixed(2)}</span>
                             </div>
                           )}
                           {(() => {
-                            const activeStops = stops.filter((s) => s.trim() !== "").length;
-                            const stopCharge = activeStops * 20;
-                            const childSeatCharge = childSeatCount * 25;
-                            const meetGreetCharge = meetGreet ? MEET_GREET_CHARGE : 0;
-                            const bouquetCharge = bouquetFlowers ? 75 : 0;
-                            const subtotal = routePrice + stopCharge + childSeatCharge + meetGreetCharge + bouquetCharge;
-                            const hst = subtotal * 0.13;
-                            const gratuity = subtotal * gratuityPercent / 100;
-                            const total = subtotal + hst + gratuity;
+                            const subtotal = pricingSummary?.subtotal ?? 0;
+                            const hst = pricingSummary?.hst ?? 0;
+                            const gratuity = pricingSummary?.gratuity ?? 0;
+                            const total = pricingSummary?.total ?? 0;
                             return (
                               <>
                                 <div className="flex items-center justify-between p-4">
@@ -1173,7 +1201,7 @@ function ReservationPageContent() {
                                   </span>
                                 </div>
                                 <div className="flex items-center justify-between p-4">
-                                  <span className="text-[13px] font-medium text-gray-600">HST (13%)</span>
+                                  <span className="text-[13px] font-medium text-gray-600">HST ({(pricingConfig.hstRate * 100).toFixed(0)}%)</span>
                                   <span className="text-[13px] font-semibold text-gray-900">
                                     ${subtotal > 0 ? hst.toFixed(2) : "0.00"}
                                   </span>

@@ -44,7 +44,7 @@ const features = [
   },
   {
     icon: Car,
-    text: "Each vehicle in our late-model, luxury fleet is meticulously maintained and pulled from service after 24 months",
+    text: "Each vehicle in our late-model, luxury fleet is meticulously maintained",
   },
   {
     icon: Handshake,
