@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fleetData, type FleetVehicle } from "@/data/fleet";
-import prisma from "@/lib/prisma";
+import { type FleetVehicle } from "@/data/fleet";
+import { getPublicFleet } from "@/lib/get-fleet";
 
 function siteOrigin(request: NextRequest): string {
   const fromEnv = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/+$/, "");
@@ -15,36 +15,16 @@ function siteOrigin(request: NextRequest): string {
 export async function GET(request: NextRequest) {
   try {
     const base = siteOrigin(request);
+    const fleet = await getPublicFleet();
 
-    // Try to fetch from database first
-    let dbVehicles: any[] = [];
-    try {
-      dbVehicles = await prisma.fleetVehicle.findMany({
-        where: { isActive: true },
-        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      });
-    } catch {
-      // Database not available or table doesn't exist yet - use static data
-    }
-
-    // If database has vehicles, use them; otherwise fallback to static
-    const sourceVehicles = dbVehicles.length > 0 ? dbVehicles : fleetData;
-
-    const vehicles: (FleetVehicle & { imageUrl: string })[] = sourceVehicles.map((v: any) => ({
-      id: v.vehicleId || v.id,
-      name: v.name,
-      dropdownName: v.dropdownName,
-      description: v.description,
-      image: v.image,
-      category: v.category,
-      seating: v.seating,
-      luggage: v.luggage,
-      price: v.hourlyRate ?? v.price,
-      pricePerKm: v.pricePerKm,
-      imageUrl: v.image.startsWith("http") ? v.image : `${base}${v.image.startsWith("/") ? "" : "/"}${v.image}`,
+    const vehicles: (FleetVehicle & { imageUrl: string })[] = fleet.map((v) => ({
+      ...v,
+      imageUrl: v.image.startsWith("http")
+        ? v.image
+        : `${base}${v.image.startsWith("/") ? "" : "/"}${v.image}`,
     }));
 
-    return NextResponse.json({ success: true, vehicles, source: dbVehicles.length > 0 ? "database" : "static" });
+    return NextResponse.json({ success: true, vehicles });
   } catch (e) {
     console.error("Fleet GET:", e);
     return NextResponse.json({ success: false, error: "Failed to load fleet" }, { status: 500 });

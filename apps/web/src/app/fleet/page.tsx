@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { fleetData } from "@/data/fleet";
+import { getPublicFleet } from "@/lib/get-fleet";
 import { Users, Briefcase, ArrowRight } from "lucide-react";
 import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
@@ -25,7 +25,10 @@ export const metadata: Metadata = {
   alternates: { canonical: `${BASE_URL}/fleet` },
 };
 
-export default function FleetPage() {
+export const dynamic = "force-dynamic";
+
+export default async function FleetPage() {
+  const fleetData = await getPublicFleet();
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
       <TopNav />
