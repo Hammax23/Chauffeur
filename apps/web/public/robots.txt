@@ -1,13 +1,13 @@
 # Robots.txt - SARJ Worldwide Chauffeur Services
-# https://luxride-chauffeur.vercel.app
+# Note: Dynamic robots.ts in Next.js takes precedence when deployed
 
 User-agent: *
 Allow: /
 
-# Sitemap
-Sitemap: https://luxride-chauffeur.vercel.app/sitemap.xml
+Sitemap: https://sarjworldwide.ca/sitemap.xml
 
-# Block internal/private paths
 Disallow: /api/
 Disallow: /_next/
 Disallow: /admin/
+Disallow: /seopanel/
+Disallow: /operational-manager/

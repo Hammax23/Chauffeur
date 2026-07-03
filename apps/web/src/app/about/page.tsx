@@ -8,24 +8,15 @@ import LuxuryLifestyle from "@/components/LuxuryLifestyle";
 import AboutCtaVideo from "@/components/AboutCtaVideo";
 import Footer from "@/components/Footer";
 import type { Metadata } from "next";
+import { buildPageMetadata } from "@/lib/seo-metadata";
 
-const BASE_URL = "https://luxride-chauffeur.vercel.app";
-
-export const metadata: Metadata = {
-  title: "About Us",
-  description:
-    "SARJ Worldwide—premium chauffeur services. Our story, mission, and commitment to elegance, reliability, and world-class chauffeur service.",
-  keywords: ["about SARJ Worldwide", "SARJ Worldwide chauffeur", "chauffeur company", "luxury chauffeur services", "professional chauffeurs"],
-  openGraph: {
+export async function generateMetadata(): Promise<Metadata> {
+  return buildPageMetadata("/about", {
     title: "About Us | SARJ Worldwide Chauffeur Services",
-    description: "Our story, mission, and commitment to world-class chauffeur services.",
-    url: `${BASE_URL}/about`,
-    siteName: "SARJ Worldwide Chauffeur Services",
-    type: "website",
-  },
-  twitter: { card: "summary_large_image", title: "About Us | SARJ Worldwide Chauffeur Services", description: "Our story, mission & world-class chauffeur service." },
-  alternates: { canonical: `${BASE_URL}/about` },
-};
+    description: "SARJ Worldwide—premium chauffeur services. Our story, mission, and commitment to elegance, reliability, and world-class chauffeur service.",
+    keywords: ["about SARJ Worldwide", "SARJ Worldwide chauffeur", "chauffeur company", "luxury chauffeur services", "professional chauffeurs"],
+  });
+}
 
 const stats = [
   { value: "12+", label: "Years of excellence", icon: Trophy },

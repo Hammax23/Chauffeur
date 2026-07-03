@@ -622,10 +622,18 @@ export function buildDriverRejectionEmailHtml(p: { applicantName: string; reason
 // ─── Admin OTP ───────────────────────────────────────────────────────────
 
 export function buildAdminOtpEmail(otp: string, expiryMinutes: number): string {
+  return buildPanelOtpEmail(otp, expiryMinutes, "Admin");
+}
+
+export function buildSeoPanelOtpEmail(otp: string, expiryMinutes: number): string {
+  return buildPanelOtpEmail(otp, expiryMinutes, "SEO Panel");
+}
+
+function buildPanelOtpEmail(otp: string, expiryMinutes: number, panelLabel: string): string {
   return emailDocument(
-    emailHeader({ eyebrow: "Security", title: "Admin verification", subtitle: "One-time login code", tone: "security", badge: "Secure" }) +
+    emailHeader({ eyebrow: "Security", title: `${panelLabel} verification`, subtitle: "One-time login code", tone: "security", badge: "Secure" }) +
       emailBody(
-        emailParagraph("A login attempt was made to the SARJ admin panel. Enter this code to complete sign-in:") +
+        emailParagraph(`A login attempt was made to the SARJ ${panelLabel.toLowerCase()}. Enter this code to complete sign-in:`) +
           emailOtpBox(otp, expiryMinutes) +
           emailCallout("If you did not request this code, ignore this email and secure your account.", "warning")
       ) +

@@ -25,6 +25,7 @@ import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import type { Metadata } from "next";
+import { buildPageMetadata } from "@/lib/seo-metadata";
 
 const iconMap: Record<ServiceIconKey, React.ElementType> = {
   PlaneTakeoff,
@@ -46,27 +47,15 @@ export async function generateStaticParams() {
   return getAllServiceSlugs().map((slug) => ({ slug }));
 }
 
-const BASE_URL = "https://luxride-chauffeur.vercel.app";
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const service = getServiceBySlug(slug);
   if (!service) return { title: "Service Not Found" };
-  const url = `${BASE_URL}/services/${slug}`;
-  return {
-    title: service.title,
+  return buildPageMetadata(`/services/${slug}`, {
+    title: `${service.title} | SARJ Worldwide Chauffeur Services`,
     description: service.shortDesc,
     keywords: [service.title, "SARJ Worldwide chauffeur", "chauffeur service", "premium chauffeur"],
-    openGraph: {
-      title: `${service.title} | SARJ Worldwide Chauffeur Services`,
-      description: service.shortDesc,
-      url,
-      siteName: "SARJ Worldwide Chauffeur Services",
-      type: "website",
-    },
-    twitter: { card: "summary_large_image", title: `${service.title} | SARJ Worldwide Chauffeur Services` },
-    alternates: { canonical: url },
-  };
+  });
 }
 
 export default async function ServicePage({ params }: Props) {
@@ -75,14 +64,15 @@ export default async function ServicePage({ params }: Props) {
   if (!service) notFound();
 
   const Icon = iconMap[service.icon];
-  const serviceUrl = `${BASE_URL}/services/${slug}`;
+  const baseUrl = "https://sarjworldwide.ca";
+  const serviceUrl = `${baseUrl}/services/${slug}`;
 
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     "itemListElement": [
-      { "@type": "ListItem", "position": 1, "name": "Home", "item": BASE_URL },
-      { "@type": "ListItem", "position": 2, "name": "Services", "item": `${BASE_URL}/services` },
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": baseUrl },
+      { "@type": "ListItem", "position": 2, "name": "Services", "item": `${baseUrl}/services` },
       { "@type": "ListItem", "position": 3, "name": service.title, "item": serviceUrl },
     ],
   };

@@ -39,9 +39,9 @@ Chauffeur/
 # 1. Install all dependencies (from root)
 npm install
 
-# 2. Setup environment files
-cp apps/web/.env.local.example apps/web/.env.local
-cp apps/mobile/.env.example apps/mobile/.env
+# 2. Environment: only two files in apps/web — `.env` and `.env.local`
+#    - `.env` — core defaults / production template (DATABASE_URL, JWT, admin)
+#    - `.env.local` — local secrets (Maps, Stripe, SMTP, Cloudinary, etc.) — not committed
 ```
 
 ### Development
@@ -87,10 +87,10 @@ git pull
 cd apps/web
 npm install
 npx prisma generate
-# DATABASE_URL must point to Postgres ON THE VPS (see .env.production.example)
+# DATABASE_URL must point to Postgres ON THE VPS (edit apps/web/.env on server)
 npx prisma db push   # first deploy only, if schema not applied yet
 
-cp .env.production.example .env   # then edit .env with real DATABASE_URL, JWT_SECRET, etc.
+# On VPS: put all production values in apps/web/.env (merge from your local .env.local)
 npm run build
 
 cd /var/www/sarjworldwide
@@ -107,7 +107,7 @@ pm2 logs sarj-worldwide --lines 50   # if dashboard shows errors / high ↺ rest
 2. **Postgres not running or wrong host** — local `localhost:5433` does not exist on VPS unless you installed PostgreSQL there and imported data.
 3. **Empty database** — connection works but no rows yet (stats show 0, not an error). Error banner = API crash, not empty data.
 
-Use `apps/web/.env.production.example` as the checklist of required variables.
+On the VPS, set all variables in `apps/web/.env` (use your local `.env.local` values for Stripe, SMTP, Maps, etc.).
 
 ## Mobile Deployment
 

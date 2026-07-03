@@ -19,6 +19,7 @@ import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import type { Metadata } from "next";
+import { buildPageMetadata } from "@/lib/seo-metadata";
 
 const iconMap: Record<ServiceIconKey, React.ElementType> = {
   PlaneTakeoff,
@@ -34,26 +35,16 @@ const iconMap: Record<ServiceIconKey, React.ElementType> = {
   PhoneCall,
 };
 
-const BASE_URL = "https://luxride-chauffeur.vercel.app";
-
 const HIDDEN_SERVICE_SLUGS = ["point-to-point-transfers", "vip-transport", "luxury-fleet", "premium-services"];
 const visibleServices = services.filter((s) => !HIDDEN_SERVICE_SLUGS.includes(s.slug));
 
-export const metadata: Metadata = {
-  title: "Our Services",
-  description:
-    "SARJ Worldwide chauffeur services: airport transfers, corporate travel, weddings, city tours, VIP transport & more. Premium vehicles, professional chauffeurs.",
-  keywords: ["SARJ Worldwide chauffeur services", "chauffeur services", "airport transfer chauffeur", "corporate chauffeur", "wedding chauffeur", "VIP chauffeur transport"],
-  openGraph: {
+export async function generateMetadata(): Promise<Metadata> {
+  return buildPageMetadata("/services", {
     title: "Our Services | SARJ Worldwide Chauffeur Services",
-    description: "Chauffeur services: airport transfers, corporate travel, weddings, city tours, VIP transport. Premium vehicles, professional chauffeurs.",
-    url: `${BASE_URL}/services`,
-    siteName: "SARJ Worldwide Chauffeur Services",
-    type: "website",
-  },
-  twitter: { card: "summary_large_image", title: "Our Services | SARJ Worldwide Chauffeur Services" },
-  alternates: { canonical: `${BASE_URL}/services` },
-};
+    description: "SARJ Worldwide chauffeur services: airport transfers, corporate travel, weddings, city tours, VIP transport & more. Premium vehicles, professional chauffeurs.",
+    keywords: ["SARJ Worldwide chauffeur services", "chauffeur services", "airport transfer chauffeur", "corporate chauffeur", "wedding chauffeur", "VIP chauffeur transport"],
+  });
+}
 
 export default function ServicesIndexPage() {
   return (

@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 import jwt from "jsonwebtoken";
-import { buildAdminOtpEmail } from "@/lib/email-templates";
+import { buildAdminOtpEmail, buildSeoPanelOtpEmail } from "@/lib/email-templates";
 
 // OTP settings
 const OTP_LENGTH = 6;
@@ -93,10 +93,14 @@ export function generateSessionId(): string {
 }
 
 /**
- * Send OTP email to admin
+ * Send OTP email to admin (ADMIN_EMAIL). Used for admin and SEO panel login.
  */
-export async function sendOTPEmail(otp: string): Promise<{ success: boolean; error?: string }> {
+export async function sendOTPEmail(
+  otp: string,
+  options?: { panel?: "admin" | "seo" }
+): Promise<{ success: boolean; error?: string }> {
   const adminEmail = process.env.ADMIN_EMAIL;
+  const panel = options?.panel ?? "admin";
 
   if (!adminEmail) {
     console.error("Admin email not configured");
@@ -131,8 +135,14 @@ export async function sendOTPEmail(otp: string): Promise<{ success: boolean; err
     await transporter.sendMail({
       from: `"SARJ Worldwide Security" <${smtpUser}>`,
       to: adminEmail,
-      subject: "Admin login verification — SARJ Worldwide",
-      html: buildAdminOtpEmail(otp, OTP_EXPIRY_MINUTES),
+      subject:
+        panel === "seo"
+          ? "SEO Panel login verification — SARJ Worldwide"
+          : "Admin login verification — SARJ Worldwide",
+      html:
+        panel === "seo"
+          ? buildSeoPanelOtpEmail(otp, OTP_EXPIRY_MINUTES)
+          : buildAdminOtpEmail(otp, OTP_EXPIRY_MINUTES),
     });
 
     return { success: true };

@@ -311,3 +311,94 @@ model ReservationCharges {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
+
+/// Global SEO settings (single row, id = "global")
+model SeoSettings {
+  id                    String   @id @default("global")
+  siteUrl               String   @default("https://sarjworldwide.ca")
+  siteName              String   @default("SARJ Worldwide Chauffeur Services")
+  titleTemplate         String   @default("%s | SARJ Worldwide Chauffeur")
+  defaultTitle          String   @default("SARJ Worldwide Chauffeur Services | Premium Luxury Transportation")
+  defaultDescription    String   @default("SARJ Worldwide chauffeur services. Airport transfers, corporate travel, weddings, VIP transport & city tours.")
+  defaultKeywords       String?
+  defaultOgImage        String?
+  twitterHandle         String?
+  twitterCardType       String   @default("summary_large_image")
+  googleVerification    String?
+  bingVerification      String?
+  yandexVerification    String?
+  pinterestVerification String?
+  facebookAppId         String?
+  ga4Id                 String?
+  gtmId                 String?
+  facebookPixelId       String?
+  organizationName      String?
+  organizationLogo      String?
+  organizationPhone     String?
+  organizationEmail     String?
+  organizationAddress   String?
+  organizationCity      String?
+  organizationRegion    String?
+  organizationPostal    String?
+  organizationCountry   String   @default("CA")
+  localBusinessSchema   Json?
+  websiteSchema         Json?
+  robotsExtraRules      String?
+  sitemapEnabled        Boolean  @default(true)
+  defaultChangeFreq     String   @default("weekly")
+  defaultPriority       Float    @default(0.8)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+/// Per-page SEO overrides
+model SeoPage {
+  id                  String    @id @default(cuid())
+  path                String    @unique
+  pageType            String    @default("static")
+  pageLabel           String?
+  title               String?
+  metaDescription     String?
+  keywords            String?
+  canonicalUrl        String?
+  ogTitle             String?
+  ogDescription       String?
+  ogImage             String?
+  twitterTitle        String?
+  twitterDescription  String?
+  twitterImage        String?
+  h1                  String?
+  focusKeyword        String?
+  robotsIndex         Boolean   @default(true)
+  robotsFollow        Boolean   @default(true)
+  noarchive           Boolean   @default(false)
+  nosnippet           Boolean   @default(false)
+  includeInSitemap    Boolean   @default(true)
+  sitemapPriority     Float?
+  sitemapChangeFreq   String?
+  schemaJson          Json?
+  breadcrumbLabel     String?
+  headerScripts       String?
+  bodyScripts         String?
+  internalNotes       String?
+  lastAuditedAt       DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([pageType])
+  @@index([includeInSitemap])
+}
+
+/// URL redirects managed by SEO team
+model SeoRedirect {
+  id              String   @id @default(cuid())
+  sourcePath      String   @unique
+  destinationPath String
+  redirectType    Int      @default(301)
+  isActive        Boolean  @default(true)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isActive])
+}
