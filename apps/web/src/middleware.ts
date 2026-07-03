@@ -7,7 +7,9 @@ export async function middleware(request: NextRequest) {
 
   // Skip API routes and SEO panel to avoid redirect loops
   if (pathname.startsWith("/api/") || pathname.startsWith("/seopanel")) {
-    return NextResponse.next();
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("x-pathname", pathname);
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   try {
@@ -33,7 +35,9 @@ export async function middleware(request: NextRequest) {
     // Continue without redirect if lookup fails
   }
 
-  return NextResponse.next();
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", pathname);
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {

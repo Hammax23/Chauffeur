@@ -75,6 +75,10 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ success: true, settings });
   } catch (error) {
     console.error("[SEO Settings]", error);
-    return NextResponse.json({ success: false, error: "Failed to save settings" }, { status: 500 });
+    const msg = error instanceof Error ? error.message : "";
+    const hint = msg.includes("does not exist") || msg.includes("SeoSettings")
+      ? "Run npx prisma db push in apps/web to create SEO tables."
+      : "Failed to save settings";
+    return NextResponse.json({ success: false, error: hint }, { status: 500 });
   }
 }

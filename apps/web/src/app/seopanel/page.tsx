@@ -42,8 +42,11 @@ export default function SeoDashboard() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (autoSync = false) => {
     try {
+      if (autoSync) {
+        await fetch("/api/seopanel/pages", { method: "POST", credentials: "include" });
+      }
       const res = await fetch("/api/seopanel/dashboard", { credentials: "include" });
       const data = await res.json();
       if (data.success) {
@@ -55,12 +58,12 @@ export default function SeoDashboard() {
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { fetchData(true); }, [fetchData]);
 
   const handleSync = async () => {
     setSyncing(true);
     await fetch("/api/seopanel/pages", { method: "POST", credentials: "include" });
-    await fetchData();
+    await fetchData(false);
     setSyncing(false);
   };
 

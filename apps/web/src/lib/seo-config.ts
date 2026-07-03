@@ -94,22 +94,27 @@ export async function syncSeoPages(): Promise<{ created: number; total: number }
   const discovered = discoverSitePages();
   let created = 0;
 
-  for (const page of discovered) {
-    const existing = await prisma.seoPage.findUnique({ where: { path: page.path } });
-    if (!existing) {
-      await prisma.seoPage.create({
-        data: {
-          path: page.path,
-          pageType: page.pageType,
-          pageLabel: page.pageLabel,
-          title: page.defaultTitle ?? null,
-          metaDescription: page.defaultDescription ?? null,
-          includeInSitemap: page.pageType !== "utility",
-          robotsIndex: page.pageType !== "utility",
-        },
-      });
-      created++;
+  try {
+    for (const page of discovered) {
+      const existing = await prisma.seoPage.findUnique({ where: { path: page.path } });
+      if (!existing) {
+        await prisma.seoPage.create({
+          data: {
+            path: page.path,
+            pageType: page.pageType,
+            pageLabel: page.pageLabel,
+            title: page.defaultTitle ?? null,
+            metaDescription: page.defaultDescription ?? null,
+            includeInSitemap: page.pageType !== "utility",
+            robotsIndex: page.pageType !== "utility",
+          },
+        });
+        created++;
+      }
     }
+  } catch (error) {
+    console.error("[syncSeoPages]", error);
+    throw new Error("SEO database tables missing. Run: npx prisma db push");
   }
 
   return { created, total: discovered.length };

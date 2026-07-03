@@ -2,22 +2,15 @@ import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import type { Metadata } from "next";
+import { buildPageMetadata } from "@/lib/seo-metadata";
 
-const BASE_URL = "https://luxride-chauffeur.vercel.app";
-
-export const metadata: Metadata = {
-  title: "Privacy Policy & Cancellation Policy",
-  description:
-    "Privacy Policy and Cancellation Policy for SARJ Worldwide Chauffeur Services. Learn how we collect, use, and protect your personal information.",
-  openGraph: {
+export async function generateMetadata(): Promise<Metadata> {
+  return buildPageMetadata("/privacy-policy", {
     title: "Privacy Policy & Cancellation Policy | SARJ Worldwide Chauffeur Services",
-    description: "How SARJ Worldwide collects, uses, and protects your personal information.",
-    url: `${BASE_URL}/privacy-policy`,
-    siteName: "SARJ Worldwide Chauffeur Services",
-    type: "website",
-  },
-  alternates: { canonical: `${BASE_URL}/privacy-policy` },
-};
+    description:
+      "Privacy Policy and Cancellation Policy for SARJ Worldwide Chauffeur Services. Learn how we collect, use, and protect your personal information.",
+  });
+}
 
 export default function PrivacyPolicyPage() {
   return (

@@ -2,22 +2,15 @@ import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import type { Metadata } from "next";
+import { buildPageMetadata } from "@/lib/seo-metadata";
 
-const BASE_URL = "https://luxride-chauffeur.vercel.app";
-
-export const metadata: Metadata = {
-  title: "Terms of Service",
-  description:
-    "Terms of Service for SARJ Worldwide Chauffeur Services. Read our terms and conditions for using our premium chauffeur and transportation services.",
-  openGraph: {
+export async function generateMetadata(): Promise<Metadata> {
+  return buildPageMetadata("/terms-of-service", {
     title: "Terms of Service | SARJ Worldwide Chauffeur Services",
-    description: "Terms and conditions for SARJ Worldwide Chauffeur Services.",
-    url: `${BASE_URL}/terms-of-service`,
-    siteName: "SARJ Worldwide Chauffeur Services",
-    type: "website",
-  },
-  alternates: { canonical: `${BASE_URL}/terms-of-service` },
-};
+    description:
+      "Terms of Service for SARJ Worldwide Chauffeur Services. Read our terms and conditions for using our premium chauffeur and transportation services.",
+  });
+}
 
 export default function TermsOfServicePage() {
   return (

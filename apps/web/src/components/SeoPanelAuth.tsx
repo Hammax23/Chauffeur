@@ -134,13 +134,12 @@ export default function SeoPanelAuth({ children }: { children: React.ReactNode }
           <div className="flex justify-center mb-6">
             <Image src="/logo1.png" alt="SARJ Worldwide" width={160} height={54} className="h-auto w-[140px]" />
           </div>
-          <p className="text-center text-xs font-bold uppercase tracking-widest text-emerald-600 mb-2">SEO Command Center</p>
-          <h1 className="text-xl font-bold text-center text-gray-900 mb-1">Enterprise SEO Panel</h1>
-          <p className="text-sm text-center text-gray-500 mb-8">
-            {authStep === "password"
-              ? "Use the same admin email & password as the admin panel"
-              : "Enter the verification code sent to your admin email"}
-          </p>
+          <p className="text-center text-xs font-bold uppercase tracking-widest text-emerald-600 mb-8">SEO Command Center</p>
+          {authStep === "otp" && (
+            <p className="text-sm text-center text-gray-500 mb-8 -mt-4">
+              Enter the verification code sent to your admin email
+            </p>
+          )}
 
           {authStep === "password" ? (
             <form onSubmit={handlePasswordSubmit} className="space-y-4">
@@ -167,7 +166,7 @@ export default function SeoPanelAuth({ children }: { children: React.ReactNode }
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setError(""); }}
                     className="w-full pl-11 pr-12 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
-                    placeholder="Admin password"
+                    placeholder="SEO panel password"
                     required
                   />
                   <button

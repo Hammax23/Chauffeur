@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  authenticateAdmin,
   checkRateLimit,
   recordFailedAttempt,
   getClientIP,
 } from "@/lib/admin-auth";
 import { generateOTP, createOTPSession, sendOTPEmail } from "@/lib/admin-otp";
-import { getSeoPanelAllowedEmail } from "@/lib/seo-auth";
+import { getSeoPanelAllowedEmail, authenticateSeoPanelPassword } from "@/lib/seo-auth";
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,7 +42,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const authResult = await authenticateAdmin(password);
+    const authResult = await authenticateSeoPanelPassword(password);
     if (!authResult.success) {
       recordFailedAttempt(`seo-login:${ip}`);
       return NextResponse.json(

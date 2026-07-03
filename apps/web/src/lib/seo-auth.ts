@@ -47,6 +47,20 @@ export function getSeoPanelAllowedEmail(): string {
   return (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
 }
 
+/** SEO panel has its own password (SEO_PANEL_PASSWORD), separate from admin. */
+export async function authenticateSeoPanelPassword(
+  password: string
+): Promise<{ success: boolean; error?: string }> {
+  const seoPassword = process.env.SEO_PANEL_PASSWORD?.trim();
+  if (!seoPassword) {
+    return { success: false, error: "SEO panel password is not configured on the server." };
+  }
+  if (password !== seoPassword) {
+    return { success: false, error: "Invalid credentials" };
+  }
+  return { success: true };
+}
+
 export async function getSeoPanelTokenFromCookies(): Promise<string | null> {
   const cookieStore = await cookies();
   return cookieStore.get(SEO_PANEL_COOKIE_NAME)?.value ?? null;

@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, ...result });
   } catch (error) {
     console.error("[SEO Pages Sync]", error);
-    return NextResponse.json({ success: false, error: "Sync failed" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Sync failed";
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

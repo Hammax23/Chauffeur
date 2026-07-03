@@ -5,6 +5,8 @@ import "./globals.css";
 import FloatingContact from "@/components/FloatingContact";
 import SeoSchemaScripts from "@/components/SeoSchemaScripts";
 import SeoTrackingScripts from "@/components/SeoTrackingScripts";
+import SeoPageHeadExtras from "@/components/SeoPageHeadExtras";
+import SeoPageBodyExtras from "@/components/SeoPageBodyExtras";
 import { buildGlobalMetadata } from "@/lib/seo-metadata";
 
 const inter = Inter({
@@ -39,12 +41,14 @@ export default function RootLayout({
         <link rel="preload" href="/cover.mp4" as="video" type="video/mp4" />
         <meta name="theme-color" content="#C9A063" />
         <SeoSchemaScripts />
+        <SeoPageHeadExtras />
         <SeoTrackingScripts />
       </head>
       <body
         className={`${inter.variable} font-sans antialiased`}
         suppressHydrationWarning
       >
+        <SeoPageBodyExtras />
         {children}
         <FloatingContact />
       </body>

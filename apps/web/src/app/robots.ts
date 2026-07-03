@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { getSitemapEntries, getSeoSettings } from "@/lib/seo-config";
+import { getSeoSettings } from "@/lib/seo-config";
 
 export default async function robots(): Promise<MetadataRoute.Robots> {
   const settings = await getSeoSettings();
