@@ -53,7 +53,7 @@ const Footer = () => {  return (
           <div>
             <h3 className="text-white text-[12px] font-semibold mb-3 tracking-widest uppercase flex items-center gap-2">
               <div className="w-1 h-1 rounded-full bg-[#C9A063]"></div>
-              Navigation
+              Quick Links
             </h3>
             <ul className="space-y-1">
               <li>

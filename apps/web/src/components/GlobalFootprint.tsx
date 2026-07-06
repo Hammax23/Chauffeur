@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { MapPin } from "lucide-react";
 import { SERVICE_CITIES, type ServiceCity } from "@/data/service-cities";
 
@@ -486,48 +485,6 @@ const GlobalFootprint = () => {
                 </div>
               );
             })()}
-          </div>
-        </div>
-
-        {/* Places We Go Frequently Section */}
-        <div className="relative py-8 sm:py-10">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-            {[
-              { from: "Toronto", to: "Ottawa", distance: "448.9 km", time: "4h 30m", image: "https://images.unsplash.com/photo-1503614472-8c93d56e92ce?w=800&q=80" },
-              { from: "Toronto", to: "Montreal", distance: "541.3 km", time: "5h 30m", image: "https://images.unsplash.com/photo-1519178614-68673b201f36?w=800&q=80" },
-              { from: "Toronto", to: "Quebec City", distance: "802.3 km", time: "7h 55m", image: "https://images.unsplash.com/photo-1542704792-e30dac463c90?w=800&q=80" },
-              { from: "Toronto", to: "Windsor", distance: "368.4 km", time: "4h", image: "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&q=80" },
-              { from: "Toronto", to: "New York", distance: "790 km", time: "8-9h", image: "https://images.unsplash.com/photo-1534430480872-3498386e7856?w=800&q=80" },
-            ].map((route, index) => (
-              <Link
-                key={index}
-                href="/reservation"
-                className="group relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-lg border border-gray-100 transition-all duration-300 hover:-translate-y-1"
-              >
-                <div className="relative aspect-[4/3] overflow-hidden">
-                  <Image
-                    src={route.image}
-                    alt={`${route.from} to ${route.to}`}
-                    fill
-                    className="object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
-                </div>
-                <div className="p-3">
-                  <h3 className="text-gray-900 text-xs sm:text-sm font-semibold mb-0.5 truncate">
-                    {route.from} <span className="text-[#C9A063]">→</span> {route.to}
-                  </h3>
-                  <p className="text-gray-500 text-[11px] sm:text-xs mb-1.5">
-                    {route.distance} | {route.time}
-                  </p>
-                  <span className="inline-flex items-center text-[#8B7355] text-[11px] sm:text-xs font-medium group-hover:text-[#C9A063] transition-colors">
-                    Book Ride
-                    <svg className="w-3 h-3 ml-0.5 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </span>
-                </div>
-              </Link>
-            ))}
           </div>
         </div>
       </div>

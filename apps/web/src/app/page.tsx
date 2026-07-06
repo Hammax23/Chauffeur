@@ -14,6 +14,7 @@ const BookingProcess = dynamic(() => import("@/components/BookingProcess"));
 const GlobalFootprint = dynamic(() => import("@/components/GlobalFootprint"));
 // const LuxuryRide = dynamic(() => import("@/components/LuxuryRide"));
 const GoogleReviews = dynamic(() => import("@/components/GoogleReviews"));
+const PopularRoutes = dynamic(() => import("@/components/PopularRoutes"));
 const FaqSection = dynamic(() => import("@/components/FaqSection"));
 const Footer = dynamic(() => import("@/components/Footer"));
 const FloatingContact = dynamic(() => import("@/components/FloatingContact"));
@@ -30,6 +31,7 @@ export default function Home() {
       <WhyChoose />
       <BookingProcess />
       <GlobalFootprint />
+      <PopularRoutes />
       {/* <LuxuryRide /> */}
       <FaqSection />
       <GoogleReviews />
