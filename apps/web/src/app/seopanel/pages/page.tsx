@@ -74,6 +74,7 @@ export default function SeoPagesList() {
           >
             <option value="">All Types</option>
             <option value="static">Static</option>
+            <option value="blog">Blog Post</option>
             <option value="service">Service</option>
             <option value="city">City</option>
             <option value="legal">Legal</option>

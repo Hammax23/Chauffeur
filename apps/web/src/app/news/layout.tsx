@@ -3,10 +3,17 @@ import { buildPageMetadata } from "@/lib/seo-metadata";
 
 export async function generateMetadata(): Promise<Metadata> {
   return buildPageMetadata("/news", {
-    title: "News & Insights | SARJ Worldwide Chauffeur Services",
+    title: "Blog & Insights | SARJ Worldwide Chauffeur Services",
     description:
-      "SARJ Worldwide News: chauffeur fleet updates, travel tips, company updates & insights for luxury chauffeur services.",
-    keywords: ["SARJ Worldwide news", "chauffeur news", "chauffeur fleet updates", "travel tips", "chauffeur service insights"],
+      "SARJ Worldwide Blog: expert insights on luxury chauffeur travel, fleet updates, corporate mobility, travel tips, and premium ground transportation trends.",
+    keywords: [
+      "SARJ Worldwide blog",
+      "chauffeur blog",
+      "luxury travel insights",
+      "chauffeur fleet updates",
+      "travel tips",
+      "corporate chauffeur",
+    ],
   });
 }
 

@@ -402,3 +402,26 @@ model SeoRedirect {
 
   @@index([isActive])
 }
+
+/// Blog posts managed from SEO panel
+model BlogPost {
+  id              String    @id @default(cuid())
+  slug            String    @unique
+  title           String
+  excerpt         String
+  content         String    @db.Text
+  category        String
+  imageUrl        String
+  readTimeMinutes Int       @default(3)
+  author          String    @default("SARJ Worldwide Team")
+  status          String    @default("draft") // draft | published | archived
+  isFeatured      Boolean   @default(false)
+  sortOrder       Int       @default(0)
+  publishedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status, publishedAt])
+  @@index([category])
+  @@index([isFeatured])
+}

@@ -91,7 +91,7 @@ export async function getActiveRedirects(): Promise<
 
 /** Sync discovered pages into DB (creates missing rows, does not overwrite SEO data) */
 export async function syncSeoPages(): Promise<{ created: number; total: number }> {
-  const discovered = discoverSitePages();
+  const discovered = await discoverSitePages();
   let created = 0;
 
   try {
@@ -124,7 +124,7 @@ export async function getSitemapEntries(): Promise<
   { path: string; priority: number; changeFrequency: string; lastModified: Date }[]
 > {
   const settings = await getSeoSettings();
-  const discovered = discoverSitePages();
+  const discovered = await discoverSitePages();
   const dbPages = process.env.DATABASE_URL?.trim()
     ? await prisma.seoPage.findMany().catch(() => [])
     : [];

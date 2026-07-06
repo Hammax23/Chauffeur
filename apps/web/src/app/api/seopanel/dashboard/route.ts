@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { verifySeoPanelAuth } from "@/lib/seo-auth";
 import { discoverSitePages, calculateSeoScore } from "@/lib/seo-pages";
 import { getSeoSettings } from "@/lib/seo-config";
+import { getBlogPanelStats } from "@/lib/blog";
 
 export async function GET(request: NextRequest) {
   const auth = await verifySeoPanelAuth(request);
@@ -11,13 +12,14 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const [settings, pages, redirects] = await Promise.all([
+    const [settings, pages, redirects, blogStats] = await Promise.all([
       getSeoSettings(),
       prisma.seoPage.findMany().catch(() => []),
       prisma.seoRedirect.count({ where: { isActive: true } }).catch(() => 0),
+      getBlogPanelStats(),
     ]);
 
-    const discovered = discoverSitePages();
+    const discovered = await discoverSitePages();
     const pageMap = new Map(pages.map((p) => [p.path, p]));
 
     const enriched = discovered.map((d) => {
@@ -54,6 +56,9 @@ export async function GET(request: NextRequest) {
         averageSeoScore: avgScore,
         sitemapEnabled: settings.sitemapEnabled,
         siteUrl: settings.siteUrl,
+        blogTotal: blogStats.total,
+        blogPublished: blogStats.published,
+        blogDraft: blogStats.draft,
       },
       pages: enriched.sort((a, b) => a.score - b.score).slice(0, 10),
     });

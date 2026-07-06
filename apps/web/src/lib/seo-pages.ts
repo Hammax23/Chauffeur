@@ -1,9 +1,10 @@
 import { services } from "@/data/services";
 import { REGIONS } from "@/data/regions";
+import { getDiscoveredBlogPages } from "@/lib/blog";
 
 export interface DiscoveredPage {
   path: string;
-  pageType: "static" | "service" | "city" | "legal" | "utility";
+  pageType: "static" | "service" | "city" | "legal" | "utility" | "blog";
   pageLabel: string;
   defaultTitle?: string;
   defaultDescription?: string;
@@ -18,13 +19,13 @@ const STATIC_PAGES: DiscoveredPage[] = [
   { path: "/contact", pageType: "static", pageLabel: "Contact" },
   { path: "/quote", pageType: "static", pageLabel: "Get a Quote" },
   { path: "/reservation", pageType: "utility", pageLabel: "Online Reservation" },
-  { path: "/news", pageType: "static", pageLabel: "News" },
+  { path: "/news", pageType: "static", pageLabel: "Blog" },
   { path: "/privacy-policy", pageType: "legal", pageLabel: "Privacy Policy" },
   { path: "/terms-of-service", pageType: "legal", pageLabel: "Terms of Service" },
 ];
 
 /** All public pages discoverable for SEO management */
-export function discoverSitePages(): DiscoveredPage[] {
+export async function discoverSitePages(): Promise<DiscoveredPage[]> {
   const servicePages: DiscoveredPage[] = services.map((s) => ({
     path: `/services/${s.slug}`,
     pageType: "service" as const,
@@ -41,7 +42,9 @@ export function discoverSitePages(): DiscoveredPage[] {
     defaultDescription: `Premium chauffeur and luxury transportation in ${r.label}. Airport transfers, corporate travel & VIP service.`,
   }));
 
-  return [...STATIC_PAGES, ...servicePages, ...cityPages];
+  const blogPages = await getDiscoveredBlogPages();
+
+  return [...STATIC_PAGES, ...blogPages, ...servicePages, ...cityPages];
 }
 
 export function normalizeSeoPath(path: string): string {
@@ -60,6 +63,7 @@ export function getPageTypeLabel(type: string): string {
     city: "City Page",
     legal: "Legal Page",
     utility: "Utility Page",
+    blog: "Blog Post",
   };
   return labels[type] ?? type;
 }

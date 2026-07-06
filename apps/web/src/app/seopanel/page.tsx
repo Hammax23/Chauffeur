@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   FileText, AlertTriangle, ArrowRightLeft, Map, TrendingUp,
-  Loader2, RefreshCw, ExternalLink, CheckCircle2,
+  Loader2, RefreshCw, ExternalLink, CheckCircle2, Newspaper,
 } from "lucide-react";
 
 interface Stats {
@@ -18,6 +18,9 @@ interface Stats {
   averageSeoScore: number;
   sitemapEnabled: boolean;
   siteUrl: string;
+  blogTotal?: number;
+  blogPublished?: number;
+  blogDraft?: number;
 }
 
 interface PageRow {
@@ -81,6 +84,7 @@ export default function SeoDashboard() {
     { label: "Missing Titles", value: stats?.missingTitles ?? 0, icon: AlertTriangle, color: "text-amber-600 bg-amber-50" },
     { label: "Missing Descriptions", value: stats?.missingDescriptions ?? 0, icon: AlertTriangle, color: "text-orange-600 bg-orange-50" },
     { label: "Active Redirects", value: stats?.activeRedirects ?? 0, icon: ArrowRightLeft, color: "text-purple-600 bg-purple-50" },
+    { label: "Published Blog Posts", value: stats?.blogPublished ?? 0, icon: Newspaper, color: "text-teal-600 bg-teal-50" },
     { label: "Noindex Pages", value: stats?.noindexPages ?? 0, icon: Map, color: "text-red-600 bg-red-50" },
   ];
 
@@ -157,6 +161,7 @@ export default function SeoDashboard() {
           <h2 className="font-semibold text-gray-900 mb-4">Quick Actions</h2>
           <div className="space-y-3">
             {[
+              { href: "/seopanel/blog", label: "Blog Manager", desc: `${stats?.blogPublished ?? 0} published · ${stats?.blogDraft ?? 0} drafts` },
               { href: "/seopanel/pages", label: "Manage All Page SEO", desc: "Titles, descriptions, OG tags" },
               { href: "/seopanel/global", label: "Global Settings", desc: "Site defaults & verification" },
               { href: "/seopanel/redirects", label: "URL Redirects", desc: "301/302 redirect rules" },

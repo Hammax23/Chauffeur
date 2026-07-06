@@ -19,10 +19,12 @@ import {
   LogOut,
   ChevronRight,
   Search,
+  Newspaper,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/seopanel", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/seopanel/blog", label: "Blog Manager", icon: Newspaper },
   { href: "/seopanel/pages", label: "Page SEO", icon: FileText },
   { href: "/seopanel/global", label: "Global Settings", icon: Globe },
   { href: "/seopanel/redirects", label: "Redirects", icon: ArrowRightLeft },

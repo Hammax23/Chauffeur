@@ -17,7 +17,7 @@ export async function GET(
   const decoded = decodeURIComponent(id);
   const path = normalizeSeoPath(decoded.startsWith("/") ? decoded : `/${decoded}`);
 
-  const discovered = discoverSitePages().find((p) => p.path === path);
+  const discovered = (await discoverSitePages()).find((p) => p.path === path);
   const page = await prisma.seoPage.findUnique({ where: { path } }).catch(() => null);
 
   if (!discovered && !page) {
@@ -58,7 +58,7 @@ export async function PUT(
     const bool = (key: string) => (typeof body[key] === "boolean" ? body[key] : undefined);
     const num = (key: string) => (typeof body[key] === "number" ? body[key] : undefined);
 
-    const discovered = discoverSitePages().find((p) => p.path === path);
+    const discovered = (await discoverSitePages()).find((p) => p.path === path);
 
     const page = await prisma.seoPage.upsert({
       where: { path },

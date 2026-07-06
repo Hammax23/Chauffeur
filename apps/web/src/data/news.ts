@@ -152,3 +152,38 @@ export function getArticleBySlug(slug: string): NewsArticle | undefined {
 export function getLatestArticles(limit = 6): NewsArticle[] {
   return [...newsArticles].sort((a, b) => b.date.localeCompare(a.date)).slice(0, limit);
 }
+
+export function getSortedArticles(): NewsArticle[] {
+  return [...newsArticles].sort((a, b) => b.date.localeCompare(a.date));
+}
+
+export const ALL_CATEGORIES: NewsCategory[] = [
+  "Fleet",
+  "Travel Tips",
+  "Company",
+  "Industry",
+  "Service",
+  "Events",
+];
+
+export function getCategoryCounts(): Record<NewsCategory, number> {
+  const counts = Object.fromEntries(ALL_CATEGORIES.map((c) => [c, 0])) as Record<NewsCategory, number>;
+  for (const article of newsArticles) {
+    counts[article.category] += 1;
+  }
+  return counts;
+}
+
+export function getRelatedArticles(slug: string, limit = 3): NewsArticle[] {
+  const current = getArticleBySlug(slug);
+  if (!current) return getLatestArticles(limit);
+  return newsArticles
+    .filter((a) => a.slug !== slug)
+    .sort((a, b) => {
+      const aMatch = a.category === current.category ? 1 : 0;
+      const bMatch = b.category === current.category ? 1 : 0;
+      if (aMatch !== bMatch) return bMatch - aMatch;
+      return b.date.localeCompare(a.date);
+    })
+    .slice(0, limit);
+}
