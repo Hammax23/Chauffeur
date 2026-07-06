@@ -33,8 +33,8 @@ export default function Home() {
       <GlobalFootprint />
       <PopularRoutes />
       {/* <LuxuryRide /> */}
-      <FaqSection />
       <GoogleReviews />
+      <FaqSection />
       <Footer />
       <FloatingContact />
     </main>
