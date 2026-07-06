@@ -1,10 +1,18 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { Crown, Instagram, Facebook, Linkedin } from 'lucide-react';
+import { Instagram, Facebook, Linkedin, Phone, Mail, MapPin } from 'lucide-react';
+import { services } from "@/data/services";
 
-const Footer = () => {
-  return (
+const footerServices = services.filter(
+  (s) =>
+    !["vip-transport", "intercity-travel", "luxury-fleet", "premium-services"].includes(s.slug)
+);
+
+const footerLinkClass =
+  "group inline-flex items-center gap-2 text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-all duration-300";
+
+const Footer = () => {  return (
     <footer className="relative bg-gradient-to-b from-[#0a0a0a] via-black to-[#0a0a0a] overflow-hidden">
       {/* Background Effects */}
       <div className="absolute inset-0 opacity-20">
@@ -16,7 +24,7 @@ const Footer = () => {
       
       <div className="max-w-[1400px] mx-auto px-6 sm:px-8 md:px-12 relative z-10">
         {/* Main Footer Content */}
-        <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr] gap-5 md:gap-8 lg:gap-10 py-4 sm:py-5 items-start">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 md:gap-8 lg:gap-10 py-4 sm:py-5 items-start">
           
           {/* Left Section - Brand */}
           <div className="space-y-3">
@@ -49,73 +57,43 @@ const Footer = () => {
             </h3>
             <ul className="space-y-1">
               <li>
-                <Link 
-                  href="/" 
-                  className="group inline-flex items-center gap-2 text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-all duration-300"
-                >
+                <Link href="/" className={footerLinkClass}>
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   Home
                 </Link>
               </li>
               <li>
-                <Link 
-                  href="/about" 
-                  className="group inline-flex items-center gap-2 text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-all duration-300"
-                >
+                <Link href="/about" className={footerLinkClass}>
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   About
                 </Link>
               </li>
               <li>
-                <Link 
-                  href="/fleet" 
-                  className="group inline-flex items-center gap-2 text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-all duration-300"
-                >
+                <Link href="/fleet" className={footerLinkClass}>
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   Fleet
                 </Link>
               </li>
               <li>
-                <Link 
-                  href="/services" 
-                  className="group inline-flex items-center gap-2 text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-all duration-300"
-                >
-                  <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
-                  Services
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  href="/news" 
-                  className="group inline-flex items-center gap-2 text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-all duration-300"
-                >
+                <Link href="/news" className={footerLinkClass}>
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   Blog
                 </Link>
               </li>
               <li>
-                <Link 
-                  href="/quote" 
-                  className="group inline-flex items-center gap-2 text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-all duration-300"
-                >
+                <Link href="/quote" className={footerLinkClass}>
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   Online Quote
                 </Link>
               </li>
               <li>
-                <Link 
-                  href="/contact" 
-                  className="group inline-flex items-center gap-2 text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-all duration-300"
-                >
+                <Link href="/contact" className={footerLinkClass}>
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   Contact
                 </Link>
               </li>
               <li>
-                <Link 
-                  href="/reservation" 
-                  className="group inline-flex items-center gap-2 text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-all duration-300"
-                >
+                <Link href="/reservation" className={footerLinkClass}>
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   Online Reservation
                 </Link>
@@ -123,6 +101,29 @@ const Footer = () => {
             </ul>
           </div>
 
+          {/* Services */}
+          <div>
+            <h3 className="text-white text-[12px] font-semibold mb-3 tracking-widest uppercase flex items-center gap-2">
+              <div className="w-1 h-1 rounded-full bg-[#C9A063]"></div>
+              Services
+            </h3>
+            <ul className="space-y-1">
+              <li>
+                <Link href="/services" className={footerLinkClass}>
+                  <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
+                  All Services
+                </Link>
+              </li>
+              {footerServices.map((service) => (
+                <li key={service.slug}>
+                  <Link href={`/services/${service.slug}`} className={footerLinkClass}>
+                    <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
+                    {service.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
           {/* Right Section - Social Media */}
           <div>
             <h3 className="text-white text-[12px] font-semibold mb-3 tracking-widest uppercase flex items-center gap-2">
@@ -157,6 +158,51 @@ const Footer = () => {
                 <div className="absolute inset-0 rounded-full bg-[#C9A063]/0 group-hover:bg-[#C9A063]/5 transition-all duration-300"></div>
                 <Linkedin className="w-[18px] h-[18px] text-white/80 group-hover:text-[#C9A063] transition-colors duration-300 relative z-10" strokeWidth={1.5} fill="currentColor" />
               </a>
+            </div>
+
+            {/* Contact details */}
+            <div className="mt-5 sm:mt-6 space-y-3.5">
+              <div className="group flex items-center gap-3">
+                <div className="relative flex-shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#C9A063] to-[#B8935A] flex items-center justify-center shadow-md shadow-[#C9A063]/20 group-hover:scale-105 transition-transform duration-300">
+                    <Phone className="w-[15px] h-[15px] text-black" strokeWidth={2} />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-white text-[14px] font-semibold mb-0.5">Phone Number</p>
+                  <a href="tel:+14168935779" className="text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-colors">
+                    416-893-5779
+                  </a>
+                </div>
+              </div>
+
+              <div className="group flex items-center gap-3">
+                <div className="relative flex-shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#C9A063] to-[#B8935A] flex items-center justify-center shadow-md shadow-[#C9A063]/20 group-hover:scale-105 transition-transform duration-300">
+                    <Mail className="w-[15px] h-[15px] text-black" strokeWidth={2} />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-white text-[14px] font-semibold mb-0.5">Write to us</p>
+                  <a href="mailto:reserve@sarjworldwide.ca" className="text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-colors break-all">
+                    reserve@sarjworldwide.ca
+                  </a>
+                </div>
+              </div>
+
+              <div className="group flex items-start gap-3">
+                <div className="relative flex-shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#C9A063] to-[#B8935A] flex items-center justify-center shadow-md shadow-[#C9A063]/20 group-hover:scale-105 transition-transform duration-300">
+                    <MapPin className="w-[15px] h-[15px] text-black" strokeWidth={2} />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-white text-[14px] font-semibold mb-0.5">Address</p>
+                  <p className="text-gray-400 text-[13px] font-light leading-relaxed">
+                    231 Oak Park Blvd, Oakville, ON L6H 7S8
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 

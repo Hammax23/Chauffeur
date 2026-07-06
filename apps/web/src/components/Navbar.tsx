@@ -3,6 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Phone, Menu, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import ServicesNavDropdown from "@/components/ServicesNavDropdown";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -49,9 +50,7 @@ const Navbar = () => {
                 FLEET
               </Link>
               
-              <Link href="/services" className="text-white/90 px-5 py-2.5 text-[16px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
-                SERVICES
-              </Link>
+              <ServicesNavDropdown variant="desktop" />
               
               <Link href="/news" className="text-white/90 px-5 py-2.5 text-[16px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
                 BLOG
@@ -96,9 +95,7 @@ const Navbar = () => {
               FLEET
             </Link>
             
-            <Link href="/services" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-base font-medium text-left">
-              SERVICES
-            </Link>
+            <ServicesNavDropdown variant="mobile" onNavigate={() => setIsMenuOpen(false)} />
             
             <Link href="/news" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-base font-medium text-left">
               BLOG

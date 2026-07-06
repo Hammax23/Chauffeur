@@ -10,11 +10,11 @@ const DiscoverFleet = dynamic(() => import("@/components/DiscoverFleet"), {
   loading: () => <div className="min-h-[400px]" />,
 });
 const WhyChoose = dynamic(() => import("@/components/WhyChoose"));
+const BookingProcess = dynamic(() => import("@/components/BookingProcess"));
 const GlobalFootprint = dynamic(() => import("@/components/GlobalFootprint"));
 // const LuxuryRide = dynamic(() => import("@/components/LuxuryRide"));
 const GoogleReviews = dynamic(() => import("@/components/GoogleReviews"));
-const FleetTechnology = dynamic(() => import("@/components/FleetTechnology"));
-const ContactInfo = dynamic(() => import("@/components/ContactInfo"));
+const FaqSection = dynamic(() => import("@/components/FaqSection"));
 const Footer = dynamic(() => import("@/components/Footer"));
 const FloatingContact = dynamic(() => import("@/components/FloatingContact"));
 
@@ -28,11 +28,11 @@ export default function Home() {
       <HeroSection />
       <DiscoverFleet />
       <WhyChoose />
+      <BookingProcess />
       <GlobalFootprint />
       {/* <LuxuryRide /> */}
+      <FaqSection />
       <GoogleReviews />
-      <FleetTechnology />
-      <ContactInfo />
       <Footer />
       <FloatingContact />
     </main>

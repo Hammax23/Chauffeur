@@ -3,7 +3,6 @@ import Image from "next/image";
 import { Trophy, Sparkles, Headphones, Globe2 } from "lucide-react";
 import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
-import ContactInfo from "@/components/ContactInfo";
 import LuxuryLifestyle from "@/components/LuxuryLifestyle";
 import AboutCtaVideo from "@/components/AboutCtaVideo";
 import Footer from "@/components/Footer";
@@ -137,7 +136,6 @@ export default function AboutPage() {
 
       <AboutCtaVideo />
 
-      <ContactInfo />
       <Footer />
     </main>
   );

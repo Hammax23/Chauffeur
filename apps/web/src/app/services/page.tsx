@@ -35,9 +35,6 @@ const iconMap: Record<ServiceIconKey, React.ElementType> = {
   PhoneCall,
 };
 
-const HIDDEN_SERVICE_SLUGS = ["point-to-point-transfers", "vip-transport", "luxury-fleet", "premium-services"];
-const visibleServices = services.filter((s) => !HIDDEN_SERVICE_SLUGS.includes(s.slug));
-
 export async function generateMetadata(): Promise<Metadata> {
   return buildPageMetadata("/services", {
     title: "Our Services | SARJ Worldwide Chauffeur Services",
@@ -100,7 +97,7 @@ export default function ServicesIndexPage() {
       <section className="relative pt-16 sm:pt-20 md:pt-24 pb-16 sm:pb-20 md:pb-24">
         <div className="max-w-[1100px] mx-auto px-6 sm:px-8 md:px-12">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
-            {visibleServices.map((service) => {
+            {services.map((service) => {
               const Icon = iconMap[service.icon];
               return (
                 <Link
