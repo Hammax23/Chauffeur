@@ -5,7 +5,10 @@ export const REGIONS = [
   { label: "OTTAWA AIRPORT", slug: "ottawa" },
   { label: "MONTREAL", slug: "montreal" },
   { label: "NIAGARA/BUFFALO", slug: "niagara-buffalo" },
-  { label: "OTTAWA/MONTREAL", slug: "ottawa-montreal" },
+  { label: "OAKVILLE", slug: "oakville" },
+  { label: "MISSISSAUGA", slug: "mississauga" },
+  { label: "BURLINGTON", slug: "burlington" },
+  { label: "ST. CATHARINES", slug: "st-catharines" },
   { label: "GREATER TORONTO AREA", slug: "greater-toronto-area" },
 ] as const;
 

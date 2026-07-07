@@ -27,4 +27,5 @@ export const SERVICE_CITIES: ServiceCity[] = [
   { id: "laval", name: "Laval", province: "QC", lng: -73.75, lat: 45.57 },
   { id: "quebec-city", name: "Quebec City", province: "QC", lng: -71.21, lat: 46.81 },
   { id: "burlington", name: "Burlington", province: "ON", lng: -79.8, lat: 43.33 },
+  { id: "st-catharines", name: "St. Catharines", province: "ON", lng: -79.25, lat: 43.16, slug: "st-catharines" },
 ];
