@@ -16,7 +16,8 @@
     "ios": {
       "supportsTablet": true,
       "usesAppleSignIn": true,
-      "bundleIdentifier": "com.sarjworldwide.chauffeur"
+      "bundleIdentifier": "com.sarjworldwide.chauffeur",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
@@ -24,6 +25,7 @@
         "backgroundColor": "#1a1a1a"
       },
       "package": "com.sarjworldwide.chauffeur",
+      "versionCode": 1,
       "edgeToEdgeEnabled": true
     },
     "web": {

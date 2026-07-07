@@ -9,6 +9,7 @@ import {
   registerCustomer,
   logoutCustomer,
   getProfile,
+  API_BASE_URL,
   updateProfile as apiUpdateProfile,
 } from "../services/api";
 
@@ -159,7 +160,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: data.error || "Registration failed" };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Registration failed";
-      return { success: false, error: message };
+      return {
+        success: false,
+        error: __DEV__ ? `${message}\n\n(API: ${API_BASE_URL})` : message,
+      };
     }
   }, []);
 

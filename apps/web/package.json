@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "echo. && echo ========================================= && echo  SARJ Worldwide Chauffeur API && echo ========================================= && echo  API Docs: http://localhost:3000/api-docs && echo  JSON Spec: http://localhost:3000/api/docs && echo ========================================= && echo. && next dev",
+    "dev": "echo. && echo ========================================= && echo  SARJ Worldwide Chauffeur API && echo ========================================= && echo  API Docs: http://localhost:3000/api-docs && echo  JSON Spec: http://localhost:3000/api/docs && echo  LAN (phone): http://YOUR_PC_IP:3000/api && echo ========================================= && echo. && next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

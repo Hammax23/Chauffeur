@@ -2,9 +2,14 @@ import * as SecureStore from "expo-secure-store";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 
+function normalizeApiBaseUrl(raw: string): string {
+  const trimmed = raw.trim().replace(/\/+$/, "");
+  return trimmed.endsWith("/api") ? trimmed : `${trimmed}/api`;
+}
+
 /**
  * Production + dev-safe API origin. Hard-coded LAN IPs break when Wi‑Fi / PC IP changes.
- * Override anytime with EXPO_PUBLIC_API_BASE_URL (full URL ending in /api).
+ * Override anytime with EXPO_PUBLIC_API_BASE_URL (e.g. http://192.168.x.x:3000 or .../api).
  */
 function resolveApiBaseUrl(): string {
   const defaultProd = "https://sarjworldwide.ca/api";
@@ -12,11 +17,11 @@ function resolveApiBaseUrl(): string {
 
   // Release builds: allow EAS env (preview/staging/prod) to override the API host.
   if (!__DEV__) {
-    return (fromEnv || defaultProd).replace(/\/+$/, "");
+    return normalizeApiBaseUrl(fromEnv || defaultProd);
   }
 
   if (fromEnv) {
-    return fromEnv.replace(/\/+$/, "");
+    return normalizeApiBaseUrl(fromEnv);
   }
 
   const dbg =
@@ -45,10 +50,21 @@ function resolveApiBaseUrl(): string {
     return "http://10.0.2.2:3000/api";
   }
 
+  // Physical iPhone cannot use 127.0.0.1 — set EXPO_PUBLIC_API_BASE_URL in apps/mobile/.env
+  if (__DEV__) {
+    console.warn(
+      "[API] iPhone/Expo Go: create apps/mobile/.env with EXPO_PUBLIC_API_BASE_URL=http://YOUR_PC_IP:3000/api"
+    );
+  }
+
   return "http://127.0.0.1:3000/api";
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
+
+if (__DEV__) {
+  console.log("[API] Using base URL:", API_BASE_URL);
+}
 
 const TOKEN_KEY = "sarj_auth_token";
 const USER_KEY = "sarj_user_data";
@@ -146,6 +162,36 @@ export interface ApiResponse<T = unknown> {
   data?: T;
 }
 
+function apiUnreachableMessage(status: number): string {
+  if (__DEV__) {
+    return `Cannot reach the API (${status}). In apps/mobile/.env set EXPO_PUBLIC_API_BASE_URL=http://YOUR_PC_IP:3000/api, then run "npm run dev" in apps/web on the same Wi‑Fi.`;
+  }
+  return "Server is unavailable. Please try again in a moment.";
+}
+
+async function parseResponseBody<T>(response: Response): Promise<T> {
+  const text = await response.text();
+  const trimmed = text.trim();
+
+  if (!trimmed) {
+    throw new Error(
+      response.ok
+        ? "Empty response from server"
+        : apiUnreachableMessage(response.status)
+    );
+  }
+
+  if (trimmed.startsWith("<")) {
+    throw new Error(apiUnreachableMessage(response.status));
+  }
+
+  try {
+    return JSON.parse(trimmed) as T;
+  } catch {
+    throw new Error(`Invalid server response (${response.status}). Please try again.`);
+  }
+}
+
 // API request helper
 async function apiRequest<T>(
   endpoint: string,
@@ -154,6 +200,7 @@ async function apiRequest<T>(
   const token = await getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    Accept: "application/json",
     ...((options.headers as Record<string, string>) || {}),
   };
 
@@ -161,12 +208,21 @@ async function apiRequest<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch {
+    throw new Error(
+      __DEV__
+        ? `Network error. Confirm EXPO_PUBLIC_API_BASE_URL (${API_BASE_URL}) and that apps/web is running.`
+        : "Network error. Check your connection and try again."
+    );
+  }
 
-  const data = await response.json();
+  const data = await parseResponseBody<T & { error?: string }>(response);
 
   if (!response.ok) {
     throw new Error(data.error || `Request failed with status ${response.status}`);
@@ -190,12 +246,21 @@ async function apiRequestWithResponse<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers: { ...headers, Accept: "application/json" },
+    });
+  } catch {
+    throw new Error(
+      __DEV__
+        ? `Network error. Confirm EXPO_PUBLIC_API_BASE_URL (${API_BASE_URL}).`
+        : "Network error. Check your connection and try again."
+    );
+  }
 
-  const data = (await response.json()) as T;
+  const data = await parseResponseBody<T>(response);
   return { ok: response.ok, status: response.status, data };
 }
 
@@ -350,14 +415,25 @@ export interface FleetVehicleDto {
 }
 
 export async function getFleetVehicles(): Promise<{ success: boolean; vehicles: FleetVehicleDto[] }> {
-  const response = await fetch(`${API_BASE_URL}/fleet`, {
-    headers: { Accept: "application/json" },
-  });
-  const data = (await response.json()) as {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/fleet`, {
+      headers: { Accept: "application/json" },
+    });
+  } catch {
+    throw new Error(
+      __DEV__
+        ? `Network error. Confirm EXPO_PUBLIC_API_BASE_URL (${API_BASE_URL}).`
+        : "Network error. Check your connection and try again."
+    );
+  }
+
+  const data = await parseResponseBody<{
     success: boolean;
     vehicles?: FleetVehicleDto[];
     error?: string;
-  };
+  }>(response);
+
   if (!response.ok || !data.success || !data.vehicles?.length) {
     throw new Error(data.error || "Failed to load fleet");
   }
