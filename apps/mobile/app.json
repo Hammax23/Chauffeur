@@ -17,7 +17,10 @@
       "supportsTablet": true,
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.sarjworldwide.chauffeur",
-      "buildNumber": "1"
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -55,7 +58,11 @@
       "GOOGLE_EXPO_CLIENT_ID": "199624638433-v2bm7j4a52pb0kql61thdr9gt98hsucp.apps.googleusercontent.com",
       "GOOGLE_IOS_CLIENT_ID": "REPLACE_ME",
       "GOOGLE_ANDROID_CLIENT_ID": "REPLACE_ME",
-      "GOOGLE_WEB_CLIENT_ID": "REPLACE_ME"
+      "GOOGLE_WEB_CLIENT_ID": "REPLACE_ME",
+      "router": {},
+      "eas": {
+        "projectId": "8c2b91c9-8e3a-4b36-bda1-4dd99a3d01f5"
+      }
     },
     "experiments": {
       "typedRoutes": true

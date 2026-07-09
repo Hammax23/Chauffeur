@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 12.0.0"
+    "version": ">= 12.0.0",
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
@@ -20,14 +21,19 @@
     },
     "production": {
       "autoIncrement": true,
-      "channel": "production",
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://sarjworldwide.ca/api"
       }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascApiKeyIssuerId": "1409c857-382c-4115-b6cc-799d2cfb96a6",
+        "ascApiKeyId": "9D7SV9329Y",
+        "ascApiKeyPath": ".eas-keys/AuthKey_9D7SV9329Y.p8"
+      }
+    }
   }
 }
 

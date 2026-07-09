@@ -3,6 +3,9 @@ import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { verifySeoPanelAuth } from "@/lib/seo-auth";
 import { sanitizeInput } from "@/lib/sanitize";
+import { sanitizeBlogHtml } from "@/lib/blog-content";
+import { logSeoAudit } from "@/lib/seo-audit";
+import { getClientIP } from "@/lib/seo-auth";
 import {
   ALL_BLOG_CATEGORIES,
   estimateReadTimeMinutes,
@@ -65,7 +68,9 @@ export async function POST(request: NextRequest) {
 
     const title = sanitizeInput(String(body.title || "")).trim();
     const excerpt = sanitizeInput(String(body.excerpt || "")).trim();
-    const content = sanitizeInput(String(body.content || "")).trim();
+    const contentFormat = body.contentFormat === "html" ? "html" : "plain";
+    const rawContent = String(body.content || "").trim();
+    const content = contentFormat === "html" ? sanitizeBlogHtml(rawContent) : sanitizeInput(rawContent);
     const category = sanitizeInput(String(body.category || "")).trim();
     const imageUrl = sanitizeInput(String(body.imageUrl || "")).trim();
     const author = sanitizeInput(String(body.author || "SARJ Worldwide Team")).trim();
@@ -106,6 +111,7 @@ export async function POST(request: NextRequest) {
         title,
         excerpt,
         content,
+        contentFormat,
         category,
         imageUrl,
         author,
@@ -123,6 +129,14 @@ export async function POST(request: NextRequest) {
 
     revalidatePath("/news");
     revalidatePath(`/news/${post.slug}`);
+
+    await logSeoAudit({
+      action: "create",
+      entityType: "blog",
+      entityId: post.id,
+      entityLabel: post.title,
+      ipAddress: getClientIP(request),
+    });
 
     return NextResponse.json({ success: true, post });
   } catch (error) {

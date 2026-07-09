@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { verifySeoPanelAuth } from "@/lib/seo-auth";
+import { verifySeoPanelAuth, getClientIP } from "@/lib/seo-auth";
 import { discoverSitePages, calculateSeoScore, normalizeSeoPath, getPageTypeLabel } from "@/lib/seo-pages";
 import { syncSeoPages } from "@/lib/seo-config";
+import { logSeoAudit } from "@/lib/seo-audit";
 
 export async function GET(request: NextRequest) {
   const auth = await verifySeoPanelAuth(request);
@@ -74,6 +75,13 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await syncSeoPages();
+    await logSeoAudit({
+      action: "sync",
+      entityType: "page",
+      entityLabel: "Page discovery sync",
+      details: result,
+      ipAddress: getClientIP(request),
+    });
     return NextResponse.json({ success: true, ...result });
   } catch (error) {
     console.error("[SEO Pages Sync]", error);

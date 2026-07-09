@@ -15,6 +15,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import type { Metadata } from "next";
 import { buildPageMetadata } from "@/lib/seo-metadata";
+import { renderBlogContent } from "@/lib/blog-content";
 
 const categoryColors: Record<BlogCategory, string> = {
   Fleet: "bg-[#C9A063]/15 text-[#C9A063] border-[#C9A063]/30",
@@ -70,6 +71,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   const relatedArticles = await getRelatedBlogPosts(slug, 3);
   const settings = await getSeoSettings();
   const blogSchema = buildBlogPostingSchema(article, settings.siteUrl);
+  const rendered = renderBlogContent(article.content);
 
   return (
     <main className="min-h-screen bg-[#fafafa]">
@@ -119,11 +121,18 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             </p>
 
             <div className="prose prose-gray max-w-none">
-              {article.content.split("\n\n").map((paragraph, index) => (
-                <p key={index} className="text-gray-700 text-[16px] sm:text-[17px] leading-[1.8] mb-6 last:mb-0">
-                  {paragraph}
-                </p>
-              ))}
+              {rendered.type === "html" ? (
+                <div
+                  className="text-gray-700 text-[16px] sm:text-[17px] leading-[1.8] [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:mt-8 [&_h2]:mb-4 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:mt-6 [&_h3]:mb-3 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-2 [&_blockquote]:border-l-4 [&_blockquote]:border-[#C9A063] [&_blockquote]:pl-4 [&_blockquote]:italic"
+                  dangerouslySetInnerHTML={{ __html: rendered.html ?? "" }}
+                />
+              ) : (
+                rendered.paragraphs?.map((paragraph, index) => (
+                  <p key={index} className="text-gray-700 text-[16px] sm:text-[17px] leading-[1.8] mb-6 last:mb-0">
+                    {paragraph}
+                  </p>
+                ))
+              )}
             </div>
 
             <div className="mt-10 pt-8 border-t border-gray-100 flex flex-wrap items-center justify-between gap-4">

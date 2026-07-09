@@ -88,9 +88,9 @@ export default function SeoAnalyticsPage() {
         </Field>
       </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm text-blue-800">
-        <strong>Note:</strong> After saving GA4/GTM IDs, add the tracking scripts to your site via GTM or contact your developer to inject them in the root layout.
-        Verification meta tags are applied automatically via the SEO metadata system.
+      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-sm text-emerald-800">
+        <strong>Active:</strong> GA4, GTM, and Facebook Pixel scripts are injected automatically on every page via the site layout when IDs are saved here.
+        Search Console and Bing verification meta tags are applied through the SEO metadata system.
       </div>
     </div>
   );

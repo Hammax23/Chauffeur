@@ -3,6 +3,9 @@ import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { verifySeoPanelAuth } from "@/lib/seo-auth";
 import { sanitizeInput } from "@/lib/sanitize";
+import { sanitizeBlogHtml } from "@/lib/blog-content";
+import { logSeoAudit } from "@/lib/seo-audit";
+import { getClientIP } from "@/lib/seo-auth";
 import {
   estimateReadTimeMinutes,
   getBlogPostByIdForPanel,
@@ -50,7 +53,13 @@ export async function PUT(
     const body = await request.json();
     const title = body.title != null ? sanitizeInput(String(body.title)).trim() : existing.title;
     const excerpt = body.excerpt != null ? sanitizeInput(String(body.excerpt)).trim() : existing.excerpt;
-    const content = body.content != null ? sanitizeInput(String(body.content)).trim() : existing.content;
+    const contentFormat = body.contentFormat != null
+      ? (body.contentFormat === "html" ? "html" : "plain")
+      : (existing as { contentFormat?: string }).contentFormat ?? "plain";
+    const rawContent = body.content != null ? String(body.content).trim() : existing.content;
+    const content = contentFormat === "html"
+      ? sanitizeBlogHtml(rawContent)
+      : (body.content != null ? sanitizeInput(rawContent) : existing.content);
     const category = body.category != null ? sanitizeInput(String(body.category)).trim() : existing.category;
     const imageUrl = body.imageUrl != null ? sanitizeInput(String(body.imageUrl)).trim() : existing.imageUrl;
     const author = body.author != null ? sanitizeInput(String(body.author)).trim() : existing.author;
@@ -100,6 +109,7 @@ export async function PUT(
         title,
         excerpt,
         content,
+        contentFormat,
         category,
         imageUrl,
         author,
@@ -120,6 +130,14 @@ export async function PUT(
     revalidatePath("/news");
     revalidatePath(`/news/${existing.slug}`);
     revalidatePath(`/news/${post.slug}`);
+
+    await logSeoAudit({
+      action: "update",
+      entityType: "blog",
+      entityId: post.id,
+      entityLabel: post.title,
+      ipAddress: getClientIP(request),
+    });
 
     return NextResponse.json({ success: true, post });
   } catch (error) {
@@ -149,6 +167,14 @@ export async function DELETE(
 
     revalidatePath("/news");
     revalidatePath(`/news/${existing.slug}`);
+
+    await logSeoAudit({
+      action: "delete",
+      entityType: "blog",
+      entityId: id,
+      entityLabel: existing.title,
+      ipAddress: getClientIP(request),
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

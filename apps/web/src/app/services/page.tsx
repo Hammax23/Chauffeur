@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { services, type ServiceIconKey } from "@/data/services";
+import { type ServiceIconKey } from "@/data/services";
+import { getAllServices } from "@/lib/managed-services";
 import {
   PlaneTakeoff,
   Building2,
@@ -43,7 +44,8 @@ export async function generateMetadata(): Promise<Metadata> {
   });
 }
 
-export default function ServicesIndexPage() {
+export default async function ServicesIndexPage() {
+  const services = await getAllServices();
   return (
     <main className="min-h-screen bg-[#fafafa]">
       <TopNav />

@@ -1,18 +1,38 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
+import { useEffect, useState } from "react";
 import { Instagram, Facebook, Linkedin, Phone, Mail, MapPin } from 'lucide-react';
-import { services } from "@/data/services";
+import { services as staticServices } from "@/data/services";
 
-const footerServices = services.filter(
-  (s) =>
-    !["vip-transport", "intercity-travel", "luxury-fleet", "premium-services"].includes(s.slug)
-);
+const HIDDEN_SLUGS = ["vip-transport", "intercity-travel", "luxury-fleet", "premium-services"];
 
 const footerLinkClass =
   "group inline-flex items-center gap-2 text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-all duration-300";
 
-const Footer = () => {  return (
+const Footer = () => {
+  const [footerServices, setFooterServices] = useState(
+    staticServices
+      .filter((s) => !HIDDEN_SLUGS.includes(s.slug))
+      .map((s) => ({ slug: s.slug, title: s.title }))
+  );
+
+  useEffect(() => {
+    fetch("/api/public/site-content")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data.services) && data.services.length > 0) {
+          setFooterServices(
+            data.services
+              .filter((s: { slug: string }) => !HIDDEN_SLUGS.includes(s.slug))
+              .map((s: { slug: string; title: string }) => ({ slug: s.slug, title: s.title }))
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  return (
     <footer className="relative bg-gradient-to-b from-[#0a0a0a] via-black to-[#0a0a0a] overflow-hidden">
       {/* Background Effects */}
       <div className="absolute inset-0 opacity-20">

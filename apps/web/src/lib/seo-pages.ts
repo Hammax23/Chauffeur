@@ -1,5 +1,5 @@
-import { services } from "@/data/services";
-import { REGIONS } from "@/data/regions";
+import { getAllCities } from "@/lib/managed-cities";
+import { getAllServices } from "@/lib/managed-services";
 import { getDiscoveredBlogPages } from "@/lib/blog";
 
 export interface DiscoveredPage {
@@ -26,7 +26,13 @@ const STATIC_PAGES: DiscoveredPage[] = [
 
 /** All public pages discoverable for SEO management */
 export async function discoverSitePages(): Promise<DiscoveredPage[]> {
-  const servicePages: DiscoveredPage[] = services.map((s) => ({
+  const [serviceList, cityList, blogPages] = await Promise.all([
+    getAllServices(),
+    getAllCities(),
+    getDiscoveredBlogPages(),
+  ]);
+
+  const servicePages: DiscoveredPage[] = serviceList.map((s) => ({
     path: `/services/${s.slug}`,
     pageType: "service" as const,
     pageLabel: s.title,
@@ -34,15 +40,13 @@ export async function discoverSitePages(): Promise<DiscoveredPage[]> {
     defaultDescription: s.shortDesc,
   }));
 
-  const cityPages: DiscoveredPage[] = REGIONS.map((r) => ({
+  const cityPages: DiscoveredPage[] = cityList.map((r) => ({
     path: `/cities-we-serve/${r.slug}`,
     pageType: "city" as const,
     pageLabel: r.label,
     defaultTitle: `Chauffeur Service in ${r.label} | SARJ Worldwide`,
     defaultDescription: `Premium chauffeur and luxury transportation in ${r.label}. Airport transfers, corporate travel & VIP service.`,
   }));
-
-  const blogPages = await getDiscoveredBlogPages();
 
   return [...STATIC_PAGES, ...blogPages, ...servicePages, ...cityPages];
 }

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Save, ExternalLink, FileText } from "lucide-react";
 import { ALL_BLOG_CATEGORIES } from "@/lib/blog-types";
+import RichTextEditor from "@/components/RichTextEditor";
+import SeoImageUpload from "@/components/SeoImageUpload";
 
 const inputCls = "w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500";
 const labelCls = "block text-sm font-medium text-gray-700 mb-1.5";
@@ -24,6 +26,7 @@ function BlogEditorForm() {
   const [slug, setSlug] = useState("");
   const [excerpt, setExcerpt] = useState("");
   const [content, setContent] = useState("");
+  const [contentFormat, setContentFormat] = useState<"html" | "plain">("html");
   const [category, setCategory] = useState<string>(ALL_BLOG_CATEGORIES[0]);
   const [imageUrl, setImageUrl] = useState("");
   const [author, setAuthor] = useState("SARJ Worldwide Team");
@@ -49,6 +52,7 @@ function BlogEditorForm() {
       setSlug(post.slug);
       setExcerpt(post.excerpt);
       setContent(post.content);
+      setContentFormat(post.contentFormat === "plain" ? "plain" : "html");
       setCategory(post.category);
       setImageUrl(post.imageUrl);
       setAuthor(post.author);
@@ -73,6 +77,7 @@ function BlogEditorForm() {
       slug,
       excerpt,
       content,
+      contentFormat,
       category,
       imageUrl,
       author,
@@ -182,14 +187,31 @@ function BlogEditorForm() {
               <p className="text-xs text-gray-400 mt-1">{excerpt.length} characters — used for meta description default</p>
             </div>
             <div>
-              <label className={labelCls}>Content *</label>
-              <textarea
-                className={`${inputCls} min-h-[320px] font-mono`}
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                required
-              />
-              <p className="text-xs text-gray-400 mt-1">Separate paragraphs with a blank line</p>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className={labelCls}>Content *</label>
+                <select
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1"
+                  value={contentFormat}
+                  onChange={(e) => setContentFormat(e.target.value as "html" | "plain")}
+                >
+                  <option value="html">Rich Text</option>
+                  <option value="plain">Plain Text</option>
+                </select>
+              </div>
+              {contentFormat === "html" ? (
+                <RichTextEditor
+                  value={content}
+                  onChange={setContent}
+                  placeholder="Write your article..."
+                />
+              ) : (
+                <textarea
+                  className={`${inputCls} min-h-[320px]`}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  required
+                />
+              )}
             </div>
           </div>
         </div>
@@ -264,16 +286,13 @@ function BlogEditorForm() {
 
           <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm space-y-4">
             <h2 className="font-semibold text-gray-900">Featured Image</h2>
-            <div>
-              <label className={labelCls}>Image URL *</label>
-              <input className={inputCls} value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} required />
-            </div>
-            {imageUrl && (
-              <div className="relative aspect-video rounded-xl overflow-hidden border border-gray-100">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
-              </div>
-            )}
+            <SeoImageUpload
+              value={imageUrl}
+              onChange={setImageUrl}
+              label="Featured Image"
+              folder="blog"
+              required
+            />
           </div>
         </div>
       </form>

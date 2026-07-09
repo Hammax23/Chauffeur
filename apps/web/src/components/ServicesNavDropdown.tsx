@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
-import { services } from "@/data/services";
+import { services as staticServices } from "@/data/services";
+
+type ServiceLink = { slug: string; title: string };
 
 type ServicesNavDropdownProps = {
   variant?: "desktop" | "mobile";
@@ -15,6 +17,20 @@ export default function ServicesNavDropdown({
   onNavigate,
 }: ServicesNavDropdownProps) {
   const [open, setOpen] = useState(false);
+  const [services, setServices] = useState<ServiceLink[]>(
+    staticServices.map((s) => ({ slug: s.slug, title: s.title }))
+  );
+
+  useEffect(() => {
+    fetch("/api/public/site-content")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data.services) && data.services.length > 0) {
+          setServices(data.services.map((s: { slug: string; title: string }) => ({ slug: s.slug, title: s.title })));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   if (variant === "mobile") {
     return (

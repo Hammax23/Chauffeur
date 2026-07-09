@@ -2,6 +2,7 @@ import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CitiesWeServiceContent from "@/components/CitiesWeServiceContent";
+import { getAllCities } from "@/lib/managed-cities";
 import type { Metadata } from "next";
 import { buildPageMetadata } from "@/lib/seo-metadata";
 
@@ -13,13 +14,14 @@ export async function generateMetadata(): Promise<Metadata> {
   });
 }
 
-export default function CitiesWeServePage() {
+export default async function CitiesWeServePage() {
+  const cities = await getAllCities();
   return (
     <main className="min-h-screen bg-black">
       <TopNav />
       <Navbar />
       <div className="pt-[130px] md:pt-[145px]">
-        <CitiesWeServiceContent />
+        <CitiesWeServiceContent cities={cities.map((c) => ({ slug: c.slug, label: c.label }))} />
       </div>
       <Footer />
     </main>

@@ -3,7 +3,7 @@ import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CityServicePageContent from "@/components/CityServicePageContent";
-import { getRegionBySlug, getRegionDisplayName, getAllRegionSlugs } from "@/data/regions";
+import { getCityBySlug, getCityDisplayName, getAllCitySlugs } from "@/lib/managed-cities";
 import type { Metadata } from "next";
 import { buildPageMetadata } from "@/lib/seo-metadata";
 
@@ -12,14 +12,15 @@ interface PageProps {
 }
 
 export async function generateStaticParams() {
-  return getAllRegionSlugs().map((slug) => ({ slug }));
+  const slugs = await getAllCitySlugs();
+  return slugs.map((slug) => ({ slug }));
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const region = getRegionBySlug(slug);
+  const region = await getCityBySlug(slug);
   if (!region) return { title: "Cities We Service" };
-  const name = getRegionDisplayName(slug);
+  const name = await getCityDisplayName(slug);
   return buildPageMetadata(`/cities-we-serve/${slug}`, {
     title: `Chauffeur Service in ${name} | SARJ Worldwide`,
     description: `SARJ Worldwide chauffeur service in ${name}. Airport transfers, executive chauffeur, wedding transport. Reserve now.`,
@@ -29,10 +30,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function CityServicePage({ params }: PageProps) {
   const { slug } = await params;
-  const region = getRegionBySlug(slug);
+  const region = await getCityBySlug(slug);
   if (!region) notFound();
 
-  const name = getRegionDisplayName(slug);
+  const name = await getCityDisplayName(slug);
   const baseUrl = "https://sarjworldwide.ca";
   const url = `${baseUrl}/cities-we-serve/${slug}`;
 

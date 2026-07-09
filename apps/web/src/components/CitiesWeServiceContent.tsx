@@ -3,7 +3,14 @@
 import Link from "next/link";
 import { REGIONS } from "@/data/regions";
 
-const CitiesWeServiceContent = () => {
+type CityItem = { slug: string; label: string };
+
+type CitiesWeServiceContentProps = {
+  cities?: CityItem[];
+};
+
+const CitiesWeServiceContent = ({ cities }: CitiesWeServiceContentProps) => {
+  const regionList = cities && cities.length > 0 ? cities : REGIONS;
   return (
     <section className="relative min-h-[calc(100vh-140px)] bg-white overflow-hidden">
       {/* Dotted graph style - fine dots */}
@@ -42,7 +49,7 @@ const CitiesWeServiceContent = () => {
 
         {/* Region buttons grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {REGIONS.map((region) => (
+          {regionList.map((region) => (
             <Link
               key={region.slug}
               href={`/cities-we-serve/${region.slug}`}

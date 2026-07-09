@@ -3,8 +3,8 @@ import Link from "next/link";
 import {
   getServiceBySlug,
   getAllServiceSlugs,
-  type ServiceIconKey,
-} from "@/data/services";
+} from "@/lib/managed-services";
+import { type ServiceIconKey } from "@/data/services";
 import {
   PlaneTakeoff,
   Building2,
@@ -44,12 +44,13 @@ const iconMap: Record<ServiceIconKey, React.ElementType> = {
 type Props = { params: Promise<{ slug: string }> };
 
 export async function generateStaticParams() {
-  return getAllServiceSlugs().map((slug) => ({ slug }));
+  const slugs = await getAllServiceSlugs();
+  return slugs.map((slug) => ({ slug }));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const service = getServiceBySlug(slug);
+  const service = await getServiceBySlug(slug);
   if (!service) return { title: "Service Not Found" };
   return buildPageMetadata(`/services/${slug}`, {
     title: `${service.title} | SARJ Worldwide Chauffeur Services`,
@@ -60,7 +61,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ServicePage({ params }: Props) {
   const { slug } = await params;
-  const service = getServiceBySlug(slug);
+  const service = await getServiceBySlug(slug);
   if (!service) notFound();
 
   const Icon = iconMap[service.icon];

@@ -20,12 +20,17 @@ import {
   ChevronRight,
   Search,
   Newspaper,
+  MapPin,
+  Briefcase,
+  Package,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/seopanel", label: "Dashboard", icon: LayoutDashboard },
   { href: "/seopanel/blog", label: "Blog Manager", icon: Newspaper },
   { href: "/seopanel/pages", label: "Page SEO", icon: FileText },
+  { href: "/seopanel/cities", label: "City Manager", icon: MapPin },
+  { href: "/seopanel/services", label: "Service Manager", icon: Briefcase },
   { href: "/seopanel/global", label: "Global Settings", icon: Globe },
   { href: "/seopanel/redirects", label: "Redirects", icon: ArrowRightLeft },
   { href: "/seopanel/sitemap", label: "Sitemap", icon: Map },
@@ -33,6 +38,7 @@ const NAV_ITEMS = [
   { href: "/seopanel/schema", label: "Structured Data", icon: Code2 },
   { href: "/seopanel/analytics", label: "Analytics & Tags", icon: BarChart3 },
   { href: "/seopanel/technical", label: "Technical SEO", icon: Wrench },
+  { href: "/seopanel/tools", label: "Tools & Audit", icon: Package },
 ];
 
 export default function SeoPanelLayout({ children }: { children: React.ReactNode }) {

@@ -410,6 +410,7 @@ model BlogPost {
   title           String
   excerpt         String
   content         String    @db.Text
+  contentFormat   String    @default("plain") // plain | html
   category        String
   imageUrl        String
   readTimeMinutes Int       @default(3)
@@ -424,4 +425,50 @@ model BlogPost {
   @@index([status, publishedAt])
   @@index([category])
   @@index([isFeatured])
+}
+
+/// Cities managed from SEO panel (overrides static regions.ts when present)
+model ManagedCity {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  label       String
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
+/// Services managed from SEO panel (overrides static services.ts when present)
+model ManagedService {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  shortDesc   String
+  description String   @db.Text
+  features    Json     @default("[]")
+  icon        String   @default("Car")
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
+/// Audit trail for SEO panel changes
+model SeoAuditLog {
+  id          String   @id @default(cuid())
+  action      String
+  entityType  String
+  entityId    String?
+  entityLabel String?
+  details     Json?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, createdAt])
+  @@index([createdAt])
 }
