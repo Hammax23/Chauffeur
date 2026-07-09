@@ -29,11 +29,22 @@ function BlogEditorForm() {
   const [contentFormat, setContentFormat] = useState<"html" | "plain">("html");
   const [category, setCategory] = useState<string>(ALL_BLOG_CATEGORIES[0]);
   const [imageUrl, setImageUrl] = useState("");
+  const [imageAlt, setImageAlt] = useState("");
+  const [imageTitle, setImageTitle] = useState("");
+  const [imageCaption, setImageCaption] = useState("");
+  const [imageFileName, setImageFileName] = useState("");
   const [author, setAuthor] = useState("SARJ Worldwide Team");
   const [status, setStatus] = useState("draft");
   const [isFeatured, setIsFeatured] = useState(false);
   const [readTimeMinutes, setReadTimeMinutes] = useState(3);
   const [publishedAt, setPublishedAt] = useState("");
+  const [seoTitle, setSeoTitle] = useState("");
+  const [seoDescription, setSeoDescription] = useState("");
+  const [canonicalUrl, setCanonicalUrl] = useState("");
+  const [focusKeyword, setFocusKeyword] = useState("");
+  const [robotsIndex, setRobotsIndex] = useState(true);
+  const [robotsFollow, setRobotsFollow] = useState(true);
+  const [extraSchemaText, setExtraSchemaText] = useState("");
 
   useEffect(() => {
     if (!postId) return;
@@ -55,11 +66,22 @@ function BlogEditorForm() {
       setContentFormat(post.contentFormat === "plain" ? "plain" : "html");
       setCategory(post.category);
       setImageUrl(post.imageUrl);
+      setImageAlt(post.imageAlt || "");
+      setImageTitle(post.imageTitle || "");
+      setImageCaption(post.imageCaption || "");
+      setImageFileName(post.imageFileName || "");
       setAuthor(post.author);
       setStatus(post.status);
       setIsFeatured(post.isFeatured);
       setReadTimeMinutes(post.readTimeMinutes);
       setPublishedAt(post.publishedAt ? new Date(post.publishedAt).toISOString().slice(0, 10) : "");
+      setSeoTitle(post.seoTitle || "");
+      setSeoDescription(post.seoDescription || "");
+      setCanonicalUrl(post.canonicalUrl || "");
+      setFocusKeyword(post.focusKeyword || "");
+      setRobotsIndex(post.robotsIndex ?? true);
+      setRobotsFollow(post.robotsFollow ?? true);
+      setExtraSchemaText(post.extraSchemaJson ? JSON.stringify(post.extraSchemaJson, null, 2) : "");
       setLoading(false);
     };
 
@@ -80,11 +102,30 @@ function BlogEditorForm() {
       contentFormat,
       category,
       imageUrl,
+      imageAlt,
+      imageTitle,
+      imageCaption,
+      imageFileName,
       author,
       status,
       isFeatured,
       readTimeMinutes,
       publishedAt: publishedAt || undefined,
+      seoTitle,
+      seoDescription,
+      canonicalUrl,
+      focusKeyword,
+      robotsIndex,
+      robotsFollow,
+      extraSchemaJson: extraSchemaText.trim()
+        ? (() => {
+            try {
+              return JSON.parse(extraSchemaText);
+            } catch {
+              return null;
+            }
+          })()
+        : null,
     };
 
     const res = await fetch(isNew ? "/api/seopanel/blog" : `/api/seopanel/blog/${postId}`, {
@@ -185,6 +226,81 @@ function BlogEditorForm() {
                 required
               />
               <p className="text-xs text-gray-400 mt-1">{excerpt.length} characters — used for meta description default</p>
+            </div>
+
+            <div className="pt-3 border-t border-gray-100">
+              <h2 className="font-semibold text-gray-900 mb-4">SEO Settings</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className={labelCls}>Meta Title</label>
+                  <input
+                    className={inputCls}
+                    value={seoTitle}
+                    onChange={(e) => setSeoTitle(e.target.value)}
+                    placeholder={`${title || "Article Title"} | SARJ Worldwide Blog`}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Leave empty to auto-generate from the article title.</p>
+                </div>
+                <div>
+                  <label className={labelCls}>Meta Description</label>
+                  <textarea
+                    className={`${inputCls} min-h-[90px]`}
+                    value={seoDescription}
+                    onChange={(e) => setSeoDescription(e.target.value)}
+                    placeholder={excerpt || "Short summary used in Google snippet"}
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelCls}>Focus Keyword</label>
+                    <input
+                      className={inputCls}
+                      value={focusKeyword}
+                      onChange={(e) => setFocusKeyword(e.target.value)}
+                      placeholder="e.g. Toronto airport chauffeur"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Canonical URL</label>
+                    <input
+                      className={`${inputCls} font-mono`}
+                      value={canonicalUrl}
+                      onChange={(e) => setCanonicalUrl(e.target.value)}
+                      placeholder={`https://sarjworldwide.ca/news/${slug || "your-slug"}`}
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-5">
+                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={robotsIndex}
+                      onChange={(e) => setRobotsIndex(e.target.checked)}
+                      className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    Robots: index
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={robotsFollow}
+                      onChange={(e) => setRobotsFollow(e.target.checked)}
+                      className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    Robots: follow
+                  </label>
+                </div>
+                <div>
+                  <label className={labelCls}>Extra Schema JSON (optional)</label>
+                  <textarea
+                    className={`${inputCls} min-h-[140px] font-mono`}
+                    value={extraSchemaText}
+                    onChange={(e) => setExtraSchemaText(e.target.value)}
+                    placeholder='{\n  \"@context\": \"https://schema.org\",\n  \"@type\": \"FAQPage\",\n  \"mainEntity\": []\n}'
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Paste valid JSON. This will be injected on the article page.</p>
+                </div>
+              </div>
             </div>
             <div>
               <div className="flex items-center justify-between mb-1.5">
@@ -293,6 +409,44 @@ function BlogEditorForm() {
               folder="blog"
               required
             />
+            <div className="grid grid-cols-1 gap-4 pt-2">
+              <div>
+                <label className={labelCls}>Image Alt Text</label>
+                <input
+                  className={inputCls}
+                  value={imageAlt}
+                  onChange={(e) => setImageAlt(e.target.value)}
+                  placeholder="Describe the image for accessibility + SEO"
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Image Title</label>
+                <input
+                  className={inputCls}
+                  value={imageTitle}
+                  onChange={(e) => setImageTitle(e.target.value)}
+                  placeholder="Optional image title attribute"
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Caption</label>
+                <input
+                  className={inputCls}
+                  value={imageCaption}
+                  onChange={(e) => setImageCaption(e.target.value)}
+                  placeholder="Optional caption shown under the image"
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Image File Name</label>
+                <input
+                  className={`${inputCls} font-mono`}
+                  value={imageFileName}
+                  onChange={(e) => setImageFileName(e.target.value)}
+                  placeholder="e.g. toronto-airport-chauffeur.jpg"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </form>

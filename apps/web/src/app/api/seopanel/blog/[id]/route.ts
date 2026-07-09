@@ -63,6 +63,17 @@ export async function PUT(
     const category = body.category != null ? sanitizeInput(String(body.category)).trim() : existing.category;
     const imageUrl = body.imageUrl != null ? sanitizeInput(String(body.imageUrl)).trim() : existing.imageUrl;
     const author = body.author != null ? sanitizeInput(String(body.author)).trim() : existing.author;
+    const seoTitle = body.seoTitle != null ? sanitizeInput(String(body.seoTitle)).trim() : (existing as any).seoTitle;
+    const seoDescription = body.seoDescription != null ? sanitizeInput(String(body.seoDescription)).trim() : (existing as any).seoDescription;
+    const canonicalUrl = body.canonicalUrl != null ? sanitizeInput(String(body.canonicalUrl)).trim() : (existing as any).canonicalUrl;
+    const focusKeyword = body.focusKeyword != null ? sanitizeInput(String(body.focusKeyword)).trim() : (existing as any).focusKeyword;
+    const robotsIndex = typeof body.robotsIndex === "boolean" ? body.robotsIndex : (existing as any).robotsIndex;
+    const robotsFollow = typeof body.robotsFollow === "boolean" ? body.robotsFollow : (existing as any).robotsFollow;
+    const imageAlt = body.imageAlt != null ? sanitizeInput(String(body.imageAlt)).trim() : (existing as any).imageAlt;
+    const imageTitle = body.imageTitle != null ? sanitizeInput(String(body.imageTitle)).trim() : (existing as any).imageTitle;
+    const imageCaption = body.imageCaption != null ? sanitizeInput(String(body.imageCaption)).trim() : (existing as any).imageCaption;
+    const imageFileName = body.imageFileName != null ? sanitizeInput(String(body.imageFileName)).trim() : (existing as any).imageFileName;
+    const extraSchemaJson = body.extraSchemaJson !== undefined ? body.extraSchemaJson : (existing as any).extraSchemaJson;
     const status = body.status != null
       ? (["draft", "published", "archived"].includes(body.status) ? body.status : existing.status)
       : existing.status;
@@ -110,6 +121,17 @@ export async function PUT(
         excerpt,
         content,
         contentFormat,
+        seoTitle: seoTitle || null,
+        seoDescription: seoDescription || null,
+        canonicalUrl: canonicalUrl || null,
+        focusKeyword: focusKeyword || null,
+        robotsIndex: typeof robotsIndex === "boolean" ? robotsIndex : true,
+        robotsFollow: typeof robotsFollow === "boolean" ? robotsFollow : true,
+        imageAlt: imageAlt || null,
+        imageTitle: imageTitle || null,
+        imageCaption: imageCaption || null,
+        imageFileName: imageFileName || null,
+        extraSchemaJson: extraSchemaJson ?? null,
         category,
         imageUrl,
         author,
@@ -122,7 +144,18 @@ export async function PUT(
     });
 
     if (status === "published") {
-      await syncBlogPostSeoPage({ slug: post.slug, title: post.title, excerpt: post.excerpt, imageUrl: post.imageUrl });
+      await syncBlogPostSeoPage({
+        slug: post.slug,
+        title: post.title,
+        excerpt: post.excerpt,
+        imageUrl: post.imageUrl,
+        seoTitle: (post as any).seoTitle,
+        seoDescription: (post as any).seoDescription,
+        canonicalUrl: (post as any).canonicalUrl,
+        focusKeyword: (post as any).focusKeyword,
+        robotsIndex: (post as any).robotsIndex,
+        robotsFollow: (post as any).robotsFollow,
+      });
     } else {
       await unpublishBlogPostSeo(post.slug);
     }

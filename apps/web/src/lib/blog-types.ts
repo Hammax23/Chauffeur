@@ -18,6 +18,18 @@ export interface BlogPostView {
   title: string;
   excerpt: string;
   content: string;
+  contentFormat?: "plain" | "html";
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  canonicalUrl?: string | null;
+  focusKeyword?: string | null;
+  robotsIndex?: boolean;
+  robotsFollow?: boolean;
+  imageAlt?: string | null;
+  imageTitle?: string | null;
+  imageCaption?: string | null;
+  imageFileName?: string | null;
+  extraSchemaJson?: unknown | null;
   category: BlogCategory;
   date: string;
   image: string;

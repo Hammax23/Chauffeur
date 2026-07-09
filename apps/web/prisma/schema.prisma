@@ -414,6 +414,20 @@ model BlogPost {
   excerpt         String
   content         String    @db.Text
   contentFormat   String    @default("plain") // plain | html
+  // Blog SEO overrides (kept here so editors manage everything in Blog Manager)
+  seoTitle         String?
+  seoDescription   String?
+  canonicalUrl     String?
+  focusKeyword     String?
+  robotsIndex      Boolean   @default(true)
+  robotsFollow     Boolean   @default(true)
+  // Image SEO
+  imageAlt         String?
+  imageTitle       String?
+  imageCaption     String?
+  imageFileName    String?
+  // Extra schema injected on the article page (optional)
+  extraSchemaJson  Json?
   category        String
   imageUrl        String
   readTimeMinutes Int       @default(3)

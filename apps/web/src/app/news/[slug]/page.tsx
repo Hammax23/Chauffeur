@@ -57,8 +57,8 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
   if (!article) return { title: "Article Not Found" };
 
   return buildPageMetadata(`/news/${slug}`, {
-    title: `${article.title} | SARJ Worldwide Blog`,
-    description: article.excerpt,
+    title: (article.seoTitle?.trim() ? article.seoTitle.trim() : `${article.title} | SARJ Worldwide Blog`),
+    description: (article.seoDescription?.trim() ? article.seoDescription.trim() : article.excerpt),
     keywords: [article.category, "SARJ Worldwide blog", "chauffeur insights", article.title],
   });
 }
@@ -79,12 +79,26 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(blogSchema) }}
       />
+      {article.extraSchemaJson != null && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(article.extraSchemaJson) }}
+        />
+      )}
       <TopNav />
       <Navbar />
 
       <section className="relative pt-[130px] md:pt-[145px]">
         <div className="relative h-[320px] sm:h-[380px] md:h-[440px] overflow-hidden">
-          <Image src={article.image} alt={article.title} fill sizes="100vw" className="object-cover" priority />
+          <Image
+            src={article.image}
+            alt={article.imageAlt?.trim() ? article.imageAlt.trim() : article.title}
+            title={article.imageTitle?.trim() ? article.imageTitle.trim() : undefined}
+            fill
+            sizes="100vw"
+            className="object-cover"
+            priority
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/70 to-gray-900/30" />
         </div>
 
@@ -134,6 +148,12 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                 ))
               )}
             </div>
+
+            {article.imageCaption?.trim() && (
+              <p className="mt-6 text-sm text-gray-500 italic">
+                {article.imageCaption.trim()}
+              </p>
+            )}
 
             <div className="mt-10 pt-8 border-t border-gray-100 flex flex-wrap items-center justify-between gap-4">
               <Link href="/news" className="inline-flex items-center gap-2 text-gray-600 font-semibold text-[14px] hover:text-[#C9A063] transition-colors">

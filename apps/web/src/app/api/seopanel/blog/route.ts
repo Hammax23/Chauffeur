@@ -77,6 +77,17 @@ export async function POST(request: NextRequest) {
     const author = sanitizeInput(String(body.author || "SARJ Worldwide Team")).trim();
     const status = ["draft", "published", "archived"].includes(body.status) ? body.status : "draft";
     const isFeatured = Boolean(body.isFeatured);
+    const seoTitle = body.seoTitle != null ? sanitizeInput(String(body.seoTitle)).trim() : "";
+    const seoDescription = body.seoDescription != null ? sanitizeInput(String(body.seoDescription)).trim() : "";
+    const canonicalUrl = body.canonicalUrl != null ? sanitizeInput(String(body.canonicalUrl)).trim() : "";
+    const focusKeyword = body.focusKeyword != null ? sanitizeInput(String(body.focusKeyword)).trim() : "";
+    const robotsIndex = typeof body.robotsIndex === "boolean" ? body.robotsIndex : true;
+    const robotsFollow = typeof body.robotsFollow === "boolean" ? body.robotsFollow : true;
+    const imageAlt = body.imageAlt != null ? sanitizeInput(String(body.imageAlt)).trim() : "";
+    const imageTitle = body.imageTitle != null ? sanitizeInput(String(body.imageTitle)).trim() : "";
+    const imageCaption = body.imageCaption != null ? sanitizeInput(String(body.imageCaption)).trim() : "";
+    const imageFileName = body.imageFileName != null ? sanitizeInput(String(body.imageFileName)).trim() : "";
+    const extraSchemaJson = body.extraSchemaJson ?? null;
 
     let slug = sanitizeInput(String(body.slug || "")).trim() || slugifyTitle(title);
     slug = slugifyTitle(slug);
@@ -113,6 +124,17 @@ export async function POST(request: NextRequest) {
         excerpt,
         content,
         contentFormat,
+        seoTitle: seoTitle || null,
+        seoDescription: seoDescription || null,
+        canonicalUrl: canonicalUrl || null,
+        focusKeyword: focusKeyword || null,
+        robotsIndex,
+        robotsFollow,
+        imageAlt: imageAlt || null,
+        imageTitle: imageTitle || null,
+        imageCaption: imageCaption || null,
+        imageFileName: imageFileName || null,
+        extraSchemaJson,
         category,
         imageUrl,
         author,
@@ -125,7 +147,18 @@ export async function POST(request: NextRequest) {
     });
 
     if (status === "published") {
-      await syncBlogPostSeoPage({ slug: post.slug, title: post.title, excerpt: post.excerpt, imageUrl: post.imageUrl });
+      await syncBlogPostSeoPage({
+        slug: post.slug,
+        title: post.title,
+        excerpt: post.excerpt,
+        imageUrl: post.imageUrl,
+        seoTitle: post.seoTitle,
+        seoDescription: post.seoDescription,
+        canonicalUrl: post.canonicalUrl,
+        focusKeyword: post.focusKeyword,
+        robotsIndex: post.robotsIndex,
+        robotsFollow: post.robotsFollow,
+      });
     }
 
     revalidatePath("/news");

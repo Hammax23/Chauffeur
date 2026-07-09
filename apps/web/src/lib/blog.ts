@@ -27,6 +27,18 @@ function toBlogPostView(post: {
   title: string;
   excerpt: string;
   content: string;
+  contentFormat?: string | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  canonicalUrl?: string | null;
+  focusKeyword?: string | null;
+  robotsIndex?: boolean | null;
+  robotsFollow?: boolean | null;
+  imageAlt?: string | null;
+  imageTitle?: string | null;
+  imageCaption?: string | null;
+  imageFileName?: string | null;
+  extraSchemaJson?: unknown | null;
   category: string;
   imageUrl: string;
   readTimeMinutes: number;
@@ -43,6 +55,18 @@ function toBlogPostView(post: {
     title: post.title,
     excerpt: post.excerpt,
     content: post.content,
+    contentFormat: (post.contentFormat === "html" ? "html" : "plain"),
+    seoTitle: post.seoTitle ?? null,
+    seoDescription: post.seoDescription ?? null,
+    canonicalUrl: post.canonicalUrl ?? null,
+    focusKeyword: post.focusKeyword ?? null,
+    robotsIndex: typeof post.robotsIndex === "boolean" ? post.robotsIndex : undefined,
+    robotsFollow: typeof post.robotsFollow === "boolean" ? post.robotsFollow : undefined,
+    imageAlt: post.imageAlt ?? null,
+    imageTitle: post.imageTitle ?? null,
+    imageCaption: post.imageCaption ?? null,
+    imageFileName: post.imageFileName ?? null,
+    extraSchemaJson: post.extraSchemaJson ?? null,
     category: post.category as BlogCategory,
     date: dateSource.toISOString().slice(0, 10),
     image: post.imageUrl,
@@ -172,11 +196,23 @@ export async function syncBlogPostSeoPage(post: {
   title: string;
   excerpt: string;
   imageUrl?: string;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  canonicalUrl?: string | null;
+  focusKeyword?: string | null;
+  robotsIndex?: boolean | null;
+  robotsFollow?: boolean | null;
 }) {
   if (!process.env.DATABASE_URL?.trim()) return;
 
   const path = normalizeSeoPath(`/news/${post.slug}`);
   const existing = await prisma.seoPage.findUnique({ where: { path } });
+
+  const resolvedTitle = (post.seoTitle?.trim() ? post.seoTitle.trim() : `${post.title} | SARJ Worldwide Blog`);
+  const resolvedDescription = (post.seoDescription?.trim() ? post.seoDescription.trim() : post.excerpt);
+  const resolvedCanonical = post.canonicalUrl?.trim() ? post.canonicalUrl.trim() : null;
+  const resolvedRobotsIndex = typeof post.robotsIndex === "boolean" ? post.robotsIndex : true;
+  const resolvedRobotsFollow = typeof post.robotsFollow === "boolean" ? post.robotsFollow : true;
 
   await prisma.seoPage.upsert({
     where: { path },
@@ -184,21 +220,28 @@ export async function syncBlogPostSeoPage(post: {
       path,
       pageType: "blog",
       pageLabel: post.title,
-      title: `${post.title} | SARJ Worldwide Blog`,
-      metaDescription: post.excerpt,
+      title: resolvedTitle,
+      metaDescription: resolvedDescription,
+      canonicalUrl: resolvedCanonical,
       ogTitle: post.title,
-      ogDescription: post.excerpt,
+      ogDescription: resolvedDescription,
       ogImage: post.imageUrl ?? null,
       h1: post.title,
       includeInSitemap: true,
-      robotsIndex: true,
+      robotsIndex: resolvedRobotsIndex,
+      robotsFollow: resolvedRobotsFollow,
+      focusKeyword: post.focusKeyword?.trim() ? post.focusKeyword.trim() : null,
     },
     update: {
       pageLabel: post.title,
-      robotsIndex: true,
-      includeInSitemap: true,
-      ...(existing?.title ? {} : { title: `${post.title} | SARJ Worldwide Blog` }),
-      ...(existing?.metaDescription ? {} : { metaDescription: post.excerpt }),
+      robotsIndex: resolvedRobotsIndex,
+      robotsFollow: resolvedRobotsFollow,
+      includeInSitemap: resolvedRobotsIndex,
+      ...(resolvedCanonical ? { canonicalUrl: resolvedCanonical } : {}),
+      ...(post.focusKeyword?.trim() ? { focusKeyword: post.focusKeyword.trim() } : {}),
+      // If editors set explicit SEO fields in Blog Manager, keep them in sync.
+      ...(post.seoTitle?.trim() ? { title: resolvedTitle } : (existing?.title ? {} : { title: resolvedTitle })),
+      ...(post.seoDescription?.trim() ? { metaDescription: resolvedDescription, ogDescription: resolvedDescription } : (existing?.metaDescription ? {} : { metaDescription: resolvedDescription, ogDescription: resolvedDescription })),
       ...(existing?.ogImage || !post.imageUrl ? {} : { ogImage: post.imageUrl }),
     },
   });
