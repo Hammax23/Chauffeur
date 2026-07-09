@@ -4,8 +4,10 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2, Save, CheckCircle2, AlertCircle } from "lucide-react";
+import SeoImageUpload from "@/components/SeoImageUpload";
+import RichTextEditor from "@/components/RichTextEditor";
 
-type Tab = "basic" | "social" | "technical" | "schema" | "advanced";
+type Tab = "basic" | "social" | "technical" | "schema" | "content" | "advanced";
 
 interface PageData {
   path: string;
@@ -33,6 +35,8 @@ interface PageData {
   breadcrumbLabel: string | null;
   headerScripts: string | null;
   bodyScripts: string | null;
+  bodyContentHtml: string | null;
+  bodyContentPosition: string;
   internalNotes: string | null;
 }
 
@@ -111,6 +115,7 @@ function PageEditorContent() {
     { id: "social", label: "Social / OG" },
     { id: "technical", label: "Technical" },
     { id: "schema", label: "Schema" },
+    { id: "content", label: "Content" },
     { id: "advanced", label: "Advanced" },
   ];
 
@@ -213,19 +218,24 @@ function PageEditorContent() {
             <Field label="OG Description">
               <textarea className={textareaCls} value={form.ogDescription ?? ""} onChange={(e) => set("ogDescription", e.target.value)} rows={2} />
             </Field>
-            <Field label="OG Image URL" hint="1200×630 recommended">
-              <input className={inputCls} value={form.ogImage ?? ""} onChange={(e) => set("ogImage", e.target.value)} placeholder="https://sarjworldwide.ca/og-image.jpg" />
-              {form.ogImage && <img src={form.ogImage} alt="OG preview" className="mt-2 h-24 rounded-lg object-cover border" />}
-            </Field>
+            <SeoImageUpload
+              value={form.ogImage ?? ""}
+              onChange={(url) => set("ogImage", url)}
+              label="OG Image (1200×630 recommended)"
+              folder="seo-og"
+            />
             <Field label="Twitter Title">
               <input className={inputCls} value={form.twitterTitle ?? ""} onChange={(e) => set("twitterTitle", e.target.value)} />
             </Field>
             <Field label="Twitter Description">
               <textarea className={textareaCls} value={form.twitterDescription ?? ""} onChange={(e) => set("twitterDescription", e.target.value)} rows={2} />
             </Field>
-            <Field label="Twitter Image URL">
-              <input className={inputCls} value={form.twitterImage ?? ""} onChange={(e) => set("twitterImage", e.target.value)} />
-            </Field>
+            <SeoImageUpload
+              value={form.twitterImage ?? ""}
+              onChange={(url) => set("twitterImage", url)}
+              label="Twitter Image"
+              folder="seo-twitter"
+            />
           </>
         )}
 
@@ -280,6 +290,34 @@ function PageEditorContent() {
               placeholder={'{\n  "@context": "https://schema.org",\n  "@type": "Service",\n  "name": "..."\n}'}
             />
           </Field>
+        )}
+
+        {tab === "content" && (
+          <>
+            <Field
+              label="Body Content Position"
+              hint="Where to inject this content on the page (via SeoPageBodyExtras)."
+            >
+              <select
+                className={inputCls}
+                value={form.bodyContentPosition ?? "bottom"}
+                onChange={(e) => set("bodyContentPosition", e.target.value)}
+              >
+                <option value="top">Top of page (after header)</option>
+                <option value="bottom">Bottom of page (before footer)</option>
+              </select>
+            </Field>
+            <Field
+              label="Body Content (SEO)"
+              hint="Use this for internal linking and image alt text. Content is sanitized for safety."
+            >
+              <RichTextEditor
+                value={form.bodyContentHtml ?? ""}
+                onChange={(html) => set("bodyContentHtml", html)}
+                placeholder="Add content, internal links, and images with alt text…"
+              />
+            </Field>
+          </>
         )}
 
         {tab === "advanced" && (

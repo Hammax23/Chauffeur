@@ -2,9 +2,11 @@
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import Link from "@tiptap/extension-link";
+import Image from "@tiptap/extension-image";
 import {
   Bold, Italic, List, ListOrdered, Heading2, Heading3,
-  Quote, Undo, Redo, Minus,
+  Quote, Undo, Redo, Minus, Link as LinkIcon, Image as ImageIcon,
 } from "lucide-react";
 import { useEffect } from "react";
 
@@ -41,7 +43,20 @@ function ToolbarButton({
 
 export default function RichTextEditor({ value, onChange, placeholder }: RichTextEditorProps) {
   const editor = useEditor({
-    extensions: [StarterKit],
+    extensions: [
+      StarterKit,
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        linkOnPaste: true,
+        HTMLAttributes: {
+          rel: "noopener noreferrer",
+        },
+      }),
+      Image.configure({
+        allowBase64: false,
+      }),
+    ],
     content: value || "<p></p>",
     immediatelyRender: false,
     editorProps: {
@@ -94,6 +109,45 @@ export default function RichTextEditor({ value, onChange, placeholder }: RichTex
         </ToolbarButton>
         <ToolbarButton onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Divider">
           <Minus className="w-4 h-4" />
+        </ToolbarButton>
+        <div className="w-px h-6 bg-gray-200 mx-1" />
+        <ToolbarButton
+          onClick={() => {
+            const previousUrl = editor.getAttributes("link").href as string | undefined;
+            const url = window.prompt("Link URL (internal recommended):", previousUrl || "/");
+            if (url === null) return;
+            if (!url.trim()) {
+              editor.chain().focus().unsetLink().run();
+              return;
+            }
+            const clean = url.trim();
+            const isExternal = /^https?:\/\//i.test(clean) && !/^https?:\/\/([^/]+\.)?sarjworldwide\.ca\b/i.test(clean);
+            editor
+              .chain()
+              .focus()
+              .extendMarkRange("link")
+              .setLink({
+                href: clean,
+                target: isExternal ? "_blank" : undefined,
+                rel: isExternal ? "noopener noreferrer" : undefined,
+              })
+              .run();
+          }}
+          active={editor.isActive("link")}
+          title="Insert/Edit link"
+        >
+          <LinkIcon className="w-4 h-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => {
+            const src = window.prompt("Image URL:", "https://");
+            if (!src?.trim()) return;
+            const alt = window.prompt("Alt text (required for SEO):", "") || "";
+            editor.chain().focus().setImage({ src: src.trim(), alt: alt.trim() }).run();
+          }}
+          title="Insert image"
+        >
+          <ImageIcon className="w-4 h-4" />
         </ToolbarButton>
         <div className="w-px h-6 bg-gray-200 mx-1" />
         <ToolbarButton onClick={() => editor.chain().focus().undo().run()} title="Undo">

@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { verifySeoPanelAuth } from "@/lib/seo-auth";
 import { discoverSitePages, normalizeSeoPath } from "@/lib/seo-pages";
 import { sanitizeInput } from "@/lib/sanitize";
+import { sanitizeSeoPageBodyHtml } from "@/lib/seo-page-content";
 
 export async function GET(
   request: NextRequest,
@@ -55,6 +56,7 @@ export async function PUT(
     const path = normalizeSeoPath(decoded.startsWith("/") ? decoded : `/${decoded}`);
     const body = await request.json();
     const str = (key: string) => (body[key] != null ? sanitizeInput(String(body[key])) : undefined);
+    const html = (key: string) => (body[key] != null ? sanitizeSeoPageBodyHtml(String(body[key])) : undefined);
     const bool = (key: string) => (typeof body[key] === "boolean" ? body[key] : undefined);
     const num = (key: string) => (typeof body[key] === "number" ? body[key] : undefined);
 
@@ -89,6 +91,9 @@ export async function PUT(
         breadcrumbLabel: str("breadcrumbLabel") || null,
         headerScripts: str("headerScripts") || null,
         bodyScripts: str("bodyScripts") || null,
+        bodyContentHtml: html("bodyContentHtml") || null,
+        bodyContentPosition: str("bodyContentPosition") || "bottom",
+        bodyContentImages: body.bodyContentImages ?? null,
         internalNotes: str("internalNotes") || null,
         lastAuditedAt: new Date(),
       },
@@ -117,6 +122,9 @@ export async function PUT(
         ...(str("breadcrumbLabel") !== undefined && { breadcrumbLabel: str("breadcrumbLabel") || null }),
         ...(str("headerScripts") !== undefined && { headerScripts: str("headerScripts") || null }),
         ...(str("bodyScripts") !== undefined && { bodyScripts: str("bodyScripts") || null }),
+        ...(html("bodyContentHtml") !== undefined && { bodyContentHtml: html("bodyContentHtml") || null }),
+        ...(str("bodyContentPosition") !== undefined && { bodyContentPosition: str("bodyContentPosition") || "bottom" }),
+        ...(body.bodyContentImages !== undefined && { bodyContentImages: body.bodyContentImages ?? null }),
         ...(str("internalNotes") !== undefined && { internalNotes: str("internalNotes") || null }),
         lastAuditedAt: new Date(),
       },

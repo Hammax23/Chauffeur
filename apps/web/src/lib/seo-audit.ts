@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
 export type SeoAuditAction = "create" | "update" | "delete" | "import" | "export" | "sync" | "seed";
 export type SeoAuditEntity =
@@ -15,7 +16,7 @@ export async function logSeoAudit(params: {
   entityType: SeoAuditEntity;
   entityId?: string | null;
   entityLabel?: string | null;
-  details?: Record<string, unknown> | null;
+  details?: Prisma.InputJsonValue | null;
   ipAddress?: string | null;
 }) {
   try {

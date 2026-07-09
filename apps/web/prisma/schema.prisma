@@ -380,6 +380,9 @@ model SeoPage {
   breadcrumbLabel     String?
   headerScripts       String?
   bodyScripts         String?
+  bodyContentHtml     String?   @db.Text
+  bodyContentPosition String    @default("bottom") // top | bottom
+  bodyContentImages   Json?
   internalNotes       String?
   lastAuditedAt       DateTime?
   createdAt           DateTime  @default(now())

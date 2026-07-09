@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
     const contentFormat = body.contentFormat === "html" ? "html" : "plain";
     const rawContent = String(body.content || "").trim();
     const content = contentFormat === "html" ? sanitizeBlogHtml(rawContent) : sanitizeInput(rawContent);
+    const contentText = content.replace(/<[^>]+>/g, "").trim();
     const category = sanitizeInput(String(body.category || "")).trim();
     const imageUrl = sanitizeInput(String(body.imageUrl || "")).trim();
     const author = sanitizeInput(String(body.author || "SARJ Worldwide Team")).trim();
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
     let slug = sanitizeInput(String(body.slug || "")).trim() || slugifyTitle(title);
     slug = slugifyTitle(slug);
 
-    if (!title || !excerpt || !content || !category || !imageUrl) {
+    if (!title || !excerpt || !contentText || !category || !imageUrl) {
       return NextResponse.json({ success: false, error: "Title, excerpt, content, category, and image are required" }, { status: 400 });
     }
 
