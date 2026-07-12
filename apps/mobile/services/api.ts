@@ -618,6 +618,48 @@ export async function acceptRide(bookingId: string) {
   );
 }
 
+export type ChatSenderType = "CUSTOMER" | "DRIVER" | "ADMIN";
+
+export type ChatMessage = {
+  id: string;
+  senderType: ChatSenderType;
+  senderId: string;
+  body: string;
+  createdAt: string;
+  readAt: string | null;
+};
+
+export type ChatThreadPayload = {
+  success: boolean;
+  threadId: string | null;
+  messages: ChatMessage[];
+  canSend: boolean;
+  status: string;
+  error?: string;
+};
+
+export async function getDriverChat(bookingId: string) {
+  return apiRequest<ChatThreadPayload>(`/driver/rides/${bookingId}/chat`);
+}
+
+export async function sendDriverChatMessage(bookingId: string, body: string) {
+  return apiRequest<{ success: boolean; message: ChatMessage; error?: string }>(
+    `/driver/rides/${bookingId}/chat`,
+    { method: "POST", body: JSON.stringify({ body }) }
+  );
+}
+
+export async function getCustomerChat(bookingId: string) {
+  return apiRequest<ChatThreadPayload>(`/customer/reservations/${bookingId}/chat`);
+}
+
+export async function sendCustomerChatMessage(bookingId: string, body: string) {
+  return apiRequest<{ success: boolean; message: ChatMessage; error?: string }>(
+    `/customer/reservations/${bookingId}/chat`,
+    { method: "POST", body: JSON.stringify({ body }) }
+  );
+}
+
 export async function toggleDriverActive(isActive: boolean) {
   return apiRequest<{ success: boolean; isActive: boolean; status: string }>(
     "/driver/toggle-active",

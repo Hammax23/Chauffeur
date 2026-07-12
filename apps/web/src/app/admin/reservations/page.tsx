@@ -5,7 +5,7 @@ import {
   Search, RefreshCw, Filter, ExternalLink, Phone, Mail,
   Car, MapPin, Clock, Users, ChevronDown, ChevronUp,
   Loader2, AlertCircle, Eye, Copy, Check, Pencil, Trash2, X, Save,
-  CreditCard, DollarSign, UserX, UserCheck, RotateCcw, Shield,
+  CreditCard, DollarSign, UserX, UserCheck, RotateCcw, Shield, MessageSquare,
 } from "lucide-react";
 import DriverTripTimingPanel from "@/components/DriverTripTimingPanel";
 
@@ -98,6 +98,13 @@ export default function ReservationsPage() {
   const [availableDrivers, setAvailableDrivers] = useState<{id: string; name: string; phone: string; vehicle: string; vehiclePlate: string; isActive: boolean}[]>([]);
   const [loadingDrivers, setLoadingDrivers] = useState(false);
   const [assigningDriver, setAssigningDriver] = useState<string | null>(null);
+  const [chatBookingId, setChatBookingId] = useState<string | null>(null);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState("");
+  const [chatMessages, setChatMessages] = useState<
+    { id: string; senderType: string; body: string; createdAt: string }[]
+  >([]);
+  const [chatMeta, setChatMeta] = useState<{ canSend: boolean; status: string } | null>(null);
 
   const copyToClipboard = async (url: string, type: string) => {
     try {
@@ -254,6 +261,28 @@ export default function ReservationsPage() {
       setError("Failed to load drivers");
     } finally {
       setLoadingDrivers(false);
+    }
+  };
+
+  const openChatModal = async (bookingId: string) => {
+    setChatBookingId(bookingId);
+    setChatLoading(true);
+    setChatError("");
+    setChatMessages([]);
+    setChatMeta(null);
+    try {
+      const res = await fetch(`/api/admin/reservations/${bookingId}/chat`);
+      const data = await res.json();
+      if (data.success) {
+        setChatMessages(data.messages || []);
+        setChatMeta({ canSend: !!data.canSend, status: data.status || "" });
+      } else {
+        setChatError(data.error || "Failed to load chat");
+      }
+    } catch {
+      setChatError("Failed to connect to server");
+    } finally {
+      setChatLoading(false);
     }
   };
 
@@ -543,6 +572,22 @@ export default function ReservationsPage() {
                             driverStopPeriodsJson={r.driverStopPeriodsJson}
                             completedAt={r.completedAt}
                           />
+                        </div>
+
+                        {/* Trip chat (read-only) */}
+                        <div className="lg:col-span-3 space-y-2">
+                          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Trip chat</h4>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openChatModal(r.bookingId);
+                            }}
+                            className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-200 hover:border-[#C9A063] hover:text-[#C9A063] rounded-lg transition-colors"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            View chat
+                          </button>
                         </div>
 
                         {/* Billing */}
@@ -1063,6 +1108,71 @@ export default function ReservationsPage() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Trip chat transcript (read-only) */}
+      {chatBookingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">Trip chat</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {chatBookingId}
+                  {chatMeta?.status ? ` · ${chatMeta.status}` : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setChatBookingId(null)}
+                className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 min-h-[200px]">
+              {chatLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="w-6 h-6 animate-spin text-[#C9A063]" />
+                </div>
+              ) : chatError ? (
+                <p className="text-sm text-red-600 text-center py-12">{chatError}</p>
+              ) : chatMessages.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-12">No messages yet for this trip.</p>
+              ) : (
+                chatMessages.map((m) => {
+                  const isDriver = m.senderType === "DRIVER";
+                  const isCustomer = m.senderType === "CUSTOMER";
+                  return (
+                    <div
+                      key={m.id}
+                      className={`rounded-xl border px-3 py-2.5 ${
+                        isDriver
+                          ? "border-amber-100 bg-amber-50/60"
+                          : isCustomer
+                            ? "border-slate-200 bg-slate-50"
+                            : "border-gray-200 bg-white"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                          {m.senderType}
+                        </span>
+                        <span className="text-[11px] text-gray-400">
+                          {new Date(m.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">{m.body}</p>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 text-[11px] text-gray-500">
+              Admin view is read-only. Messaging is available to driver and customer while the ride is active.
             </div>
           </div>
         </div>

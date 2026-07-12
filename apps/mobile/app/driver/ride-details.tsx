@@ -368,6 +368,23 @@ export default function RideDetailsScreen() {
             </View>
             <Text style={styles.passengerCount}>{ride?.passengers || 0} passengers</Text>
           </View>
+          {ride &&
+          ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP", "DONE", "CANCELLED"].includes(
+            ride.status
+          ) ? (
+            <TouchableOpacity
+              style={styles.chatButton}
+              onPress={() =>
+                router.push({
+                  pathname: "/driver/chat",
+                  params: { bookingId: id, name: ride.customerName || "Customer" },
+                })
+              }
+            >
+              <Ionicons name="chatbubble-ellipses-outline" size={18} color="#fff" />
+              <Text style={styles.chatButtonText}>Message customer</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         <View style={styles.section}>
@@ -609,6 +626,21 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#e8e8e8",
+  },
+  chatButton: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#1C1C1E",
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  chatButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
   },
   customerAvatar: {
     width: 48,

@@ -82,7 +82,8 @@ model Reservation {
   customer            Customer? @relation(fields: [customerId], references: [id])
   assignedDriverId    String?
   assignedDriver      Driver?  @relation(fields: [assignedDriverId], references: [id])
-  
+  chatThread          ChatThread?
+
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
@@ -488,4 +489,31 @@ model SeoAuditLog {
 
   @@index([entityType, createdAt])
   @@index([createdAt])
+}
+
+/// One chat thread per reservation (Driver ↔ Customer after accept)
+model ChatThread {
+  id            String        @id @default(cuid())
+  reservationId String        @unique
+  bookingId     String        @unique
+  reservation   Reservation   @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  messages      ChatMessage[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([bookingId])
+}
+
+model ChatMessage {
+  id         String     @id @default(cuid())
+  threadId   String
+  thread     ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  /// CUSTOMER | DRIVER | ADMIN (ADMIN reserved for later)
+  senderType String
+  senderId   String
+  body       String     @db.Text
+  createdAt  DateTime   @default(now())
+  readAt     DateTime?
+
+  @@index([threadId, createdAt])
 }

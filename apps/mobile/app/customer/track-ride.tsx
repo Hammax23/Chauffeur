@@ -430,6 +430,27 @@ export default function TrackRideScreen() {
               >
                 <Ionicons name="call" size={16} color="#fff" />
               </TouchableOpacity>
+              {reservation &&
+              ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP", "DONE", "CANCELLED"].includes(
+                reservation.status
+              ) &&
+              reservation.driver ? (
+                <TouchableOpacity
+                  style={styles.chatBtn}
+                  activeOpacity={0.85}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/customer/chat",
+                      params: {
+                        bookingId: reservation.bookingId,
+                        name: reservation.driver?.name || "Driver",
+                      },
+                    })
+                  }
+                >
+                  <Ionicons name="chatbubble-ellipses" size={16} color="#fff" />
+                </TouchableOpacity>
+              ) : null}
             </View>
           </View>
 
@@ -921,6 +942,15 @@ const styles = StyleSheet.create({
   callBtnDisabled: {
     backgroundColor: "#CBD5E1",
     ...Platform.select({ ios: { shadowOpacity: 0 }, android: { elevation: 0 } }),
+  },
+  chatBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    marginLeft: 8,
+    backgroundColor: "#1C1C1E",
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   /* ───── trip card ───── */
