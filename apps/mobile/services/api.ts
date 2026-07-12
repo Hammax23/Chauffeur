@@ -638,8 +638,9 @@ export type ChatThreadPayload = {
   error?: string;
 };
 
-export async function getDriverChat(bookingId: string) {
-  return apiRequest<ChatThreadPayload>(`/driver/rides/${bookingId}/chat`);
+export async function getDriverChat(bookingId: string, since?: string) {
+  const qs = since ? `?since=${encodeURIComponent(since)}` : "";
+  return apiRequest<ChatThreadPayload>(`/driver/rides/${bookingId}/chat${qs}`);
 }
 
 export async function sendDriverChatMessage(bookingId: string, body: string) {
@@ -649,8 +650,9 @@ export async function sendDriverChatMessage(bookingId: string, body: string) {
   );
 }
 
-export async function getCustomerChat(bookingId: string) {
-  return apiRequest<ChatThreadPayload>(`/customer/reservations/${bookingId}/chat`);
+export async function getCustomerChat(bookingId: string, since?: string) {
+  const qs = since ? `?since=${encodeURIComponent(since)}` : "";
+  return apiRequest<ChatThreadPayload>(`/customer/reservations/${bookingId}/chat${qs}`);
 }
 
 export async function sendCustomerChatMessage(bookingId: string, body: string) {

@@ -11,6 +11,9 @@ export const CHAT_OPEN_STATUSES = [
   "STOP",
 ] as const;
 
+const DEFAULT_MESSAGE_LIMIT = 200;
+const MAX_MESSAGE_LIMIT = 500;
+
 export type ChatSenderType = "CUSTOMER" | "DRIVER" | "ADMIN";
 
 export type ChatMessageDto = {
@@ -45,23 +48,57 @@ export function serializeMessage(m: {
 }
 
 export async function getOrCreateThread(reservationId: string, bookingId: string) {
-  const existing = await prisma.chatThread.findUnique({ where: { bookingId } });
-  if (existing) return existing;
-  return prisma.chatThread.create({
-    data: { reservationId, bookingId },
+  return prisma.chatThread.upsert({
+    where: { bookingId },
+    create: { reservationId, bookingId },
+    update: {},
   });
 }
 
-export async function listMessagesForBooking(bookingId: string): Promise<{
+export async function listMessagesForBooking(
+  bookingId: string,
+  options?: { since?: string; limit?: number }
+): Promise<{
   threadId: string | null;
   messages: ChatMessageDto[];
   canSend: boolean;
   status: string;
 }> {
+  const limit = Math.min(options?.limit ?? DEFAULT_MESSAGE_LIMIT, MAX_MESSAGE_LIMIT);
+  let sinceDate: Date | undefined;
+  if (options?.since) {
+    const parsed = new Date(options.since);
+    if (!Number.isNaN(parsed.getTime())) {
+      sinceDate = parsed;
+    }
+  }
+
   const reservation = await prisma.reservation.findUnique({
     where: { bookingId },
-    select: { id: true, status: true, chatThread: { select: { id: true } } },
+    select: {
+      id: true,
+      status: true,
+      chatThread: {
+        select: {
+          id: true,
+          messages: {
+            where: sinceDate ? { createdAt: { gt: sinceDate } } : undefined,
+            orderBy: sinceDate ? { createdAt: "asc" } : { createdAt: "desc" },
+            take: sinceDate ? undefined : limit,
+            select: {
+              id: true,
+              senderType: true,
+              senderId: true,
+              body: true,
+              createdAt: true,
+              readAt: true,
+            },
+          },
+        },
+      },
+    },
   });
+
   if (!reservation) {
     throw new Error("NOT_FOUND");
   }
@@ -71,14 +108,13 @@ export async function listMessagesForBooking(bookingId: string): Promise<{
     return { threadId: null, messages: [], canSend, status: reservation.status };
   }
 
-  const messages = await prisma.chatMessage.findMany({
-    where: { threadId: reservation.chatThread.id },
-    orderBy: { createdAt: "asc" },
-  });
+  const raw = reservation.chatThread.messages;
+  const ordered = sinceDate ? raw : [...raw].reverse();
+  const messages = ordered.map(serializeMessage);
 
   return {
     threadId: reservation.chatThread.id,
-    messages: messages.map(serializeMessage),
+    messages,
     canSend,
     status: reservation.status,
   };
@@ -100,7 +136,14 @@ export async function postChatMessage(params: {
 
   const reservation = await prisma.reservation.findUnique({
     where: { bookingId: params.bookingId },
-    include: { assignedDriver: { select: { id: true, pushToken: true } } },
+    select: {
+      id: true,
+      bookingId: true,
+      status: true,
+      customerId: true,
+      assignedDriverId: true,
+      assignedDriver: { select: { id: true, pushToken: true } },
+    },
   });
   if (!reservation) {
     throw new Error("NOT_FOUND");
@@ -133,7 +176,6 @@ export async function postChatMessage(params: {
     message: dto,
   });
 
-  // Notify the other party via Expo push when possible (driver token exists today).
   if (params.senderType === "CUSTOMER" && reservation.assignedDriver?.pushToken) {
     const preview = body.length > 80 ? `${body.slice(0, 77)}…` : body;
     void sendPushNotification(

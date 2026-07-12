@@ -37,7 +37,8 @@ export async function GET(
       return NextResponse.json({ success: false, error: "Ride not found" }, { status: 404 });
     }
 
-    const data = await listMessagesForBooking(bookingId);
+    const since = req.nextUrl.searchParams.get("since") ?? undefined;
+    const data = await listMessagesForBooking(bookingId, { since });
     return NextResponse.json({ success: true, ...data });
   } catch (error) {
     if (error instanceof Error && error.message === "NOT_FOUND") {
