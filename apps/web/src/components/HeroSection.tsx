@@ -100,9 +100,9 @@ const HeroSection = () => {
       
       <div className="absolute inset-0 bg-black/40"></div>
 
-      <div className="relative z-10 flex flex-col min-h-screen pt-[130px] sm:pt-[145px]">
+      <div className="relative z-10 flex flex-col min-h-screen pt-[108px] sm:pt-[118px]">
         <div className="max-w-[1600px] mx-auto w-full px-8">
-          <div className="text-left mb-4 sm:mb-6 md:mb-8 mt-32 sm:mt-40 md:mt-48 lg:mt-56 max-w-[800px] lg:ml-[240px]">
+          <div className="text-left mb-3 sm:mb-4 md:mb-5 mt-12 sm:mt-16 md:mt-24 lg:mt-28 max-w-[800px] lg:ml-[240px]">
           <p className="text-white/90 text-sm sm:text-base md:text-lg mb-3 sm:mb-4 font-normal tracking-wide">
             Where Would You Like To Go?
           </p>
@@ -114,7 +114,7 @@ const HeroSection = () => {
           </div>
         </div>
 
-        <div id="book" className="w-full max-w-[900px] mt-4 sm:mt-6 md:mt-8 lg:mt-10 mb-8 sm:mb-10 mx-auto px-4 sm:px-6 md:px-8">
+        <div id="book" className="w-full max-w-[900px] mt-1 sm:mt-2 md:mt-3 lg:mt-4 mb-8 sm:mb-10 mx-auto px-4 sm:px-6 md:px-8">
           {/* Booking Mode Toggle */}
           <div className="flex justify-center mb-4">
             <div className="inline-flex rounded-full p-1 bg-gradient-to-r from-[#1a1a2e]/90 to-[#16213e]/90 backdrop-blur-md border border-[#C9A063]/30 shadow-xl">

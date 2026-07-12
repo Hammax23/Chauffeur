@@ -2,7 +2,6 @@ import dynamic from "next/dynamic";
 import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import HeroSection from "@/components/HeroSection";
-import FifaPromoBanner from "@/components/FifaPromoBanner";
 import { GoogleMapsProvider } from "@/components/GoogleMapsProvider";
 
 // Lazy load below-the-fold components for faster initial load
@@ -25,7 +24,6 @@ export default function Home() {
     <main className="min-h-screen">
       <TopNav />
       <Navbar />
-      <FifaPromoBanner />
       <HeroSection />
       <DiscoverFleet />
       <WhyChoose />

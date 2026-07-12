@@ -43,6 +43,12 @@ const COUNTRY_CODES = [
   { code: "+49", label: "DE", name: "Germany", flagCode: "de" },
 ];
 
+function formatHourlyRate(price: number): string {
+  const n = Number(price);
+  if (!Number.isFinite(n)) return "0";
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
+
 function ReservationPageContent() {
   const searchParams = useSearchParams();
   
@@ -460,6 +466,20 @@ function ReservationPageContent() {
     }, 100);
   };
 
+  const scrollToFormTop = () => {
+    setTimeout(() => {
+      const isMobile = window.innerWidth < 768;
+      window.scrollTo({ top: isMobile ? 0 : 200, behavior: "smooth" });
+    }, 100);
+  };
+
+  const handleGoToStep = (stepId: number) => {
+    if (stepId >= currentStep || stepId < 1) return;
+    setCurrentStep(stepId);
+    setStepError("");
+    scrollToFormTop();
+  };
+
   const steps = [
     { id: 1, title: "Ride Details", description: "When and where" },
     { id: 2, title: "Select Vehicle", description: "Choose your ride" },
@@ -495,30 +515,57 @@ function ReservationPageContent() {
             {/* Desktop Progress */}
             <div className="hidden md:flex items-center justify-center">
               <div className="flex items-center space-x-4">
-                {steps.map((step, index) => (
+                {steps.map((step, index) => {
+                  const isCompleted = currentStep > step.id;
+                  const isCurrent = currentStep === step.id;
+                  const isClickable = isCompleted;
+
+                  return (
                   <div key={step.id} className="flex items-center">
-                    <div className={`flex flex-col items-center ${currentStep >= step.id ? 'text-[#C9A063]' : 'text-gray-400'}`}>
+                    <button
+                      type="button"
+                      onClick={() => handleGoToStep(step.id)}
+                      disabled={!isClickable}
+                      aria-label={
+                        isClickable
+                          ? `Go back to ${step.title} and edit`
+                          : isCurrent
+                            ? `Current step: ${step.title}`
+                            : `${step.title} (not yet available)`
+                      }
+                      aria-current={isCurrent ? "step" : undefined}
+                      className={`flex flex-col items-center text-center transition-all duration-200 ${
+                        currentStep >= step.id ? "text-[#C9A063]" : "text-gray-400"
+                      } ${
+                        isClickable
+                          ? "cursor-pointer hover:opacity-90 hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A063]/40 focus-visible:ring-offset-2 rounded-lg"
+                          : "cursor-default"
+                      }`}
+                    >
                       <div className={`w-12 h-12 rounded-full flex items-center justify-center font-semibold text-sm border-2 transition-all duration-300 ${
                         currentStep >= step.id 
                           ? 'bg-[#C9A063] text-white border-[#C9A063] shadow-lg shadow-[#C9A063]/30' 
                           : 'bg-white text-gray-400 border-gray-300'
                       }`}>
-                        {currentStep > step.id ? (
+                        {isCompleted ? (
                           <CheckCircle className="w-6 h-6" />
                         ) : (
                           step.id
                         )}
                       </div>
-                      <div className="mt-2 text-center">
+                      <div className="mt-2 text-center max-w-[120px]">
                         <div className="text-sm font-semibold">{step.title}</div>
                         <div className="text-xs text-gray-500">{step.description}</div>
+                        {isClickable && (
+                          <div className="text-[10px] text-[#C9A063]/80 mt-0.5 font-medium">Tap to edit</div>
+                        )}
                       </div>
-                    </div>
+                    </button>
                     {index < steps.length - 1 && (
                       <div className={`w-16 h-0.5 mx-4 ${currentStep > step.id ? 'bg-[#C9A063]' : 'bg-gray-300'}`} />
                     )}
                   </div>
-                ))}
+                )})}
               </div>
             </div>
 
@@ -532,15 +579,69 @@ function ReservationPageContent() {
                   {Math.round((currentStep / steps.length) * 100)}% Complete
                 </div>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
+              <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
                 <div 
                   className="bg-gradient-to-r from-[#C9A063] to-[#A68B5B] h-2 rounded-full transition-all duration-300"
                   style={{ width: `${(currentStep / steps.length) * 100}%` }}
                 />
               </div>
+
+              {/* Mobile step dots — tap completed steps to go back */}
+              <div className="flex items-center justify-center gap-2 mb-4">
+                {steps.map((step) => {
+                  const isCompleted = currentStep > step.id;
+                  const isCurrent = currentStep === step.id;
+                  return (
+                    <button
+                      key={step.id}
+                      type="button"
+                      onClick={() => handleGoToStep(step.id)}
+                      disabled={!isCompleted}
+                      aria-label={
+                        isCompleted
+                          ? `Go back to ${step.title} and edit`
+                          : isCurrent
+                            ? `Current step: ${step.title}`
+                            : step.title
+                      }
+                      aria-current={isCurrent ? "step" : undefined}
+                      className={`flex flex-col items-center gap-1 min-w-[64px] transition-all ${
+                        isCompleted
+                          ? "cursor-pointer active:scale-95"
+                          : "cursor-default"
+                      }`}
+                    >
+                      <span
+                        className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold border-2 transition-colors ${
+                          isCompleted
+                            ? "bg-[#C9A063] text-white border-[#C9A063]"
+                            : isCurrent
+                              ? "bg-[#C9A063] text-white border-[#C9A063] ring-2 ring-[#C9A063]/30"
+                              : "bg-white text-gray-400 border-gray-300"
+                        }`}
+                      >
+                        {isCompleted ? <CheckCircle className="w-4 h-4" /> : step.id}
+                      </span>
+                      <span
+                        className={`text-[10px] font-medium leading-tight text-center ${
+                          isCurrent || isCompleted ? "text-[#C9A063]" : "text-gray-400"
+                        }`}
+                      >
+                        {step.title.split(" ")[0]}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
               <div className="text-center">
                 <h3 className="text-lg font-bold text-gray-900">{steps[currentStep - 1].title}</h3>
                 <p className="text-sm text-gray-600">{steps[currentStep - 1].description}</p>
+                {currentStep > 1 && (
+                  <p className="text-xs text-[#C9A063] mt-1 font-medium">
+                    Tap a completed step above to go back and edit
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -772,47 +873,52 @@ function ReservationPageContent() {
                     <div className="space-y-6">
                       <div>
                         <h3 className="text-lg font-semibold text-gray-900 mb-6">Choose Your Luxury Vehicle</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {availableVehicles.map((vehicle) => (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                          {availableVehicles.map((vehicle) => {
+                            const isSelected = selectedVehicle === vehicle.id;
+                            return (
                             <button
                               key={vehicle.id}
+                              type="button"
                               onClick={() => { setSelectedVehicle(vehicle.id); setStepError(""); }}
-                              className={`p-4 sm:p-6 rounded-xl sm:rounded-2xl border-2 text-left transition-all duration-300 group ${
-                                selectedVehicle === vehicle.id
-                                  ? 'border-[#C9A063] bg-[#C9A063]/5 shadow-xl shadow-[#C9A063]/20'
-                                  : 'border-gray-200 hover:border-[#C9A063]/40 hover:bg-gray-50 hover:shadow-lg active:scale-95'
+                              className={`flex flex-col overflow-hidden rounded-2xl border-2 text-left transition-all duration-200 ${
+                                isSelected
+                                  ? "border-[#C9A063] bg-white shadow-lg shadow-[#C9A063]/15 ring-1 ring-[#C9A063]/25"
+                                  : "border-gray-200 bg-white hover:border-[#C9A063]/40 hover:shadow-md active:scale-[0.99]"
                               }`}
                             >
-                              <div className="aspect-[4/3] bg-gray-100 rounded-lg sm:rounded-xl mb-3 sm:mb-4 overflow-hidden">
+                              <div className="relative aspect-[5/3] bg-gradient-to-b from-gray-50 to-gray-100/80">
                                 <img
                                   src={vehicle.image}
                                   alt={vehicle.name}
-                                  className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+                                  className="w-full h-full object-contain p-4 transition-transform duration-300 group-hover:scale-105"
                                 />
-                              </div>
-                              <div className="font-bold text-gray-900 text-base sm:text-lg mb-2">{vehicle.name}</div>
-                              <div className="text-gray-700 text-sm mb-3 sm:mb-4 line-clamp-2">{vehicle.description}</div>
-                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 text-sm">
-                                <div className="flex items-center gap-3 sm:gap-4">
-                                  <div className="flex items-center gap-1">
-                                    <Users className="w-4 h-4 text-[#C9A063]" />
-                                    <span className="text-xs sm:text-sm font-medium text-gray-800">{vehicle.seating}</span>
+                                {isSelected && (
+                                  <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-[#C9A063] flex items-center justify-center shadow-md">
+                                    <CheckCircle className="w-4 h-4 text-white" strokeWidth={2.5} />
                                   </div>
-                                  <div className="flex items-center gap-1">
-                                    <span className="w-4 h-4 text-[#C9A063] text-xs">🧳</span>
-                                    <span className="text-xs sm:text-sm font-medium text-gray-800">{vehicle.luggage}</span>
-                                  </div>
-                                </div>
-                                {(bookingMode === "distance" || !RESERVATION_HIDE_HOURLY_RATE_IDS.has(vehicle.id)) && (
-                                  <span className="font-bold text-[#C9A063] text-sm">
-                                    {bookingMode === "hourly"
-                                      ? `From $${vehicle.price}/hr`
-                                      : `From $${vehicle.price}`}
-                                  </span>
                                 )}
                               </div>
+
+                              <div className="p-4 sm:p-5 flex flex-col gap-2 flex-1">
+                                <h4 className="font-semibold text-gray-900 text-[16px] sm:text-[17px] leading-snug">
+                                  {vehicle.name}
+                                </h4>
+                                <p className="text-[13px] text-gray-500 leading-relaxed line-clamp-2">
+                                  {vehicle.description}
+                                </p>
+                                <div className="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between gap-3">
+                                  <span className="text-[11px] uppercase tracking-wider text-gray-400 font-medium">
+                                    Hourly rate
+                                  </span>
+                                  <span className="text-[18px] font-bold text-[#C9A063] whitespace-nowrap tabular-nums">
+                                    ${formatHourlyRate(vehicle.price)}
+                                    <span className="text-[13px] font-semibold text-[#C9A063]/75">/hr</span>
+                                  </span>
+                                </div>
+                              </div>
                             </button>
-                          ))}
+                          )})}
                         </div>
                       </div>
 
