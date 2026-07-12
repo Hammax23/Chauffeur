@@ -145,13 +145,22 @@ export function getVehicleMaxSeats(seating: string): number {
   return Number.isNaN(fallback) ? 0 : fallback;
 }
 
-/** Vehicles available for online reservation (same list as homepage / fleet page). */
+/** Vehicles hidden from Online Reservation Select Vehicle (still on homepage / fleet if active). */
+export const RESERVATION_EXCLUDED_VEHICLE_IDS = new Set([
+  "sprinter-van",
+]);
+
+/** Vehicles available for online reservation. */
 export function getFleetForReservation(
   passengerCount: number,
   source: FleetVehicle[] = fleetData
 ): FleetVehicle[] {
   const count = Math.max(1, passengerCount);
-  return source.filter((vehicle) => getVehicleMaxSeats(vehicle.seating) >= count);
+  return source.filter(
+    (vehicle) =>
+      !RESERVATION_EXCLUDED_VEHICLE_IDS.has(vehicle.id) &&
+      getVehicleMaxSeats(vehicle.seating) >= count
+  );
 }
 
 export const fleetCategories: FleetCategory[] = ["Sedan", "SUV", "Executive", "Van", "Coach"];

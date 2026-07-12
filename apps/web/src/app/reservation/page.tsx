@@ -31,7 +31,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import StripePayment from "@/components/StripePayment";
 import Turnstile from "@/components/Turnstile";
-import { fleetData, RESERVATION_HIDE_HOURLY_RATE_IDS, getFleetForReservation, type FleetVehicle } from "@/data/fleet";
+import { fleetData, RESERVATION_HIDE_HOURLY_RATE_IDS, RESERVATION_EXCLUDED_VEHICLE_IDS, getFleetForReservation, type FleetVehicle, type FleetCategory } from "@/data/fleet";
 import { calculateReservationPricing } from "@/lib/reservation-pricing";
 import { GoogleMapsProvider } from "@/components/GoogleMapsProvider";
 
@@ -55,13 +55,14 @@ function ReservationPageContent() {
   const [currentStep, setCurrentStep] = useState(1);
   const [stops, setStops] = useState<string[]>([]);
   const [selectedVehicle, setSelectedVehicle] = useState("");
+  const [vehicleCategoryFilter, setVehicleCategoryFilter] = useState<"All" | FleetCategory>("All");
   const [reservationFleet, setReservationFleet] = useState<FleetVehicle[]>(fleetData);
   const [countryCode, setCountryCode] = useState(COUNTRY_CODES[0].code);
   const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
   
   // Dynamic location states
   const [bookingMode, setBookingMode] = useState<"distance" | "hourly">("distance");
-  const [serviceType, setServiceType] = useState("");
+  const [serviceType, setServiceType] = useState("Point-to-Point transportation");
   const [pickupLocation, setPickupLocation] = useState("");
   const [dropoffLocation, setDropoffLocation] = useState("");
   const [pickupDateTime, setPickupDateTime] = useState<Date | null>(null);
@@ -110,10 +111,17 @@ function ReservationPageContent() {
   // Pre-select vehicle from URL (e.g. Discover Fleet card)
   useEffect(() => {
     const vehicleIdParam = searchParams.get("vehicleId");
-    if (!vehicleIdParam) return;
+    if (!vehicleIdParam || RESERVATION_EXCLUDED_VEHICLE_IDS.has(vehicleIdParam)) return;
     const exists = reservationFleet.some((v) => v.id === vehicleIdParam);
     if (exists) setSelectedVehicle(vehicleIdParam);
   }, [searchParams, reservationFleet]);
+
+  // Clear selection if current vehicle is excluded from reservation (e.g. Sprinter)
+  useEffect(() => {
+    if (selectedVehicle && RESERVATION_EXCLUDED_VEHICLE_IDS.has(selectedVehicle)) {
+      setSelectedVehicle("");
+    }
+  }, [selectedVehicle]);
 
   const [transferType, setTransferType] = useState<"oneWay" | "return" | "returnNewRide">("oneWay");
   const [adultsCount, setAdultsCount] = useState(1);
@@ -124,6 +132,26 @@ function ReservationPageContent() {
     () => getFleetForReservation(passengersCount, reservationFleet),
     [passengersCount, reservationFleet]
   );
+
+  const vehicleCategories = useMemo(() => {
+    const cats = Array.from(new Set(availableVehicles.map((v) => v.category)));
+    return cats as FleetCategory[];
+  }, [availableVehicles]);
+
+  const filteredVehicles = useMemo(() => {
+    if (vehicleCategoryFilter === "All") return availableVehicles;
+    return availableVehicles.filter((v) => v.category === vehicleCategoryFilter);
+  }, [availableVehicles, vehicleCategoryFilter]);
+
+  // Reset category filter if current filter has no vehicles (e.g. passenger count changed)
+  useEffect(() => {
+    if (
+      vehicleCategoryFilter !== "All" &&
+      !availableVehicles.some((v) => v.category === vehicleCategoryFilter)
+    ) {
+      setVehicleCategoryFilter("All");
+    }
+  }, [availableVehicles, vehicleCategoryFilter]);
 
   const resolveVehicle = useCallback(
     (vehicleId: string) =>
@@ -151,7 +179,7 @@ function ReservationPageContent() {
   const [flightNote, setFlightNote] = useState("");
 
   // Gratuity
-  const [gratuityPercent, setGratuityPercent] = useState(15);
+  const [gratuityPercent, setGratuityPercent] = useState(20);
 
   // Payment states (card info)
   const [cardType, setCardType] = useState("");
@@ -428,7 +456,6 @@ function ReservationPageContent() {
   const validateStep = (step: number): boolean => {
     setStepError("");
     if (step === 1) {
-      if (bookingMode === "distance" && !serviceType) { setStepError("Please select a service type."); return false; }
       if (!pickupLocation.trim()) { setStepError("Please enter a pickup location."); return false; }
       if (bookingMode === "distance" && !dropoffLocation.trim()) { setStepError("Please enter a drop-off location."); return false; }
       if (!pickupDateTime) { setStepError("Please select date and time."); return false; }
@@ -493,25 +520,22 @@ function ReservationPageContent() {
       <TopNav />
       <Navbar />
 
-      <section className="pt-[165px] md:pt-[185px] pb-20 overflow-x-hidden">
-        <div className="max-w-[1400px] mx-auto px-6 sm:px-8 md:px-12">
+      <section className="pt-[140px] sm:pt-[165px] md:pt-[185px] pb-12 sm:pb-20 overflow-x-hidden">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-8 md:px-12">
           
           {/* Header */}
-          <div className="text-center mb-10">
-            <div className="inline-flex items-center gap-2 sm:gap-2.5 px-4 sm:px-6 py-2.5 sm:py-3 rounded-full bg-white border border-[#C9A063]/30 shadow-lg shadow-[#C9A063]/10 mb-6">
-              <div className="w-2 h-2 rounded-full bg-gradient-to-r from-[#C9A063] to-[#B8935A] animate-pulse" />
-              <span className="text-gray-800 text-[14px] sm:text-[20px] font-bold tracking-[0.1em] sm:tracking-[0.2em] uppercase">Make A Reservation</span>
+          <div className="text-center mb-6 sm:mb-10">
+            <div className="inline-flex items-center gap-2 sm:gap-2.5 px-3.5 sm:px-6 py-2 sm:py-3 rounded-full bg-white border border-[#C9A063]/30 shadow-lg shadow-[#C9A063]/10 mb-4 sm:mb-6 max-w-full">
+              <div className="w-2 h-2 rounded-full bg-gradient-to-r from-[#C9A063] to-[#B8935A] animate-pulse flex-shrink-0" />
+              <span className="text-gray-800 text-[12px] sm:text-[20px] font-bold tracking-[0.08em] sm:tracking-[0.2em] uppercase">Make A Reservation</span>
             </div>
-            {/* <h1 className="text-4xl md:text-5xl font-bold text-gray-900 tracking-tight mb-4">
-              Make A Reservation
-            </h1> */}
-            <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+            <p className="text-gray-600 text-[14px] sm:text-lg max-w-2xl mx-auto px-1">
               Experience world-class chauffeur service with our premium fleet
             </p>
           </div>
 
           {/* Progress Steps */}
-          <div className="mb-8 sm:mb-12">
+          <div className="mb-6 sm:mb-12">
             {/* Desktop Progress */}
             <div className="hidden md:flex items-center justify-center">
               <div className="flex items-center space-x-4">
@@ -571,23 +595,23 @@ function ReservationPageContent() {
 
             {/* Mobile Progress */}
             <div className="md:hidden">
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-sm font-medium text-gray-600">
+              <div className="flex items-center justify-between mb-2.5">
+                <div className="text-[12px] font-medium text-gray-600">
                   Step {currentStep} of {steps.length}
                 </div>
-                <div className="text-sm text-gray-500">
+                <div className="text-[12px] text-gray-500">
                   {Math.round((currentStep / steps.length) * 100)}% Complete
                 </div>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+              <div className="w-full bg-gray-200 rounded-full h-1.5 mb-3">
                 <div 
-                  className="bg-gradient-to-r from-[#C9A063] to-[#A68B5B] h-2 rounded-full transition-all duration-300"
+                  className="bg-gradient-to-r from-[#C9A063] to-[#A68B5B] h-1.5 rounded-full transition-all duration-300"
                   style={{ width: `${(currentStep / steps.length) * 100}%` }}
                 />
               </div>
 
               {/* Mobile step dots — tap completed steps to go back */}
-              <div className="flex items-center justify-center gap-2 mb-4">
+              <div className="flex items-stretch justify-between gap-1 mb-3">
                 {steps.map((step) => {
                   const isCompleted = currentStep > step.id;
                   const isCurrent = currentStep === step.id;
@@ -605,14 +629,14 @@ function ReservationPageContent() {
                             : step.title
                       }
                       aria-current={isCurrent ? "step" : undefined}
-                      className={`flex flex-col items-center gap-1 min-w-[64px] transition-all ${
+                      className={`flex flex-1 flex-col items-center gap-1 min-w-0 py-1 transition-all ${
                         isCompleted
                           ? "cursor-pointer active:scale-95"
                           : "cursor-default"
                       }`}
                     >
                       <span
-                        className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold border-2 transition-colors ${
+                        className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold border-2 transition-colors ${
                           isCompleted
                             ? "bg-[#C9A063] text-white border-[#C9A063]"
                             : isCurrent
@@ -620,10 +644,10 @@ function ReservationPageContent() {
                               : "bg-white text-gray-400 border-gray-300"
                         }`}
                       >
-                        {isCompleted ? <CheckCircle className="w-4 h-4" /> : step.id}
+                        {isCompleted ? <CheckCircle className="w-3.5 h-3.5" /> : step.id}
                       </span>
                       <span
-                        className={`text-[10px] font-medium leading-tight text-center ${
+                        className={`text-[9px] font-medium leading-tight text-center truncate w-full px-0.5 ${
                           isCurrent || isCompleted ? "text-[#C9A063]" : "text-gray-400"
                         }`}
                       >
@@ -635,10 +659,10 @@ function ReservationPageContent() {
               </div>
 
               <div className="text-center">
-                <h3 className="text-lg font-bold text-gray-900">{steps[currentStep - 1].title}</h3>
-                <p className="text-sm text-gray-600">{steps[currentStep - 1].description}</p>
+                <h3 className="text-base font-bold text-gray-900">{steps[currentStep - 1].title}</h3>
+                <p className="text-[12px] text-gray-600">{steps[currentStep - 1].description}</p>
                 {currentStep > 1 && (
-                  <p className="text-xs text-[#C9A063] mt-1 font-medium">
+                  <p className="text-[11px] text-[#C9A063] mt-1 font-medium">
                     Tap a completed step above to go back and edit
                   </p>
                 )}
@@ -647,22 +671,22 @@ function ReservationPageContent() {
           </div>
 
           {/* Main Content */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
             
             {/* Form Section */}
             <div className="lg:col-span-2">
               {/* Booking Mode Toggle - Above Form */}
               {currentStep === 1 && (
-                <div className="flex justify-center mb-4">
-                  <div className="inline-flex rounded-full p-1 bg-white border border-gray-200 shadow-sm">
+                <div className="flex justify-center mb-3 px-1">
+                  <div className="inline-flex w-full max-w-sm sm:w-auto sm:max-w-none rounded-full p-0.5 bg-white border border-gray-200 shadow-sm">
                     <button
                       type="button"
                       onClick={() => {
                         setBookingMode("distance");
-                        setServiceType("");
+                        setServiceType("Point-to-Point transportation");
                         setDropoffLocation("");
                       }}
-                      className={`relative px-6 sm:px-8 py-2.5 rounded-full text-[12px] sm:text-[13px] font-semibold tracking-wide transition-all duration-300 ${
+                      className={`relative flex-1 min-w-[7.5rem] px-4 sm:px-7 py-2 rounded-full text-[11px] sm:text-[12px] font-semibold tracking-wide transition-all duration-300 ${
                         bookingMode === "distance"
                           ? "bg-[#1C1C1E] text-white shadow-md"
                           : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
@@ -677,7 +701,7 @@ function ReservationPageContent() {
                         setServiceType("Hourly ride");
                         setDropoffLocation("");
                       }}
-                      className={`relative px-6 sm:px-8 py-2.5 rounded-full text-[12px] sm:text-[13px] font-semibold tracking-wide transition-all duration-300 ${
+                      className={`relative flex-1 min-w-[7.5rem] px-4 sm:px-7 py-2 rounded-full text-[11px] sm:text-[12px] font-semibold tracking-wide transition-all duration-300 ${
                         bookingMode === "hourly"
                           ? "bg-[#1C1C1E] text-white shadow-md"
                           : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
@@ -689,80 +713,64 @@ function ReservationPageContent() {
                 </div>
               )}
 
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80">
-                <div className="bg-[#1C1C1E] p-4 sm:p-5">
-                  <h2 className="text-lg sm:text-xl font-semibold text-white">
+              <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200/80 overflow-hidden">
+                <div className="bg-[#1C1C1E] px-4 py-3 sm:px-5 sm:py-3.5">
+                  <h2 className="text-[15px] sm:text-base font-semibold text-white leading-tight">
                     Step {currentStep}: {steps[currentStep - 1].title}
                   </h2>
-                  <p className="text-gray-400 text-sm mt-0.5">
+                  <p className="text-gray-400 text-[12px] sm:text-[13px] mt-0.5">
                     {steps[currentStep - 1].description}
                   </p>
                 </div>
 
-                <div className="p-4 sm:p-6 bg-[#f2f2f7]">
+                <div className="p-3.5 sm:p-5 bg-[#f2f2f7]">
                   {/* Step 1: Ride Details */}
                   {currentStep === 1 && (
-                    <div className="space-y-5">
-                      {/* Service Type - Only show for distance mode */}
-                      {bookingMode === "distance" && (
-                        <div className="bg-white rounded-xl border border-gray-200/60 px-4 py-3">
-                          <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">Service Type</label>
-                          <select
-                            value={serviceType}
-                            onChange={(e) => { setServiceType(e.target.value); setStepError(""); }}
-                            className="w-full py-1.5 bg-transparent text-[15px] text-gray-900 focus:outline-none"
-                          >
-                            <option value="">Select service type</option>
-                            <option value="Airport Transfer pick-up/drop-off">Airport Transfer pick-up/drop-off</option>
-                            <option value="Point-to-Point transportation">Point-to-Point transportation</option>
-                          </select>
-                        </div>
-                      )}
-
+                    <div className="space-y-3">
                       {/* Trip Route - iOS grouped style */}
                       <div className="bg-white rounded-xl border border-gray-200/60 divide-y divide-gray-100">
-                        <div className="px-4 py-3">
-                          <div className="flex items-center gap-2.5 mb-2">
-                            <div className="w-8 h-8 rounded-lg bg-[#e5e5ea] flex items-center justify-center flex-shrink-0">
-                              <MapPin className="w-4 h-4 text-gray-600" strokeWidth={2} />
+                        <div className="px-3.5 py-2.5">
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className="w-7 h-7 rounded-md bg-[#e5e5ea] flex items-center justify-center flex-shrink-0">
+                              <MapPin className="w-3.5 h-3.5 text-gray-600" strokeWidth={2} />
                             </div>
-                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Pickup</label>
+                            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Pickup</label>
                           </div>
                           <PlacesAutocomplete
                             value={pickupLocation}
                             onChange={(val) => { setPickupLocation(val); setStepError(""); }}
                             placeholder="Address or airport code (e.g. YYZ)"
-                            className="w-full py-1.5 -mt-1 bg-transparent text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none"
+                            className="w-full py-1 bg-transparent text-[14px] text-gray-900 placeholder-gray-400 focus:outline-none"
                           />
                         </div>
                         {bookingMode === "distance" && (
-                          <div className="px-4 py-3">
-                            <div className="flex items-center gap-2.5 mb-2">
-                              <div className="w-8 h-8 rounded-lg bg-[#e5e5ea] flex items-center justify-center flex-shrink-0">
-                                <MapPin className="w-4 h-4 text-gray-600" strokeWidth={2} />
+                          <div className="px-3.5 py-2.5">
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-7 h-7 rounded-md bg-[#e5e5ea] flex items-center justify-center flex-shrink-0">
+                                <MapPin className="w-3.5 h-3.5 text-gray-600" strokeWidth={2} />
                               </div>
-                              <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Drop-off</label>
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Drop-off</label>
                             </div>
                             <PlacesAutocomplete
                               value={dropoffLocation}
                               onChange={(val) => { setDropoffLocation(val); setStepError(""); }}
                               placeholder="Destination address"
-                              className="w-full py-1.5 -mt-1 bg-transparent text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none"
+                              className="w-full py-1 bg-transparent text-[14px] text-gray-900 placeholder-gray-400 focus:outline-none"
                             />
                           </div>
                         )}
                         {bookingMode === "hourly" && (
-                          <div className="px-4 py-3">
-                            <div className="flex items-center gap-2.5 mb-2">
-                              <div className="w-8 h-8 rounded-lg bg-[#e5e5ea] flex items-center justify-center flex-shrink-0">
-                                <Clock className="w-4 h-4 text-gray-600" strokeWidth={2} />
+                          <div className="px-3.5 py-2.5">
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-7 h-7 rounded-md bg-[#e5e5ea] flex items-center justify-center flex-shrink-0">
+                                <Clock className="w-3.5 h-3.5 text-gray-600" strokeWidth={2} />
                               </div>
-                              <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Duration (Hours)</label>
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Duration (Hours)</label>
                             </div>
                             <select
                               value={hourlyDuration}
                               onChange={(e) => setHourlyDuration(parseInt(e.target.value))}
-                              className="w-full py-1.5 -mt-1 bg-transparent text-[15px] text-gray-900 focus:outline-none"
+                              className="w-full py-1 bg-transparent text-[14px] text-gray-900 focus:outline-none"
                             >
                               {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((h) => (
                                 <option key={h} value={h}>{h} hours</option>
@@ -774,8 +782,8 @@ function ReservationPageContent() {
 
                       {stops.map((stop, index) => (
                         <div key={index} className="bg-white rounded-xl border border-gray-200/60">
-                          <div className="px-4 py-3">
-                            <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">Stop {index + 1}</label>
+                          <div className="px-3.5 py-2.5">
+                            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Stop {index + 1}</label>
                             <div className="flex items-center gap-2">
                               <div className="flex-1">
                                 <PlacesAutocomplete
@@ -786,15 +794,15 @@ function ReservationPageContent() {
                                     setStops(newStops);
                                   }}
                                   placeholder="Stop address"
-                                  className="w-full py-1.5 bg-transparent text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none"
+                                  className="w-full py-1 bg-transparent text-[14px] text-gray-900 placeholder-gray-400 focus:outline-none"
                                 />
                               </div>
                               <button
                                 type="button"
                                 onClick={() => setStops(stops.filter((_, i) => i !== index))}
-                                className="p-1.5 text-gray-400 hover:text-gray-600"
+                                className="p-1 text-gray-400 hover:text-gray-600"
                               >
-                                <X className="w-5 h-5" />
+                                <X className="w-4 h-4" />
                               </button>
                             </div>
                           </div>
@@ -804,63 +812,63 @@ function ReservationPageContent() {
                       <button
                         type="button"
                         onClick={() => setStops([...stops, ""])}
-                        className="flex items-center gap-2 text-[#007AFF] text-[15px] font-medium"
+                        className="flex items-center gap-1.5 text-[#007AFF] text-[13px] font-medium pl-0.5"
                       >
-                        <Plus className="w-4 h-4" strokeWidth={2.5} />
+                        <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
                         Add Stop
                       </button>
 
-                      {/* Pick-up Date & Time - Combined */}
-                      <div>
-                        <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Pick-up Time</label>
-                        <div className="relative reservation-datepicker">
-                          <DatePicker
-                            selected={pickupDateTime}
-                            onChange={(date: Date | null) => { setPickupDateTime(date); setStepError(""); }}
-                            showTimeSelect
-                            timeIntervals={15}
-                            timeCaption="Time"
-                            dateFormat="MMMM d, yyyy  h:mm aa"
-                            timeFormat="h:mm aa"
-                            minDate={new Date()}
-                            placeholderText="Select date & time"
-                            className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200"
-                            withPortal
-                            required
-                          />
-                          <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
-                            <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
+                      {/* Pick-up Date & Time + Passengers — compact row on desktop */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Pick-up Time</label>
+                          <div className="relative reservation-datepicker">
+                            <DatePicker
+                              selected={pickupDateTime}
+                              onChange={(date: Date | null) => { setPickupDateTime(date); setStepError(""); }}
+                              showTimeSelect
+                              timeIntervals={15}
+                              timeCaption="Time"
+                              dateFormat="MMM d, yyyy  h:mm aa"
+                              timeFormat="h:mm aa"
+                              minDate={new Date()}
+                              placeholderText="Select date & time"
+                              className="w-full px-3.5 py-2.5 pr-10 border border-gray-200 rounded-xl text-[14px] text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200"
+                              withPortal
+                              required
+                            />
+                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                              <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-
-                      {/* Passengers - iOS stepper style */}
-                      <div className="bg-white rounded-xl border border-gray-200/60 px-4 py-3">
-                        <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">Passengers</label>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[15px] text-gray-900">{passengersCount}</span>
-                          <div className="flex items-center rounded-lg overflow-hidden border border-gray-200">
-                            <button
-                              type="button"
-                              onClick={() => { setAdultsCount((p) => Math.max(1, p - 1)); }}
-                              disabled={passengersCount <= 1}
-                              className="p-2 bg-[#f2f2f7] text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed active:bg-[#e5e5ea]"
-                              aria-label="Decrease"
-                            >
-                              <ChevronDown className="w-4 h-4" strokeWidth={2.5} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => { setAdultsCount((p) => Math.min(50, p + 1)); }}
-                              disabled={passengersCount >= 50}
-                              className="p-2 bg-[#f2f2f7] text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed active:bg-[#e5e5ea] border-l border-gray-200"
-                              aria-label="Increase"
-                            >
-                              <ChevronUp className="w-4 h-4" strokeWidth={2.5} />
-                            </button>
+                        <div className="bg-white rounded-xl border border-gray-200/60 px-3.5 py-2.5">
+                          <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Passengers</label>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[14px] font-medium text-gray-900 tabular-nums">{passengersCount}</span>
+                            <div className="flex items-center rounded-lg overflow-hidden border border-gray-200">
+                              <button
+                                type="button"
+                                onClick={() => { setAdultsCount((p) => Math.max(1, p - 1)); }}
+                                disabled={passengersCount <= 1}
+                                className="p-1.5 bg-[#f2f2f7] text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed active:bg-[#e5e5ea]"
+                                aria-label="Decrease"
+                              >
+                                <ChevronDown className="w-3.5 h-3.5" strokeWidth={2.5} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { setAdultsCount((p) => Math.min(50, p + 1)); }}
+                                disabled={passengersCount >= 50}
+                                className="p-1.5 bg-[#f2f2f7] text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed active:bg-[#e5e5ea] border-l border-gray-200"
+                                aria-label="Increase"
+                              >
+                                <ChevronUp className="w-3.5 h-3.5" strokeWidth={2.5} />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -870,55 +878,107 @@ function ReservationPageContent() {
 
                   {/* Step 2: Select Vehicle */}
                   {currentStep === 2 && (
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                       <div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-6">Choose Your Luxury Vehicle</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-                          {availableVehicles.map((vehicle) => {
-                            const isSelected = selectedVehicle === vehicle.id;
-                            return (
-                            <button
-                              key={vehicle.id}
-                              type="button"
-                              onClick={() => { setSelectedVehicle(vehicle.id); setStepError(""); }}
-                              className={`flex flex-col overflow-hidden rounded-2xl border-2 text-left transition-all duration-200 ${
-                                isSelected
-                                  ? "border-[#C9A063] bg-white shadow-lg shadow-[#C9A063]/15 ring-1 ring-[#C9A063]/25"
-                                  : "border-gray-200 bg-white hover:border-[#C9A063]/40 hover:shadow-md active:scale-[0.99]"
-                              }`}
-                            >
-                              <div className="relative aspect-[5/3] bg-gradient-to-b from-gray-50 to-gray-100/80">
-                                <img
-                                  src={vehicle.image}
-                                  alt={vehicle.name}
-                                  className="w-full h-full object-contain p-4 transition-transform duration-300 group-hover:scale-105"
-                                />
-                                {isSelected && (
-                                  <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-[#C9A063] flex items-center justify-center shadow-md">
-                                    <CheckCircle className="w-4 h-4 text-white" strokeWidth={2.5} />
-                                  </div>
-                                )}
-                              </div>
+                        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-3">
+                          <div>
+                            <h3 className="text-[15px] sm:text-base font-semibold text-gray-900">Choose Your Vehicle</h3>
+                            <p className="text-[12px] text-gray-500 mt-0.5">
+                              {filteredVehicles.length} option{filteredVehicles.length === 1 ? "" : "s"} available
+                            </p>
+                          </div>
+                        </div>
 
-                              <div className="p-4 sm:p-5 flex flex-col gap-2 flex-1">
-                                <h4 className="font-semibold text-gray-900 text-[16px] sm:text-[17px] leading-snug">
-                                  {vehicle.name}
-                                </h4>
-                                <p className="text-[13px] text-gray-500 leading-relaxed line-clamp-2">
-                                  {vehicle.description}
-                                </p>
-                                <div className="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between gap-3">
-                                  <span className="text-[11px] uppercase tracking-wider text-gray-400 font-medium">
-                                    Hourly rate
+                        {/* Category filters — horizontal scroll on mobile */}
+                        <div className="-mx-1 mb-3">
+                          <div className="flex gap-1.5 overflow-x-auto px-1 pb-1 touch-pan-x [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            {(["All", ...vehicleCategories] as const).map((cat) => {
+                              const isActive = vehicleCategoryFilter === cat;
+                              const count =
+                                cat === "All"
+                                  ? availableVehicles.length
+                                  : availableVehicles.filter((v) => v.category === cat).length;
+                              return (
+                                <button
+                                  key={cat}
+                                  type="button"
+                                  onClick={() => setVehicleCategoryFilter(cat)}
+                                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[12px] font-semibold transition-colors whitespace-nowrap ${
+                                    isActive
+                                      ? "bg-[#1C1C1E] text-white"
+                                      : "bg-white border border-gray-200 text-gray-600 active:bg-gray-50"
+                                  }`}
+                                >
+                                  {cat}
+                                  <span className={`ml-1.5 ${isActive ? "text-white/60" : "text-gray-400"}`}>
+                                    {count}
                                   </span>
-                                  <span className="text-[18px] font-bold text-[#C9A063] whitespace-nowrap tabular-nums">
-                                    ${formatHourlyRate(vehicle.price)}
-                                    <span className="text-[13px] font-semibold text-[#C9A063]/75">/hr</span>
-                                  </span>
-                                </div>
-                              </div>
-                            </button>
-                          )})}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Compact horizontal vehicle rows — less scroll */}
+                        <div className="bg-white rounded-xl border border-gray-200/60 overflow-hidden divide-y divide-gray-100">
+                          {filteredVehicles.length === 0 ? (
+                            <div className="px-4 py-8 text-center text-[13px] text-gray-500">
+                              No vehicles match this filter for your passenger count.
+                            </div>
+                          ) : (
+                            filteredVehicles.map((vehicle) => {
+                              const isSelected = selectedVehicle === vehicle.id;
+                              return (
+                                <button
+                                  key={vehicle.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedVehicle(vehicle.id);
+                                    setStepError("");
+                                  }}
+                                  className={`w-full flex items-center gap-2.5 sm:gap-3 px-2.5 py-2.5 sm:px-3.5 sm:py-3 text-left transition-colors min-h-[64px] ${
+                                    isSelected
+                                      ? "bg-[#C9A063]/10"
+                                      : "active:bg-gray-100 sm:hover:bg-gray-50"
+                                  }`}
+                                >
+                                  <div
+                                    className={`relative w-[64px] h-[44px] sm:w-[88px] sm:h-[56px] rounded-lg overflow-hidden flex-shrink-0 bg-gray-50 border ${
+                                      isSelected ? "border-[#C9A063]/40" : "border-gray-100"
+                                    }`}
+                                  >
+                                    <img
+                                      src={vehicle.image}
+                                      alt={vehicle.name}
+                                      className="w-full h-full object-contain p-0.5 sm:p-1"
+                                    />
+                                  </div>
+
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <h4 className="font-semibold text-gray-900 text-[13px] sm:text-[15px] truncate">
+                                        {vehicle.name}
+                                      </h4>
+                                      <span className="flex-shrink-0 text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                                        {vehicle.category}
+                                      </span>
+                                    </div>
+                                    <p className="text-[12px] text-gray-500 mt-0.5 tabular-nums">
+                                      From ${formatHourlyRate(vehicle.price)}/hr
+                                    </p>
+                                  </div>
+
+                                  <div className="flex-shrink-0 pl-1">
+                                    {isSelected ? (
+                                      <CheckCircle className="w-5 h-5 text-[#C9A063]" strokeWidth={2} />
+                                    ) : (
+                                      <span className="w-5 h-5 rounded-full border-2 border-gray-300 block" />
+                                    )}
+                                  </div>
+                                </button>
+                              );
+                            })
+                          )}
                         </div>
                       </div>
 
@@ -927,18 +987,18 @@ function ReservationPageContent() {
                         <button
                           type="button"
                           onClick={() => setExtraOptionsOpen(!extraOptionsOpen)}
-                          className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                          className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
                         >
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-[#C9A063]/10 flex items-center justify-center">
-                              <Plus className="w-4 h-4 text-[#C9A063]" />
+                            <div className="w-7 h-7 rounded-lg bg-[#C9A063]/10 flex items-center justify-center">
+                              <Plus className="w-3.5 h-3.5 text-[#C9A063]" />
                             </div>
                             <div className="text-left">
-                              <span className="block text-[14px] font-semibold text-gray-900">Extra Options</span>
-                              <span className="block text-[12px] text-gray-500">Add extras to your ride</span>
+                              <span className="block text-[13px] font-semibold text-gray-900">Extra Options</span>
+                              <span className="block text-[11px] text-gray-500">Add extras to your ride</span>
                             </div>
                           </div>
-                          <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${extraOptionsOpen ? 'rotate-180' : ''}`} />
+                          <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${extraOptionsOpen ? "rotate-180" : ""}`} />
                         </button>
                         
                         {extraOptionsOpen && (
@@ -1198,184 +1258,208 @@ function ReservationPageContent() {
                   )}
 
                   {/* Step 4: Confirm and proceed to Payment */}
-                  {currentStep === 4 && (
-                    <div className="space-y-5">
+                  {currentStep === 4 && (() => {
+                    const subtotal = pricingSummary?.subtotal ?? 0;
+                    const hst = pricingSummary?.hst ?? 0;
+                    const gratuity = pricingSummary?.gratuity ?? 0;
+                    const total = pricingSummary?.total ?? 0;
+                    const vehicle = resolveVehicle(selectedVehicle);
+
+                    const summaryRows: { label: string; value: string }[] = [
+                      { label: "Vehicle", value: vehicle?.name ?? "--" },
+                      {
+                        label: "Date & time",
+                        value: pickupDateTime
+                          ? pickupDateTime.toLocaleString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                              hour: "numeric",
+                              minute: "2-digit",
+                              hour12: true,
+                            })
+                          : "--",
+                      },
+                      { label: "Pickup", value: pickupLocation || "--" },
+                    ];
+                    if (bookingMode === "distance") {
+                      summaryRows.push({ label: "Drop-off", value: dropoffLocation || "--" });
+                      if (routeDistance !== "--") {
+                        summaryRows.push({
+                          label: "Estimate",
+                          value: `${routeDistance} · ${routeDuration}`,
+                        });
+                      }
+                    } else {
+                      summaryRows.push({ label: "Duration", value: `${hourlyDuration} hours` });
+                    }
+                    summaryRows.push({ label: "Passengers", value: String(passengersCount) });
+                    summaryRows.push({
+                      label: "Guest",
+                      value: [firstName, lastName].filter(Boolean).join(" ") || "--",
+                    });
+
+                    return (
+                    <div className="space-y-4">
                       <div>
-                        <h3 className="text-[17px] font-semibold text-gray-900 mb-1">Confirmation</h3>
-                        <p className="text-[13px] text-gray-500">Review & pay</p>
+                        <h3 className="text-[16px] font-semibold text-gray-900">Confirmation</h3>
+                        <p className="text-[13px] text-gray-500 mt-0.5">Review details and pay to book</p>
                       </div>
 
-                      <div className="bg-white rounded-xl border border-gray-200/60 overflow-hidden">
+                      {/* One simple summary + fare card */}
+                      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                        <div className="px-4 py-3 border-b border-gray-100">
+                          <span className="text-[13px] font-semibold text-gray-900">Trip details</span>
+                        </div>
+
                         <div className="divide-y divide-gray-100">
-                          <div className="flex items-center justify-between p-4">
-                            <span className="text-[13px] font-medium text-gray-600">Vehicle</span>
-                            <span className="text-[13px] font-semibold text-gray-900">
-                              {resolveVehicle(selectedVehicle)?.name ?? "--"}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between p-4">
-                            <span className="text-[13px] font-medium text-gray-600">Date & Time</span>
-                            <span className="text-[13px] font-semibold text-gray-900 text-right">
-                              {pickupDateTime
-                                ? pickupDateTime.toLocaleString("en-US", { month: "2-digit", day: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })
-                                : "--"}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between p-4">
-                            <span className="text-[13px] font-medium text-gray-600">Passengers</span>
-                            <span className="text-[13px] font-semibold text-gray-900">{passengersCount}</span>
-                          </div>
-                          {bookingMode === "distance" && (
-                            <div className="flex items-center justify-between p-4">
-                              <span className="text-[13px] font-medium text-gray-600">Estimate</span>
-                              <span className="text-[13px] font-semibold text-gray-900">
-                                {routeDistance !== "--" && routeDuration !== "--" ? `${routeDistance} / ${routeDuration}` : "--"}
+                          {summaryRows.map((row) => (
+                            <div
+                              key={row.label}
+                              className="flex items-start justify-between gap-4 px-4 py-2.5"
+                            >
+                              <span className="text-[13px] text-gray-500 flex-shrink-0">{row.label}</span>
+                              <span className="text-[13px] font-medium text-gray-900 text-right break-words">
+                                {row.value}
                               </span>
                             </div>
-                          )}
-                          {bookingMode === "hourly" && (
-                            <div className="flex items-center justify-between p-4">
-                              <span className="text-[13px] font-medium text-gray-600">Duration</span>
-                              <span className="text-[13px] font-semibold text-gray-900">{hourlyDuration} hr</span>
-                            </div>
-                          )}
+                          ))}
+                        </div>
+
+                        <div className="border-t border-gray-200 divide-y divide-gray-100 bg-[#fafafa]">
                           {!RESERVATION_HIDE_HOURLY_RATE_IDS.has(selectedVehicle) && (
-                            <div className="flex items-center justify-between p-4">
-                              <span className="text-[13px] font-medium text-gray-600">
-                                {bookingMode === "hourly" ? "Rate" : `Base (up to ${pricingConfig.baseDistanceKm}km)`}
+                            <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+                              <span className="text-[13px] text-gray-500">
+                                {bookingMode === "hourly"
+                                  ? `Rate (${hourlyDuration} hr)`
+                                  : `Base (up to ${pricingConfig.baseDistanceKm} km)`}
                               </span>
-                              <span className="text-[13px] font-semibold text-gray-900">
-                                {bookingMode === "hourly" 
-                                  ? `$${resolveVehicle(selectedVehicle)?.price ?? 0}/hr`
-                                  : `$${resolveVehicle(selectedVehicle)?.price ?? 0}`}
+                              <span className="text-[13px] font-medium text-gray-900 tabular-nums">
+                                {bookingMode === "hourly"
+                                  ? `$${((vehicle?.price ?? 0) * hourlyDuration).toFixed(2)}`
+                                  : `$${(vehicle?.price ?? 0).toFixed(2)}`}
                               </span>
                             </div>
                           )}
                           {bookingMode === "distance" && routeDistanceValue > pricingConfig.baseDistanceKm * 1000 && (
-                            <div className="flex items-center justify-between p-4">
-                              <span className="text-[13px] font-medium text-gray-600">
-                                Extra KM ({((routeDistanceValue / 1000) - pricingConfig.baseDistanceKm).toFixed(1)} × ${pricingConfig.extraKmRate.toFixed(2)})
-                              </span>
-                              <span className="text-[13px] font-semibold text-gray-900">
+                            <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+                              <span className="text-[13px] text-gray-500">Extra distance</span>
+                              <span className="text-[13px] font-medium text-gray-900 tabular-nums">
                                 ${(((routeDistanceValue / 1000) - pricingConfig.baseDistanceKm) * pricingConfig.extraKmRate).toFixed(2)}
                               </span>
                             </div>
                           )}
                           {meetGreet && (
-                            <div className="flex items-center justify-between p-4">
-                              <span className="text-[13px] font-medium text-gray-600">Meet & Greet</span>
-                              <span className="text-[13px] font-semibold text-gray-900">${pricingConfig.meetGreet.toFixed(2)}</span>
+                            <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+                              <span className="text-[13px] text-gray-500">Meet & Greet</span>
+                              <span className="text-[13px] font-medium text-gray-900 tabular-nums">${pricingConfig.meetGreet.toFixed(2)}</span>
                             </div>
                           )}
                           {activeStopCount > 0 && (
-                            <div className="flex items-center justify-between p-4">
-                              <span className="text-[13px] font-medium text-gray-600">
-                                Stops ({activeStopCount} × ${pricingConfig.stop.toFixed(2)})
-                              </span>
-                              <span className="text-[13px] font-semibold text-gray-900">
+                            <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+                              <span className="text-[13px] text-gray-500">Stops ({activeStopCount})</span>
+                              <span className="text-[13px] font-medium text-gray-900 tabular-nums">
                                 ${(activeStopCount * pricingConfig.stop).toFixed(2)}
                               </span>
                             </div>
                           )}
                           {childSeatCount > 0 && (
-                            <div className="flex items-center justify-between p-4">
-                              <span className="text-[13px] font-medium text-gray-600">
-                                Child Seat ({childSeatCount} × ${pricingConfig.childSeat.toFixed(2)})
-                              </span>
-                              <span className="text-[13px] font-semibold text-gray-900">
+                            <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+                              <span className="text-[13px] text-gray-500">Child seat ({childSeatCount})</span>
+                              <span className="text-[13px] font-medium text-gray-900 tabular-nums">
                                 ${(childSeatCount * pricingConfig.childSeat).toFixed(2)}
                               </span>
                             </div>
                           )}
                           {bouquetFlowers && (
-                            <div className="flex items-center justify-between p-4">
-                              <span className="text-[13px] font-medium text-gray-600">Bouquet of Flowers</span>
-                              <span className="text-[13px] font-semibold text-gray-900">${pricingConfig.bouquet.toFixed(2)}</span>
+                            <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+                              <span className="text-[13px] text-gray-500">Bouquet</span>
+                              <span className="text-[13px] font-medium text-gray-900 tabular-nums">${pricingConfig.bouquet.toFixed(2)}</span>
                             </div>
                           )}
-                          {(() => {
-                            const subtotal = pricingSummary?.subtotal ?? 0;
-                            const hst = pricingSummary?.hst ?? 0;
-                            const gratuity = pricingSummary?.gratuity ?? 0;
-                            const total = pricingSummary?.total ?? 0;
-                            return (
-                              <>
-                                <div className="flex items-center justify-between p-4">
-                                  <span className="text-[13px] font-medium text-gray-600">Subtotal</span>
-                                  <span className="text-[13px] font-semibold text-gray-900">
-                                    ${subtotal > 0 ? subtotal.toFixed(2) : "0.00"}
-                                  </span>
-                                </div>
-                                <div className="flex items-center justify-between p-4">
-                                  <span className="text-[13px] font-medium text-gray-600">HST ({(pricingConfig.hstRate * 100).toFixed(0)}%)</span>
-                                  <span className="text-[13px] font-semibold text-gray-900">
-                                    ${subtotal > 0 ? hst.toFixed(2) : "0.00"}
-                                  </span>
-                                </div>
-                                <div className="flex items-center justify-between p-4">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[13px] font-medium text-gray-600">Gratuity</span>
-                                    <select
-                                      value={gratuityPercent}
-                                      onChange={(e) => setGratuityPercent(Number(e.target.value))}
-                                      className="text-[13px] font-semibold text-gray-900 bg-transparent border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:border-[#C9A063]"
-                                    >
-                                      <option value={15}>15%</option>
-                                      <option value={18}>18%</option>
-                                      <option value={25}>25%</option>
-                                    </select>
-                                  </div>
-                                  <span className="text-[13px] font-semibold text-gray-900">
-                                    ${subtotal > 0 ? gratuity.toFixed(2) : "0.00"}
-                                  </span>
-                                </div>
-                                <div className="flex items-center justify-between p-4 bg-[#f2f2f7]">
-                                  <span className="text-[15px] font-semibold text-gray-900">Total</span>
-                                  <span className="text-[17px] font-bold text-[#1C1C1E]">
-                                    ${total > 0 ? total.toFixed(2) : "0.00"} CAD
-                                  </span>
-                                </div>
-                              </>
-                            );
-                          })()}
+                          <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+                            <span className="text-[13px] text-gray-500">Subtotal</span>
+                            <span className="text-[13px] font-medium text-gray-900 tabular-nums">
+                              ${subtotal > 0 ? subtotal.toFixed(2) : "0.00"}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+                            <span className="text-[13px] text-gray-500">
+                              HST ({(pricingConfig.hstRate * 100).toFixed(0)}%)
+                            </span>
+                            <span className="text-[13px] font-medium text-gray-900 tabular-nums">
+                              ${subtotal > 0 ? hst.toFixed(2) : "0.00"}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[13px] text-gray-500">Gratuity</span>
+                              <select
+                                value={gratuityPercent}
+                                onChange={(e) => setGratuityPercent(Number(e.target.value))}
+                                className="text-[12px] font-medium text-gray-900 bg-white border border-gray-200 rounded-md px-2 py-1 focus:outline-none focus:border-[#C9A063]"
+                              >
+                                <option value={20}>20%</option>
+                                <option value={25}>25%</option>
+                              </select>
+                            </div>
+                            <span className="text-[13px] font-medium text-gray-900 tabular-nums">
+                              ${subtotal > 0 ? gratuity.toFixed(2) : "0.00"}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 px-4 py-3 bg-white border-t border-gray-200">
+                            <span className="text-[14px] font-semibold text-gray-900">Total</span>
+                            <span className="text-[16px] font-bold text-gray-900 tabular-nums">
+                              ${total > 0 ? total.toFixed(2) : "0.00"}{" "}
+                              <span className="text-[12px] font-semibold text-gray-500">CAD</span>
+                            </span>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Terms & Conditions Checkbox */}
-                      <label className="flex items-start gap-3 p-4 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors group">
+                      <label className="flex items-start gap-3 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={termsAccepted}
                           onChange={(e) => setTermsAccepted(e.target.checked)}
-                          className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063] focus:ring-offset-0"
+                          className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063] flex-shrink-0"
                         />
-                        <span className="text-gray-600 text-[13px] leading-snug group-hover:text-gray-700">
-                          I agree to the <a href="/terms-of-service" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">Terms of Service</a>, <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">Privacy Policy</a> and <a href="/privacy-policy#cancellation" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">Cancellation Policy</a>
+                        <span className="text-[13px] text-gray-600 leading-snug">
+                          I agree to the{" "}
+                          <a href="/terms-of-service" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">
+                            Terms
+                          </a>
+                          ,{" "}
+                          <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">
+                            Privacy
+                          </a>
+                          {" "}&{" "}
+                          <a href="/privacy-policy#cancellation" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">
+                            Cancellation Policy
+                          </a>
                         </span>
                       </label>
 
-                      {/* Turnstile CAPTCHA */}
                       <Turnstile
                         onVerify={(token) => setTurnstileToken(token)}
                         onExpire={() => setTurnstileToken("")}
                         onError={() => setTurnstileToken("")}
                       />
 
-                      {/* Stripe Payment */}
                       {!paymentSuccess && (
-                        <div className="pt-4 border-t border-gray-200">
-                          <h3 className="text-lg font-semibold text-[#007AFF] mb-2">Secure Payment</h3>
-                          <p className="text-[13px] text-gray-500 mb-4">
-                            Pay the full amount below to confirm your reservation.
+                        <div className="bg-white rounded-xl border border-gray-200 p-4">
+                          <h3 className="text-[14px] font-semibold text-gray-900 mb-1">Payment</h3>
+                          <p className="text-[12px] text-gray-500 mb-3">
+                            Pay the full amount to confirm your reservation.
                           </p>
                           {!termsAccepted && (
-                            <p className="text-[13px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
-                              Please accept the terms and conditions before paying.
+                            <p className="text-[12px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5 mb-3">
+                              Please accept the terms before paying.
                             </p>
                           )}
                           {termsAccepted && !turnstileToken && (
-                            <p className="text-[13px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
-                              Please complete the security verification above before paying.
+                            <p className="text-[12px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5 mb-3">
+                              Please complete the security check above.
                             </p>
                           )}
                           <StripePayment
@@ -1408,102 +1492,42 @@ function ReservationPageContent() {
                       )}
 
                       {paymentSuccess && (
-                        <div className="flex flex-col items-center justify-center py-8 text-center border-t border-gray-200">
-                          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
-                            <CheckCircle className="w-8 h-8 text-green-600" />
-                          </div>
-                          <h3 className="text-[17px] font-bold text-gray-900 mb-1">Payment Successful!</h3>
+                        <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
+                          <CheckCircle className="w-10 h-10 text-emerald-600 mx-auto mb-3" strokeWidth={2} />
+                          <h3 className="text-[15px] font-semibold text-gray-900">Payment successful</h3>
                           {emailSending && (
-                            <div className="flex items-center gap-2 mt-2">
+                            <div className="flex items-center justify-center gap-2 mt-2">
                               <Loader2 className="w-4 h-4 animate-spin text-[#C9A063]" />
-                              <p className="text-[13px] text-gray-500">Sending confirmation emails...</p>
+                              <p className="text-[13px] text-gray-500">Sending confirmation...</p>
                             </div>
                           )}
                           {emailSent && (
-                            <p className="text-[13px] text-green-600 mt-2">Confirmation emails sent! Check your inbox.</p>
+                            <p className="text-[13px] text-emerald-700 mt-2">
+                              Confirmation sent to {email}
+                            </p>
                           )}
                           {emailError && (
-                            <p className="text-[13px] text-red-500 mt-2">Email error: {emailError}</p>
+                            <p className="text-[13px] text-red-600 mt-2">{emailError}</p>
                           )}
                           {!emailSending && !emailSent && !emailError && (
-                            <p className="text-[13px] text-gray-500">Your reservation has been confirmed.</p>
+                            <p className="text-[13px] text-gray-500 mt-2">Your reservation is confirmed.</p>
                           )}
                         </div>
                       )}
 
                       {paymentError && (
-                        <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-xl">
-                          <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                        <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
+                          <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
                           <span className="text-red-700 text-[13px]">{paymentError}</span>
                         </div>
                       )}
 
-                      {/* Before you pay - Information Section */}
-                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
-                        <div className="flex items-start gap-3">
-                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <span className="text-blue-600 font-semibold text-sm">i</span>
-                          </div>
-                          <div>
-                            <h4 className="text-gray-900 font-semibold text-[15px] mb-3">Before you pay</h4>
-                            <ul className="space-y-2 text-gray-700 text-[13px]">
-                              <li className="flex items-start gap-2">
-                                <span className="text-gray-400 mt-0.5">•</span>
-                                <span>Flight tracking included for airport transfers</span>
-                              </li>
-                              <li className="flex items-start gap-2">
-                                <span className="text-gray-400 mt-0.5">•</span>
-                                <span>15 minutes complimentary wait time</span>
-                              </li>
-                              <li className="flex items-start gap-2">
-                                <span className="text-gray-400 mt-0.5">•</span>
-                                <span>Meet & greet service with name board (extra charge applies)</span>
-                              </li>
-                              <li className="flex items-start gap-2">
-                                <span className="text-gray-400 mt-0.5">•</span>
-                                <span>For Wi-Fi access, please ask your chauffeur</span>
-                              </li>
-                              <li className="flex items-start gap-2">
-                                <span className="text-gray-400 mt-0.5">•</span>
-                                <span>24/7 customer support</span>
-                              </li>
-                              <li className="flex items-start gap-2">
-                                <span className="text-gray-400 mt-0.5">•</span>
-                                <span>407 ETR (extra charges applies)</span>
-                              </li>
-                            </ul>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Success Message (if email sent) */}
-                      {emailSent && (
-                        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                          <div className="flex items-center gap-3">
-                            <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0" />
-                            <div>
-                              <h4 className="text-green-900 font-semibold text-[15px]">Success!</h4>
-                              <p className="text-green-700 text-[13px] mt-0.5">Your reservation has been confirmed. Check your email for details.</p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Email Error */}
-                      {emailError && (
-                        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                          <div className="flex items-center gap-3">
-                            <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0" />
-                            <div>
-                              <h4 className="text-red-900 font-semibold text-[15px]">Error</h4>
-                              <p className="text-red-700 text-[13px] mt-0.5">{emailError}</p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
+                      <p className="text-[12px] text-gray-400 leading-relaxed">
+                        Includes flight tracking for airport transfers and 15 min complimentary wait time. 24/7 support available.
+                      </p>
                     </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Validation Error */}
                   {stepError && (
@@ -1514,11 +1538,11 @@ function ReservationPageContent() {
                   )}
 
                   {/* Navigation Buttons */}
-                  <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 mt-6 pt-4 border-t border-gray-200/60">
+                  <div className="flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-2.5 mt-4 pt-3 border-t border-gray-200/60">
                     <button
                       onClick={handlePrevious}
                       disabled={currentStep === 1}
-                      className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-[15px] font-medium transition-colors ${
+                      className={`w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-xl text-[14px] font-medium transition-colors ${
                         currentStep === 1
                           ? "bg-[#e5e5ea] text-gray-400 cursor-not-allowed"
                           : "bg-white border border-gray-200 text-gray-700 active:bg-[#f2f2f7]"
@@ -1529,10 +1553,10 @@ function ReservationPageContent() {
                     {currentStep < 4 ? (
                       <button
                         onClick={handleNext}
-                        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#1C1C1E] text-white px-6 py-2.5 rounded-xl text-[15px] font-medium active:bg-[#2C2C2E] transition-colors"
+                        className="w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-1.5 bg-[#1C1C1E] text-white px-5 py-2.5 rounded-xl text-[14px] font-medium active:bg-[#2C2C2E] transition-colors"
                       >
                         Continue
-                        <ArrowRight className="w-4 h-4" />
+                        <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                     ) : null}
                   </div>
@@ -1541,15 +1565,15 @@ function ReservationPageContent() {
             </div>
 
             {/* Right Sidebar - Map (Step 1) or Ride Details (Step 2+) */}
-            <div className={`lg:col-span-1 order-first lg:order-last ${currentStep === 1 ? 'lg:mt-[68px]' : ''}`}>
-              <div className="rounded-2xl overflow-hidden lg:sticky lg:top-8 border border-gray-200/60 shadow-sm bg-white">
+            <div className={`lg:col-span-1 order-first lg:order-last ${currentStep === 1 ? "lg:mt-[52px]" : ""}`}>
+              <div className="rounded-xl sm:rounded-2xl overflow-hidden lg:sticky lg:top-8 border border-gray-200/60 shadow-sm bg-white">
                 {currentStep === 1 ? (
                   <>
-                    <div className="bg-[#1C1C1E] p-4 sm:p-5">
-                      <h3 className="text-lg font-semibold text-white">Route Preview</h3>
-                      <p className="text-gray-400 text-sm mt-0.5">Your journey visualization</p>
+                    <div className="bg-[#1C1C1E] px-4 py-3 sm:px-5 sm:py-3.5">
+                      <h3 className="text-[15px] sm:text-base font-semibold text-white leading-tight">Route Preview</h3>
+                      <p className="text-gray-400 text-[12px] sm:text-[13px] mt-0.5">Your journey visualization</p>
                     </div>
-                    <div className="h-64 sm:h-80 lg:h-96 relative bg-gray-200">
+                    <div className="h-44 sm:h-64 lg:h-72 relative bg-gray-200">
                       <RouteMap
                         pickupLocation={pickupLocation}
                         dropoffLocation={dropoffLocation}
@@ -1557,17 +1581,17 @@ function ReservationPageContent() {
                         onRouteCalculated={handleRouteCalculated}
                       />
                     </div>
-                    <div className="p-4 sm:p-5 bg-[#f2f2f7]">
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-200/60">
-                          <span className="text-[13px] font-medium text-gray-600">Estimated Distance</span>
-                          <span className="text-[13px] font-semibold text-gray-900">
+                    <div className="p-3 sm:p-4 bg-[#f2f2f7]">
+                      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-1 sm:space-y-0 sm:gap-1.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-3 py-2 bg-white rounded-lg border border-gray-200/60">
+                          <span className="text-[11px] sm:text-[12px] font-medium text-gray-600">Distance</span>
+                          <span className="text-[12px] font-semibold text-gray-900 tabular-nums">
                             {routeDistance !== "--" ? routeDistance : "-- km"}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-200/60">
-                          <span className="text-[13px] font-medium text-gray-600">Estimated Duration</span>
-                          <span className="text-[13px] font-semibold text-gray-900">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-3 py-2 bg-white rounded-lg border border-gray-200/60">
+                          <span className="text-[11px] sm:text-[12px] font-medium text-gray-600">Duration</span>
+                          <span className="text-[12px] font-semibold text-gray-900 tabular-nums">
                             {routeDuration !== "--" ? routeDuration : "-- min"}
                           </span>
                         </div>
