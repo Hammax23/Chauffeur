@@ -1,4 +1,4 @@
-import type { FleetVehicleDto } from "../services/api";
+import type { AppFleetVehicleDto } from "../services/api";
 
 /** Dispatch tier shown in reservation (matches client vehicle categories). */
 export interface VehicleTierDefinition {
@@ -7,14 +7,15 @@ export interface VehicleTierDefinition {
   /** Reservation rule shown under the title (Uber-style subtitle). */
   subtitle: string;
   group: "standard" | "executive";
-  /** Fleet vehicle used for thumbnail image. */
-  representativeFleetId: string;
+  /** Fleet vehicle used for thumbnail image (legacy static map only). */
+  representativeFleetId?: string;
   /** Override per-km rate when it differs from the representative vehicle. */
   pricePerKm?: number;
   /** Override hourly rate when it differs from the representative vehicle. */
   hourlyRate?: number;
 }
 
+/** Offline / empty-API fallback (kept in sync with admin seed defaults). */
 export const VEHICLE_TIER_DEFINITIONS: VehicleTierDefinition[] = [
   {
     id: "only-black-sedan",
@@ -71,10 +72,18 @@ export const VEHICLE_TIER_DEFINITIONS: VehicleTierDefinition[] = [
   },
 ];
 
-export interface VehicleTierOption extends VehicleTierDefinition {
+export interface VehicleTierOption {
+  id: string;
+  title: string;
+  subtitle: string;
+  group: "standard" | "executive";
   imageUrl: string;
   pricePerKm: number;
   hourlyRate: number;
+  description?: string;
+  category?: string;
+  seating?: string;
+  luggage?: string;
 }
 
 /** Map a home-screen fleet card id → reservation tier id. */
@@ -91,22 +100,23 @@ export function resolveTierIdFromFleetVehicleId(fleetVehicleId: string): string 
   return FLEET_ID_TO_TIER[fleetVehicleId] ?? fleetVehicleId;
 }
 
-export function buildVehicleTierOptions(fleet: FleetVehicleDto[]): VehicleTierOption[] {
-  const byId = new Map(fleet.map((v) => [v.id, v]));
-
-  return VEHICLE_TIER_DEFINITIONS.map((def) => {
-    const rep =
-      byId.get(def.representativeFleetId) ??
-      fleet.find((v) => v.category === "Sedan") ??
-      fleet[0];
-
-    return {
-      ...def,
-      imageUrl: rep?.imageUrl ?? "",
-      pricePerKm: def.pricePerKm ?? rep?.pricePerKm ?? 0,
-      hourlyRate: def.hourlyRate ?? rep?.price ?? 0,
-    };
-  }).filter((t) => t.imageUrl && t.pricePerKm > 0);
+/** Preferred: map admin-managed app fleet rows into reservation tiers. */
+export function buildVehicleTiersFromAppFleet(appFleet: AppFleetVehicleDto[]): VehicleTierOption[] {
+  return appFleet
+    .map((v) => ({
+      id: v.tierId || v.id,
+      title: v.title,
+      subtitle: v.subtitle || "",
+      group: (v.group === "executive" ? "executive" : "standard") as "standard" | "executive",
+      imageUrl: v.imageUrl || v.image || "",
+      pricePerKm: v.pricePerKm,
+      hourlyRate: v.hourlyRate ?? v.price ?? 0,
+      description: v.description,
+      category: v.category,
+      seating: v.seating,
+      luggage: v.luggage,
+    }))
+    .filter((t) => t.imageUrl && t.pricePerKm > 0);
 }
 
 export function findTierById(tiers: VehicleTierOption[], id: string): VehicleTierOption | undefined {

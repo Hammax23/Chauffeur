@@ -19,7 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { useAuth } from "../../contexts/AuthContext";
-import { getReservations, Reservation, getFleetVehicles, type FleetVehicleDto } from "../../services/api";
+import { getReservations, Reservation, getAppFleetVehicles, type AppFleetVehicleDto } from "../../services/api";
 import { useReservationStream } from "../../hooks/useReservationStream";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -66,7 +66,7 @@ export default function CustomerHomeScreen() {
   const liveScale = useRef(new Animated.Value(1)).current;
   const livePulse = useRef(new Animated.Value(0.45)).current;
   const [activeRide, setActiveRide] = useState<Reservation | null>(null);
-  const [fleetPreview, setFleetPreview] = useState<FleetVehicleDto[]>([]);
+  const [fleetPreview, setFleetPreview] = useState<AppFleetVehicleDto[]>([]);
   const [fleetLoading, setFleetLoading] = useState(true);
 
   useEffect(() => {
@@ -158,7 +158,7 @@ export default function CustomerHomeScreen() {
   const loadFleetPreview = useCallback(async () => {
     setFleetLoading(true);
     try {
-      const { vehicles } = await getFleetVehicles();
+      const { vehicles } = await getAppFleetVehicles({ homeOnly: true });
       setFleetPreview(vehicles.slice(0, 8));
     } catch {
       setFleetPreview([]);
@@ -407,7 +407,7 @@ export default function CustomerHomeScreen() {
                     </View>
                     <View style={styles.fleetInfo}>
                       <Text style={styles.fleetName} numberOfLines={2}>
-                        {v.name}
+                        {v.title}
                       </Text>
                       <View style={styles.fleetMeta}>
                         <Text style={styles.fleetPrice}>

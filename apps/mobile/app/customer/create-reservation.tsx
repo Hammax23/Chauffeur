@@ -22,9 +22,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../contexts/AuthContext";
 import { GooglePlacesAddressField } from "../../components/GooglePlacesAddressField";
 import { fetchDirectionsSummary } from "../../services/places";
-import { getFleetVehicles, type FleetVehicleDto } from "../../services/api";
+import { getAppFleetVehicles, type AppFleetVehicleDto } from "../../services/api";
 import {
-  buildVehicleTierOptions,
+  buildVehicleTiersFromAppFleet,
   findTierById,
   resolveTierIdFromFleetVehicleId,
   type VehicleTierOption,
@@ -70,14 +70,14 @@ export default function CreateReservationScreen() {
   const [pickupAt, setPickupAt] = useState<Date>(defaultPickupDate);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [passengersCount, setPassengersCount] = useState(1);
-  const [fleetVehicles, setFleetVehicles] = useState<FleetVehicleDto[]>([]);
+  const [fleetVehicles, setFleetVehicles] = useState<AppFleetVehicleDto[]>([]);
   const [fleetLoading, setFleetLoading] = useState(true);
   const [fleetError, setFleetError] = useState("");
   const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
   const [showTierDropdown, setShowTierDropdown] = useState(false);
 
   const vehicleTiers = useMemo(
-    () => buildVehicleTierOptions(fleetVehicles),
+    () => buildVehicleTiersFromAppFleet(fleetVehicles),
     [fleetVehicles]
   );
 
@@ -106,9 +106,9 @@ export default function CreateReservationScreen() {
     setFleetLoading(true);
     setFleetError("");
     try {
-      const { vehicles } = await getFleetVehicles();
+      const { vehicles } = await getAppFleetVehicles();
       setFleetVehicles(vehicles);
-      const tiers = buildVehicleTierOptions(vehicles);
+      const tiers = buildVehicleTiersFromAppFleet(vehicles);
 
       const rawId = params.vehicleId;
       const requestedFleetOrTierId =

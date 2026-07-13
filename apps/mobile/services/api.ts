@@ -414,6 +414,25 @@ export interface FleetVehicleDto {
   pricePerKm: number;
 }
 
+export interface AppFleetVehicleDto {
+  id: string;
+  tierId: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  image: string;
+  imageUrl: string;
+  group: string;
+  category: string;
+  seating: string;
+  luggage: string;
+  pricePerKm: number;
+  hourlyRate: number;
+  price: number;
+  showOnHome?: boolean;
+  sortOrder?: number;
+}
+
 export async function getFleetVehicles(): Promise<{ success: boolean; vehicles: FleetVehicleDto[] }> {
   let response: Response;
   try {
@@ -438,6 +457,37 @@ export async function getFleetVehicles(): Promise<{ success: boolean; vehicles: 
     throw new Error(data.error || "Failed to load fleet");
   }
   return { success: true, vehicles: data.vehicles };
+}
+
+/** App reservation fleet (admin-managed App Fleets). */
+export async function getAppFleetVehicles(options?: {
+  homeOnly?: boolean;
+}): Promise<{ success: boolean; vehicles: AppFleetVehicleDto[]; source?: string }> {
+  const qs = options?.homeOnly ? "?home=1" : "";
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/app-fleet${qs}`, {
+      headers: { Accept: "application/json" },
+    });
+  } catch {
+    throw new Error(
+      __DEV__
+        ? `Network error. Confirm EXPO_PUBLIC_API_BASE_URL (${API_BASE_URL}).`
+        : "Network error. Check your connection and try again."
+    );
+  }
+
+  const data = await parseResponseBody<{
+    success: boolean;
+    vehicles?: AppFleetVehicleDto[];
+    source?: string;
+    error?: string;
+  }>(response);
+
+  if (!response.ok || !data.success || !data.vehicles?.length) {
+    throw new Error(data.error || "Failed to load app fleet");
+  }
+  return { success: true, vehicles: data.vehicles, source: data.source };
 }
 
 // ==================== RESERVATIONS API ====================

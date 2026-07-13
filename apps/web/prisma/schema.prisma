@@ -274,7 +274,7 @@ model OperationalManager {
   @@index([isActive])
 }
 
-/// Fleet vehicles for online reservation pricing
+/// Fleet vehicles for online reservation pricing (website)
 model FleetVehicle {
   id            String   @id @default(cuid())
   vehicleId     String   @unique  // e.g. "cadillac-xts"
@@ -298,6 +298,33 @@ model FleetVehicle {
   updatedAt     DateTime @updatedAt
 
   @@index([isActive, sortOrder])
+}
+
+/// App reservation fleet tiers (managed separately from website fleet)
+model AppFleetVehicle {
+  id            String   @id @default(cuid())
+  /// Stable slug used by the mobile app (e.g. "black-sedan", "exec-black-suv")
+  tierId        String   @unique
+  title         String
+  subtitle      String   @default("")
+  description   String   @default("")
+  image         String   @default("")
+  /// standard | executive
+  group         String   @default("standard")
+  category      String   @default("Sedan")
+  seating       String   @default("")
+  luggage       String   @default("")
+  pricePerKm    Float    @default(0)
+  hourlyRate    Float    @default(0)
+  /// Show on customer home fleet preview
+  showOnHome    Boolean  @default(true)
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@index([group, isActive])
 }
 
 /// Extra charges configuration for reservations
