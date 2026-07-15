@@ -7,7 +7,6 @@ import {
   ScrollView,
   TextInput,
   Image,
-  Switch,
   Platform,
   Alert,
   Modal,
@@ -29,13 +28,10 @@ import {
   resolveTierIdFromFleetVehicleId,
   type VehicleTierOption,
 } from "../../data/vehicle-tiers";
+import * as Location from "expo-location";
 
-/** Values align with web / admin custom reservation */
-const serviceTypes = [
-  { id: "1", value: "Airport Transfer pick-up/drop-off", label: "Airport Transfer" },
-  { id: "2", value: "Hourly ride", label: "Hourly Chauffeur" },
-  { id: "3", value: "Point-to-Point transportation", label: "Point-to-Point" },
-];
+/** Silent default — create UI no longer asks for service type (distance bookings). */
+const DEFAULT_SERVICE_TYPE = "Point-to-Point transportation";
 
 function defaultPickupDate(): Date {
   const d = new Date();
@@ -43,6 +39,58 @@ function defaultPickupDate(): Date {
   return d;
 }
 
+/** Build a readable street address from expo-location reverse geocode. */
+function formatReverseGeocodeAddress(
+  place: Location.LocationGeocodedAddress | undefined
+): string | null {
+  if (!place) return null;
+  const streetLine = [place.streetNumber, place.street].filter(Boolean).join(" ").trim();
+  const parts = [
+    streetLine || place.name || "",
+    place.city || place.subregion || "",
+    [place.region, place.postalCode].filter(Boolean).join(" "),
+    place.country || "",
+  ]
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return null;
+  return parts.join(", ");
+}
+
+type CurrentPickupResult = {
+  address: string;
+  lat: number;
+  lng: number;
+};
+
+async function resolveCurrentPickup(): Promise<CurrentPickupResult | null> {
+  const current = await Location.getForegroundPermissionsAsync();
+  let status = current.status;
+  if (status !== "granted") {
+    const req = await Location.requestForegroundPermissionsAsync();
+    status = req.status;
+  }
+  if (status !== "granted") {
+    return null;
+  }
+
+  const position = await Location.getCurrentPositionAsync({
+    accuracy: Location.Accuracy.High,
+  });
+  const lat = position.coords.latitude;
+  const lng = position.coords.longitude;
+
+  const results = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+  const formatted = formatReverseGeocodeAddress(results[0]);
+  // Always keep GPS — even if reverse geocode is weak, Directions uses lat,lng.
+  const address =
+    formatted ||
+    `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+
+  return { address, lat, lng };
+}
+
+/** Optional deep-link prefill (home service tiles) — applied silently, no UI. */
 const SERVICE_PREFILL_MAP: Record<string, string> = {
   airport: "Airport Transfer pick-up/drop-off",
   hourly: "Hourly ride",
@@ -61,9 +109,13 @@ export default function CreateReservationScreen() {
   // possibly changed the selection, navigating back here shouldn't yank it
   // back to whatever the URL says.
   const consumedVehicleParamRef = useRef(false);
-  const [serviceType, setServiceType] = useState("");
-  const [showServiceDropdown, setShowServiceDropdown] = useState(false);
+  const pickupAutoFilledRef = useRef(false);
+  const [serviceType, setServiceType] = useState(DEFAULT_SERVICE_TYPE);
   const [pickupAddress, setPickupAddress] = useState("");
+  /** GPS from "My location" — used as Directions origin so distance/duration stay accurate. */
+  const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [pickupLocating, setPickupLocating] = useState(false);
+  const [pickupLocationHint, setPickupLocationHint] = useState<string | null>(null);
   const [dropoffAddress, setDropoffAddress] = useState("");
   const [stopAddress, setStopAddress] = useState("");
   const [showStopField, setShowStopField] = useState(false);
@@ -85,7 +137,8 @@ export default function CreateReservationScreen() {
     () => (selectedTierId ? findTierById(vehicleTiers, selectedTierId) : null),
     [vehicleTiers, selectedTierId]
   );
-  const [tollRoute, setTollRoute] = useState(true);
+  /** Silent default — 407 allowed on routed trips (UI toggle removed). */
+  const tollRoute = true;
   const [routeSummary, setRouteSummary] = useState<{
     distanceText: string;
     durationText: string;
@@ -137,6 +190,36 @@ export default function CreateReservationScreen() {
     loadFleet();
   }, [loadFleet]);
 
+  const fillCurrentPickup = useCallback(async (opts?: { force?: boolean }) => {
+    if (!opts?.force && pickupAutoFilledRef.current) return;
+    if (!opts?.force && pickupAddress.trim().length > 0) return;
+
+    setPickupLocating(true);
+    setPickupLocationHint(null);
+    try {
+      const result = await resolveCurrentPickup();
+      if (!result) {
+        setPickupLocationHint("Location permission needed — tap to use current location");
+        return;
+      }
+      pickupAutoFilledRef.current = true;
+      setPickupCoords({ lat: result.lat, lng: result.lng });
+      setPickupAddress(result.address);
+      setPickupLocationHint("Using GPS location — route uses exact coordinates");
+    } catch {
+      setPickupCoords(null);
+      setPickupLocationHint("Couldn’t detect location — enter pickup manually");
+    } finally {
+      setPickupLocating(false);
+    }
+  }, [pickupAddress]);
+
+  // Auto-detect pickup once when the screen opens
+  useEffect(() => {
+    void fillCurrentPickup();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
+  }, []);
+
   useEffect(() => {
     const raw = params.prefill;
     const key = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : undefined;
@@ -151,7 +234,14 @@ export default function CreateReservationScreen() {
     const waypoint =
       showStopField && stopAddress.trim().length >= 3 ? stopAddress.trim() : undefined;
 
-    if (pickup.length < 8 || dropoff.length < 8) {
+    // Prefer GPS lat,lng for My Location so Google Directions does not re-geocode a fuzzy address.
+    const origin =
+      pickupCoords != null
+        ? `${pickupCoords.lat.toFixed(6)},${pickupCoords.lng.toFixed(6)}`
+        : pickup;
+
+    const pickupReady = pickupCoords != null || pickup.length >= 8;
+    if (!pickupReady || dropoff.length < 8) {
       setRouteSummary(null);
       setRouteError(null);
       setRouteLoading(false);
@@ -166,7 +256,7 @@ export default function CreateReservationScreen() {
       try {
         const r = await fetchDirectionsSummary(
           {
-            origin: pickup,
+            origin,
             destination: dropoff,
             waypoint,
             avoidTolls: !tollRoute,
@@ -176,6 +266,11 @@ export default function CreateReservationScreen() {
           ac.signal
         );
         if (!cancelled) {
+          if (r.distanceMeters == null || r.distanceMeters <= 0) {
+            setRouteSummary(null);
+            setRouteError("Could not calculate distance for these addresses. Try editing pickup or drop-off.");
+            return;
+          }
           setRouteSummary({
             distanceText: r.distanceText,
             durationText: r.durationText,
@@ -200,7 +295,7 @@ export default function CreateReservationScreen() {
       ac.abort();
       setRouteLoading(false);
     };
-  }, [pickupAddress, dropoffAddress, stopAddress, showStopField, tollRoute]);
+  }, [pickupAddress, pickupCoords, dropoffAddress, stopAddress, showStopField, tollRoute]);
 
   const serviceDateStr = pickupAt.toLocaleDateString("en-CA");
   const serviceTimeStr = pickupAt.toLocaleTimeString("en-US", {
@@ -264,10 +359,6 @@ export default function CreateReservationScreen() {
   };
 
   const continueToConfirm = () => {
-    if (!serviceType.trim()) {
-      Alert.alert("Missing info", "Please select a service type.");
-      return;
-    }
     if (!pickupAddress.trim() || !dropoffAddress.trim()) {
       Alert.alert("Missing info", "Please enter pickup and drop-off addresses.");
       return;
@@ -355,55 +446,44 @@ export default function CreateReservationScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Ride Details</Text>
           <Text style={[styles.sectionSubtitle, styles.sectionSubtitleWhenWhere]}>When & Where</Text>
-         
-
-          {/* Service Type */}
-          <Text style={styles.inputLabel}>Service Type</Text>
-          <TouchableOpacity 
-            style={styles.dropdown} 
-            onPress={() => setShowServiceDropdown(!showServiceDropdown)}
-          >
-            <Text style={serviceType ? styles.selectedText : styles.placeholderText}>
-              {serviceTypes.find((s) => s.value === serviceType)?.label || "Select Service"}
-            </Text>
-            <Ionicons name={showServiceDropdown ? "chevron-up" : "chevron-down"} size={20} color="#999" />
-          </TouchableOpacity>
-          {showServiceDropdown && (
-            <View style={styles.dropdownList}>
-              {serviceTypes.map((service) => (
-                <TouchableOpacity
-                  key={service.id}
-                  style={[
-                    styles.dropdownItem,
-                    serviceType === service.value && styles.dropdownItemActive,
-                  ]}
-                  onPress={() => {
-                    setServiceType(service.value);
-                    setShowServiceDropdown(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.dropdownItemText,
-                    serviceType === service.value && styles.dropdownItemTextActive,
-                  ]}>
-                    {service.label}
-                  </Text>
-                  {serviceType === service.value && (
-                    <Ionicons name="checkmark" size={18} color="#D4A04A" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
 
           {/* Pickup Address */}
-          <Text style={styles.inputLabel}>Pickup Address</Text>
+          <View style={styles.pickupLabelRow}>
+            <Text style={[styles.inputLabel, styles.pickupLabelInline]}>Pickup Address</Text>
+            <TouchableOpacity
+              style={styles.useLocationBtn}
+              onPress={() => void fillCurrentPickup({ force: true })}
+              disabled={pickupLocating}
+              hitSlop={8}
+            >
+              {pickupLocating ? (
+                <ActivityIndicator size="small" color="#D4A04A" />
+              ) : (
+                <>
+                  <Ionicons name="locate-outline" size={14} color="#D4A04A" />
+                  <Text style={styles.useLocationText}>My location</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
           <GooglePlacesAddressField
             value={pickupAddress}
-            onChangeText={setPickupAddress}
-            placeholder="Search pickup — street, city, or airport (e.g. YYZ)"
+            onChangeText={(text) => {
+              setPickupAddress(text);
+              // Manual edit → stop using stale GPS so Places geocode takes over
+              setPickupCoords(null);
+              if (pickupLocationHint) setPickupLocationHint(null);
+            }}
+            placeholder={
+              pickupLocating
+                ? "Detecting your location…"
+                : "Search pickup — street, city, or airport (e.g. YYZ)"
+            }
             iconName="navigate-outline"
           />
+          {pickupLocationHint ? (
+            <Text style={styles.pickupHint}>{pickupLocationHint}</Text>
+          ) : null}
 
           {/* Dropoff Address */}
           <Text style={styles.inputLabel}>Dropoff Address</Text>
@@ -488,146 +568,9 @@ export default function CreateReservationScreen() {
               </View>
             </Modal>
           ) : null}
-
-          {/* Passengers */}
-          <View style={[styles.counterRow, { marginTop: 4 }]}>
-            <View>
-              <Text style={styles.toggleTitle}>Passengers</Text>
-              <Text style={styles.toggleSubtitle}>Number of passengers</Text>
-            </View>
-            <View style={styles.counter}>
-              <TouchableOpacity
-                style={styles.counterBtn}
-                onPress={() => setPassengersCount(Math.max(1, passengersCount - 1))}
-              >
-                <Ionicons name="remove" size={18} color="#1a1a1a" />
-              </TouchableOpacity>
-              <Text style={styles.counterValue}>{passengersCount}</Text>
-              <TouchableOpacity
-                style={[styles.counterBtn, styles.counterBtnAdd]}
-                onPress={() => setPassengersCount(Math.min(50, passengersCount + 1))}
-              >
-                <Ionicons name="add" size={18} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          </View>
         </View>
 
-        {/* Map Preview — static Google Map image of the booked route with labelled markers */}
-        <View style={styles.mapContainer}>
-          <View style={styles.mapImageWrap}>
-            {routeSummary?.mapImageUrl ? (
-              <Image
-                source={{ uri: routeSummary.mapImageUrl }}
-                style={styles.mapImage}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={styles.mapPlaceholder}>
-                <Ionicons name="map-outline" size={28} color="#94a3b8" />
-                <Text style={styles.mapPlaceholderText}>
-                  {pickupAddress.trim().length < 8 || dropoffAddress.trim().length < 8
-                    ? "Enter pickup & drop-off to preview the route"
-                    : routeLoading
-                      ? "Calculating route…"
-                      : routeError
-                        ? "Route preview unavailable"
-                        : "Route will appear here"}
-                </Text>
-              </View>
-            )}
-            {routeLoading && routeSummary?.mapImageUrl ? (
-              <View style={styles.mapImageLoadingOverlay} pointerEvents="none">
-                <ActivityIndicator size="small" color="#D4A04A" />
-              </View>
-            ) : null}
-          </View>
-
-          {/* A / B / (C) legend */}
-          {routeSummary && routeSummary.pointCount >= 2 ? (
-            <View style={styles.mapLegend}>
-              <View style={styles.mapLegendItem}>
-                <View style={styles.mapLegendDot}>
-                  <Text style={styles.mapLegendDotText}>A</Text>
-                </View>
-                <Text style={styles.mapLegendLabel}>From</Text>
-                <Text style={styles.mapLegendText} numberOfLines={1}>
-                  {pickupAddress || "—"}
-                </Text>
-              </View>
-              {routeSummary.pointCount >= 3 ? (
-                <View style={styles.mapLegendItem}>
-                  <View style={styles.mapLegendDot}>
-                    <Text style={styles.mapLegendDotText}>B</Text>
-                  </View>
-                  <Text style={styles.mapLegendLabel}>Stop</Text>
-                  <Text style={styles.mapLegendText} numberOfLines={1}>
-                    {stopAddress || "—"}
-                  </Text>
-                </View>
-              ) : null}
-              <View style={styles.mapLegendItem}>
-                <View style={styles.mapLegendDot}>
-                  <Text style={styles.mapLegendDotText}>
-                    {routeSummary.pointCount >= 3 ? "C" : "B"}
-                  </Text>
-                </View>
-                <Text style={styles.mapLegendLabel}>To</Text>
-                <Text style={styles.mapLegendText} numberOfLines={1}>
-                  {dropoffAddress || "—"}
-                </Text>
-              </View>
-            </View>
-          ) : null}
-
-          {/* Distance & Duration */}
-          <View style={styles.mapInfo}>
-            <View style={styles.mapInfoItem}>
-              <Text style={styles.mapInfoLabel}>Estimated Distance</Text>
-              <Text style={styles.mapInfoValue}>{routeLoading ? "…" : routeSummary?.distanceText ?? "—"}</Text>
-            </View>
-            <View style={styles.mapInfoItem}>
-              <Text style={styles.mapInfoLabel}>Estimated Duration</Text>
-              <Text style={styles.mapInfoValue}>{routeLoading ? "…" : routeSummary?.durationText ?? "—"}</Text>
-            </View>
-          </View>
-
-          {/* Live fare estimate — pricePerKm × full-decimal distance */}
-          {selectedTier ? (
-            <View style={styles.fareEstimate}>
-              <View style={styles.fareEstimateRow}>
-                <Text style={styles.fareEstimateLabel}>Ride fare</Text>
-                <Text style={styles.fareEstimateMeta}>
-                  {fareEstimate
-                    ? `${fareEstimate.km.toFixed(2)} km × $${fareEstimate.pricePerKm.toFixed(2)}/km`
-                    : "Awaiting route…"}
-                </Text>
-                <Text style={styles.fareEstimateValue}>
-                  {fareEstimate ? `$${fareEstimate.rideFare.toFixed(2)}` : "—"}
-                </Text>
-              </View>
-              <View style={styles.fareEstimateTotalRow}>
-                <Text style={styles.fareEstimateTotalLabel}>Estimated total</Text>
-                <Text style={styles.fareEstimateHint}>incl. HST 13% + Gratuity 15%</Text>
-                <Text style={styles.fareEstimateTotalValue}>
-                  {fareEstimate ? `$${fareEstimate.total.toFixed(2)}` : "—"}
-                </Text>
-              </View>
-            </View>
-          ) : null}
-
-          {routeError ? (
-            <Text style={styles.mapInfoError} numberOfLines={2}>
-              {routeError}
-            </Text>
-          ) : (
-            <Text style={styles.mapInfoFootnote}>
-              Driving directions via Google · Typical time (not live traffic)
-            </Text>
-          )}
-        </View>
-
-        {/* Select Vehicle — dropdown + client dispatch categories */}
+        {/* Select Vehicle */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Select Vehicle</Text>
           <Text style={styles.sectionSubtitle}>Choose your ride category</Text>
@@ -756,42 +699,144 @@ export default function CreateReservationScreen() {
             <Text style={styles.fleetErrorText}>No vehicles available.</Text>
           )}
 
-          {/* 407 ETR Toggle */}
-          <View style={styles.toggleRow}>
-            <View>
-              <Text style={styles.toggleTitle}>407 ETR</Text>
-              <Text style={styles.toggleSubtitle}>Highway 407 Express Toll Route</Text>
+          {/* Passengers + Child Seat — single professional row */}
+          <View style={styles.dualCounterRow}>
+            <View style={styles.dualCounterCard}>
+              <Text style={styles.dualCounterTitle}>Passengers</Text>
+              <Text style={styles.dualCounterSub}>Guests</Text>
+              <View style={styles.dualCounterControls}>
+                <TouchableOpacity
+                  style={styles.counterBtn}
+                  onPress={() => setPassengersCount(Math.max(1, passengersCount - 1))}
+                  hitSlop={6}
+                >
+                  <Ionicons name="remove" size={16} color="#1a1a1a" />
+                </TouchableOpacity>
+                <Text style={styles.dualCounterValue}>{passengersCount}</Text>
+                <TouchableOpacity
+                  style={[styles.counterBtn, styles.counterBtnAdd]}
+                  onPress={() => setPassengersCount(Math.min(50, passengersCount + 1))}
+                  hitSlop={6}
+                >
+                  <Ionicons name="add" size={16} color="#fff" />
+                </TouchableOpacity>
+              </View>
             </View>
-            <Switch
-              value={tollRoute}
-              onValueChange={setTollRoute}
-              trackColor={{ false: "#e0e0e0", true: "#D4A04A" }}
-              thumbColor="#fff"
-            />
+
+            <View style={styles.dualCounterDivider} />
+
+            <View style={styles.dualCounterCard}>
+              <Text style={styles.dualCounterTitle}>Child Seat</Text>
+              <Text style={styles.dualCounterSub}>$25 each</Text>
+              <View style={styles.dualCounterControls}>
+                <TouchableOpacity
+                  style={styles.counterBtn}
+                  onPress={() => setChildSeatCount(Math.max(0, childSeatCount - 1))}
+                  hitSlop={6}
+                >
+                  <Ionicons name="remove" size={16} color="#1a1a1a" />
+                </TouchableOpacity>
+                <Text style={styles.dualCounterValue}>{childSeatCount}</Text>
+                <TouchableOpacity
+                  style={[styles.counterBtn, styles.counterBtnAdd]}
+                  onPress={() => setChildSeatCount(childSeatCount + 1)}
+                  hitSlop={6}
+                >
+                  <Ionicons name="add" size={16} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Map Preview — static Google Map image of the booked route with labelled markers */}
+        <View style={styles.mapContainer}>
+          <View style={styles.mapImageWrap}>
+            {routeSummary?.mapImageUrl ? (
+              <Image
+                source={{ uri: routeSummary.mapImageUrl }}
+                style={styles.mapImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.mapPlaceholder}>
+                <Ionicons name="map-outline" size={28} color="#94a3b8" />
+                <Text style={styles.mapPlaceholderText}>
+                  {pickupAddress.trim().length < 8 || dropoffAddress.trim().length < 8
+                    ? "Enter pickup & drop-off to preview the route"
+                    : routeLoading
+                      ? "Calculating route…"
+                      : routeError
+                        ? "Route preview unavailable"
+                        : "Route will appear here"}
+                </Text>
+              </View>
+            )}
+            {routeLoading && routeSummary?.mapImageUrl ? (
+              <View style={styles.mapImageLoadingOverlay} pointerEvents="none">
+                <ActivityIndicator size="small" color="#D4A04A" />
+              </View>
+            ) : null}
           </View>
 
-          {/* Child Seat */}
-          <View style={styles.counterRow}>
-            <View>
-              <Text style={styles.toggleTitle}>Child Seat</Text>
-              <Text style={styles.toggleSubtitle}>Child Seat $25</Text>
+          {/* A / B / (C) legend */}
+          {routeSummary && routeSummary.pointCount >= 2 ? (
+            <View style={styles.mapLegend}>
+              <View style={styles.mapLegendItem}>
+                <View style={styles.mapLegendDot}>
+                  <Text style={styles.mapLegendDotText}>A</Text>
+                </View>
+                <Text style={styles.mapLegendLabel}>From</Text>
+                <Text style={styles.mapLegendText} numberOfLines={1}>
+                  {pickupAddress || "—"}
+                </Text>
+              </View>
+              {routeSummary.pointCount >= 3 ? (
+                <View style={styles.mapLegendItem}>
+                  <View style={styles.mapLegendDot}>
+                    <Text style={styles.mapLegendDotText}>B</Text>
+                  </View>
+                  <Text style={styles.mapLegendLabel}>Stop</Text>
+                  <Text style={styles.mapLegendText} numberOfLines={1}>
+                    {stopAddress || "—"}
+                  </Text>
+                </View>
+              ) : null}
+              <View style={styles.mapLegendItem}>
+                <View style={styles.mapLegendDot}>
+                  <Text style={styles.mapLegendDotText}>
+                    {routeSummary.pointCount >= 3 ? "C" : "B"}
+                  </Text>
+                </View>
+                <Text style={styles.mapLegendLabel}>To</Text>
+                <Text style={styles.mapLegendText} numberOfLines={1}>
+                  {dropoffAddress || "—"}
+                </Text>
+              </View>
             </View>
-            <View style={styles.counter}>
-              <TouchableOpacity 
-                style={styles.counterBtn}
-                onPress={() => setChildSeatCount(Math.max(0, childSeatCount - 1))}
-              >
-                <Ionicons name="remove" size={18} color="#1a1a1a" />
-              </TouchableOpacity>
-              <Text style={styles.counterValue}>{childSeatCount}</Text>
-              <TouchableOpacity 
-                style={[styles.counterBtn, styles.counterBtnAdd]}
-                onPress={() => setChildSeatCount(childSeatCount + 1)}
-              >
-                <Ionicons name="add" size={18} color="#fff" />
-              </TouchableOpacity>
+          ) : null}
+
+          {/* Distance & Duration */}
+          <View style={styles.mapInfo}>
+            <View style={styles.mapInfoItem}>
+              <Text style={styles.mapInfoLabel}>Estimated Distance</Text>
+              <Text style={styles.mapInfoValue}>{routeLoading ? "…" : routeSummary?.distanceText ?? "—"}</Text>
+            </View>
+            <View style={styles.mapInfoItem}>
+              <Text style={styles.mapInfoLabel}>Estimated Duration</Text>
+              <Text style={styles.mapInfoValue}>{routeLoading ? "…" : routeSummary?.durationText ?? "—"}</Text>
             </View>
           </View>
+
+          {routeError ? (
+            <Text style={styles.mapInfoError} numberOfLines={2}>
+              {routeError}
+            </Text>
+          ) : (
+            <Text style={styles.mapInfoFootnote}>
+              Driving directions via Google · Typical time (not live traffic)
+            </Text>
+          )}
         </View>
 
         {/* Contact Info Section */}
@@ -969,6 +1014,35 @@ const styles = StyleSheet.create({
     color: "#1a1a1a",
     marginBottom: 8,
     marginTop: 12,
+  },
+  pickupLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  pickupLabelInline: {
+    marginTop: 0,
+    marginBottom: 0,
+  },
+  useLocationBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  useLocationText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#D4A04A",
+  },
+  pickupHint: {
+    fontSize: 11,
+    color: "#64748b",
+    marginTop: 6,
+    lineHeight: 15,
   },
   dropdown: {
     flexDirection: "row",
@@ -1176,69 +1250,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#1a1a1a",
-  },
-  fareEstimate: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#fff",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(15,23,42,0.08)",
-  },
-  fareEstimateRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 6,
-  },
-  fareEstimateLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#1a1a1a",
-    letterSpacing: 0.2,
-  },
-  fareEstimateMeta: {
-    flex: 1,
-    fontSize: 11,
-    color: "#94a3b8",
-    fontWeight: "500",
-    textAlign: "right",
-    marginRight: 10,
-  },
-  fareEstimateValue: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1a1a1a",
-    minWidth: 64,
-    textAlign: "right",
-  },
-  fareEstimateTotalRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: 6,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(15,23,42,0.06)",
-  },
-  fareEstimateTotalLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#0F172A",
-    letterSpacing: 0.2,
-  },
-  fareEstimateHint: {
-    flex: 1,
-    fontSize: 10,
-    color: "#94a3b8",
-    fontWeight: "500",
-    textAlign: "right",
-    marginRight: 10,
-  },
-  fareEstimateTotalValue: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#0F172A",
-    minWidth: 64,
-    textAlign: "right",
   },
   tierList: {
     borderRadius: 14,
@@ -1523,15 +1534,61 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 14,
   },
+  dualCounterRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "#e8e8e8",
+    borderRadius: 14,
+    backgroundColor: "#fafafa",
+    overflow: "hidden",
+  },
+  dualCounterCard: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    alignItems: "center",
+  },
+  dualCounterDivider: {
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: "#e2e8f0",
+    alignSelf: "stretch",
+  },
+  dualCounterTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0f172a",
+    letterSpacing: 0.2,
+  },
+  dualCounterSub: {
+    fontSize: 11,
+    color: "#94a3b8",
+    fontWeight: "500",
+    marginTop: 2,
+    marginBottom: 10,
+  },
+  dualCounterControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  dualCounterValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0f172a",
+    minWidth: 22,
+    textAlign: "center",
+  },
   counter: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
   counterBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 6,
+    width: 30,
+    height: 30,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "#e0e0e0",
     justifyContent: "center",
@@ -1539,8 +1596,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   counterBtnAdd: {
-    backgroundColor: "#D4A04A",
-    borderColor: "#D4A04A",
+    backgroundColor: "#1a1a1a",
+    borderColor: "#1a1a1a",
   },
   counterValue: {
     fontSize: 16,

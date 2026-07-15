@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -20,6 +20,8 @@ function qp(v: string | string[] | undefined): string {
   if (v == null) return "";
   return Array.isArray(v) ? String(v[0] ?? "") : String(v);
 }
+
+const GRATUITY_OPTIONS = [20, 25] as const;
 
 export default function ReservationConfirmScreen() {
   const raw = useLocalSearchParams();
@@ -55,16 +57,6 @@ export default function ReservationConfirmScreen() {
 
   const childSeats = parseInt(params.childSeatCount || "0", 10);
 
-  /**
-   * Distance-based fare math.
-   *
-   *   distanceKm × pricePerKm     — full decimal precision (e.g. 1.7 × 3.05 = 5.185)
-   *   Only the final display is rounded to 2 dp with toFixed(2).
-   *
-   * Falls back to the route fare passed from the previous screen if the raw
-   * distance / per-km values are missing (older deep link, etc.). As a last
-   * resort, falls back to the legacy hourly rate.
-   */
   const distanceMeters = Math.max(0, parseFloat(params.distanceMeters) || 0);
   const distanceKm = distanceMeters / 1000;
   const pricePerKm = Math.max(0, parseFloat(params.pricePerKm) || 0);
@@ -95,9 +87,6 @@ export default function ReservationConfirmScreen() {
   const dateTimeSummary =
     params.pickupTimeDisplay?.trim() ||
     `${resolvedServiceDate} · ${resolvedServiceTime}`;
-  const hstCalc = subtotalCalc * 0.13;
-  const gratuityAmount = subtotalCalc * 0.15;
-  const totalCalc = subtotalCalc + hstCalc + gratuityAmount;
 
   const [nameOnCard, setNameOnCard] = useState("");
   const [cardNumber, setCardNumber] = useState("");
@@ -105,9 +94,18 @@ export default function ReservationConfirmScreen() {
   const [cvv, setCvv] = useState("");
   const [billingAddress, setBillingAddress] = useState("");
   const [zipCode, setZipCode] = useState("");
-  const [gratuity, setGratuity] = useState("15%");
+  const [gratuityPercent, setGratuityPercent] = useState(20);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const pricing = useMemo(() => {
+    const hst = subtotalCalc * 0.13;
+    const gratuity = subtotalCalc * (gratuityPercent / 100);
+    const total = subtotalCalc + hst + gratuity;
+    return { hst, gratuity, total };
+  }, [subtotalCalc, gratuityPercent]);
+
+  const guestName = [params.firstName, params.lastName].filter(Boolean).join(" ").trim();
 
   const handleSubmit = async () => {
     if (!termsAccepted) {
@@ -133,9 +131,9 @@ export default function ReservationConfirmScreen() {
         stopCharge: stopChargeCalc,
         childSeatCharge,
         subtotal: subtotalCalc,
-        hst: hstCalc,
-        gratuity: gratuityAmount,
-        total: totalCalc,
+        hst: pricing.hst,
+        gratuity: pricing.gratuity,
+        total: pricing.total,
         firstName: params.firstName,
         lastName: params.lastName,
         phone: params.phoneNumber,
@@ -158,161 +156,233 @@ export default function ReservationConfirmScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={20} color="#1a1a1a" />
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
+            <Ionicons name="chevron-back" size={20} color="#0f172a" />
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Create Reservation</Text>
-          <View style={{ width: 60 }} />
+          <Text style={styles.headerTitle}>Confirm Booking</Text>
+          <View style={{ width: 56 }} />
         </View>
 
-        {/* Step Indicator */}
         <View style={styles.stepIndicator}>
-          <View style={styles.stepCompleted}>
-            <Text style={styles.stepCompletedText}>1</Text>
+          <View style={styles.stepDone}>
+            <Ionicons name="checkmark" size={14} color="#fff" />
           </View>
-          <View style={styles.stepLineActive} />
-          <View style={styles.stepActive}>
-            <Text style={styles.stepActiveText}>2</Text>
+          <View style={styles.stepLine} />
+          <View style={styles.stepCurrent}>
+            <Text style={styles.stepCurrentText}>2</Text>
           </View>
         </View>
 
-        {/* Confirmation Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Confirmation</Text>
-          <Text style={styles.sectionSubtitle}>Review & Pay</Text>
+        <Text style={styles.pageTitle}>Review & pay</Text>
+        <Text style={styles.pageSubtitle}>Confirm trip details, then secure your reservation.</Text>
 
-          {/* Order Summary */}
-          <View style={styles.summaryCard}>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Vehicle</Text>
-              <View style={{ flex: 1, alignItems: "flex-end" }}>
-                <Text style={[styles.summaryValue, { textAlign: "right" }]} numberOfLines={3}>
-                  {params.vehicle || "N/A"}
+        {/* Trip route */}
+        <View style={styles.card}>
+          <View style={styles.routeBlock}>
+            <View style={styles.routeRail}>
+              <View style={styles.routeDotStart} />
+              <View style={styles.routeLine} />
+              {params.stopAddress.trim() ? (
+                <>
+                  <View style={styles.routeDotStop} />
+                  <View style={styles.routeLine} />
+                </>
+              ) : null}
+              <View style={styles.routeDotEnd} />
+            </View>
+            <View style={styles.routeCopy}>
+              <View style={styles.routeItem}>
+                <Text style={styles.routeLabel}>Pickup</Text>
+                <Text style={styles.routeValue}>{params.pickupAddress || "—"}</Text>
+              </View>
+              {params.stopAddress.trim() ? (
+                <View style={styles.routeItem}>
+                  <Text style={styles.routeLabel}>Stop</Text>
+                  <Text style={styles.routeValue}>{params.stopAddress}</Text>
+                </View>
+              ) : null}
+              <View style={styles.routeItem}>
+                <Text style={styles.routeLabel}>Drop-off</Text>
+                <Text style={styles.routeValue}>{params.dropoffAddress || "—"}</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.metaGrid}>
+            <View style={styles.metaItem}>
+              <Ionicons name="car-outline" size={15} color="#64748b" />
+              <View style={styles.metaTextWrap}>
+                <Text style={styles.metaLabel}>Vehicle</Text>
+                <Text style={styles.metaValue} numberOfLines={2}>
+                  {params.vehicle || "—"}
                 </Text>
-                {params.vehicleSubtitle ? (
-                  <Text style={styles.vehicleSubtitle} numberOfLines={2}>
-                    {params.vehicleSubtitle}
-                  </Text>
-                ) : null}
               </View>
             </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Date & Time</Text>
-              <Text style={[styles.summaryValue, { flex: 1, textAlign: "right" }]} numberOfLines={2}>
-                {dateTimeSummary}
-              </Text>
+            <View style={styles.metaItem}>
+              <Ionicons name="calendar-outline" size={15} color="#64748b" />
+              <View style={styles.metaTextWrap}>
+                <Text style={styles.metaLabel}>Date & time</Text>
+                <Text style={styles.metaValue} numberOfLines={2}>
+                  {dateTimeSummary}
+                </Text>
+              </View>
             </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Passengers</Text>
-              <Text style={styles.summaryValue}>{params.passengers || "1"}</Text>
+            <View style={styles.metaItem}>
+              <Ionicons name="people-outline" size={15} color="#64748b" />
+              <View style={styles.metaTextWrap}>
+                <Text style={styles.metaLabel}>Passengers</Text>
+                <Text style={styles.metaValue}>{params.passengers || "1"}</Text>
+              </View>
             </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Service Type</Text>
-              <Text style={styles.summaryValue}>{params.serviceType || "N/A"}</Text>
-            </View>
-            
-            <View style={styles.divider} />
+            {childSeats > 0 ? (
+              <View style={styles.metaItem}>
+                <Ionicons name="happy-outline" size={15} color="#64748b" />
+                <View style={styles.metaTextWrap}>
+                  <Text style={styles.metaLabel}>Child seats</Text>
+                  <Text style={styles.metaValue}>{childSeats}</Text>
+                </View>
+              </View>
+            ) : null}
+          </View>
 
-            {distanceKm > 0 && pricePerKm > 0 ? (
-              <>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Distance</Text>
-                  <Text style={styles.summaryValue}>
-                    {params.distanceText || `${distanceKm.toFixed(2)} km`}
-                  </Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Rate</Text>
-                  <Text style={styles.summaryValue}>${pricePerKm.toFixed(2)}/km</Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Ride fare</Text>
-                  <Text style={styles.summaryValue}>${rideFare.toFixed(2)}</Text>
-                </View>
-                {params.durationText ? (
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Estimated duration</Text>
-                    <Text style={styles.summaryValue}>{params.durationText}</Text>
-                  </View>
-                ) : null}
-              </>
-            ) : (
-              <>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Ride fare</Text>
-                  <Text style={styles.summaryValue}>${rideFare.toFixed(2)}</Text>
-                </View>
-              </>
-            )}
-            {stopChargeCalc > 0 && (
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Stop charge</Text>
-                <Text style={styles.summaryValue}>${stopChargeCalc.toFixed(2)}</Text>
+          {(params.distanceText || params.durationText) && (
+            <View style={styles.routeStats}>
+              {params.distanceText ? (
+                <Text style={styles.routeStatText}>{params.distanceText}</Text>
+              ) : null}
+              {params.distanceText && params.durationText ? (
+                <Text style={styles.routeStatDot}>·</Text>
+              ) : null}
+              {params.durationText ? (
+                <Text style={styles.routeStatText}>{params.durationText}</Text>
+              ) : null}
+            </View>
+          )}
+        </View>
+
+        {/* Fare */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Fare summary</Text>
+
+          {distanceKm > 0 && pricePerKm > 0 ? (
+            <>
+              <View style={styles.fareRow}>
+                <Text style={styles.fareLabel}>Distance</Text>
+                <Text style={styles.fareValue}>
+                  {params.distanceText || `${distanceKm.toFixed(2)} km`}
+                </Text>
               </View>
-            )}
-            {childSeats > 0 && (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Child Seat ({childSeats} x $25)</Text>
-              <Text style={styles.summaryValue}>${childSeatCharge.toFixed(2)}</Text>
-            </View>
-            )}
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Subtotal</Text>
-              <Text style={styles.summaryValue}>${subtotalCalc.toFixed(2)}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>HST (13%)</Text>
-              <Text style={styles.summaryValue}>${hstCalc.toFixed(2)}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <View style={styles.gratuityLabel}>
-                <Text style={styles.summaryLabel}>Gratuity</Text>
-                <TouchableOpacity style={styles.gratuityDropdown}>
-                  <Text style={styles.gratuityText}>15%</Text>
-                  <Ionicons name="chevron-down" size={14} color="#1a1a1a" />
-                </TouchableOpacity>
+              <View style={styles.fareRow}>
+                <Text style={styles.fareLabel}>Rate</Text>
+                <Text style={styles.fareValue}>${pricePerKm.toFixed(2)}/km</Text>
               </View>
-              <Text style={styles.summaryValue}>${gratuityAmount.toFixed(2)}</Text>
+            </>
+          ) : null}
+
+          <View style={styles.fareRow}>
+            <Text style={styles.fareLabel}>Ride fare</Text>
+            <Text style={styles.fareValue}>${rideFare.toFixed(2)}</Text>
+          </View>
+          {stopChargeCalc > 0 ? (
+            <View style={styles.fareRow}>
+              <Text style={styles.fareLabel}>Stop charge</Text>
+              <Text style={styles.fareValue}>${stopChargeCalc.toFixed(2)}</Text>
             </View>
-            
-            <View style={styles.divider} />
-            
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>${totalCalc.toFixed(2)} CAD</Text>
+          ) : null}
+          {childSeats > 0 ? (
+            <View style={styles.fareRow}>
+              <Text style={styles.fareLabel}>Child seat ({childSeats} × $25)</Text>
+              <Text style={styles.fareValue}>${childSeatCharge.toFixed(2)}</Text>
             </View>
+          ) : null}
+
+          <View style={styles.softDivider} />
+
+          <View style={styles.fareRow}>
+            <Text style={styles.fareLabel}>Subtotal</Text>
+            <Text style={styles.fareValue}>${subtotalCalc.toFixed(2)}</Text>
+          </View>
+          <View style={styles.fareRow}>
+            <Text style={styles.fareLabel}>HST (13%)</Text>
+            <Text style={styles.fareValue}>${pricing.hst.toFixed(2)}</Text>
+          </View>
+
+          <View style={styles.fareRow}>
+            <Text style={styles.fareLabel}>Gratuity</Text>
+            <View style={styles.gratuityOptions}>
+              {GRATUITY_OPTIONS.map((pct) => {
+                const active = gratuityPercent === pct;
+                return (
+                  <TouchableOpacity
+                    key={pct}
+                    style={[styles.gratuityChip, active && styles.gratuityChipActive]}
+                    onPress={() => setGratuityPercent(pct)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.gratuityChipText, active && styles.gratuityChipTextActive]}>
+                      {pct}%
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={styles.fareValue}>${pricing.gratuity.toFixed(2)}</Text>
+          </View>
+
+          <View style={styles.totalBar}>
+            <Text style={styles.totalLabel}>Total</Text>
+            <Text style={styles.totalValue}>${pricing.total.toFixed(2)} CAD</Text>
           </View>
         </View>
 
-        {/* Payment Card Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Payment Card</Text>
+        {/* Guest */}
+        {(guestName || params.email || params.phoneNumber) && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Guest</Text>
+            {guestName ? <Text style={styles.guestName}>{guestName}</Text> : null}
+            {params.email ? <Text style={styles.guestDetail}>{params.email}</Text> : null}
+            {params.phoneNumber ? (
+              <Text style={styles.guestDetail}>{params.phoneNumber}</Text>
+            ) : null}
+          </View>
+        )}
 
-          <Text style={styles.inputLabel}>Name on card</Text>
+        {/* Payment */}
+        <View style={styles.card}>
+          <View style={styles.cardTitleRow}>
+            <Text style={styles.cardTitle}>Payment card</Text>
+            <View style={styles.secureBadge}>
+              <Ionicons name="lock-closed" size={11} color="#64748b" />
+              <Text style={styles.secureBadgeText}>Secure</Text>
+            </View>
+          </View>
+
+          <Text style={styles.fieldLabel}>Name on card</Text>
           <View style={styles.inputBox}>
             <TextInput
               style={styles.textInput}
               placeholder="Name as it appears on card"
-              placeholderTextColor="#999"
+              placeholderTextColor="#94a3b8"
               value={nameOnCard}
               onChangeText={setNameOnCard}
+              autoCapitalize="words"
             />
           </View>
 
-          <Text style={styles.inputLabel}>Card Details (Secure Validation)</Text>
+          <Text style={styles.fieldLabel}>Card number</Text>
           <View style={styles.inputBox}>
             <TextInput
               style={styles.textInput}
-              placeholder="Card Number"
-              placeholderTextColor="#999"
+              placeholder="•••• •••• •••• ••••"
+              placeholderTextColor="#94a3b8"
               value={cardNumber}
               onChangeText={setCardNumber}
               keyboardType="numeric"
@@ -321,24 +391,24 @@ export default function ReservationConfirmScreen() {
 
           <View style={styles.cardRow}>
             <View style={styles.cardField}>
-              <Text style={styles.inputLabel}>EXP</Text>
+              <Text style={styles.fieldLabel}>Expiry</Text>
               <View style={styles.inputBox}>
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Expiry"
-                  placeholderTextColor="#999"
+                  placeholder="MM/YY"
+                  placeholderTextColor="#94a3b8"
                   value={expiry}
                   onChangeText={setExpiry}
                 />
               </View>
             </View>
             <View style={styles.cardField}>
-              <Text style={styles.inputLabel}>CVV</Text>
+              <Text style={styles.fieldLabel}>CVV</Text>
               <View style={styles.inputBox}>
                 <TextInput
                   style={styles.textInput}
                   placeholder="CVV"
-                  placeholderTextColor="#999"
+                  placeholderTextColor="#94a3b8"
                   value={cvv}
                   onChangeText={setCvv}
                   keyboardType="numeric"
@@ -348,66 +418,46 @@ export default function ReservationConfirmScreen() {
             </View>
           </View>
 
-          <TouchableOpacity style={styles.validateBtn} activeOpacity={0.9}>
-            <Text style={styles.validateBtnText}>Validate Card</Text>
-          </TouchableOpacity>
-
-          <View style={styles.secureNote}>
-            <Ionicons name="lock-closed" size={14} color="#D4A04A" />
-            <Text style={styles.secureNoteText}>
-              Your card will be securely validated without any charges
-            </Text>
-          </View>
-        </View>
-
-        {/* Billing Address Section */}
-        <View style={styles.section}>
-          <Text style={styles.inputLabel}>Billing Address (Optional)</Text>
+          <Text style={styles.fieldLabel}>Billing address (optional)</Text>
           <View style={styles.inputBox}>
             <TextInput
               style={styles.textInput}
-              placeholder="Card billing street address"
-              placeholderTextColor="#999"
+              placeholder="Street address"
+              placeholderTextColor="#94a3b8"
               value={billingAddress}
               onChangeText={setBillingAddress}
             />
           </View>
-
-          <View style={[styles.inputBox, { marginTop: 12 }]}>
+          <View style={[styles.inputBox, { marginTop: 10 }]}>
             <TextInput
               style={styles.textInput}
-              placeholder="ZIP/Postal code"
-              placeholderTextColor="#999"
+              placeholder="ZIP / Postal code"
+              placeholderTextColor="#94a3b8"
               value={zipCode}
               onChangeText={setZipCode}
+              autoCapitalize="characters"
             />
           </View>
+
+          <Text style={styles.secureNote}>
+            Your card is validated securely — no charge until the trip is confirmed.
+          </Text>
         </View>
 
-        {/* Before you pay info */}
-        <View style={styles.infoBox}>
-          <View style={styles.infoHeader}>
-            <Ionicons name="information-circle" size={18} color="#D4A04A" />
-            <Text style={styles.infoTitle}>Before you pay</Text>
-          </View>
-          <View style={styles.infoList}>
-            <Text style={styles.infoItem}>• Flight tracking included for airport transfers</Text>
-            <Text style={styles.infoItem}>• 15 minutes complimentary wait time</Text>
-            <Text style={styles.infoItem}>• Meet & greet service with name board (extra charge applies)</Text>
-            <Text style={styles.infoItem}>• For Wi-Fi access, please ask your chauffeur</Text>
-            <Text style={styles.infoItem}>• 24/7 customer support</Text>
-            <Text style={styles.infoItem}>• 407 ETR (extra charges applies)</Text>
-          </View>
+        {/* Notes */}
+        <View style={styles.notesCard}>
+          <Text style={styles.notesTitle}>Included</Text>
+          <Text style={styles.notesLine}>Flight tracking · 15 min wait · 24/7 support</Text>
+          <Text style={styles.notesLine}>Child seat charges apply when selected</Text>
         </View>
 
-        {/* Terms Checkbox */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.termsRow}
           onPress={() => setTermsAccepted(!termsAccepted)}
           activeOpacity={0.8}
         >
           <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
-            {termsAccepted && <Ionicons name="checkmark" size={14} color="#fff" />}
+            {termsAccepted && <Ionicons name="checkmark" size={13} color="#fff" />}
           </View>
           <Text style={styles.termsText}>
             I agree to the{" "}
@@ -420,17 +470,13 @@ export default function ReservationConfirmScreen() {
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* Bottom Buttons */}
-      <View style={styles.bottomContainer}>
-        <TouchableOpacity 
-          style={styles.previousBtn} 
-          onPress={() => router.back()}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.previousBtnText}>Previous</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.submitBtn} 
+      <View style={styles.bottomBar}>
+        <View style={styles.bottomTotal}>
+          <Text style={styles.bottomTotalLabel}>Total due</Text>
+          <Text style={styles.bottomTotalValue}>${pricing.total.toFixed(2)}</Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
           activeOpacity={0.9}
           disabled={isSubmitting}
           onPress={handleSubmit}
@@ -438,7 +484,7 @@ export default function ReservationConfirmScreen() {
           {isSubmitting ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
-            <Text style={styles.submitBtnText}>Submit Reservation</Text>
+            <Text style={styles.submitBtnText}>Submit reservation</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -449,7 +495,7 @@ export default function ReservationConfirmScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#f8fafc",
   },
   scrollView: {
     flex: 1,
@@ -461,7 +507,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 16,
+    paddingVertical: 14,
   },
   backBtn: {
     flexDirection: "row",
@@ -469,276 +515,399 @@ const styles = StyleSheet.create({
   },
   backText: {
     fontSize: 15,
-    color: "#1a1a1a",
+    color: "#0f172a",
     marginLeft: 2,
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "600",
-    color: "#1a1a1a",
+    color: "#0f172a",
   },
   stepIndicator: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginVertical: 20,
+    marginBottom: 18,
   },
-  stepCompleted: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#D4A04A",
+  stepDone: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#0f172a",
     justifyContent: "center",
     alignItems: "center",
   },
-  stepCompletedText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  stepLineActive: {
-    width: 180,
+  stepLine: {
+    width: 120,
     height: 2,
-    backgroundColor: "#D4A04A",
+    backgroundColor: "#0f172a",
   },
-  stepActive: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  stepCurrent: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     borderWidth: 2,
-    borderColor: "#D4A04A",
+    borderColor: "#0f172a",
+    backgroundColor: "#fff",
     justifyContent: "center",
     alignItems: "center",
   },
-  stepActiveText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#D4A04A",
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1a1a1a",
-    marginBottom: 2,
-  },
-  sectionSubtitle: {
+  stepCurrentText: {
     fontSize: 12,
-    color: "#D4A04A",
-    marginBottom: 16,
+    fontWeight: "700",
+    color: "#0f172a",
   },
-  summaryCard: {
-    borderWidth: 1,
-    borderColor: "#e8e8e8",
-    borderRadius: 12,
-    padding: 16,
+  pageTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#0f172a",
+    letterSpacing: -0.3,
   },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 10,
-  },
-  summaryLabel: {
+  pageSubtitle: {
     fontSize: 13,
-    color: "#666",
-  },
-  summaryValue: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: "#1a1a1a",
-  },
-  vehicleSubtitle: {
-    marginTop: 4,
-    fontSize: 11,
-    fontWeight: "500",
     color: "#64748b",
-    textAlign: "right",
-    lineHeight: 15,
+    marginTop: 4,
+    marginBottom: 18,
+    lineHeight: 18,
   },
-  divider: {
-    height: 1,
-    backgroundColor: "#e8e8e8",
-    marginVertical: 8,
-  },
-  gratuityLabel: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  gratuityDropdown: {
-    flexDirection: "row",
-    alignItems: "center",
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#e8e8e8",
-    borderRadius: 6,
+    borderColor: "#e2e8f0",
+    padding: 16,
+    marginBottom: 14,
+  },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 12,
+  },
+  cardTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  secureBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#f1f5f9",
     paddingHorizontal: 8,
     paddingVertical: 4,
-    gap: 4,
+    borderRadius: 6,
   },
-  gratuityText: {
-    fontSize: 12,
-    color: "#1a1a1a",
+  secureBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#64748b",
   },
-  totalRow: {
+  routeBlock: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    gap: 12,
+  },
+  routeRail: {
+    width: 14,
     alignItems: "center",
-    paddingVertical: 10,
+    paddingTop: 4,
+  },
+  routeDotStart: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#0f172a",
+  },
+  routeDotStop: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#94a3b8",
+  },
+  routeDotEnd: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 2.5,
+    borderColor: "#D4A04A",
+    backgroundColor: "#fff",
+  },
+  routeLine: {
+    width: 2,
+    flex: 1,
+    minHeight: 18,
+    backgroundColor: "#e2e8f0",
+    marginVertical: 4,
+  },
+  routeCopy: {
+    flex: 1,
+    gap: 14,
+  },
+  routeItem: {
+    gap: 2,
+  },
+  routeLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#94a3b8",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  routeValue: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#0f172a",
+    lineHeight: 20,
+  },
+  metaGrid: {
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#e2e8f0",
+    gap: 12,
+  },
+  metaItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  metaTextWrap: {
+    flex: 1,
+  },
+  metaLabel: {
+    fontSize: 11,
+    color: "#94a3b8",
+    fontWeight: "500",
+    marginBottom: 1,
+  },
+  metaValue: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#0f172a",
+    lineHeight: 18,
+  },
+  routeStats: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#e2e8f0",
+    gap: 6,
+  },
+  routeStatText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748b",
+  },
+  routeStatDot: {
+    fontSize: 12,
+    color: "#cbd5e1",
+  },
+  fareRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 7,
+    gap: 10,
+  },
+  fareLabel: {
+    fontSize: 13,
+    color: "#64748b",
+    flexShrink: 1,
+  },
+  fareValue: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#0f172a",
+  },
+  softDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#e2e8f0",
+    marginVertical: 8,
+  },
+  gratuityOptions: {
+    flexDirection: "row",
+    gap: 6,
+    marginLeft: "auto",
+    marginRight: 10,
+  },
+  gratuityChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    backgroundColor: "#fff",
+  },
+  gratuityChipActive: {
+    backgroundColor: "#0f172a",
+    borderColor: "#0f172a",
+  },
+  gratuityChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748b",
+  },
+  gratuityChipTextActive: {
+    color: "#fff",
+  },
+  totalBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 10,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#e2e8f0",
   },
   totalLabel: {
     fontSize: 15,
-    fontWeight: "600",
-    color: "#1a1a1a",
+    fontWeight: "700",
+    color: "#0f172a",
   },
   totalValue: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "700",
-    color: "#D4A04A",
+    color: "#0f172a",
+    letterSpacing: -0.2,
   },
-  inputLabel: {
+  guestName: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#0f172a",
+    marginBottom: 4,
+  },
+  guestDetail: {
     fontSize: 13,
-    fontWeight: "500",
-    color: "#1a1a1a",
-    marginBottom: 8,
-    marginTop: 12,
+    color: "#64748b",
+    marginTop: 2,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#334155",
+    marginBottom: 6,
+    marginTop: 10,
   },
   inputBox: {
     borderWidth: 1,
-    borderColor: "#e8e8e8",
+    borderColor: "#e2e8f0",
     borderRadius: 10,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: "#fafafa",
+    paddingVertical: Platform.OS === "ios" ? 13 : 10,
+    backgroundColor: "#f8fafc",
   },
   textInput: {
     fontSize: 14,
-    color: "#1a1a1a",
+    color: "#0f172a",
+    padding: 0,
   },
   cardRow: {
     flexDirection: "row",
-    gap: 12,
+    gap: 10,
   },
   cardField: {
     flex: 1,
   },
-  validateBtn: {
-    backgroundColor: "#D4A04A",
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: "center",
-    marginTop: 16,
-  },
-  validateBtnText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#fff",
-  },
   secureNote: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    marginTop: 12,
-  },
-  secureNoteText: {
+    marginTop: 14,
     fontSize: 11,
-    color: "#666",
+    color: "#94a3b8",
+    lineHeight: 16,
   },
-  infoBox: {
-    backgroundColor: "#fffbf5",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
+  notesCard: {
+    backgroundColor: "#fff",
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#f5efe5",
+    borderColor: "#e2e8f0",
+    padding: 14,
+    marginBottom: 16,
   },
-  infoHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
-  infoTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1a1a1a",
-  },
-  infoList: {
-    gap: 6,
-  },
-  infoItem: {
+  notesTitle: {
     fontSize: 12,
-    color: "#666",
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  notesLine: {
+    fontSize: 12,
+    color: "#64748b",
     lineHeight: 18,
   },
   termsRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
-    marginBottom: 20,
+    marginBottom: 8,
   },
   checkbox: {
     width: 20,
     height: 20,
-    borderRadius: 4,
+    borderRadius: 5,
     borderWidth: 1.5,
-    borderColor: "#ccc",
+    borderColor: "#cbd5e1",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 2,
+    marginTop: 1,
+    backgroundColor: "#fff",
   },
   checkboxChecked: {
-    backgroundColor: "#D4A04A",
-    borderColor: "#D4A04A",
+    backgroundColor: "#0f172a",
+    borderColor: "#0f172a",
   },
   termsText: {
     flex: 1,
     fontSize: 12,
-    color: "#666",
+    color: "#64748b",
     lineHeight: 18,
   },
   termsLink: {
-    color: "#D4A04A",
+    color: "#0f172a",
+    fontWeight: "600",
     textDecorationLine: "underline",
   },
-  bottomContainer: {
+  bottomBar: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     flexDirection: "row",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: "#fff",
-    gap: 12,
-    ...Platform.select({
-      ios: {
-        paddingBottom: 30,
-      },
-    }),
-  },
-  previousBtn: {
-    flex: 0.4,
-    borderWidth: 1.5,
-    borderColor: "#1a1a1a",
-    borderRadius: 12,
-    paddingVertical: 14,
     alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === "ios" ? 28 : 16,
+    backgroundColor: "#fff",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#e2e8f0",
+    gap: 12,
   },
-  previousBtnText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1a1a1a",
+  bottomTotal: {
+    minWidth: 88,
+  },
+  bottomTotalLabel: {
+    fontSize: 11,
+    color: "#94a3b8",
+    fontWeight: "500",
+  },
+  bottomTotalValue: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginTop: 1,
   },
   submitBtn: {
-    flex: 0.6,
-    backgroundColor: "#1a1a1a",
+    flex: 1,
+    backgroundColor: "#0f172a",
     borderRadius: 12,
-    paddingVertical: 14,
+    paddingVertical: 15,
     alignItems: "center",
+  },
+  submitBtnDisabled: {
+    opacity: 0.7,
   },
   submitBtnText: {
     fontSize: 15,
