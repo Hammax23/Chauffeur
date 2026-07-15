@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { getReservations, type Reservation } from "../../services/api";
+import { getReservations, type Reservation } from "../../../services/api";
 
 export default function HistoryScreen() {
   const [reservations, setReservations] = useState<Reservation[]>([]);

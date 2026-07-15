@@ -15,10 +15,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { getReservations, cancelReservation, Reservation } from "../../services/api";
-import { useAuth } from "../../contexts/AuthContext";
-import { useCustomerReservationsStream } from "../../hooks/useCustomerReservationsStream";
-import type { ReservationLiveData, ReservationLiveEvent } from "../../services/reservation-stream";
+import { getReservations, cancelReservation, Reservation } from "../../../services/api";
+import { useAuth } from "../../../contexts/AuthContext";
+import { useCustomerReservationsStream } from "../../../hooks/useCustomerReservationsStream";
+import type { ReservationLiveData, ReservationLiveEvent } from "../../../services/reservation-stream";
 
 const tabs = ["Pending", "In-progress", "Completed"];
 
