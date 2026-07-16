@@ -44,7 +44,7 @@ const popularRoutes = [
 
 export default function PopularRoutes() {
   return (
-    <section className="relative pt-2 sm:pt-4 pb-10 sm:pb-12 md:pb-14 bg-white">
+    <section className="relative pt-6 md:pt-8 pb-12 md:pb-16 bg-white">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-8 sm:mb-10">
@@ -52,7 +52,7 @@ export default function PopularRoutes() {
             Places We Go Frequently
           </h2>
           <p className="text-gray-500 text-sm sm:text-[15px] max-w-xl mx-auto leading-relaxed">
-            Premium intercity chauffeur service from Toronto — comfortable, punctual, and professionally driven.
+            SARJ Worldwide provides private chauffeur transportation for popular routes across Canada and nearby destinations. Whether you are traveling for business, airport transfers, events, or long-distance journeys, our professional chauffeurs offer comfortable and reliable transportation between major cities.
           </p>
         </div>
 

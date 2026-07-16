@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Phone, Menu, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import ServicesNavDropdown from "@/components/ServicesNavDropdown";
+import AirportsNavDropdown from "@/components/AirportsNavDropdown";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -26,8 +27,8 @@ const Navbar = () => {
     }`}>
       <div className="max-w-[1600px] mx-auto px-4 md:px-8">
         <div className="flex items-center justify-between h-[85px] md:h-[100px]">
-          <div className="flex items-center gap-12">
-            <Link href="/" className="flex items-center">
+          <div className="flex items-center gap-4 lg:gap-8">
+            <Link href="/" className="flex items-center shrink-0">
               <Image 
                 src="/logo1.png" 
                 alt="SARJ Worldwide Chauffeur Services Logo" 
@@ -38,45 +39,47 @@ const Navbar = () => {
             </Link>
 
             <div className="hidden lg:flex items-center gap-1">
-              <Link href="/" className="text-white/90 px-5 py-2.5 text-[16px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
+              <Link href="/" className="text-white/90 px-3 xl:px-4 py-2.5 text-[14px] xl:text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
                 HOME
               </Link>
               
-              <Link href="/about" className="text-white/90 px-5 py-2.5 text-[16px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
+              <Link href="/about" className="text-white/90 px-3 xl:px-4 py-2.5 text-[14px] xl:text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
                 ABOUT
               </Link>
               
-              <Link href="/fleet" className="text-white/90 px-5 py-2.5 text-[16px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
+              <Link href="/fleet" className="text-white/90 px-3 xl:px-4 py-2.5 text-[14px] xl:text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
                 FLEET
               </Link>
               
               <ServicesNavDropdown variant="desktop" />
+              <AirportsNavDropdown variant="desktop" />
               
-              <Link href="/news" className="text-white/90 px-5 py-2.5 text-[16px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
+              <Link href="/news" className="text-white/90 px-3 xl:px-4 py-2.5 text-[14px] xl:text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
                 BLOG
               </Link>
               
-              <Link href="/quote" className="text-white/90 px-5 py-2.5 text-[16px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
+              <Link href="/quote" className="text-white/90 px-3 xl:px-4 py-2.5 text-[14px] xl:text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
                 ONLINE QUOTE
               </Link>
               
-              <Link href="/contact" className="text-white/90 px-5 py-2.5 text-[16px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
+              <Link href="/contact" className="text-white/90 px-3 xl:px-4 py-2.5 text-[14px] xl:text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
                 CONTACT
-              </Link>
-              
-              <Link href="/reservation" className="text-white/90 px-5 py-2.5 text-[16px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
-                ONLINE RESERVATION
               </Link>
             </div>
           </div>
 
+          <div className="flex items-center gap-4 shrink-0 pl-4">
+            <Link href="/reservation" className="hidden lg:inline-flex items-center justify-center px-6 py-3 bg-[#C9A063] hover:bg-[#B8935A] text-white text-[13px] xl:text-[14px] font-semibold uppercase tracking-wider rounded-xl transition-all duration-300 shadow-lg shadow-black/20 whitespace-nowrap">
+              ONLINE RESERVATION
+            </Link>
 
-          <button
-            className="lg:hidden text-white"
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-          >
-            {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
+            <button
+              className="lg:hidden text-white"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+            >
+              {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -96,6 +99,7 @@ const Navbar = () => {
             </Link>
             
             <ServicesNavDropdown variant="mobile" onNavigate={() => setIsMenuOpen(false)} />
+            <AirportsNavDropdown variant="mobile" onNavigate={() => setIsMenuOpen(false)} />
             
             <Link href="/news" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-base font-medium text-left">
               BLOG
@@ -116,7 +120,7 @@ const Navbar = () => {
             <div className="pt-3 mt-3 pb-2 border-t border-gray-800">
               <div className="flex items-center gap-2 text-white px-4">
                 <Phone className="w-4 h-4" />
-                <span className="text-sm">416-893-5779</span>
+                <span className="text-sm">+1 416-893-5779</span>
               </div>
             </div>
           </div>

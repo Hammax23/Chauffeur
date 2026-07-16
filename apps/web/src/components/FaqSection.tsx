@@ -68,7 +68,7 @@ export default function FaqSection() {
   };
 
   return (
-    <section className="relative py-9 sm:py-10 md:py-12 bg-white overflow-hidden">
+    <section className="relative py-12 md:py-16 bg-white overflow-hidden">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
@@ -79,7 +79,7 @@ export default function FaqSection() {
       <div className="max-w-[1400px] mx-auto px-6 sm:px-8 md:px-12">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-8 lg:gap-12 xl:gap-16 items-start">
           {/* Left — intro */}
-          <div className="lg:sticky lg:top-28">
+          <div>
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-gray-200 bg-[#fafafa] mb-4">
               <HelpCircle className="w-3.5 h-3.5 text-[#C9A063]" strokeWidth={2} />
               <span className="text-gray-800 text-[11px] sm:text-[12px] font-medium tracking-widest uppercase">

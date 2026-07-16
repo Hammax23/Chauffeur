@@ -31,7 +31,7 @@ const contactCards = [
   {
     icon: Phone,
     title: "Call us",
-    value: "416-893-5779",
+    value: "+1 416-893-5779",
     href: "#",
     sub: "24/7 available",
   },

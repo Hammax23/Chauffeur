@@ -68,33 +68,7 @@ function ReservationPageContent() {
   const [pickupDateTime, setPickupDateTime] = useState<Date | null>(null);
   const [hourlyDuration, setHourlyDuration] = useState(3);
   
-  // Pre-fill from URL query parameters (from homepage hero form)
-  useEffect(() => {
-    const modeParam = searchParams.get("mode");
-    const pickupParam = searchParams.get("pickup");
-    const dropoffParam = searchParams.get("dropoff");
-    const dateParam = searchParams.get("date");
-    const durationParam = searchParams.get("duration");
-    
-    if (modeParam === "hourly" || modeParam === "distance") {
-      setBookingMode(modeParam);
-      if (modeParam === "hourly") {
-        setServiceType("Hourly ride");
-      }
-    }
-    if (pickupParam) setPickupLocation(pickupParam);
-    if (dropoffParam) setDropoffLocation(dropoffParam);
-    if (dateParam) {
-      const parsedDate = new Date(dateParam);
-      if (!isNaN(parsedDate.getTime())) {
-        setPickupDateTime(parsedDate);
-      }
-    }
-    if (durationParam) {
-      const dur = parseInt(durationParam);
-      if (!isNaN(dur) && dur >= 3) setHourlyDuration(dur);
-    }
-  }, [searchParams]);
+
 
   // Keep Select Vehicle in sync with /api/fleet (same source as homepage fleet)
   useEffect(() => {
@@ -198,6 +172,47 @@ function ReservationPageContent() {
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
+  // Pre-fill from URL query parameters (from homepage hero form & service quote form)
+  useEffect(() => {
+    const modeParam = searchParams.get("mode");
+    const serviceTypeParam = searchParams.get("serviceType");
+    const pickupParam = searchParams.get("pickup");
+    const dropoffParam = searchParams.get("dropoff");
+    const dateParam = searchParams.get("date");
+    const durationParam = searchParams.get("duration");
+    const adultsParam = searchParams.get("adults");
+    const airlineParam = searchParams.get("airline");
+    const flightParam = searchParams.get("flight");
+    
+    if (modeParam === "hourly" || modeParam === "distance") {
+      setBookingMode(modeParam);
+      if (modeParam === "hourly") {
+        setServiceType("Hourly ride");
+      } else if (serviceTypeParam) {
+        setServiceType(serviceTypeParam);
+      }
+    }
+    if (pickupParam) setPickupLocation(pickupParam);
+    if (dropoffParam) setDropoffLocation(dropoffParam);
+    if (dateParam) {
+      const parsedDate = new Date(dateParam);
+      if (!isNaN(parsedDate.getTime())) {
+        setPickupDateTime(parsedDate);
+      }
+    }
+    if (durationParam) {
+      const dur = parseInt(durationParam);
+      if (!isNaN(dur) && dur >= 3) setHourlyDuration(dur);
+    }
+    if (adultsParam) {
+      const parsedAdults = parseInt(adultsParam);
+      if (!isNaN(parsedAdults) && parsedAdults > 0) {
+        setAdultsCount(parsedAdults);
+      }
+    }
+    if (airlineParam) setAirlineName(airlineParam);
+    if (flightParam) setFlightNumber(flightParam);
+  }, [searchParams]);
   const [stepError, setStepError] = useState("");
 
   // Route calculation states

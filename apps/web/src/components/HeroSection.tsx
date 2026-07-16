@@ -1,6 +1,6 @@
 "use client";
 import { MapPin, Clock, Plus, ChevronDown, HelpCircle } from 'lucide-react';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -9,14 +9,13 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
 const heroServices = [
-  { title: "Airport Transfers", href: "/services/airport-transfers", image: "/heropics/airportTransfers.png" },
+  { title: "Airport Transfers", href: "/services/airport-transfers", image: "/heropics/airport2.png" },
   { title: "Corporate Travel", href: "/services/corporate-travel", image: "/heropics/buisnesstravel.png" },
-  { title: "Wedding & Events", href: "/services/wedding-events", image: "/heropics/weddingsandevent.png" },
+  { title: "Wedding & Events", href: "/services/wedding-events", image: "/heropics/wed.jpeg" },
   { title: "Hourly Chauffeur", href: "/services/hourly-chauffeur", image: "/heropics/hourlyasdirected.png" },
 ];
 
 const HeroSection = () => {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const router = useRouter();
   const [bookingMode, setBookingMode] = useState<"distance" | "hourly">("distance");
   const [pickup, setPickup] = useState("");
@@ -24,30 +23,7 @@ const HeroSection = () => {
   const [pickupDateTime, setPickupDateTime] = useState<Date | null>(null);
   const [duration, setDuration] = useState(3);
   const [durationDropdownOpen, setDurationDropdownOpen] = useState(false);
-  const [videoLoaded, setVideoLoaded] = useState(false);
-  const [videoError, setVideoError] = useState(false);
 
-  const handleVideoLoad = useCallback(() => {
-    setVideoLoaded(true);
-  }, []);
-
-  const handleVideoError = useCallback(() => {
-    setVideoError(true);
-  }, []);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (video) {
-      video.addEventListener('loadeddata', handleVideoLoad);
-      video.addEventListener('error', handleVideoError);
-      video.load();
-      
-      return () => {
-        video.removeEventListener('loadeddata', handleVideoLoad);
-        video.removeEventListener('error', handleVideoError);
-      };
-    }
-  }, [handleVideoLoad, handleVideoError]);
 
   const handleNext = () => {
     const params = new URLSearchParams();
@@ -67,50 +43,34 @@ const HeroSection = () => {
 
   return (
     <section className="relative min-h-screen w-full overflow-hidden">
-      {/* Fallback background image while video loads */}
-      <div 
-        className="absolute inset-0 w-full h-full bg-cover bg-center bg-no-repeat"
-        style={{
-          backgroundImage: 'url(/cover-poster.jpg)',
-          opacity: videoLoaded ? 0 : 1,
-          transition: 'opacity 0.5s ease-in-out'
-        }}
-      />
-      
-      {/* Optimized video loading */}
+
       <video
-        ref={videoRef}
         autoPlay
         loop
         muted
         playsInline
-        preload="none"
-        poster="/cover-poster.jpg"
-        onLoadedData={handleVideoLoad}
-        onError={handleVideoError}
-        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
-          videoLoaded ? 'opacity-100' : 'opacity-0'
-        }`}
+        preload="auto"
+        className="absolute inset-0 w-full h-full object-cover"
         style={{
           willChange: 'opacity'
         }}
       >
         <source src="/cover.mp4" type="video/mp4" />
       </video>
-      
-      <div className="absolute inset-0 bg-black/40"></div>
+      <div className="absolute inset-0 bg-black/60"></div>
 
       <div className="relative z-10 flex flex-col min-h-screen pt-[108px] sm:pt-[118px]">
         <div className="max-w-[1600px] mx-auto w-full px-8">
           <div className="text-left mb-3 sm:mb-4 md:mb-5 mt-12 sm:mt-16 md:mt-24 lg:mt-28 max-w-[800px] lg:ml-[240px]">
-          <p className="text-white/90 text-sm sm:text-base md:text-lg mb-3 sm:mb-4 font-normal tracking-wide">
-            Where Would You Like To Go?
-          </p>
-          <h1 className="text-white text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-medium leading-tight">
-            Your Personal Certified
-            <br />
-            Chauffeurd Services
-          </h1>
+            <p className="text-white/90 text-sm sm:text-base md:text-lg mb-3 sm:mb-4 font-normal tracking-wide">
+              Where Would You Like To Go?
+            </p>
+            <h1 className="text-white text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold leading-tight max-w-[800px]">
+              Luxury Chauffeur & Airport Limo Service in Canada
+            </h1>
+            <p className="text-white text-sm sm:text-base md:text-lg mt-4 max-w-[700px] leading-relaxed">
+              SARJ Worldwide provides luxury chauffeur services for airport transfers, corporate travel, and private occasions across 15+ Canadian cities. Enjoy professional chauffeurs, premium vehicles, and seamless journeys with comfort and discretion.
+            </p>
           </div>
         </div>
 
@@ -121,11 +81,10 @@ const HeroSection = () => {
               <button
                 type="button"
                 onClick={() => setBookingMode("distance")}
-                className={`relative px-6 sm:px-8 py-2.5 rounded-full text-[12px] sm:text-[13px] font-semibold tracking-wide transition-all duration-300 ${
-                  bookingMode === "distance"
-                    ? "bg-gradient-to-r from-[#C9A063] to-[#D4AF6F] text-white shadow-lg"
-                    : "text-white/90 hover:text-white hover:bg-white/10"
-                }`}
+                className={`relative px-6 sm:px-8 py-2.5 rounded-full text-[12px] sm:text-[13px] font-semibold tracking-wide transition-all duration-300 ${bookingMode === "distance"
+                  ? "bg-gradient-to-r from-[#C9A063] to-[#D4AF6F] text-white shadow-lg"
+                  : "text-white/90 hover:text-white hover:bg-white/10"
+                  }`}
               >
                 DISTANCE
               </button>
@@ -135,11 +94,10 @@ const HeroSection = () => {
                   setBookingMode("hourly");
                   setDropoff("");
                 }}
-                className={`relative px-6 sm:px-8 py-2.5 rounded-full text-[12px] sm:text-[13px] font-semibold tracking-wide transition-all duration-300 ${
-                  bookingMode === "hourly"
-                    ? "bg-gradient-to-r from-[#C9A063] to-[#D4AF6F] text-white shadow-lg"
-                    : "text-white/90 hover:text-white hover:bg-white/10"
-                }`}
+                className={`relative px-6 sm:px-8 py-2.5 rounded-full text-[12px] sm:text-[13px] font-semibold tracking-wide transition-all duration-300 ${bookingMode === "hourly"
+                  ? "bg-gradient-to-r from-[#C9A063] to-[#D4AF6F] text-white shadow-lg"
+                  : "text-white/90 hover:text-white hover:bg-white/10"
+                  }`}
               >
                 HOURLY
               </button>
@@ -217,7 +175,7 @@ const HeroSection = () => {
                 <>
                   <div className="hidden md:block w-px self-stretch bg-gray-200 flex-shrink-0 mx-2"></div>
                   <div className="md:hidden h-px w-full bg-gray-200 flex-shrink-0"></div>
-                  
+
                   <div className="flex items-center gap-2.5 flex-1 min-w-0 md:px-2 relative">
                     <div className="w-8 h-8 rounded-full bg-[#C9A063]/10 flex items-center justify-center flex-shrink-0">
                       <HelpCircle className="w-4 h-4 text-[#C9A063]" strokeWidth={2} />
@@ -225,8 +183,8 @@ const HeroSection = () => {
                     <div className="flex flex-col flex-1 min-w-0 relative">
                       <label className="text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5 flex items-center gap-1">
                         Duration (in hours)
-                        <span 
-                          className="text-[#C9A063] cursor-help" 
+                        <span
+                          className="text-[#C9A063] cursor-help"
                           title="Minimum 3 hours required for hourly booking"
                         >
                           <HelpCircle className="w-3 h-3" />
@@ -241,7 +199,7 @@ const HeroSection = () => {
                           <span>{duration} hours</span>
                           <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${durationDropdownOpen ? 'rotate-180' : ''}`} />
                         </button>
-                        
+
                         {durationDropdownOpen && (
                           <div className="absolute top-full left-0 mt-2 w-full bg-white rounded-xl shadow-xl border border-gray-100 z-50 max-h-[200px] overflow-y-auto">
                             {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((hours) => (
@@ -252,9 +210,8 @@ const HeroSection = () => {
                                   setDuration(hours);
                                   setDurationDropdownOpen(false);
                                 }}
-                                className={`w-full px-4 py-2.5 text-left text-[14px] hover:bg-[#C9A063]/10 transition-colors ${
-                                  duration === hours ? 'bg-[#C9A063]/10 text-[#C9A063] font-semibold' : 'text-gray-700'
-                                }`}
+                                className={`w-full px-4 py-2.5 text-left text-[14px] hover:bg-[#C9A063]/10 transition-colors ${duration === hours ? 'bg-[#C9A063]/10 text-[#C9A063] font-semibold' : 'text-gray-700'
+                                  }`}
                               >
                                 {hours} hours
                               </button>
@@ -293,10 +250,11 @@ const HeroSection = () => {
                 src={service.image}
                 alt={service.title}
                 fill
+                sizes="115px"
                 className="object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500"
               />
               <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-black/40 to-transparent" />
-              
+
               {/* Plus Icon - appears on hover */}
               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
                 <div className="w-10 h-10 rounded-full bg-[#C9A063] flex items-center justify-center shadow-lg transform scale-50 group-hover:scale-100 transition-transform duration-300">
@@ -327,6 +285,7 @@ const HeroSection = () => {
                   src={service.image}
                   alt={service.title}
                   fill
+                  sizes="(max-width: 640px) 22vw, 100px"
                   className="object-contain p-1 opacity-80 group-hover:opacity-100 transition-all duration-300"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />

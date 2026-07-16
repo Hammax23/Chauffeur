@@ -6,6 +6,7 @@ import CityServicePageContent from "@/components/CityServicePageContent";
 import { getCityBySlug, getCityDisplayName, getAllCitySlugs } from "@/lib/managed-cities";
 import type { Metadata } from "next";
 import { buildPageMetadata } from "@/lib/seo-metadata";
+import { GoogleMapsProvider } from "@/components/GoogleMapsProvider";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -48,14 +49,14 @@ export default async function CityServicePage({ params }: PageProps) {
   };
 
   return (
-    <main className="min-h-screen bg-black">
+    <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
-      <TopNav />
-      <Navbar />
-      <div className="pt-[130px] md:pt-[145px]">
+      <GoogleMapsProvider>
+        <TopNav />
+        <Navbar />
         <CityServicePageContent name={name} slug={slug} />
-      </div>
-      <Footer />
+        <Footer />
+      </GoogleMapsProvider>
     </main>
   );
 }

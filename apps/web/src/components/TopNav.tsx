@@ -32,7 +32,7 @@ const TopNav = () => {
             
             <span className="flex items-center gap-2 text-white/90 group">
               <Phone className="w-4 h-4 sm:w-3.5 sm:h-3.5 flex-shrink-0" strokeWidth={2} />
-              <span className="text-[25px] sm:text-[25px] font-light tracking-wide"> 416-893-5779</span>
+              <span className="text-[25px] sm:text-[25px] font-light tracking-wide"> +1 416-893-5779</span>
             </span>
 
 

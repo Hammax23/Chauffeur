@@ -32,7 +32,7 @@ const steps = [
 
 export default function BookingProcess() {
   return (
-    <section className="relative py-8 sm:py-9 md:py-10 bg-[#0a0a0a] overflow-hidden">
+    <section className="relative py-12 md:py-16 bg-[#0a0a0a] overflow-hidden">
       {/* Background glow */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/2 right-0 w-[420px] h-[420px] -translate-y-1/2 translate-x-1/3 rounded-full bg-[#C9A063]/[0.07] blur-[100px]" />
@@ -55,8 +55,7 @@ export default function BookingProcess() {
           </h2>
 
           <p className="text-gray-400 text-[13px] sm:text-[14px] leading-snug max-w-xl mx-auto font-light">
-            Experience a seamless luxury booking process designed for comfort, convenience, and premium
-            chauffeur service across Canada and worldwide destinations.
+            Booking your private chauffeur with SARJ Worldwide takes just minutes. Share your trip details, choose between distance-based or hourly service, and select the vehicle that best fits your journey. Once confirmed, you’ll receive your chauffeur’s details and real-time ride updates, ensuring everything is prepared before you even step outside.
           </p>
         </div>
 

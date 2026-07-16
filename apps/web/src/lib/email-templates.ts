@@ -41,7 +41,7 @@ export function emailDocument(bodyRows: string): string {
       </table>
       <p style="margin:20px 0 0 0;font-size:11px;color:#94a3b8;line-height:1.5;text-align:center;max-width:520px;">
         SARJ Worldwide Chauffeur Services · 231 Oak Park Blvd, Oakville, ON L6H 7S8<br>
-        <a href="tel:+14168935779" style="color:#94a3b8;text-decoration:none;">416-893-5779</a>
+        <a href="tel:+14168935779" style="color:#94a3b8;text-decoration:none;">+1 416-893-5779</a>
         &nbsp;·&nbsp;
         <a href="mailto:reserve@sarjworldwide.ca" style="color:#94a3b8;text-decoration:none;">reserve@sarjworldwide.ca</a>
       </p>
@@ -257,7 +257,7 @@ export function buildContactUserEmail(p: {
           ) +
           emailSection("Submission summary", emailDataTable(summary)) +
           notesBlock +
-          emailParagraph(`Urgent? Call <a href="tel:+14168935779" style="color:${GOLD};font-weight:600;text-decoration:none;">416-893-5779</a> anytime.`) +
+          emailParagraph(`Urgent? Call <a href="tel:+14168935779" style="color:${GOLD};font-weight:600;text-decoration:none;">+1 416-893-5779</a> anytime.`) +
           emailSignoff()
       ) +
       emailFooterNote()
@@ -313,7 +313,7 @@ export function buildQuoteUserEmail(p: Parameters<typeof buildQuoteAdminEmail>[0
             `Thank you for your request — we've received your trip details and our dispatch team is already preparing your <strong style="color:${GOLD};">personalized quote</strong>. You can expect a response from us <strong>shortly</strong>, often within minutes during business hours.`
           ) +
           emailSection("Your request", emailDataTable(summary)) +
-          emailParagraph(`Questions? Call <a href="tel:+14168935779" style="color:${GOLD};font-weight:600;text-decoration:none;">416-893-5779</a>.`) +
+          emailParagraph(`Questions? Call <a href="tel:+14168935779" style="color:${GOLD};font-weight:600;text-decoration:none;">+1 416-893-5779</a>.`) +
           emailSignoff()
       ) +
       emailFooterNote()
@@ -512,7 +512,7 @@ export function buildReservationUserEmail(d: ReservationEmailData): string {
           emailSection("Trip summary", emailDataTable(reservationTripRows(d))) +
           emailSection("Billing summary", reservationBillingTable(d)) +
           special +
-          emailParagraph(`Need help? Call <a href="tel:+14168935779" style="color:${GOLD};font-weight:600;text-decoration:none;">416-893-5779</a>.`) +
+          emailParagraph(`Need help? Call <a href="tel:+14168935779" style="color:${GOLD};font-weight:600;text-decoration:none;">+1 416-893-5779</a>.`) +
           emailSignoff()
       ) +
       emailFooterNote()

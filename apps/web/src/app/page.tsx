@@ -8,6 +8,7 @@ import { GoogleMapsProvider } from "@/components/GoogleMapsProvider";
 const DiscoverFleet = dynamic(() => import("@/components/DiscoverFleet"), {
   loading: () => <div className="min-h-[400px]" />,
 });
+const PremiumServices = dynamic(() => import("@/components/PremiumServices"));
 const WhyChoose = dynamic(() => import("@/components/WhyChoose"));
 const BookingProcess = dynamic(() => import("@/components/BookingProcess"));
 const GlobalFootprint = dynamic(() => import("@/components/GlobalFootprint"));
@@ -26,6 +27,7 @@ export default function Home() {
       <Navbar />
       <HeroSection />
       <DiscoverFleet />
+      <PremiumServices />
       <WhyChoose />
       <BookingProcess />
       <GlobalFootprint />

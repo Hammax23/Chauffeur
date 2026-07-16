@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "echo. && echo ========================================= && echo  SARJ Worldwide Chauffeur API && echo ========================================= && echo  API Docs: http://localhost:3000/api-docs && echo  JSON Spec: http://localhost:3000/api/docs && echo  LAN (phone): http://YOUR_PC_IP:3000/api && echo ========================================= && echo. && next dev -H 0.0.0.0",
+    "dev": "echo \"\" && echo \"=========================================\" && echo \" SARJ Worldwide Chauffeur API\" && echo \"=========================================\" && echo \" API Docs: http://localhost:3000/api-docs\" && echo \" JSON Spec: http://localhost:3000/api/docs\" && echo \" LAN (phone): http://YOUR_PC_IP:3000/api\" && echo \"=========================================\" && echo \"\" && next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
@@ -47,10 +47,19 @@
     "@types/react-datepicker": "^6.2.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.0.0",
+    "critters": "^0.0.23",
     "eslint": "^8.0.0",
     "eslint-config-next": "^15.0.0",
     "postcss": "^8.0.0",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.0.0"
-  }
+  },
+  "browserslist": [
+    "chrome >= 96",
+    "firefox >= 100",
+    "safari >= 15",
+    "edge >= 96",
+    "not dead",
+    "not ie 11"
+  ]
 }

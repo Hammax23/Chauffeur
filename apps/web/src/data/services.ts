@@ -14,6 +14,7 @@ export type ServiceIconKey =
 export interface Service {
   slug: string;
   title: string;
+  heroTitle?: string;
   shortDesc: string;
   description: string;
   features: string[];
@@ -24,9 +25,10 @@ export const services: Service[] = [
   {
     slug: "airport-transfers",
     title: "Airport Transfer",
+    heroTitle: "Private Airport Transfer and Limo Service",
     shortDesc: "Premium comfort for arrivals and departures.",
     description:
-      "Skip the queues and chaos—arrive or depart in complete comfort with our premium airport transfer service. We monitor your flight in real time, so whether you land early or late, your chauffeur is ready. Enjoy meet & greet at arrivals, seamless luggage handling, and a relaxed ride in our luxury fleet. Perfect for business travellers, families, and anyone who values a flawless start or end to their journey.",
+      "Sarj Worldwide offers private airport transfer and airport limo service with confirmed pickup, real-time flight tracking, and professional chauffeurs.",
     features: [
       "Meet & greet with name board at arrivals",
       "Real-time flight monitoring—we adjust to delays",
@@ -40,9 +42,10 @@ export const services: Service[] = [
   {
     slug: "corporate-travel",
     title: "Corporate / Business Travel",
+    heroTitle: "Corporate Car Service and Executive Travel",
     shortDesc: "Executive chauffeur service for impeccable first impressions",
     description:
-      "Make every business trip count with our executive chauffeur service. Arrive at meetings, conferences, and client sites in style—our professional drivers understand that punctuality and discretion are non-negotiable. Work, prepare, or simply relax in our premium vehicles while we handle traffic and logistics. Corporate billing, multi-stop itineraries, and last-minute bookings are all part of our commitment to supporting your success.",
+      "Sarj Worldwide offers corporate car service and executive car service built around your meetings, client visits, and business schedule.",
     features: [
       "Executive fleet—Mercedes S-Class, BMW 7 Series & more",
       "Multi-stop itineraries for back-to-back meetings",
@@ -56,9 +59,10 @@ export const services: Service[] = [
   {
     slug: "point-to-point-transfers",
     title: "Point-to-Point Transfers",
+    heroTitle: "Point-to-Point Car Service Across Canada",
     shortDesc: "Door-to-door luxury between hotels, offices, restaurants & any destination",
     description:
-      "Whether you are heading from your hotel to a restaurant, your office to a client, or between any two venues—our point-to-point transfer service delivers punctual, comfortable, and hassle-free travel. Transparent fixed pricing means no surprises; just a smooth ride in our luxury fleet. Same-day bookings are always welcome, and every journey is treated with the same attention to detail and professionalism.",
+      "Sarj Worldwide offers point-to-point car service for a single, direct trip between your pickup location and destination.",
     features: [
       "Fixed, transparent pricing—no hidden fees",
       "Hotel, office, restaurant & venue drops nationwide",
@@ -71,10 +75,11 @@ export const services: Service[] = [
   },
   {
     slug: "hourly-chauffeur",
-    title: "Hourly / As-Directed Chauffeur",
-    shortDesc: "Flexible routing & sightseeing",
+    title: "Hourly / As-Directed",
+    heroTitle: "Your Chauffeur, On Your Schedule",
+    shortDesc: "Flexible transportation tailored to your dynamic schedule",
     description:
-      "Need a chauffeur for a few hours or the full day? Our hourly and as-directed service puts you in control. Run errands, hit multiple meetings, explore the city, or simply enjoy having a dedicated driver at your disposal. Your chauffeur stays with you for the entire booking—no rush, no extra per-stop charges. Ideal for busy professionals, special outings, and anyone who values flexibility without compromising on luxury.",
+      "Sarj Worldwide offers hourly chauffeur service and hourly limo rental, keeping a private vehicle and driver available for your day.",
     features: [
       "2-hour minimum; extend anytime during your trip",
       "Unlimited stops within your booked time",
@@ -87,10 +92,11 @@ export const services: Service[] = [
   },
   {
     slug: "wedding-events",
-    title: "Wedding & Special Events",
-    shortDesc: "Red-carpet arrivals & flawless transport for your big day",
+    title: "Wedding Events",
+    heroTitle: "A Car That Matches the Day",
+    shortDesc: "Flawless luxury transportation for your special day",
     description:
-      "Your wedding and special events deserve nothing less than perfection. From the bridal car to groom transport, guest shuttles, and red-carpet arrivals—we provide luxury vehicles and seamless coordination so you can focus on the moment. Decorative options, ribbon colours, and chauffeur attire can be tailored to match your theme. Our team works closely with planners and venues to ensure every pickup and drop-off runs like clockwork.",
+      "Sarj Worldwide offers wedding limousine services and wedding vehicle hire, with licensed chauffeurs and a fleet built for the day.",
     features: [
       "Bridal & groom cars—classic and contemporary options",
       "Red-carpet service & step-and-repeat coordination",
@@ -103,10 +109,11 @@ export const services: Service[] = [
   },
   {
     slug: "meet-greet",
-    title: "Meet & Greet",
-    shortDesc: "Personal airport assistance at arrivals & departures",
+    title: "Airport Meet & Greet",
+    heroTitle: "Professional Airport Meet & Greet Service for a Smooth Arrival",
+    shortDesc: "Personalized assistance from the gate to your vehicle",
     description:
-      "Travel through YYZ, YTZ, and other major airports with a dedicated meet & greet agent at your side. From the moment you land—or before you depart—we coordinate a smooth handover with a displayed name board, luggage assistance, and escort to your chauffeur or gate. Ideal for business travellers, families, VIP guests, and anyone who wants a stress-free airport experience without navigating crowds alone.",
+      "SARJ Worldwide's chauffeurs wait right at your arrival gate, track your flight, and walk you straight to the car.",
     features: [
       "Name board meet at arrivals or curb-side departures",
       "Luggage assistance from gate to vehicle",
@@ -120,9 +127,10 @@ export const services: Service[] = [
   {
     slug: "vip-transport",
     title: "VIP & Celebrity Transport",
+    heroTitle: "Private VIP Chauffeur Service for Discreet Luxury Travel",
     shortDesc: "Discreet, secure & confidential—tailored for high-profile clients",
     description:
-      "When privacy and security are paramount, our VIP and celebrity transport service delivers. Unmarked vehicles, rigorously vetted chauffeurs, and strict confidentiality protocols ensure you travel without attention. We offer dedicated account managers, NDA-backed arrangements, and secure protocols for high-profile individuals, executives, and talent. Every detail—from routing to timing—is handled with discretion and precision.",
+      "Private chauffeur transportation for executives, celebrities, and travellers seeking privacy, punctuality, luxury vehicles, and professional service from pickup to arrival.",
     features: [
       "NDA & confidentiality agreements available",
       "Unmarked, low-profile vehicles on request",
@@ -136,9 +144,10 @@ export const services: Service[] = [
   {
     slug: "intercity-travel",
     title: "Long-Distance / Intercity Travel",
-    shortDesc: "Business, relocation & leisure",
+    heroTitle: "Long Distance Chauffeur for Private City-to-City Travel",
+    shortDesc: "Book private city-to-city transportation with professional drivers",
     description:
-      "Travel between cities without the hassle of flights or trains. Our long-distance chauffeur service offers door-to-door luxury for business trips, relocations, weekend getaways, or special occasions. Relax in our premium vehicles with ample luggage space, climate control, and optional WiFi. Rest stops are arranged as needed, and we ensure you reach your destination refreshed and on time. Cross-city and interstate journeys are our specialty.",
+      "Book private city-to-city transportation with professional drivers, scheduled pickups, comfortable vehicles, and direct travel planned around your timing and destination.",
     features: [
       "Cross-city & interstate door-to-door travel",
       "Rest stops and refreshment breaks as needed",

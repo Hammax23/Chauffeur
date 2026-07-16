@@ -8,7 +8,7 @@ import { X } from "lucide-react";
 const STORAGE_KEY = "sarj_cta_popup_dismissed_v1";
 const DELAY_MS = 3000;
 const PHONE_TEL = "tel:+14168935779";
-const PHONE_DISPLAY = "416-893-5779";
+const PHONE_DISPLAY = "+1 416-893-5779";
 
 const EXCLUDED_PREFIXES = ["/admin", "/seopanel", "/operational-manager", "/driver"];
 

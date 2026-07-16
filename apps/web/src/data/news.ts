@@ -23,7 +23,7 @@ export const newsArticles: NewsArticle[] = [
       "The Mercedes-Benz EQS represents the pinnacle of electric luxury sedans. With its sleek design, expansive Hyperscreen display, and whisper-quiet cabin, it is the perfect choice for executives and discerning travellers who value both comfort and sustainability. Our chauffeurs have completed comprehensive training to ensure every EQS ride meets the same impeccable standards you expect from SARJ Worldwide. Book an EQS for your next airport transfer, corporate meeting, or special occasion.",
     category: "Fleet",
     date: "2026-01-15",
-    image: "https://images.unsplash.com/photo-1617814076367-b759c7d7e738?w=800&auto=format&fit=crop",
+    image: "/blog/mercedes-eqs.jpg",
     readTime: "3 min read",
   },
   {
@@ -114,7 +114,7 @@ export const newsArticles: NewsArticle[] = [
       "The Range Rover combines commanding presence with sumptuous interiors and all-terrain capability. Clients often choose it for airport runs with extra luggage, family trips, or when they simply prefer a higher seating position and more cabin space. The rear cabin offers ample legroom and comfort, making it perfect for longer journeys or multi-stop corporate itineraries. We maintain our Range Rovers to the highest standards, so every ride delivers the refinement and reliability you expect. Whether you are heading to the airport, a countryside estate, or a downtown meeting, the Range Rover remains a versatile and luxurious choice.",
     category: "Fleet",
     date: "2025-12-22",
-    image: "https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=800&auto=format&fit=crop",
+    image: "/blog/range-rover.png",
     readTime: "3 min read",
   },
   {
@@ -127,7 +127,7 @@ export const newsArticles: NewsArticle[] = [
       "Demand for chauffeur services spikes around Thanksgiving, Christmas, and New Year. Booking two to four weeks in advance helps secure your preferred vehicle and avoid last-minute availability issues. Be aware that some operators apply peak or seasonal surcharges during these periods; transparent pricing upfront avoids surprises. Weather can disrupt travel, so choose a provider with robust contingency plans and clear communication. Finally, if you are planning wedding transport, corporate events, or airport transfers during the holidays, confirm dates and times early and stay in touch with your concierge as your plans evolve.",
     category: "Travel Tips",
     date: "2025-12-18",
-    image: "https://images.unsplash.com/photo-1512389142860-9c449e58aab4?w=800&auto=format&fit=crop",
+    image: "/cities.jpeg",
     readTime: "4 min read",
   },
   {

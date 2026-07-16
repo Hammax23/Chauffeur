@@ -269,7 +269,7 @@ export default function TrackPage() {
           <p className="text-gray-500 text-xs mb-3">Need assistance?</p>
           <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#C9A063]/10 border border-[#C9A063]/30 rounded-full text-[#C9A063] text-sm font-medium">
             <Phone className="w-4 h-4" />
-            416-893-5779
+            +1 416-893-5779
           </span>
           <p className="text-gray-600 text-xs mt-6">
             SARJ Worldwide Chauffeur Services

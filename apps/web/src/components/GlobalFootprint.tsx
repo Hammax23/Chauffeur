@@ -12,12 +12,12 @@ const MAP_DOTS: { x: number; y: number; province: 'ON' | 'QC' }[] = [];
 for (let row = 0; row < 12; row++) {
   for (let col = 0; col < 16; col++) {
     // Ontario shape approximation
-    const inOntario = 
+    const inOntario =
       (row >= 3 && row <= 10 && col >= 0 && col <= 8) ||
       (row >= 2 && row <= 8 && col >= 2 && col <= 6) ||
       (row >= 4 && row <= 9 && col >= 6 && col <= 10) ||
       (row >= 5 && row <= 8 && col >= 8 && col <= 11);
-    
+
     if (inOntario) {
       MAP_DOTS.push({ x: 80 + col * 28, y: 60 + row * 28, province: 'ON' });
     }
@@ -28,11 +28,11 @@ for (let row = 0; row < 12; row++) {
 for (let row = 0; row < 10; row++) {
   for (let col = 0; col < 12; col++) {
     // Quebec shape approximation
-    const inQuebec = 
+    const inQuebec =
       (row >= 1 && row <= 7 && col >= 10 && col <= 18) ||
       (row >= 0 && row <= 5 && col >= 12 && col <= 20) ||
       (row >= 2 && row <= 6 && col >= 14 && col <= 22);
-    
+
     if (inQuebec) {
       MAP_DOTS.push({ x: 80 + col * 28, y: 60 + row * 28, province: 'QC' });
     }
@@ -73,13 +73,13 @@ function CityMarker({
 }) {
   const pos = CITY_POSITIONS[city.id];
   if (!pos) return null;
-  
+
   const isHub = city.hub;
 
   return (
-    <g 
-      onMouseEnter={onEnter} 
-      onMouseLeave={onLeave} 
+    <g
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
       style={{ cursor: "pointer" }}
     >
       {/* Pulse animation for active/hub */}
@@ -109,7 +109,7 @@ function CityMarker({
           />
         </circle>
       )}
-      
+
       {/* Glow circle */}
       {(active || isHub) && (
         <circle
@@ -119,7 +119,7 @@ function CityMarker({
           fill={isHub ? "rgba(201,160,99,0.15)" : "rgba(201,160,99,0.1)"}
         />
       )}
-      
+
       {/* Main marker */}
       <circle
         cx={pos.x}
@@ -130,7 +130,7 @@ function CityMarker({
         strokeWidth={2.5}
         filter="url(#markerShadow)"
       />
-      
+
       {/* Inner dot for hubs */}
       {isHub && (
         <circle
@@ -140,7 +140,7 @@ function CityMarker({
           fill="#fff"
         />
       )}
-      
+
       {/* City label */}
       <text
         x={pos.x}
@@ -161,7 +161,7 @@ const GlobalFootprint = () => {
   const [activeId, setActiveId] = useState<string | null>(null);
 
   return (
-    <section className="relative pt-16 sm:pt-20 md:pt-24 pb-4 sm:pb-6 bg-gradient-to-b from-[#fafbfc] to-white">
+    <section className="relative pt-12 md:pt-16 pb-6 md:pb-8 bg-gradient-to-b from-[#fafbfc] to-white">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-4 sm:mb-6 md:mb-8">
@@ -173,8 +173,7 @@ const GlobalFootprint = () => {
           </div>
 
           <p className="text-gray-500 text-base sm:text-lg tracking-wide font-light max-w-3xl mx-auto leading-relaxed">
-            There&apos;s a reason for our elevated reputation worldwide. Experience luxury chauffeur services across
-            major cities globally.
+            SARJ Worldwide provides luxury chauffeur and private transportation services across Toronto, the Greater Toronto Area, Ontario, and major Canadian cities. Whether you need airport transportation, corporate travel, wedding transportation, or a private car service, our local service areas make it easy to book a professional chauffeur based on your pickup location and destination.
           </p>
 
           <div className="mt-6 sm:mt-8 flex justify-center">
@@ -202,17 +201,17 @@ const GlobalFootprint = () => {
             >
               <defs>
                 <filter id="markerShadow" x="-50%" y="-50%" width="200%" height="200%">
-                  <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#8B7355" floodOpacity="0.3"/>
+                  <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#8B7355" floodOpacity="0.3" />
                 </filter>
                 <linearGradient id="dotGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stopColor="#C9A063" stopOpacity="0.8" />
                   <stop offset="100%" stopColor="#8B7355" stopOpacity="0.6" />
                 </linearGradient>
               </defs>
-              
+
               {/* Background pattern */}
               <rect x="0" y="0" width="1200" height="400" fill="transparent" />
-              
+
               {/* Dotted land mass - Full width, r=4, 25px gap */}
               {/* Ontario - Row 1 */}
               <circle cx="225" cy="140" r="4" fill="#e5e0d5" />
@@ -222,7 +221,7 @@ const GlobalFootprint = () => {
               <circle cx="325" cy="140" r="4" fill="#ddd8ce" />
               <circle cx="350" cy="140" r="4" fill="#e0dbd0" />
               <circle cx="375" cy="140" r="4" fill="#e2dcd2" />
-              
+
               {/* Ontario - Row 2 */}
               <circle cx="200" cy="165" r="4" fill="#e5e0d5" />
               <circle cx="225" cy="165" r="4" fill="#e2dcd2" />
@@ -234,7 +233,7 @@ const GlobalFootprint = () => {
               <circle cx="375" cy="165" r="4" fill="#ddd8ce" />
               <circle cx="400" cy="165" r="4" fill="#e2dcd2" />
               <circle cx="425" cy="165" r="4" fill="#e5e0d5" />
-              
+
               {/* Ontario - Row 3 */}
               <circle cx="175" cy="190" r="4" fill="#e5e0d5" />
               <circle cx="200" cy="190" r="4" fill="#e0dbd0" />
@@ -249,7 +248,7 @@ const GlobalFootprint = () => {
               <circle cx="425" cy="190" r="4" fill="#ddd8ce" />
               <circle cx="450" cy="190" r="4" fill="#e2dcd2" />
               <circle cx="475" cy="190" r="4" fill="#e5e0d5" />
-              
+
               {/* Ontario - Row 4 */}
               <circle cx="150" cy="215" r="4" fill="#e5e0d5" />
               <circle cx="175" cy="215" r="4" fill="#e0dbd0" />
@@ -267,7 +266,7 @@ const GlobalFootprint = () => {
               <circle cx="475" cy="215" r="4" fill="#ddd8ce" />
               <circle cx="500" cy="215" r="4" fill="#e2dcd2" />
               <circle cx="525" cy="215" r="4" fill="#e5e0d5" />
-              
+
               {/* Ontario - Row 5 */}
               <circle cx="125" cy="240" r="4" fill="#e5e0d5" />
               <circle cx="150" cy="240" r="4" fill="#e0dbd0" />
@@ -286,7 +285,7 @@ const GlobalFootprint = () => {
               <circle cx="475" cy="240" r="4" fill="#d8d2c6" />
               <circle cx="500" cy="240" r="4" fill="#ddd8ce" />
               <circle cx="525" cy="240" r="4" fill="#e2dcd2" />
-              
+
               {/* Ontario - Row 6 */}
               <circle cx="100" cy="265" r="4" fill="#e5e0d5" />
               <circle cx="125" cy="265" r="4" fill="#e0dbd0" />
@@ -305,7 +304,7 @@ const GlobalFootprint = () => {
               <circle cx="450" cy="265" r="4" fill="#d5cfc2" />
               <circle cx="475" cy="265" r="4" fill="#ddd8ce" />
               <circle cx="500" cy="265" r="4" fill="#e2dcd2" />
-              
+
               {/* Ontario - Row 7 */}
               <circle cx="75" cy="290" r="4" fill="#e5e0d5" />
               <circle cx="100" cy="290" r="4" fill="#e0dbd0" />
@@ -323,7 +322,7 @@ const GlobalFootprint = () => {
               <circle cx="400" cy="290" r="4" fill="#d0c9bb" />
               <circle cx="425" cy="290" r="4" fill="#d8d2c6" />
               <circle cx="450" cy="290" r="4" fill="#e0dbd0" />
-              
+
               {/* Ontario - Row 8 */}
               <circle cx="50" cy="315" r="4" fill="#e5e0d5" />
               <circle cx="75" cy="315" r="4" fill="#e0dbd0" />
@@ -339,7 +338,7 @@ const GlobalFootprint = () => {
               <circle cx="325" cy="315" r="4" fill="#ccc4b5" />
               <circle cx="350" cy="315" r="4" fill="#d5cfc2" />
               <circle cx="375" cy="315" r="4" fill="#ddd8ce" />
-              
+
               {/* Ontario - Row 9 */}
               <circle cx="50" cy="340" r="4" fill="#e2dcd2" />
               <circle cx="75" cy="340" r="4" fill="#ddd8ce" />
@@ -352,7 +351,7 @@ const GlobalFootprint = () => {
               <circle cx="250" cy="340" r="4" fill="#ccc4b5" />
               <circle cx="275" cy="340" r="4" fill="#d5cfc2" />
               <circle cx="300" cy="340" r="4" fill="#ddd8ce" />
-              
+
               {/* Ontario - Row 10 */}
               <circle cx="50" cy="365" r="4" fill="#e2dcd2" />
               <circle cx="75" cy="365" r="4" fill="#ddd8ce" />
@@ -362,14 +361,14 @@ const GlobalFootprint = () => {
               <circle cx="175" cy="365" r="4" fill="#d0c9bb" />
               <circle cx="200" cy="365" r="4" fill="#d8d2c6" />
               <circle cx="225" cy="365" r="4" fill="#e0dbd0" />
-              
+
               {/* Connection Ontario to Quebec */}
               <circle cx="550" cy="190" r="4" fill="#e5e0d5" />
               <circle cx="575" cy="190" r="4" fill="#e2dcd2" />
               <circle cx="600" cy="190" r="4" fill="#e0dbd0" />
               <circle cx="625" cy="190" r="4" fill="#ddd8ce" />
               <circle cx="650" cy="190" r="4" fill="#e0dbd0" />
-              
+
               <circle cx="575" cy="165" r="4" fill="#e5e0d5" />
               <circle cx="600" cy="165" r="4" fill="#e2dcd2" />
               <circle cx="625" cy="165" r="4" fill="#ddd8ce" />
@@ -377,7 +376,7 @@ const GlobalFootprint = () => {
               <circle cx="675" cy="165" r="4" fill="#d5cfc2" />
               <circle cx="700" cy="165" r="4" fill="#d8d2c6" />
               <circle cx="725" cy="165" r="4" fill="#ddd8ce" />
-              
+
               {/* Quebec - Row 1 */}
               <circle cx="675" cy="140" r="4" fill="#e5e0d5" />
               <circle cx="700" cy="140" r="4" fill="#e2dcd2" />
@@ -390,7 +389,7 @@ const GlobalFootprint = () => {
               <circle cx="875" cy="140" r="4" fill="#ddd8ce" />
               <circle cx="900" cy="140" r="4" fill="#e2dcd2" />
               <circle cx="925" cy="140" r="4" fill="#e5e0d5" />
-              
+
               {/* Quebec - Row 2 */}
               <circle cx="750" cy="115" r="4" fill="#e5e0d5" />
               <circle cx="775" cy="115" r="4" fill="#e2dcd2" />
@@ -403,7 +402,7 @@ const GlobalFootprint = () => {
               <circle cx="950" cy="115" r="4" fill="#ddd8ce" />
               <circle cx="975" cy="115" r="4" fill="#e2dcd2" />
               <circle cx="1000" cy="115" r="4" fill="#e5e0d5" />
-              
+
               {/* Quebec - Row 3 */}
               <circle cx="825" cy="90" r="4" fill="#e5e0d5" />
               <circle cx="850" cy="90" r="4" fill="#e2dcd2" />
@@ -416,7 +415,7 @@ const GlobalFootprint = () => {
               <circle cx="1025" cy="90" r="4" fill="#ddd8ce" />
               <circle cx="1050" cy="90" r="4" fill="#e2dcd2" />
               <circle cx="1075" cy="90" r="4" fill="#e5e0d5" />
-              
+
               {/* Quebec - Row 4 */}
               <circle cx="900" cy="65" r="4" fill="#e5e0d5" />
               <circle cx="925" cy="65" r="4" fill="#e2dcd2" />
@@ -427,7 +426,7 @@ const GlobalFootprint = () => {
               <circle cx="1050" cy="65" r="4" fill="#ddd8ce" />
               <circle cx="1075" cy="65" r="4" fill="#e2dcd2" />
               <circle cx="1100" cy="65" r="4" fill="#e5e0d5" />
-              
+
               {/* Quebec - Row 5 */}
               <circle cx="975" cy="40" r="4" fill="#e5e0d5" />
               <circle cx="1000" cy="40" r="4" fill="#e2dcd2" />
@@ -436,7 +435,7 @@ const GlobalFootprint = () => {
               <circle cx="1075" cy="40" r="4" fill="#ddd8ce" />
               <circle cx="1100" cy="40" r="4" fill="#e2dcd2" />
               <circle cx="1125" cy="40" r="4" fill="#e5e0d5" />
-              
+
               {/* City markers */}
               {SERVICE_CITIES.map((city) => (
                 <CityMarker
@@ -448,7 +447,7 @@ const GlobalFootprint = () => {
                 />
               ))}
             </svg>
-            
+
             {/* Active city info card */}
             {activeId && (() => {
               const city = SERVICE_CITIES.find((c) => c.id === activeId);

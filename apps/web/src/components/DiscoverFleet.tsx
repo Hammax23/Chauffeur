@@ -34,13 +34,13 @@ const DiscoverFleet = () => {
           setFleetData(data.vehicles);
         }
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   }, []);
 
   if (loading) {
     return (
-      <section className="py-12 sm:py-16 md:py-20 bg-white">
+      <section className="py-12 md:py-16 bg-white">
         <div className="max-w-[1800px] mx-auto px-4 sm:px-6 md:px-8">
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
@@ -51,14 +51,14 @@ const DiscoverFleet = () => {
   }
 
   return (
-    <section className="py-12 sm:py-16 md:py-20 bg-white">
+    <section className="pt-12 md:pt-16 pb-6 md:pb-8 bg-white">
       <div className="max-w-[1800px] mx-auto px-4 sm:px-6 md:px-8">
         <div className="text-center mb-8 sm:mb-10">
           <h2 className="text-gray-800 text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4 tracking-tight">
             DISCOVER YOUR FLEET
           </h2>
-          <p className="text-gray-600 text-sm sm:text-base md:text-lg font-light tracking-wide">
-            FROM THOSE WHO LIVE AND BREATHE LUXURY
+          <p className="text-gray-600 text-sm sm:text-base md:text-lg font-light tracking-wide max-w-4xl mx-auto">
+            Choose the perfect vehicle for your airport transfer, corporate journey, wedding, or private travel. SARJ Worldwide&apos;s fleet includes luxury sedans, SUVs, sprinter vans, and limousines suited to different group sizes, luggage needs, and travel styles. Explore our luxury fleet and enjoy a comfortable, door-to-door chauffeur experience across Canada.
           </p>
         </div>
 

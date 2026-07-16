@@ -129,7 +129,7 @@ export const fleetData: FleetVehicle[] = [
     name: "Sprinter Van",
     dropdownName: "SPRINTER",
     description: "Luxury van with premium amenities. Ideal for airport transfers and group travel.",
-    image: "/fleet/sprinter.png",
+    image: "/fleet/sprinter.jpeg",
     category: "Van",
     seating: "16 maximum, 16 comfortable",
     luggage: "16 large",

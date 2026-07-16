@@ -16,16 +16,16 @@ export async function POST(request: NextRequest) {
 
   try {
     const dbFleet = await prisma.fleetVehicle.findMany();
-    const byVehicleId = new Map(dbFleet.map((v) => [v.vehicleId, v]));
-    const staticById = new Map(fleetData.map((v) => [v.id, v]));
+    const byVehicleId = new Map(dbFleet.map((v: any) => [v.vehicleId, v]));
+    const staticById = new Map(fleetData.map((v: any) => [v.id, v]));
 
     let created = 0;
     let updated = 0;
     let skipped = 0;
 
     for (const seed of APP_FLEET_SEED) {
-      const fromDb = byVehicleId.get(seed.imageFromVehicleId);
-      const fromStatic = staticById.get(seed.imageFromVehicleId);
+      const fromDb = byVehicleId.get(seed.imageFromVehicleId) as any;
+      const fromStatic = staticById.get(seed.imageFromVehicleId) as any;
 
       const image = fromDb?.image || fromStatic?.image || "";
       const pricePerKm =

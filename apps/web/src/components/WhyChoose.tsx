@@ -38,7 +38,7 @@ const WhyChoose = () => {
   ];
 
   return (
-    <section className="pt-7 sm:pt-8 md:pt-9 pb-10 sm:pb-12 md:pb-14 bg-[#fafafa] relative overflow-hidden">
+    <section className="pt-6 md:pt-8 pb-12 md:pb-16 bg-[#fafafa] relative overflow-hidden">
       <div className="max-w-[1400px] mx-auto px-6 sm:px-8 md:px-12 relative z-10">
         {/* Header Section */}
         <div className="mb-6 sm:mb-7">
@@ -52,8 +52,7 @@ const WhyChoose = () => {
           </div>
 
           <h5 className="text-gray-600 text-[17px] sm:text-[19px] md:text-[20px] font-normal leading-snug text-center max-w-4xl mx-auto">
-            SARJ Worldwide owned vehicles, range from Sedans, SUVs, Sprinters and Limousines. All vehicle are
-            equipped with cell phone chargers, WIFI, & bottled water.{" "}
+            Every SARJ Worldwide journey is designed around comfort, punctuality, privacy, and professional chauffeur service. Our experienced team ensures a smooth and reliable travel experience with attention to detail, from your initial pickup to your final drop-off.{" "}
             <Link
               href="/fleet"
               className="text-[#C9A063] underline underline-offset-4 decoration-2 hover:text-[#B8935A] transition-colors duration-200 font-medium ml-1"

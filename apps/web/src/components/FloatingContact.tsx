@@ -4,7 +4,7 @@ import { useState } from "react";
 import { MessageCircle, Phone, Mail } from "lucide-react";
 
 const PHONE_NUMBER = "4168935779";
-const PHONE_DISPLAY = "416-893-5779";
+const PHONE_DISPLAY = "+1 416-893-5779";
 const WHATSAPP_NUMBER = "+14168935779"; // country code + number for wa.me
 
 function WhatsAppIcon({ className }: { className?: string }) {
@@ -22,9 +22,8 @@ export default function FloatingContact() {
     <div className="fixed bottom-6 right-6 z-[45] flex flex-col items-end gap-3">
       {/* WhatsApp & Call buttons - appear above main FAB when open */}
       <div
-        className={`flex flex-col gap-3 transition-all duration-300 ease-out ${
-          open ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-2 pointer-events-none"
-        }`}
+        className={`flex flex-col gap-3 transition-all duration-300 ease-out ${open ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-2 pointer-events-none"
+          }`}
       >
         <a
           href={`https://wa.me/${WHATSAPP_NUMBER}`}
@@ -55,9 +54,8 @@ export default function FloatingContact() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br from-[#C9A063] to-[#A68B5B] text-white shadow-lg shadow-[#C9A063]/40 transition-all duration-300 hover:shadow-xl hover:shadow-[#C9A063]/50 hover:scale-105 active:scale-95 ${
-          open ? "rotate-0" : ""
-        }`}
+        className={`flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br from-[#C9A063] to-[#A68B5B] text-white shadow-lg shadow-[#C9A063]/40 transition-all duration-300 hover:shadow-xl hover:shadow-[#C9A063]/50 hover:scale-105 active:scale-95 ${open ? "rotate-0" : ""
+          }`}
         aria-expanded={open}
         aria-label={open ? "Close contact options" : "Contact us"}
       >
