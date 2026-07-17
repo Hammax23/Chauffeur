@@ -17,7 +17,10 @@ export async function GET(request: NextRequest) {
 
   const page = await getSeoPageByPath(path);
   if (!page) {
-    return NextResponse.json({ success: true, page: null });
+    return NextResponse.json(
+      { success: true, page: null },
+      { headers: { "Cache-Control": "private, no-store" } }
+    );
   }
 
   return NextResponse.json(
@@ -36,7 +39,7 @@ export async function GET(request: NextRequest) {
     },
     {
       headers: {
-        "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120",
+        "Cache-Control": "private, no-store",
       },
     }
   );

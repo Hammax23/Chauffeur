@@ -40,15 +40,26 @@ export default function SeoAnalyticsPage() {
 
   const handleSave = async () => {
     setSaving(true);
-    await fetch("/api/seopanel/settings", {
-      method: "PUT",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    setSaved(false);
+    try {
+      const res = await fetch("/api/seopanel/settings", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      } else {
+        alert(data.error || "Save failed — check login and try again");
+      }
+    } catch {
+      alert("Save failed — network error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-emerald-600" /></div>;
@@ -67,7 +78,7 @@ export default function SeoAnalyticsPage() {
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm space-y-5">
-        <Field label="Google Analytics 4 (GA4) Measurement ID" hint="Format: G-XXXXXXXXXX">
+        <Field label="Google Analytics 4 (GA4) Measurement ID" hint="Format: G-XXXXXXXXXX. If GTM is set below, GA4 should be configured inside GTM (this field is skipped when GTM ID is present).">
           <input className={inputCls} value={form.ga4Id} onChange={(e) => setForm({ ...form, ga4Id: e.target.value })} placeholder="G-XXXXXXXXXX" />
         </Field>
         <Field label="Google Tag Manager Container ID" hint="Format: GTM-XXXXXXX">

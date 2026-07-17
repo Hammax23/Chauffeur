@@ -63,11 +63,12 @@ export function sanitizeObject<T extends Record<string, unknown>>(obj: T): Recor
 /**
  * Sanitizes a URL without HTML-escaping `&` (which would break query strings).
  * Accepts absolute http(s) URLs or site-relative paths starting with `/`.
+ * Protocol-less host paths (e.g. cdn.example.com/x.jpg) get https:// prepended.
  */
 export function sanitizeUrl(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (typeof value !== "string") return "";
-  const trimmed = value.trim().slice(0, 2048);
+  let trimmed = value.trim().slice(0, 2048);
   if (!trimmed) return "";
   if (/^javascript:/i.test(trimmed) || /^data:/i.test(trimmed) || /^vbscript:/i.test(trimmed)) {
     return "";
@@ -75,17 +76,40 @@ export function sanitizeUrl(value: unknown): string {
   if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith("/")) {
     return trimmed;
   }
+  // www.example.com/... or example.com/...
+  if (/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}([/:?]|$)/i.test(trimmed)) {
+    trimmed = `https://${trimmed}`;
+    return trimmed;
+  }
   return "";
 }
 
 /**
- * Plain text trim without HTML entity escaping (for fields that must stay literal).
+ * Plain text trim without HTML entity escaping (for SEO titles, meta, paths, etc.).
+ * Next.js / React escape on render — storing entities causes double-encoding and broken paths.
  */
-export function sanitizePlainText(value: unknown): string {
+export function sanitizePlainText(value: unknown, maxLen = 10_000): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "number") return String(value);
   if (typeof value !== "string") return "";
-  return value.trim().slice(0, 10_000);
+  return value.trim().slice(0, maxLen);
+}
+
+/**
+ * Undo HTML entity escaping from older SEO saves (sanitizeInput used to escape `/` `&` etc.).
+ */
+export function decodeHtmlEntities(str: string): string {
+  if (!str) return str;
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&#x2F;/g, "/")
+    .replace(/&#47;/g, "/")
+    .replace(/&#96;/g, "`");
 }
 
 /**

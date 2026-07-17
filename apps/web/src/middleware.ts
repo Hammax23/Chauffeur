@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { normalizeSeoPath } from "@/lib/seo-pages";
+import { getSeoRedirectsInternalSecret } from "@/lib/seo-redirects-secret";
 
 export async function middleware(request: NextRequest) {
   const pathname = normalizeSeoPath(request.nextUrl.pathname);
@@ -27,16 +28,12 @@ export async function middleware(request: NextRequest) {
 
   try {
     const redirectUrl = new URL("/api/seo-redirects", request.url);
-    const redirectsSecret =
-      process.env.SEO_REDIRECTS_INTERNAL_SECRET?.trim() ||
-      process.env.JWT_SECRET?.trim() ||
-      "";
     const res = await fetch(redirectUrl.toString(), {
       headers: {
         "x-seo-middleware": "1",
-        "x-seo-redirects-secret": redirectsSecret,
+        "x-seo-redirects-secret": getSeoRedirectsInternalSecret(),
       },
-      next: { revalidate: 60 },
+      cache: "no-store",
     });
 
     if (res.ok) {

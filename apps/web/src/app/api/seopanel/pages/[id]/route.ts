@@ -3,9 +3,10 @@ import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { verifySeoPanelAuth, getClientIP } from "@/lib/seo-auth";
 import { discoverSitePages, normalizeSeoPath } from "@/lib/seo-pages";
-import { sanitizeInput, sanitizeUrl } from "@/lib/sanitize";
+import { sanitizePlainText, sanitizeUrl } from "@/lib/sanitize";
 import { sanitizeSeoPageBodyHtml, sanitizeSeoScripts } from "@/lib/seo-page-content";
 import { logSeoAudit } from "@/lib/seo-audit";
+import { getSeoPageByPath } from "@/lib/seo-config";
 
 export async function GET(
   request: NextRequest,
@@ -21,7 +22,7 @@ export async function GET(
   const path = normalizeSeoPath(decoded.startsWith("/") ? decoded : `/${decoded}`);
 
   const discovered = (await discoverSitePages()).find((p) => p.path === path);
-  const page = await prisma.seoPage.findUnique({ where: { path } }).catch(() => null);
+  const page = await getSeoPageByPath(path);
 
   if (!discovered && !page) {
     return NextResponse.json({ success: false, error: "Page not found" }, { status: 404 });
@@ -57,7 +58,8 @@ export async function PUT(
     const decoded = decodeURIComponent(id);
     const path = normalizeSeoPath(decoded.startsWith("/") ? decoded : `/${decoded}`);
     const body = await request.json();
-    const str = (key: string) => (body[key] != null ? sanitizeInput(String(body[key])) : undefined);
+    const str = (key: string) =>
+      body[key] != null ? sanitizePlainText(String(body[key])) : undefined;
     const url = (key: string) => (body[key] != null ? sanitizeUrl(String(body[key])) || null : undefined);
     const html = (key: string) => (body[key] != null ? sanitizeSeoPageBodyHtml(String(body[key])) : undefined);
     const scripts = (key: string) =>
@@ -143,6 +145,9 @@ export async function PUT(
 
     revalidatePath(path);
     revalidatePath("/", "layout");
+    revalidatePath("/sitemap.xml");
+    revalidatePath("/robots.txt");
+    revalidatePath("/api/seo/page-extras");
 
     await logSeoAudit({
       action: "update",

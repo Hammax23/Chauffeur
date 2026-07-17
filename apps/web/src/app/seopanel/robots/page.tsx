@@ -26,15 +26,26 @@ export default function SeoRobotsPage() {
 
   const handleSave = async () => {
     setSaving(true);
-    await fetch("/api/seopanel/settings", {
-      method: "PUT",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ robotsExtraRules: extraRules }),
-    });
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    setSaved(false);
+    try {
+      const res = await fetch("/api/seopanel/settings", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ robotsExtraRules: extraRules }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      } else {
+        alert(data.error || "Save failed — check login and try again");
+      }
+    } catch {
+      alert("Save failed — network error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const preview = `User-agent: *

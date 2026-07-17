@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import { verifySeoPanelAuth, getClientIP } from "@/lib/seo-auth";
 import { logSeoAudit } from "@/lib/seo-audit";
 import { syncSeoPages } from "@/lib/seo-config";
-import { sanitizeInput, sanitizeUrl } from "@/lib/sanitize";
+import { sanitizePlainText, sanitizeUrl } from "@/lib/sanitize";
 import { sanitizeSeoPageBodyHtml, sanitizeSeoScripts } from "@/lib/seo-page-content";
 import { normalizeSeoPath } from "@/lib/seo-pages";
 
@@ -16,26 +16,26 @@ function sanitizeImportedPage(page: Record<string, unknown>) {
   return {
     ...page,
     path,
-    pageLabel: page.pageLabel != null ? sanitizeInput(String(page.pageLabel)) : path,
-    title: page.title != null ? sanitizeInput(String(page.title)) || null : null,
+    pageLabel: page.pageLabel != null ? sanitizePlainText(String(page.pageLabel)) : path,
+    title: page.title != null ? sanitizePlainText(String(page.title)) || null : null,
     metaDescription:
-      page.metaDescription != null ? sanitizeInput(String(page.metaDescription)) || null : null,
-    keywords: page.keywords != null ? sanitizeInput(String(page.keywords)) || null : null,
+      page.metaDescription != null ? sanitizePlainText(String(page.metaDescription)) || null : null,
+    keywords: page.keywords != null ? sanitizePlainText(String(page.keywords)) || null : null,
     canonicalUrl: page.canonicalUrl != null ? sanitizeUrl(String(page.canonicalUrl)) || null : null,
-    ogTitle: page.ogTitle != null ? sanitizeInput(String(page.ogTitle)) || null : null,
+    ogTitle: page.ogTitle != null ? sanitizePlainText(String(page.ogTitle)) || null : null,
     ogDescription:
-      page.ogDescription != null ? sanitizeInput(String(page.ogDescription)) || null : null,
+      page.ogDescription != null ? sanitizePlainText(String(page.ogDescription)) || null : null,
     ogImage: page.ogImage != null ? sanitizeUrl(String(page.ogImage)) || null : null,
-    twitterTitle: page.twitterTitle != null ? sanitizeInput(String(page.twitterTitle)) || null : null,
+    twitterTitle: page.twitterTitle != null ? sanitizePlainText(String(page.twitterTitle)) || null : null,
     twitterDescription:
       page.twitterDescription != null
-        ? sanitizeInput(String(page.twitterDescription)) || null
+        ? sanitizePlainText(String(page.twitterDescription)) || null
         : null,
     twitterImage: page.twitterImage != null ? sanitizeUrl(String(page.twitterImage)) || null : null,
-    h1: page.h1 != null ? sanitizeInput(String(page.h1)) || null : null,
-    focusKeyword: page.focusKeyword != null ? sanitizeInput(String(page.focusKeyword)) || null : null,
+    h1: page.h1 != null ? sanitizePlainText(String(page.h1)) || null : null,
+    focusKeyword: page.focusKeyword != null ? sanitizePlainText(String(page.focusKeyword)) || null : null,
     breadcrumbLabel:
-      page.breadcrumbLabel != null ? sanitizeInput(String(page.breadcrumbLabel)) || null : null,
+      page.breadcrumbLabel != null ? sanitizePlainText(String(page.breadcrumbLabel)) || null : null,
     headerScripts:
       page.headerScripts != null ? sanitizeSeoScripts(String(page.headerScripts)) || null : null,
     bodyScripts:
@@ -46,10 +46,10 @@ function sanitizeImportedPage(page: Record<string, unknown>) {
         : null,
     bodyContentPosition:
       page.bodyContentPosition != null
-        ? sanitizeInput(String(page.bodyContentPosition)) || "bottom"
+        ? sanitizePlainText(String(page.bodyContentPosition)) || "bottom"
         : "bottom",
     internalNotes:
-      page.internalNotes != null ? sanitizeInput(String(page.internalNotes)) || null : null,
+      page.internalNotes != null ? sanitizePlainText(String(page.internalNotes)) || null : null,
   };
 }
 
@@ -177,10 +177,10 @@ export async function POST(request: NextRequest) {
           postData.content = sanitizeSeoPageBodyHtml(String(postData.content));
         }
         if (postData.excerpt) {
-          postData.excerpt = sanitizeInput(String(postData.excerpt));
+          postData.excerpt = sanitizePlainText(String(postData.excerpt));
         }
         if (postData.title) {
-          postData.title = sanitizeInput(String(postData.title));
+          postData.title = sanitizePlainText(String(postData.title));
         }
         await prisma.blogPost.upsert({
           where: { slug: postData.slug },
@@ -201,10 +201,10 @@ export async function POST(request: NextRequest) {
       for (const city of data.cities) {
         const { id, createdAt, updatedAt, ...cityData } = city;
         if (cityData.description) {
-          cityData.description = sanitizeInput(String(cityData.description));
+          cityData.description = sanitizePlainText(String(cityData.description));
         }
         if (cityData.label) {
-          cityData.label = sanitizeInput(String(cityData.label));
+          cityData.label = sanitizePlainText(String(cityData.label));
         }
         await prisma.managedCity.upsert({
           where: { slug: cityData.slug },
@@ -222,10 +222,10 @@ export async function POST(request: NextRequest) {
           serviceData.description = sanitizeSeoPageBodyHtml(String(serviceData.description));
         }
         if (serviceData.shortDesc) {
-          serviceData.shortDesc = sanitizeInput(String(serviceData.shortDesc));
+          serviceData.shortDesc = sanitizePlainText(String(serviceData.shortDesc));
         }
         if (serviceData.title) {
-          serviceData.title = sanitizeInput(String(serviceData.title));
+          serviceData.title = sanitizePlainText(String(serviceData.title));
         }
         await prisma.managedService.upsert({
           where: { slug: serviceData.slug },

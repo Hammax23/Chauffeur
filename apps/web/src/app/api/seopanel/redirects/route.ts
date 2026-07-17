@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { verifySeoPanelAuth, getClientIP } from "@/lib/seo-auth";
 import { normalizeSeoPath } from "@/lib/seo-pages";
-import { sanitizeInput, sanitizeUrl } from "@/lib/sanitize";
+import { sanitizePlainText, sanitizeUrl } from "@/lib/sanitize";
 import { logSeoAudit } from "@/lib/seo-audit";
 
 function sanitizeDestination(raw: string): string {
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const sourcePath = normalizeSeoPath(sanitizeInput(body.sourcePath || ""));
+    const sourcePath = normalizeSeoPath(sanitizePlainText(body.sourcePath || "", 500));
     const destinationPath = sanitizeDestination(String(body.destinationPath || ""));
     const redirectType = body.redirectType === 302 ? 302 : 301;
 
@@ -54,11 +54,12 @@ export async function POST(request: NextRequest) {
         sourcePath,
         destinationPath,
         redirectType,
-        notes: body.notes ? sanitizeInput(String(body.notes)) : null,
+        notes: body.notes ? sanitizePlainText(String(body.notes), 2000) : null,
       },
     });
 
     revalidatePath("/", "layout");
+    revalidatePath("/api/seo-redirects");
 
     await logSeoAudit({
       action: "create",

@@ -6,6 +6,7 @@ import FloatingContact from "@/components/FloatingContact";
 import CtaPopup from "@/components/CtaPopup";
 import SeoSchemaScripts from "@/components/SeoSchemaScripts";
 import SeoTrackingScripts from "@/components/SeoTrackingScripts";
+import SeoPageServerHead from "@/components/SeoPageServerHead";
 import { SeoPageHeadLive } from "@/components/SeoPageLiveExtras";
 import { buildGlobalMetadata } from "@/lib/seo-metadata";
 import { getSeoSettings } from "@/lib/seo-config";
@@ -51,6 +52,7 @@ export default async function RootLayout({
         ) : null}
         <SeoSchemaScripts />
         <SeoTrackingScripts />
+        <SeoPageServerHead />
       </head>
       <body
         className={`${inter.variable} font-sans antialiased`}

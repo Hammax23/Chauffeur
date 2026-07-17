@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { verifySeoPanelAuth, getClientIP } from "@/lib/seo-auth";
 import { getSeoSettings } from "@/lib/seo-config";
-import { sanitizeInput, sanitizeUrl } from "@/lib/sanitize";
+import { sanitizePlainText, sanitizeUrl } from "@/lib/sanitize";
 import { logSeoAudit } from "@/lib/seo-audit";
 
 export async function GET(request: NextRequest) {
@@ -24,7 +24,8 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const str = (key: string) => (body[key] != null ? sanitizeInput(String(body[key])) : undefined);
+    const str = (key: string) =>
+      body[key] != null ? sanitizePlainText(String(body[key])) : undefined;
     const url = (key: string) => (body[key] != null ? sanitizeUrl(String(body[key])) || null : undefined);
     const bool = (key: string) => (typeof body[key] === "boolean" ? body[key] : undefined);
     const num = (key: string) => (typeof body[key] === "number" ? body[key] : undefined);

@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { verifySeoPanelAuth, getClientIP } from "@/lib/seo-auth";
 import { normalizeSeoPath } from "@/lib/seo-pages";
-import { sanitizeInput, sanitizeUrl } from "@/lib/sanitize";
+import { sanitizePlainText, sanitizeUrl } from "@/lib/sanitize";
 import { logSeoAudit } from "@/lib/seo-audit";
 
 function sanitizeDestination(raw: string): string {
@@ -33,7 +33,7 @@ export async function PUT(
       where: { id },
       data: {
         ...(body.sourcePath && {
-          sourcePath: normalizeSeoPath(sanitizeInput(body.sourcePath)),
+          sourcePath: normalizeSeoPath(sanitizePlainText(body.sourcePath, 500)),
         }),
         ...(body.destinationPath && {
           destinationPath: sanitizeDestination(String(body.destinationPath)),
@@ -41,12 +41,13 @@ export async function PUT(
         ...(body.redirectType && { redirectType: body.redirectType === 302 ? 302 : 301 }),
         ...(typeof body.isActive === "boolean" && { isActive: body.isActive }),
         ...(body.notes !== undefined && {
-          notes: body.notes ? sanitizeInput(String(body.notes)) : null,
+          notes: body.notes ? sanitizePlainText(String(body.notes), 2000) : null,
         }),
       },
     });
 
     revalidatePath("/", "layout");
+    revalidatePath("/api/seo-redirects");
 
     await logSeoAudit({
       action: "update",
@@ -85,6 +86,8 @@ export async function DELETE(
       entityLabel: existing ? `${existing.sourcePath} → ${existing.destinationPath}` : id,
       ipAddress: getClientIP(request),
     });
+
+    revalidatePath("/api/seo-redirects");
 
     return NextResponse.json({ success: true });
   } catch {

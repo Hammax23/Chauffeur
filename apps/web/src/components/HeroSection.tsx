@@ -30,7 +30,7 @@ const HeroSection = () => {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/seo/page-extras?path=%2F")
+    fetch("/api/seo/page-extras?path=%2F", { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => {
         if (!cancelled && d?.page?.h1?.trim()) setSeoH1(d.page.h1.trim());

@@ -24,6 +24,7 @@ async function fetchExtras(path: string): Promise<ExtrasPage | null> {
   try {
     const res = await fetch(`/api/seo/page-extras?path=${encodeURIComponent(path)}`, {
       credentials: "same-origin",
+      cache: "no-store",
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -47,6 +48,7 @@ export function SeoPageHeadLive() {
     const marker = "data-seo-page-head";
 
     document.querySelectorAll(`[${marker}]`).forEach((el) => el.remove());
+    document.querySelectorAll("[data-seo-ssr-head]").forEach((el) => el.remove());
 
     void (async () => {
       const page = await fetchExtras(path);

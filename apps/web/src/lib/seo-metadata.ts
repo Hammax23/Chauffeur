@@ -91,15 +91,19 @@ export async function buildPageMetadata(
 /** Global metadata for root layout */
 export async function buildGlobalMetadata(): Promise<Metadata> {
   const settings = await getSeoSettings();
+  const homePage = await getSeoPageByPath("/");
+  const defaultTitle = homePage?.title || settings.defaultTitle;
   const base = await buildPageMetadata("/", {
-    title: settings.defaultTitle,
+    title: defaultTitle,
     description: settings.defaultDescription,
   });
 
   return {
     ...base,
+    // Child pages without generateMetadata use default + template.
+    // Homepage uses absolute title from buildPageMetadata via page.tsx generateMetadata.
     title: {
-      default: settings.defaultTitle,
+      default: defaultTitle,
       template: settings.titleTemplate,
     },
     metadataBase: new URL(settings.siteUrl),
