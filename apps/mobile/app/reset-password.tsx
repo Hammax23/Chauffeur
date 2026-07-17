@@ -13,18 +13,18 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
+import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { resetPassword } from "../services/api";
-
-function qp(v: string | string[] | undefined): string {
-  if (v == null) return "";
-  return Array.isArray(v) ? String(v[0] ?? "") : String(v);
-}
+import {
+  loadPasswordResetToken,
+  clearAllPasswordResetState,
+} from "../services/auth-session";
+import { validatePassword } from "../utils/password-policy";
 
 export default function ResetPasswordScreen() {
-  const raw = useLocalSearchParams();
-  const resetToken = qp(raw.resetToken);
+  const [resetToken, setResetToken] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -34,18 +34,25 @@ export default function ResetPasswordScreen() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!resetToken) {
-      Alert.alert("Session expired", "Please verify your email again.", [
-        { text: "OK", onPress: () => router.replace("/forgot-password") },
-      ]);
-    }
-  }, [resetToken]);
+    void (async () => {
+      const token = await loadPasswordResetToken();
+      if (!token) {
+        Alert.alert("Session expired", "Please verify your email again.", [
+          { text: "OK", onPress: () => router.replace("/forgot-password") },
+        ]);
+        return;
+      }
+      setResetToken(token);
+      setReady(true);
+    })();
+  }, []);
 
   const handleSave = async () => {
     if (!resetToken) return;
 
-    if (newPassword.length < 8) {
-      setError("Password must be at least 8 characters.");
+    const policyError = validatePassword(newPassword);
+    if (policyError) {
+      setError(policyError);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -62,6 +69,8 @@ export default function ResetPasswordScreen() {
         return;
       }
 
+      await clearAllPasswordResetState();
+
       Alert.alert("Password updated", "You can now sign in with your new password.", [
         {
           text: "Sign in",
@@ -74,6 +83,16 @@ export default function ResetPasswordScreen() {
       setLoading(false);
     }
   };
+
+  if (!ready) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+          <ActivityIndicator size="large" color="#0f172a" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>

@@ -10,23 +10,23 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
+import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { forgotPassword, verifyResetOtp } from "../services/api";
-
-function qp(v: string | string[] | undefined): string {
-  if (v == null) return "";
-  return Array.isArray(v) ? String(v[0] ?? "") : String(v);
-}
+import {
+  loadPasswordResetOtpSession,
+  updatePasswordResetOtpSessionId,
+  savePasswordResetToken,
+} from "../services/auth-session";
 
 const OTP_LENGTH = 6;
 const RESEND_SECONDS = 60;
 
 export default function VerifyOTPScreen() {
-  const raw = useLocalSearchParams();
-  const [sessionId, setSessionId] = useState(qp(raw.sessionId));
-  const email = qp(raw.email);
-  const emailMasked = qp(raw.emailMasked) || email;
+  const [sessionId, setSessionId] = useState("");
+  const [email, setEmail] = useState("");
+  const [emailMasked, setEmailMasked] = useState("");
+  const [sessionReady, setSessionReady] = useState(false);
 
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(""));
   const [timer, setTimer] = useState(RESEND_SECONDS);
@@ -36,12 +36,20 @@ export default function VerifyOTPScreen() {
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
   useEffect(() => {
-    if (!sessionId) {
-      Alert.alert("Session expired", "Please request a new verification code.", [
-        { text: "OK", onPress: () => router.replace("/forgot-password") },
-      ]);
-    }
-  }, [sessionId]);
+    void (async () => {
+      const session = await loadPasswordResetOtpSession();
+      if (!session?.sessionId) {
+        Alert.alert("Session expired", "Please request a new verification code.", [
+          { text: "OK", onPress: () => router.replace("/forgot-password") },
+        ]);
+        return;
+      }
+      setSessionId(session.sessionId);
+      setEmail(session.email);
+      setEmailMasked(session.emailMasked || session.email);
+      setSessionReady(true);
+    })();
+  }, []);
 
   useEffect(() => {
     if (timer <= 0) return;
@@ -68,10 +76,8 @@ export default function VerifyOTPScreen() {
         return;
       }
 
-      router.push({
-        pathname: "/reset-password",
-        params: { resetToken: data.resetToken },
-      });
+      await savePasswordResetToken(data.resetToken);
+      router.push("/reset-password");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Verification failed. Please try again.");
     } finally {
@@ -82,7 +88,6 @@ export default function VerifyOTPScreen() {
   const handleOtpChange = (value: string, index: number) => {
     const cleaned = value.replace(/\D/g, "");
 
-    // Paste / autofill of full code
     if (cleaned.length > 1) {
       const digits = cleaned.slice(0, OTP_LENGTH).split("");
       const next = Array(OTP_LENGTH).fill("");
@@ -130,6 +135,7 @@ export default function VerifyOTPScreen() {
         setError(data.error || "Could not resend code. Please try again.");
         return;
       }
+      await updatePasswordResetOtpSessionId(data.sessionId);
       setSessionId(data.sessionId);
       setOtp(Array(OTP_LENGTH).fill(""));
       setTimer(RESEND_SECONDS);
@@ -147,6 +153,16 @@ export default function VerifyOTPScreen() {
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
+
+  if (!sessionReady) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+          <ActivityIndicator size="large" color="#0f172a" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>

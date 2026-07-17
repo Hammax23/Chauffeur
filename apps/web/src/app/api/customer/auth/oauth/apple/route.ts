@@ -136,6 +136,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const emailVerified = payload.email_verified;
+    const verified =
+      emailVerified === true ||
+      emailVerified === "true" ||
+      // Apple private relay emails are always verified by Apple
+      (typeof emailRaw === "string" && emailRaw.toLowerCase().endsWith("@privaterelay.appleid.com"));
+    if (!verified) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Apple email is not verified. Please use a verified Apple ID email.",
+        },
+        { status: 403 }
+      );
+    }
+
     const email = emailRaw.toLowerCase();
 
     const existingByEmail = await prisma.customer.findUnique({ where: { email } });
@@ -144,6 +160,18 @@ export async function POST(req: NextRequest) {
         {
           success: false,
           error: "Account already exists with this email. Please login with password.",
+        },
+        { status: 409 }
+      );
+    }
+
+    // Never silently rebind a different OAuth provider/sub onto an existing account
+    if (existingByEmail?.oauthProvider) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "This email is already linked to a different sign-in method. Please use your original login.",
         },
         { status: 409 }
       );
@@ -161,31 +189,18 @@ export async function POST(req: NextRequest) {
     const firstName = (parsedFirst || emailLocal || "Customer").slice(0, 60);
     const lastName = parsedLast.slice(0, 60);
 
-    const customer =
-      existingByEmail && existingByEmail.oauthProvider
-        ? await prisma.customer.update({
-            where: { id: existingByEmail.id },
-            data: {
-              oauthProvider,
-              oauthSub,
-              ...(parsedFirst && existingByEmail.firstName === "Customer"
-                ? { firstName, lastName }
-                : {}),
-              registrationSource: existingByEmail.registrationSource || "app",
-            },
-          })
-        : await prisma.customer.create({
-            data: {
-              firstName,
-              lastName,
-              email,
-              phone: "",
-              password: hashedPassword,
-              oauthProvider,
-              oauthSub,
-              registrationSource: "app",
-            },
-          });
+    const customer = await prisma.customer.create({
+      data: {
+        firstName,
+        lastName,
+        email,
+        phone: "",
+        password: hashedPassword,
+        oauthProvider,
+        oauthSub,
+        registrationSource: "app",
+      },
+    });
 
     const token = issueCustomerJwt(customer);
     return NextResponse.json({

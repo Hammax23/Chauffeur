@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import {
   CustomerProfile,
-  getStoredUser,
-  getToken,
+  getStoredCustomer,
+  getCustomerToken,
+  clearCustomerSession,
   loginCustomer,
   loginCustomerWithApple,
   loginCustomerWithGoogle,
@@ -59,28 +60,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<CustomerProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check for existing session on mount
   useEffect(() => {
     (async () => {
       try {
-        const token = await getToken();
+        const token = await getCustomerToken();
         if (token) {
-          const stored = await getStoredUser();
-          if (stored) {
-            setUser(stored);
-          }
-          // Refresh profile from server in background
+          const stored = await getStoredCustomer();
+          if (stored) setUser(stored);
           try {
             const data = await getProfile();
             if (data.success && data.customer) {
               setUser(data.customer);
             }
           } catch {
-            // Token might be expired
+            await clearCustomerSession();
+            setUser(null);
           }
+        } else {
+          setUser(null);
         }
       } catch {
-        // No stored session
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
@@ -111,8 +111,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return {
         success: false,
         error: data.error || "Google login failed",
-        tokenAudience: (data as any).tokenAudience ?? null,
-        allowedAudiences: (data as any).allowedAudiences ?? undefined,
+        tokenAudience: (data as { tokenAudience?: string | string[] | null }).tokenAudience ?? null,
+        allowedAudiences: (data as { allowedAudiences?: string[] }).allowedAudiences ?? undefined,
       };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Google login failed";
@@ -133,9 +133,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return {
         success: false,
         error: data.error || "Apple login failed",
-        tokenAudience: (data as any).tokenAudience ?? null,
-        allowedAudiences: (data as any).allowedAudiences ?? undefined,
-        tokenIssuer: (data as any).tokenIssuer ?? null,
+        tokenAudience: (data as { tokenAudience?: string | string[] | null }).tokenAudience ?? null,
+        allowedAudiences: (data as { allowedAudiences?: string[] }).allowedAudiences ?? undefined,
+        tokenIssuer: (data as { tokenIssuer?: string | null }).tokenIssuer ?? null,
       };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Apple login failed";
@@ -179,7 +179,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(data.customer);
       }
     } catch {
-      // Silently fail
+      await clearCustomerSession();
+      setUser(null);
     }
   }, []);
 

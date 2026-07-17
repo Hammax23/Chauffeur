@@ -66,44 +66,7 @@ if (__DEV__) {
   console.log("[API] Using base URL:", API_BASE_URL);
 }
 
-const TOKEN_KEY = "sarj_auth_token";
-const USER_KEY = "sarj_user_data";
-
-// Token management
-export async function getToken(): Promise<string | null> {
-  try {
-    return await SecureStore.getItemAsync(TOKEN_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export async function setToken(token: string): Promise<void> {
-  await SecureStore.setItemAsync(TOKEN_KEY, token);
-}
-
-export async function removeToken(): Promise<void> {
-  await SecureStore.deleteItemAsync(TOKEN_KEY);
-}
-
-export async function getStoredUser(): Promise<CustomerProfile | null> {
-  try {
-    const data = await SecureStore.getItemAsync(USER_KEY);
-    return data ? JSON.parse(data) : null;
-  } catch {
-    return null;
-  }
-}
-
-export async function setStoredUser(user: CustomerProfile): Promise<void> {
-  await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
-}
-
-export async function removeStoredUser(): Promise<void> {
-  await SecureStore.deleteItemAsync(USER_KEY);
-}
-
-// Types
+// Types — declared early so session helpers can reference them
 export interface CustomerProfile {
   id: string;
   firstName: string;
@@ -112,6 +75,216 @@ export interface CustomerProfile {
   phone: string;
   city?: string | null;
   photo?: string | null;
+}
+
+export interface DriverProfile {
+  id: string;
+  driverId: string;
+  name: string;
+  email: string;
+  phone: string;
+  vehicle: string;
+  vehiclePlate: string;
+  vehicleCode: string | null;
+  status: string;
+  isActive: boolean;
+  photo: string | null;
+  rating: number;
+  totalTrips: number;
+}
+
+export type AuthRole = "customer" | "driver";
+
+const LEGACY_TOKEN_KEY = "sarj_auth_token";
+const LEGACY_USER_KEY = "sarj_user_data";
+const CUSTOMER_TOKEN_KEY = "sarj_customer_token";
+const DRIVER_TOKEN_KEY = "sarj_driver_token";
+const CUSTOMER_USER_KEY = "sarj_customer_user";
+const DRIVER_USER_KEY = "sarj_driver_user";
+const ACTIVE_ROLE_KEY = "sarj_active_auth_role";
+
+async function safeGet(key: string): Promise<string | null> {
+  try {
+    return await SecureStore.getItemAsync(key);
+  } catch {
+    return null;
+  }
+}
+
+async function safeSet(key: string, value: string): Promise<void> {
+  await SecureStore.setItemAsync(key, value);
+}
+
+async function safeDel(key: string): Promise<void> {
+  try {
+    await SecureStore.deleteItemAsync(key);
+  } catch {
+    /* ignore */
+  }
+}
+
+async function clearLegacyAuthKeys(): Promise<void> {
+  await safeDel(LEGACY_TOKEN_KEY);
+  await safeDel(LEGACY_USER_KEY);
+}
+
+export async function getActiveAuthRole(): Promise<AuthRole | null> {
+  const role = await safeGet(ACTIVE_ROLE_KEY);
+  if (role === "customer" || role === "driver") return role;
+  return null;
+}
+
+export async function setActiveAuthRole(role: AuthRole): Promise<void> {
+  await safeSet(ACTIVE_ROLE_KEY, role);
+}
+
+export async function getCustomerToken(): Promise<string | null> {
+  return safeGet(CUSTOMER_TOKEN_KEY);
+}
+
+export async function getDriverToken(): Promise<string | null> {
+  return safeGet(DRIVER_TOKEN_KEY);
+}
+
+/** Resolves Bearer token for an API call (prefers endpoint role, else active role). */
+export async function getToken(endpoint?: string): Promise<string | null> {
+  if (endpoint?.startsWith("/driver")) return getDriverToken();
+  if (endpoint?.startsWith("/customer")) return getCustomerToken();
+
+  const role = await getActiveAuthRole();
+  if (role === "driver") return getDriverToken();
+  if (role === "customer") return getCustomerToken();
+
+  // Migration fallback: legacy single key
+  return safeGet(LEGACY_TOKEN_KEY);
+}
+
+export async function getStoredCustomer(): Promise<CustomerProfile | null> {
+  try {
+    const data = await safeGet(CUSTOMER_USER_KEY);
+    return data ? (JSON.parse(data) as CustomerProfile) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getStoredDriver(): Promise<DriverProfile | null> {
+  try {
+    const data = await safeGet(DRIVER_USER_KEY);
+    return data ? (JSON.parse(data) as DriverProfile) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** @deprecated Prefer getStoredCustomer / getStoredDriver */
+export async function getStoredUser(): Promise<CustomerProfile | null> {
+  const role = await getActiveAuthRole();
+  if (role === "driver") {
+    const d = await getStoredDriver();
+    return d as unknown as CustomerProfile | null;
+  }
+  const customer = await getStoredCustomer();
+  if (customer) return customer;
+  try {
+    const legacy = await safeGet(LEGACY_USER_KEY);
+    return legacy ? (JSON.parse(legacy) as CustomerProfile) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setCustomerSession(token: string, user: CustomerProfile): Promise<void> {
+  await clearDriverSession();
+  await safeSet(CUSTOMER_TOKEN_KEY, token);
+  await safeSet(CUSTOMER_USER_KEY, JSON.stringify(user));
+  await setActiveAuthRole("customer");
+  await clearLegacyAuthKeys();
+}
+
+export async function setDriverSession(token: string, driver: DriverProfile): Promise<void> {
+  await clearCustomerSession();
+  await safeSet(DRIVER_TOKEN_KEY, token);
+  await safeSet(DRIVER_USER_KEY, JSON.stringify(driver));
+  await setActiveAuthRole("driver");
+  await clearLegacyAuthKeys();
+}
+
+export async function clearCustomerSession(): Promise<void> {
+  await safeDel(CUSTOMER_TOKEN_KEY);
+  await safeDel(CUSTOMER_USER_KEY);
+  const role = await getActiveAuthRole();
+  if (role === "customer") await safeDel(ACTIVE_ROLE_KEY);
+}
+
+export async function clearDriverSession(): Promise<void> {
+  await safeDel(DRIVER_TOKEN_KEY);
+  await safeDel(DRIVER_USER_KEY);
+  const role = await getActiveAuthRole();
+  if (role === "driver") await safeDel(ACTIVE_ROLE_KEY);
+}
+
+/** Update cached profile without touching the other role's session. */
+export async function persistCustomerProfile(user: CustomerProfile): Promise<void> {
+  await safeSet(CUSTOMER_USER_KEY, JSON.stringify(user));
+}
+
+export async function persistDriverProfile(driver: DriverProfile): Promise<void> {
+  await safeSet(DRIVER_USER_KEY, JSON.stringify(driver));
+}
+
+/** @deprecated Prefer setCustomerSession / setDriverSession */
+export async function setToken(token: string): Promise<void> {
+  const role = (await getActiveAuthRole()) || "customer";
+  if (role === "driver") await safeSet(DRIVER_TOKEN_KEY, token);
+  else await safeSet(CUSTOMER_TOKEN_KEY, token);
+}
+
+/** @deprecated */
+export async function removeToken(): Promise<void> {
+  await clearCustomerSession();
+  await clearDriverSession();
+  await clearLegacyAuthKeys();
+  await safeDel(ACTIVE_ROLE_KEY);
+}
+
+/** @deprecated Prefer role-specific setters */
+export async function setStoredUser(user: CustomerProfile): Promise<void> {
+  const role = await getActiveAuthRole();
+  if (role === "driver") {
+    await safeSet(DRIVER_USER_KEY, JSON.stringify(user));
+  } else {
+    await safeSet(CUSTOMER_USER_KEY, JSON.stringify(user));
+  }
+}
+
+/** @deprecated */
+export async function removeStoredUser(): Promise<void> {
+  await clearCustomerSession();
+  await clearDriverSession();
+  await clearLegacyAuthKeys();
+}
+
+/** Which home to open after splash (validates tokens exist). */
+export async function resolveBootDestination(): Promise<
+  "/customer" | "/driver" | "/login"
+> {
+  const role = await getActiveAuthRole();
+  if (role === "customer" && (await getCustomerToken())) return "/customer";
+  if (role === "driver" && (await getDriverToken())) return "/driver";
+  if (await getCustomerToken()) {
+    await setActiveAuthRole("customer");
+    return "/customer";
+  }
+  if (await getDriverToken()) {
+    await setActiveAuthRole("driver");
+    return "/driver";
+  }
+  // Legacy migration: if old token exists, force re-login for clean split
+  if (await safeGet(LEGACY_TOKEN_KEY)) {
+    await clearLegacyAuthKeys();
+  }
+  return "/login";
 }
 
 export interface ReservationDriver {
@@ -197,7 +370,7 @@ async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = await getToken();
+  const token = await getToken(endpoint);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -224,6 +397,11 @@ async function apiRequest<T>(
 
   const data = await parseResponseBody<T & { error?: string }>(response);
 
+  if (response.status === 401) {
+    if (endpoint.startsWith("/driver")) await clearDriverSession();
+    else if (endpoint.startsWith("/customer")) await clearCustomerSession();
+  }
+
   if (!response.ok) {
     throw new Error(data.error || `Request failed with status ${response.status}`);
   }
@@ -236,7 +414,7 @@ async function apiRequestWithResponse<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<{ ok: boolean; status: number; data: T }> {
-  const token = await getToken();
+  const token = await getToken(endpoint);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...((options.headers as Record<string, string>) || {}),
@@ -261,6 +439,12 @@ async function apiRequestWithResponse<T>(
   }
 
   const data = await parseResponseBody<T>(response);
+
+  if (response.status === 401) {
+    if (endpoint.startsWith("/driver")) await clearDriverSession();
+    else if (endpoint.startsWith("/customer")) await clearCustomerSession();
+  }
+
   return { ok: response.ok, status: response.status, data };
 }
 
@@ -278,8 +462,7 @@ export async function loginCustomer(email: string, password: string) {
   });
 
   if (data.success && data.token) {
-    await setToken(data.token);
-    await setStoredUser(data.customer);
+    await setCustomerSession(data.token, data.customer);
   }
 
   return data;
@@ -301,8 +484,7 @@ export async function loginCustomerWithGoogle(idToken: string) {
   const data = res.data;
 
   if (res.ok && data.success && data.token) {
-    await setToken(data.token);
-    await setStoredUser(data.customer);
+    await setCustomerSession(data.token, data.customer);
   }
 
   return data;
@@ -328,8 +510,7 @@ export async function loginCustomerWithApple(params: {
   const data = res.data;
 
   if (res.ok && data.success && data.token) {
-    await setToken(data.token);
-    await setStoredUser(data.customer);
+    await setCustomerSession(data.token, data.customer);
   }
 
   return data;
@@ -354,8 +535,7 @@ export async function registerCustomer(params: {
   });
 
   if (data.success && data.token) {
-    await setToken(data.token);
-    await setStoredUser(data.customer);
+    await setCustomerSession(data.token, data.customer);
   }
 
   return data;
@@ -398,8 +578,8 @@ export async function resetPassword(resetToken: string, newPassword: string) {
 }
 
 export async function logoutCustomer() {
-  await removeToken();
-  await removeStoredUser();
+  await clearCustomerSession();
+  await clearLegacyAuthKeys();
 }
 
 // ==================== PROFILE API ====================
@@ -426,7 +606,7 @@ export async function updateProfile(params: {
   });
 
   if (data.success && data.customer) {
-    await setStoredUser(data.customer);
+    await persistCustomerProfile(data.customer);
   }
 
   return data;
@@ -592,22 +772,6 @@ export async function cancelReservation(bookingId: string) {
 
 // ==================== DRIVER TYPES ====================
 
-export interface DriverProfile {
-  id: string;
-  driverId: string;
-  name: string;
-  email: string;
-  phone: string;
-  vehicle: string;
-  vehiclePlate: string;
-  vehicleCode: string | null;
-  status: string;
-  isActive: boolean;
-  photo: string | null;
-  rating: number;
-  totalTrips: number;
-}
-
 export interface DriverRide {
   id: string;
   bookingId: string;
@@ -651,16 +815,15 @@ export async function loginDriver(email: string, password: string) {
   });
 
   if (data.success && data.token) {
-    await setToken(data.token);
-    await setStoredUser(data.driver as unknown as CustomerProfile);
+    await setDriverSession(data.token, data.driver);
   }
 
   return data;
 }
 
 export async function logoutDriver() {
-  await removeToken();
-  await removeStoredUser();
+  await clearDriverSession();
+  await clearLegacyAuthKeys();
 }
 
 // ==================== DRIVER PROFILE API ====================

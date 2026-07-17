@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { verifyPasswordResetToken } from "@/lib/customer-otp";
+import { validatePassword } from "@/lib/password-policy";
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,16 +34,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!newPassword || newPassword.length < 8) {
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) {
       return NextResponse.json(
-        { success: false, error: "Password must be at least 8 characters." },
-        { status: 400 }
-      );
-    }
-
-    if (newPassword.length > 128) {
-      return NextResponse.json(
-        { success: false, error: "Password is too long." },
+        { success: false, error: passwordError },
         { status: 400 }
       );
     }

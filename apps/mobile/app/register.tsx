@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
+import { validatePassword } from "../utils/password-policy";
 
 export default function RegisterScreen() {
   const { register } = useAuth();
@@ -169,8 +170,9 @@ export default function RegisterScreen() {
             Alert.alert("Error", "Please agree to the Terms of Service and Privacy Policy");
             return;
           }
-          if (password.length < 6) {
-            Alert.alert("Error", "Password must be at least 6 characters");
+          const passwordError = validatePassword(password);
+          if (passwordError) {
+            Alert.alert("Error", passwordError);
             return;
           }
           setIsLoading(true);

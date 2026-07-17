@@ -180,19 +180,22 @@ export default function LoginScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Email/Phone Input */}
+      {/* Email Input */}
       <View style={styles.inputGroup}>
         <Text style={styles.label}>
-          Enter your Email/Phone No<Text style={styles.required}>*</Text>
+          Enter your Email<Text style={styles.required}>*</Text>
         </Text>
         <TextInput
           style={styles.input}
-          placeholder="Enter your email/phone number here..."
+          placeholder="Enter your email here..."
           placeholderTextColor="#999"
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
           autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="email"
+          textContentType="emailAddress"
         />
       </View>
 
@@ -223,10 +226,12 @@ export default function LoginScreen() {
         </View>
       </View>
 
-      {/* Forgot Password */}
-      <TouchableOpacity style={styles.forgotContainer} onPress={() => router.push("/forgot-password")}>
-        <Text style={styles.forgotText}>Forgot Password?</Text>
-      </TouchableOpacity>
+      {/* Forgot Password — customer accounts only */}
+      {userType === "customer" && (
+        <TouchableOpacity style={styles.forgotContainer} onPress={() => router.push("/forgot-password")}>
+          <Text style={styles.forgotText}>Forgot Password?</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Register Link - Only for Customer */}
       {userType === "customer" && (

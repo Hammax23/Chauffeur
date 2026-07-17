@@ -152,7 +152,7 @@ export function openSseStream(
 
     let token: string | null = null;
     try {
-      token = await getToken();
+      token = await getToken(options.path);
     } catch {
       token = null;
     }

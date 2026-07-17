@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { forgotPassword } from "../services/api";
+import { savePasswordResetOtpSession } from "../services/auth-session";
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
@@ -42,14 +43,13 @@ export default function ForgotPasswordScreen() {
         return;
       }
 
-      router.push({
-        pathname: "/verify-otp",
-        params: {
-          sessionId: data.sessionId,
-          email: trimmed.toLowerCase(),
-          emailMasked: data.emailMasked || trimmed.toLowerCase(),
-        },
+      await savePasswordResetOtpSession({
+        sessionId: data.sessionId,
+        email: trimmed.toLowerCase(),
+        emailMasked: data.emailMasked || trimmed.toLowerCase(),
       });
+
+      router.push("/verify-otp");
     } catch (e) {
       const message = e instanceof Error ? e.message : "Something went wrong. Please try again.";
       setError(message);
