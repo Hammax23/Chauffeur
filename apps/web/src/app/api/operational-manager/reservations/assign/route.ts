@@ -26,6 +26,9 @@ export async function POST(request: NextRequest) {
     const result = await assignDriverToReservation(bookingId, driverId);
 
     if (result.ok) {
+      const { revokeOffersForBooking, notifyDriverOfManualAssignment } = await import("@/lib/live-auto");
+      await revokeOffersForBooking(bookingId, driverId);
+      await notifyDriverOfManualAssignment(bookingId, driverId);
       await publishReservationFromDb(bookingId, "driver_assigned");
     }
 

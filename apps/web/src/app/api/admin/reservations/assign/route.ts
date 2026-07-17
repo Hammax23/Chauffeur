@@ -3,6 +3,7 @@ import { assignDriverToReservation } from "@/lib/data-store";
 import { verifyAdminAuth } from "@/lib/admin-auth";
 import { sendPushNotification } from "@/lib/push-notifications";
 import { publishReservationFromDb } from "@/lib/realtime-bus";
+import { revokeOffersForBooking } from "@/lib/live-auto";
 import prisma from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
@@ -25,7 +26,10 @@ export async function POST(request: NextRequest) {
     const result = await assignDriverToReservation(bookingId, driverId);
 
     if (result.ok) {
-      // Live update for any customer streaming this reservation
+      // Live Auto: pull the ride off every other driver's offer list instantly
+      await revokeOffersForBooking(bookingId, driverId);
+      const { notifyDriverOfManualAssignment } = await import("@/lib/live-auto");
+      await notifyDriverOfManualAssignment(bookingId, driverId);
       await publishReservationFromDb(bookingId, "driver_assigned");
     }
 

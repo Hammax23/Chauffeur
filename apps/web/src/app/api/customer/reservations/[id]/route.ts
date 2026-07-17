@@ -128,6 +128,9 @@ export async function DELETE(
       data: { status: "CANCELLED" },
     });
 
+    const { revokeOffersForBooking } = await import("@/lib/live-auto");
+    await revokeOffersForBooking(id);
+
     await publishReservationFromDb(id, "reservation_cancelled");
 
     return NextResponse.json({ success: true, message: "Reservation cancelled successfully" });

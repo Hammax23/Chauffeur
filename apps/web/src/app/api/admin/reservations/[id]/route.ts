@@ -46,6 +46,11 @@ export async function PUT(
       return NextResponse.json({ success: false, error: "Reservation not found" }, { status: 404 });
     }
 
+    if (typeof body.status === "string" && ["CANCELLED", "DONE"].includes(body.status)) {
+      const { revokeOffersForBooking } = await import("@/lib/live-auto");
+      await revokeOffersForBooking(id);
+    }
+
     // Notify any customer subscribed via SSE that this booking changed.
     await publishReservationFromDb(id, "status_changed");
 
@@ -72,6 +77,9 @@ export async function DELETE(
     if (!success) {
       return NextResponse.json({ success: false, error: "Reservation not found" }, { status: 404 });
     }
+
+    const { revokeOffersForBooking } = await import("@/lib/live-auto");
+    await revokeOffersForBooking(id);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

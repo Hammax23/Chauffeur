@@ -193,6 +193,10 @@ export async function POST(req: NextRequest) {
     // home screen) so it shows up instantly without a manual refresh.
     await publishReservationFromDb(reservation.bookingId, "reservation_created");
 
+    // Live Auto Mode: instantly offer this ride to all eligible drivers
+    const { maybeBroadcastNewReservation } = await import("@/lib/live-auto");
+    await maybeBroadcastNewReservation(reservation.bookingId);
+
     return NextResponse.json({
       success: true,
       message: "Reservation created successfully",

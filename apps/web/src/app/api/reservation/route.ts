@@ -372,6 +372,9 @@ export async function POST(request: NextRequest) {
       paymentStatus,
     });
 
+    const { maybeBroadcastNewReservation } = await import("@/lib/live-auto");
+    await maybeBroadcastNewReservation(bookingId);
+
     return NextResponse.json({ success: true, message: "Reservation submitted successfully!", bookingId });
   } catch (error: any) {
     console.error("Reservation email error:", error);

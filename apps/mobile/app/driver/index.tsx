@@ -19,10 +19,38 @@ import { Ionicons } from "@expo/vector-icons";
 import { useDriverAuth } from "../../contexts/DriverAuthContext";
 import { getDriverRides, acceptRide, rejectRide, DriverRide } from "../../services/api";
 import { syncDriverLiveTracking, syncLiveTrackingFromRideList } from "../../services/driver-live-session";
+import { openDriverStream, type DriverOfferEvent } from "../../services/driver-stream";
 
 type TabType = "requests" | "upcoming";
 
-const POLL_INTERVAL = 5000; // 5 seconds
+const POLL_INTERVAL = 5000; // fallback / upcoming tab
+
+function offerToRide(event: DriverOfferEvent): DriverRide | null {
+  const r = event.ride;
+  if (!r) return null;
+  return {
+    id: r.bookingId,
+    bookingId: r.bookingId,
+    status: r.status,
+    customerName: r.customerName,
+    phone: r.phone,
+    email: r.email,
+    serviceType: r.serviceType,
+    vehicle: r.vehicle,
+    passengers: r.passengers,
+    childSeats: r.childSeats,
+    serviceDate: r.serviceDate,
+    serviceTime: r.serviceTime,
+    pickupLocation: r.pickupLocation,
+    stops: r.stops,
+    dropoffLocation: r.dropoffLocation,
+    distance: r.distance,
+    duration: r.duration,
+    total: r.total,
+    createdAt: r.createdAt,
+    liveOffer: r.liveOffer,
+  };
+}
 
 export default function DriverDashboard() {
   const { driver, toggleActive, refreshProfile } = useDriverAuth();
@@ -33,6 +61,7 @@ export default function DriverDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [requestCount, setRequestCount] = useState(0);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const streamRef = useRef<ReturnType<typeof openDriverStream> | null>(null);
   const isFocusedRef = useRef(true);
 
   const fetchRides = useCallback(async (tab: TabType, silent = false) => {
@@ -57,6 +86,53 @@ export default function DriverDashboard() {
     }
   }, []);
 
+  const applyOfferEvent = useCallback((event: DriverOfferEvent) => {
+    // Always keep badge accurate from list mutations when on Requests;
+    // when on Upcoming, soft-refresh the request count only.
+    if (activeTab !== "requests") {
+      if (
+        event.type === "offer_created" ||
+        event.type === "snapshot" ||
+        event.type === "offer_revoked" ||
+        event.type === "offer_claimed" ||
+        event.type === "offer_declined"
+      ) {
+        getDriverRides("requests")
+          .then((data) => {
+            if (data.success) setRequestCount(data.rides.length);
+          })
+          .catch(() => {});
+      }
+      return;
+    }
+
+    if (event.type === "offer_created" || event.type === "snapshot") {
+      const ride = offerToRide(event);
+      if (!ride) return;
+      setRides((prev) => {
+        if (prev.some((r) => r.bookingId === ride.bookingId)) {
+          return prev.map((r) => (r.bookingId === ride.bookingId ? { ...r, ...ride } : r));
+        }
+        const next = [ride, ...prev];
+        setRequestCount(next.length);
+        return next;
+      });
+      return;
+    }
+
+    if (
+      event.type === "offer_revoked" ||
+      event.type === "offer_claimed" ||
+      event.type === "offer_declined"
+    ) {
+      setRides((prev) => {
+        const next = prev.filter((r) => r.bookingId !== event.bookingId);
+        setRequestCount(next.length);
+        return next;
+      });
+    }
+  }, [activeTab]);
+
   // Admin may change name/photo in dashboard — re-fetch profile when this screen is shown
   useFocusEffect(
     useCallback(() => {
@@ -65,28 +141,39 @@ export default function DriverDashboard() {
     }, [refreshProfile])
   );
 
-  // Auto-poll: fetch rides every 5 seconds for real-time updates
+  // Keep Live Auto SSE always connected on this screen; poll upcoming lightly
   useFocusEffect(
     useCallback(() => {
       isFocusedRef.current = true;
       setIsLoading(true);
       fetchRides(activeTab);
 
-      // Start polling
+      streamRef.current?.close();
+      streamRef.current = openDriverStream({
+        onEvent: applyOfferEvent,
+      });
+
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+
+      // Soft fallback for requests; faster poll for upcoming trip status
+      const intervalMs = activeTab === "requests" ? 30_000 : POLL_INTERVAL;
       pollTimerRef.current = setInterval(() => {
-        if (isFocusedRef.current) {
-          fetchRides(activeTab, true);
-        }
-      }, POLL_INTERVAL);
+        if (isFocusedRef.current) fetchRides(activeTab, true);
+      }, intervalMs);
 
       return () => {
         isFocusedRef.current = false;
+        streamRef.current?.close();
+        streamRef.current = null;
         if (pollTimerRef.current) {
           clearInterval(pollTimerRef.current);
           pollTimerRef.current = null;
         }
       };
-    }, [activeTab, fetchRides])
+    }, [activeTab, fetchRides, applyOfferEvent])
   );
 
   // Also fetch request count in background for notification badge
@@ -120,6 +207,17 @@ export default function DriverDashboard() {
     if (!result.success) {
       setIsActive(!value);
       Alert.alert("Error", result.error || "Failed to update status");
+      return;
+    }
+    // Pull in (or clear) Live Auto offers immediately after status change
+    if (activeTab === "requests") {
+      fetchRides("requests", true);
+    } else {
+      getDriverRides("requests")
+        .then((data) => {
+          if (data.success) setRequestCount(data.rides.length);
+        })
+        .catch(() => {});
     }
   };
 
@@ -127,6 +225,9 @@ export default function DriverDashboard() {
     try {
       const result = await acceptRide(bookingId);
       if (result.success) {
+        // Optimistic remove from requests (SSE also revokes for others)
+        setRides((prev) => prev.filter((r) => r.bookingId !== bookingId));
+        setRequestCount((c) => Math.max(0, c - 1));
         Alert.alert(
           "Ride accepted",
           "It's now in the Upcoming Rides tab. Open it and tap \"On The Way\" when you head to pickup.",
@@ -140,8 +241,13 @@ export default function DriverDashboard() {
       } else {
         Alert.alert("Error", "Failed to accept ride");
       }
-    } catch {
-      Alert.alert("Error", "Something went wrong");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Something went wrong";
+      Alert.alert(
+        msg.toLowerCase().includes("another driver") ? "Ride taken" : "Error",
+        msg
+      );
+      fetchRides(activeTab, true);
     }
   };
 
@@ -166,13 +272,16 @@ export default function DriverDashboard() {
           try {
             const result = await rejectRide(bookingId);
             if (result.success) {
+              setRides((prev) => prev.filter((r) => r.bookingId !== bookingId));
+              setRequestCount((c) => Math.max(0, c - 1));
               syncDriverLiveTracking().catch(() => {});
-              fetchRides(activeTab);
             } else {
               Alert.alert("Error", "Failed to reject ride");
+              fetchRides(activeTab, true);
             }
           } catch {
             Alert.alert("Error", "Something went wrong");
+            fetchRides(activeTab, true);
           }
         },
       },
@@ -285,8 +394,10 @@ export default function DriverDashboard() {
                     <View style={styles.nameRow}>
                       <Text style={styles.customerName}>{ride.customerName}</Text>
                       {activeTab === "requests" && (
-                        <View style={styles.newBadge}>
-                          <Text style={styles.newBadgeText}>NEW</Text>
+                        <View style={[styles.newBadge, ride.liveOffer && styles.liveBadge]}>
+                          <Text style={[styles.newBadgeText, ride.liveOffer && styles.liveBadgeText]}>
+                            {ride.liveOffer ? "LIVE" : "NEW"}
+                          </Text>
                         </View>
                       )}
                     </View>
@@ -493,10 +604,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#FFB74D",
   },
+  liveBadge: {
+    backgroundColor: "#ecfdf5",
+    borderColor: "#34d399",
+  },
   newBadgeText: {
     fontSize: 10,
     fontWeight: "600",
     color: "#F57C00",
+  },
+  liveBadgeText: {
+    color: "#059669",
   },
   customerPhone: {
     fontSize: 13,

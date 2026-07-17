@@ -633,6 +633,8 @@ export interface DriverRide {
   /** JSON array of { start, end? } stop intervals (Stop → Continue). */
   driverStopPeriodsJson?: string | null;
   completedAt?: string | null;
+  /** Live Auto Mode marketplace offer (not yet assigned). */
+  liveOffer?: boolean;
 }
 
 // ==================== DRIVER AUTH API ====================
