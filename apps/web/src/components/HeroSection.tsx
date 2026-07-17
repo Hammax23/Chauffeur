@@ -26,6 +26,20 @@ const HeroSection = () => {
   const [durationDropdownOpen, setDurationDropdownOpen] = useState(false);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [videoError, setVideoError] = useState(false);
+  const [seoH1, setSeoH1] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/seo/page-extras?path=%2F")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled && d?.page?.h1?.trim()) setSeoH1(d.page.h1.trim());
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleVideoLoad = useCallback(() => {
     setVideoLoaded(true);
@@ -107,9 +121,15 @@ const HeroSection = () => {
             Where Would You Like To Go?
           </p>
           <h1 className="text-white text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-medium leading-tight">
-            Your Personal Certified
-            <br />
-            Chauffeurd Services
+            {seoH1 ? (
+              seoH1
+            ) : (
+              <>
+                Your Personal Certified
+                <br />
+                Chauffeurd Services
+              </>
+            )}
           </h1>
           </div>
         </div>

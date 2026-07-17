@@ -296,7 +296,7 @@ function PageEditorContent() {
           <>
             <Field
               label="Body Content Position"
-              hint="Where to inject this content on the page (via SeoPageBodyExtras)."
+              hint="Where to inject this content on the page (after navbar = top, before footer = bottom)."
             >
               <select
                 className={inputCls}

@@ -27,8 +27,15 @@ export async function middleware(request: NextRequest) {
 
   try {
     const redirectUrl = new URL("/api/seo-redirects", request.url);
+    const redirectsSecret =
+      process.env.SEO_REDIRECTS_INTERNAL_SECRET?.trim() ||
+      process.env.JWT_SECRET?.trim() ||
+      "";
     const res = await fetch(redirectUrl.toString(), {
-      headers: { "x-seo-middleware": "1" },
+      headers: {
+        "x-seo-middleware": "1",
+        "x-seo-redirects-secret": redirectsSecret,
+      },
       next: { revalidate: 60 },
     });
 

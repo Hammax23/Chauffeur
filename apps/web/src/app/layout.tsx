@@ -6,9 +6,9 @@ import FloatingContact from "@/components/FloatingContact";
 import CtaPopup from "@/components/CtaPopup";
 import SeoSchemaScripts from "@/components/SeoSchemaScripts";
 import SeoTrackingScripts from "@/components/SeoTrackingScripts";
-import SeoPageHeadExtras from "@/components/SeoPageHeadExtras";
-import SeoPageBodyExtras from "@/components/SeoPageBodyExtras";
+import { SeoPageHeadLive } from "@/components/SeoPageLiveExtras";
 import { buildGlobalMetadata } from "@/lib/seo-metadata";
+import { getSeoSettings } from "@/lib/seo-config";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -28,11 +28,13 @@ export const viewport: Viewport = {
   maximumScale: 5,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const settings = await getSeoSettings();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -41,15 +43,31 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
         <link rel="preload" href="/cover.mp4" as="video" type="video/mp4" />
         <meta name="theme-color" content="#C9A063" />
+        {settings.facebookAppId ? (
+          <meta property="fb:app_id" content={settings.facebookAppId} />
+        ) : null}
+        {settings.pinterestVerification ? (
+          <meta name="p:domain_verify" content={settings.pinterestVerification} />
+        ) : null}
         <SeoSchemaScripts />
-        <SeoPageHeadExtras />
         <SeoTrackingScripts />
       </head>
       <body
         className={`${inter.variable} font-sans antialiased`}
         suppressHydrationWarning
       >
-        <SeoPageBodyExtras />
+        <SeoPageHeadLive />
+        {settings.gtmId ? (
+          <noscript>
+            <iframe
+              src={`https://www.googletagmanager.com/ns.html?id=${settings.gtmId}`}
+              height="0"
+              width="0"
+              style={{ display: "none", visibility: "hidden" }}
+              title="Google Tag Manager"
+            />
+          </noscript>
+        ) : null}
         {children}
         <CtaPopup />
         <FloatingContact />

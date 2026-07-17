@@ -40,7 +40,7 @@ export default function SeoRobotsPage() {
   const preview = `User-agent: *
 Allow: /
 
-Sitemap: ${siteUrl}/sitemap.xml
+Sitemap: ${siteUrl.replace(/\/$/, "")}/sitemap.xml
 
 # Blocked paths
 Disallow: /api/
@@ -48,6 +48,7 @@ Disallow: /_next/
 Disallow: /admin/
 Disallow: /seopanel/
 Disallow: /operational-manager/
+Disallow: /driver/
 
 ${extraRules}`.trim();
 

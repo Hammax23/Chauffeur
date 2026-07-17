@@ -46,8 +46,9 @@ export async function buildPageMetadata(
     verification.yandex = settings.yandexVerification;
   }
 
+  // Use absolute title so root title.template does not double-append brand
   return {
-    title,
+    title: { absolute: title },
     description,
     keywords: keywords?.length ? keywords : undefined,
     authors: [{ name: settings.siteName }],

@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Phone, Menu, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import ServicesNavDropdown from "@/components/ServicesNavDropdown";
+import { SeoBodySlot } from "@/components/SeoPageLiveExtras";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -19,6 +20,7 @@ const Navbar = () => {
   }, []);
 
   return (
+    <>
     <nav className={`fixed top-[45px] left-0 right-0 z-50 transition-all duration-700 ease-out ${
       scrolled 
         ? 'bg-black/70 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] border-b border-white/5' 
@@ -123,6 +125,8 @@ const Navbar = () => {
         </div>
       )}
     </nav>
+    <SeoBodySlot position="top" />
+    </>
   );
 };
 

@@ -1,8 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
-import { verifySeoPanelAuth } from "@/lib/seo-auth";
+import { verifySeoPanelAuth, getClientIP } from "@/lib/seo-auth";
 import { normalizeSeoPath } from "@/lib/seo-pages";
-import { sanitizeInput } from "@/lib/sanitize";
+import { sanitizeInput, sanitizeUrl } from "@/lib/sanitize";
+import { logSeoAudit } from "@/lib/seo-audit";
+
+function sanitizeDestination(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("http")) {
+    return sanitizeUrl(trimmed);
+  }
+  const path = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  return normalizeSeoPath(sanitizeUrl(path) || path);
+}
 
 export async function PUT(
   request: NextRequest,
@@ -20,16 +32,28 @@ export async function PUT(
     const redirect = await prisma.seoRedirect.update({
       where: { id },
       data: {
-        ...(body.sourcePath && { sourcePath: normalizeSeoPath(sanitizeInput(body.sourcePath)) }),
+        ...(body.sourcePath && {
+          sourcePath: normalizeSeoPath(sanitizeInput(body.sourcePath)),
+        }),
         ...(body.destinationPath && {
-          destinationPath: String(body.destinationPath).startsWith("http")
-            ? sanitizeInput(body.destinationPath)
-            : normalizeSeoPath(sanitizeInput(body.destinationPath)),
+          destinationPath: sanitizeDestination(String(body.destinationPath)),
         }),
         ...(body.redirectType && { redirectType: body.redirectType === 302 ? 302 : 301 }),
         ...(typeof body.isActive === "boolean" && { isActive: body.isActive }),
-        ...(body.notes !== undefined && { notes: body.notes ? sanitizeInput(String(body.notes)) : null }),
+        ...(body.notes !== undefined && {
+          notes: body.notes ? sanitizeInput(String(body.notes)) : null,
+        }),
       },
+    });
+
+    revalidatePath("/", "layout");
+
+    await logSeoAudit({
+      action: "update",
+      entityType: "redirect",
+      entityId: redirect.id,
+      entityLabel: `${redirect.sourcePath} → ${redirect.destinationPath}`,
+      ipAddress: getClientIP(request),
     });
 
     return NextResponse.json({ success: true, redirect });
@@ -49,7 +73,19 @@ export async function DELETE(
 
   try {
     const { id } = await params;
+    const existing = await prisma.seoRedirect.findUnique({ where: { id } });
     await prisma.seoRedirect.delete({ where: { id } });
+
+    revalidatePath("/", "layout");
+
+    await logSeoAudit({
+      action: "delete",
+      entityType: "redirect",
+      entityId: id,
+      entityLabel: existing ? `${existing.sourcePath} → ${existing.destinationPath}` : id,
+      ipAddress: getClientIP(request),
+    });
+
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ success: false, error: "Failed to delete redirect" }, { status: 500 });

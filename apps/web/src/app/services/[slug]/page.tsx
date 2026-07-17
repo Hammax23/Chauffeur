@@ -26,6 +26,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import type { Metadata } from "next";
 import { buildPageMetadata } from "@/lib/seo-metadata";
+import { getSeoSettings, getSeoPageByPath } from "@/lib/seo-config";
 
 const iconMap: Record<ServiceIconKey, React.ElementType> = {
   PlaneTakeoff,
@@ -65,26 +66,32 @@ export default async function ServicePage({ params }: Props) {
   if (!service) notFound();
 
   const Icon = iconMap[service.icon];
-  const baseUrl = "https://sarjworldwide.ca";
+  const [settings, seoPage] = await Promise.all([
+    getSeoSettings(),
+    getSeoPageByPath(`/services/${slug}`),
+  ]);
+  const baseUrl = settings.siteUrl.replace(/\/$/, "");
   const serviceUrl = `${baseUrl}/services/${slug}`;
+  const crumbName = seoPage?.breadcrumbLabel?.trim() || service.title;
+  const heading = seoPage?.h1?.trim() || service.title;
 
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
-    "itemListElement": [
-      { "@type": "ListItem", "position": 1, "name": "Home", "item": baseUrl },
-      { "@type": "ListItem", "position": 2, "name": "Services", "item": `${baseUrl}/services` },
-      { "@type": "ListItem", "position": 3, "name": service.title, "item": serviceUrl },
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: baseUrl },
+      { "@type": "ListItem", position: 2, name: "Services", item: `${baseUrl}/services` },
+      { "@type": "ListItem", position: 3, name: crumbName, item: serviceUrl },
     ],
   };
 
   const serviceJsonLd = {
     "@context": "https://schema.org",
     "@type": "Service",
-    "name": service.title,
-    "description": service.description,
-    "provider": { "@type": "LocalBusiness", "name": "SARJ Worldwide Chauffeur Services" },
-    "url": serviceUrl,
+    name: service.title,
+    description: service.description,
+    provider: { "@type": "LocalBusiness", name: "SARJ Worldwide Chauffeur Services" },
+    url: serviceUrl,
   };
 
   return (
@@ -120,7 +127,7 @@ export default async function ServicePage({ params }: Props) {
             </div>
             <div className="flex-1">
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 tracking-tight mb-4">
-                {service.title}
+                {heading}
               </h1>
               <p className="text-lg sm:text-xl text-[#C9A063] font-medium mb-6 leading-relaxed">
                 {service.shortDesc}

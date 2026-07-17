@@ -55,3 +55,23 @@ export function sanitizeSeoPageBodyHtml(html: string): string {
   );
 }
 
+/**
+ * Header/body SEO scripts must remain executable (no HTML entity escaping).
+ * Strip event handlers, dangerous URL schemes, and non-snippet tags.
+ * Scripts are admin-authored from the SEO panel only.
+ */
+export function sanitizeSeoScripts(raw: string): string {
+  if (!raw?.trim()) return "";
+
+  let s = raw.trim().slice(0, 100_000);
+  // Drop interactive / navigational vectors that shouldn't live in script slots
+  s = s.replace(/<\/?(iframe|object|embed|form|img|svg|math)\b[^>]*>/gi, "");
+  s = s.replace(/\son\w+\s*=\s*(['"]).*?\1/gi, "");
+  s = s.replace(/\son\w+\s*=\s*[^\s>]+/gi, "");
+  s = s.replace(
+    /\s(href|src)\s*=\s*(['"])\s*(javascript|data|vbscript):[^'"]*\2/gi,
+    ' $1=""'
+  );
+  return s.trim();
+}
+

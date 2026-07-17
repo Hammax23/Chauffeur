@@ -5,10 +5,11 @@ import Image from "next/image";
 
 interface CityServicePageContentProps {
   name: string;
-  slug: string;
+  h1?: string | null;
+  description?: string | null;
 }
 
-const CityServicePageContent = ({ name, slug }: CityServicePageContentProps) => {
+const CityServicePageContent = ({ name, h1, description }: CityServicePageContentProps) => {
   return (
     <section className="bg-black text-white">
       {/* Hero - areaserve image background */}
@@ -19,8 +20,13 @@ const CityServicePageContent = ({ name, slug }: CityServicePageContentProps) => 
         <div className="absolute inset-0 bg-black/40" />
         <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
           <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight uppercase drop-shadow-lg">
-            Best Luxury Limo Service in {name}
+            {h1?.trim() || `Best Luxury Limo Service in ${name}`}
           </h1>
+          {description?.trim() ? (
+            <p className="mt-4 text-white/85 text-sm sm:text-base font-light max-w-2xl mx-auto">
+              {description.trim()}
+            </p>
+          ) : null}
           <Link
             href="/quote"
             className="inline-block mt-6 sm:mt-8 relative py-3.5 px-8 rounded-xl overflow-hidden text-center

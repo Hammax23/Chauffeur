@@ -61,6 +61,34 @@ export function sanitizeObject<T extends Record<string, unknown>>(obj: T): Recor
 }
 
 /**
+ * Sanitizes a URL without HTML-escaping `&` (which would break query strings).
+ * Accepts absolute http(s) URLs or site-relative paths starting with `/`.
+ */
+export function sanitizeUrl(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim().slice(0, 2048);
+  if (!trimmed) return "";
+  if (/^javascript:/i.test(trimmed) || /^data:/i.test(trimmed) || /^vbscript:/i.test(trimmed)) {
+    return "";
+  }
+  if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith("/")) {
+    return trimmed;
+  }
+  return "";
+}
+
+/**
+ * Plain text trim without HTML entity escaping (for fields that must stay literal).
+ */
+export function sanitizePlainText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "number") return String(value);
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, 10_000);
+}
+
+/**
  * Validates email format.
  */
 export function isValidEmail(email: string): boolean {

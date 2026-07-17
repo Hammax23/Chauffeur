@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
 import {
@@ -8,9 +9,17 @@ import {
   getClientIP,
 } from "@/lib/admin-auth";
 
-const JWT_SECRET = process.env.JWT_SECRET || "sarj-admin-jwt-secret-key-2024-secure";
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET?.trim();
+  if (process.env.NODE_ENV === "production" && !secret) {
+    throw new Error("JWT_SECRET is required in production for SEO panel auth");
+  }
+  return secret || "sarj-admin-jwt-secret-key-2024-secure";
+}
+
 export const SEO_PANEL_COOKIE_NAME = "sarj_seo_panel_token";
-export const SEO_SESSION_COOKIE_MAX_AGE = 60 * 60 * 24 * 365 * 10;
+/** 7 days — shorter than previous 10y cookie */
+export const SEO_SESSION_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 
 export interface SeoPanelTokenPayload {
   role: "seo";
@@ -29,12 +38,12 @@ export function getSeoPanelSessionCookieOptions() {
 }
 
 export function generateSeoPanelToken(): string {
-  return jwt.sign({ role: "seo" }, JWT_SECRET);
+  return jwt.sign({ role: "seo" }, getJwtSecret(), { expiresIn: "7d" });
 }
 
 export function verifySeoPanelToken(token: string): SeoPanelTokenPayload | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as SeoPanelTokenPayload;
+    const decoded = jwt.verify(token, getJwtSecret()) as SeoPanelTokenPayload;
     if (decoded.role !== "seo") return null;
     return decoded;
   } catch {
@@ -47,15 +56,28 @@ export function getSeoPanelAllowedEmail(): string {
   return (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
 }
 
-/** SEO panel has its own password (SEO_PANEL_PASSWORD), separate from admin. */
+/**
+ * SEO panel password: prefer SEO_PANEL_PASSWORD_HASH (bcrypt),
+ * fallback to plaintext SEO_PANEL_PASSWORD for local setup.
+ */
 export async function authenticateSeoPanelPassword(
   password: string
 ): Promise<{ success: boolean; error?: string }> {
-  const seoPassword = process.env.SEO_PANEL_PASSWORD?.trim();
-  if (!seoPassword) {
+  const hash = process.env.SEO_PANEL_PASSWORD_HASH?.trim();
+  const plain = process.env.SEO_PANEL_PASSWORD?.trim();
+
+  if (!hash && !plain) {
     return { success: false, error: "SEO panel password is not configured on the server." };
   }
-  if (password !== seoPassword) {
+
+  let isValid = false;
+  if (plain) {
+    isValid = password === plain;
+  } else if (hash) {
+    isValid = await bcrypt.compare(password, hash);
+  }
+
+  if (!isValid) {
     return { success: false, error: "Invalid credentials" };
   }
   return { success: true };

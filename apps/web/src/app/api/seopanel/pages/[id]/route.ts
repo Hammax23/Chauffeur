@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
-import { verifySeoPanelAuth } from "@/lib/seo-auth";
+import { verifySeoPanelAuth, getClientIP } from "@/lib/seo-auth";
 import { discoverSitePages, normalizeSeoPath } from "@/lib/seo-pages";
-import { sanitizeInput } from "@/lib/sanitize";
-import { sanitizeSeoPageBodyHtml } from "@/lib/seo-page-content";
+import { sanitizeInput, sanitizeUrl } from "@/lib/sanitize";
+import { sanitizeSeoPageBodyHtml, sanitizeSeoScripts } from "@/lib/seo-page-content";
+import { logSeoAudit } from "@/lib/seo-audit";
 
 export async function GET(
   request: NextRequest,
@@ -56,7 +58,10 @@ export async function PUT(
     const path = normalizeSeoPath(decoded.startsWith("/") ? decoded : `/${decoded}`);
     const body = await request.json();
     const str = (key: string) => (body[key] != null ? sanitizeInput(String(body[key])) : undefined);
+    const url = (key: string) => (body[key] != null ? sanitizeUrl(String(body[key])) || null : undefined);
     const html = (key: string) => (body[key] != null ? sanitizeSeoPageBodyHtml(String(body[key])) : undefined);
+    const scripts = (key: string) =>
+      body[key] != null ? sanitizeSeoScripts(String(body[key])) || null : undefined;
     const bool = (key: string) => (typeof body[key] === "boolean" ? body[key] : undefined);
     const num = (key: string) => (typeof body[key] === "number" ? body[key] : undefined);
 
@@ -71,13 +76,13 @@ export async function PUT(
         title: str("title") || null,
         metaDescription: str("metaDescription") || null,
         keywords: str("keywords") || null,
-        canonicalUrl: str("canonicalUrl") || null,
+        canonicalUrl: url("canonicalUrl") ?? null,
         ogTitle: str("ogTitle") || null,
         ogDescription: str("ogDescription") || null,
-        ogImage: str("ogImage") || null,
+        ogImage: url("ogImage") ?? null,
         twitterTitle: str("twitterTitle") || null,
         twitterDescription: str("twitterDescription") || null,
-        twitterImage: str("twitterImage") || null,
+        twitterImage: url("twitterImage") ?? null,
         h1: str("h1") || null,
         focusKeyword: str("focusKeyword") || null,
         robotsIndex: bool("robotsIndex") ?? true,
@@ -89,8 +94,8 @@ export async function PUT(
         sitemapChangeFreq: str("sitemapChangeFreq") || null,
         schemaJson: body.schemaJson ?? null,
         breadcrumbLabel: str("breadcrumbLabel") || null,
-        headerScripts: str("headerScripts") || null,
-        bodyScripts: str("bodyScripts") || null,
+        headerScripts: scripts("headerScripts") ?? null,
+        bodyScripts: scripts("bodyScripts") ?? null,
         bodyContentHtml: html("bodyContentHtml") || null,
         bodyContentPosition: str("bodyContentPosition") || "bottom",
         bodyContentImages: body.bodyContentImages ?? null,
@@ -102,13 +107,15 @@ export async function PUT(
         ...(str("title") !== undefined && { title: str("title") || null }),
         ...(str("metaDescription") !== undefined && { metaDescription: str("metaDescription") || null }),
         ...(str("keywords") !== undefined && { keywords: str("keywords") || null }),
-        ...(str("canonicalUrl") !== undefined && { canonicalUrl: str("canonicalUrl") || null }),
+        ...(url("canonicalUrl") !== undefined && { canonicalUrl: url("canonicalUrl") }),
         ...(str("ogTitle") !== undefined && { ogTitle: str("ogTitle") || null }),
         ...(str("ogDescription") !== undefined && { ogDescription: str("ogDescription") || null }),
-        ...(str("ogImage") !== undefined && { ogImage: str("ogImage") || null }),
+        ...(url("ogImage") !== undefined && { ogImage: url("ogImage") }),
         ...(str("twitterTitle") !== undefined && { twitterTitle: str("twitterTitle") || null }),
-        ...(str("twitterDescription") !== undefined && { twitterDescription: str("twitterDescription") || null }),
-        ...(str("twitterImage") !== undefined && { twitterImage: str("twitterImage") || null }),
+        ...(str("twitterDescription") !== undefined && {
+          twitterDescription: str("twitterDescription") || null,
+        }),
+        ...(url("twitterImage") !== undefined && { twitterImage: url("twitterImage") }),
         ...(str("h1") !== undefined && { h1: str("h1") || null }),
         ...(str("focusKeyword") !== undefined && { focusKeyword: str("focusKeyword") || null }),
         ...(bool("robotsIndex") !== undefined && { robotsIndex: bool("robotsIndex") }),
@@ -117,17 +124,32 @@ export async function PUT(
         ...(bool("nosnippet") !== undefined && { nosnippet: bool("nosnippet") }),
         ...(bool("includeInSitemap") !== undefined && { includeInSitemap: bool("includeInSitemap") }),
         ...(num("sitemapPriority") !== undefined && { sitemapPriority: num("sitemapPriority") }),
-        ...(str("sitemapChangeFreq") !== undefined && { sitemapChangeFreq: str("sitemapChangeFreq") || null }),
+        ...(str("sitemapChangeFreq") !== undefined && {
+          sitemapChangeFreq: str("sitemapChangeFreq") || null,
+        }),
         ...(body.schemaJson !== undefined && { schemaJson: body.schemaJson }),
         ...(str("breadcrumbLabel") !== undefined && { breadcrumbLabel: str("breadcrumbLabel") || null }),
-        ...(str("headerScripts") !== undefined && { headerScripts: str("headerScripts") || null }),
-        ...(str("bodyScripts") !== undefined && { bodyScripts: str("bodyScripts") || null }),
+        ...(scripts("headerScripts") !== undefined && { headerScripts: scripts("headerScripts") }),
+        ...(scripts("bodyScripts") !== undefined && { bodyScripts: scripts("bodyScripts") }),
         ...(html("bodyContentHtml") !== undefined && { bodyContentHtml: html("bodyContentHtml") || null }),
-        ...(str("bodyContentPosition") !== undefined && { bodyContentPosition: str("bodyContentPosition") || "bottom" }),
+        ...(str("bodyContentPosition") !== undefined && {
+          bodyContentPosition: str("bodyContentPosition") || "bottom",
+        }),
         ...(body.bodyContentImages !== undefined && { bodyContentImages: body.bodyContentImages ?? null }),
         ...(str("internalNotes") !== undefined && { internalNotes: str("internalNotes") || null }),
         lastAuditedAt: new Date(),
       },
+    });
+
+    revalidatePath(path);
+    revalidatePath("/", "layout");
+
+    await logSeoAudit({
+      action: "update",
+      entityType: "page",
+      entityId: page.id,
+      entityLabel: path,
+      ipAddress: getClientIP(request),
     });
 
     return NextResponse.json({ success: true, page });

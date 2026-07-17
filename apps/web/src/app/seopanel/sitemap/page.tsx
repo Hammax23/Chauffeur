@@ -15,7 +15,14 @@ export default function SeoSitemapPage() {
       fetch("/api/seopanel/pages", { credentials: "include" }).then((r) => r.json()),
     ]).then(([settingsData, pagesData]) => {
       if (settingsData.success) setSettings(settingsData.settings);
-      if (pagesData.success) setPages(pagesData.pages.filter((p: { includeInSitemap: boolean }) => p.includeInSitemap));
+      if (pagesData.success) {
+        setPages(
+          pagesData.pages.filter(
+            (p: { includeInSitemap: boolean; robotsIndex?: boolean }) =>
+              p.includeInSitemap && p.robotsIndex !== false
+          )
+        );
+      }
     }).finally(() => setLoading(false));
   }, []);
 
