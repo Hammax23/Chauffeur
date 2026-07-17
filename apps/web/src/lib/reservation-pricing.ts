@@ -7,6 +7,54 @@ export const STOP_CHARGE = 20;
 export const CHILD_SEAT_CHARGE = 25;
 export const HST_RATE = 0.13;
 
+/** Allowed tip percents in the mobile app confirm step. */
+export const APP_GRATUITY_PERCENTS = [20, 25] as const;
+export const APP_DEFAULT_GRATUITY_PERCENT = 20;
+
+/**
+ * App distance booking fare (matches mobile create/confirm).
+ * Server is source of truth — client totals are ignored on create.
+ */
+export function calculateAppDistanceFare(input: {
+  distanceMeters: number;
+  pricePerKm: number;
+  hasStop: boolean;
+  childSeatCount: number;
+  gratuityPercent?: number;
+}): ReservationPricingResult | null {
+  const meters = Number(input.distanceMeters) || 0;
+  const pricePerKm = Number(input.pricePerKm) || 0;
+  if (meters <= 0 || pricePerKm <= 0) return null;
+
+  const km = meters / 1000;
+  const rideFare = km * pricePerKm;
+  const stopCharge = input.hasStop ? STOP_CHARGE : 0;
+  const childSeatCount = Math.max(0, Math.floor(Number(input.childSeatCount) || 0));
+  const childSeatCharge = childSeatCount * CHILD_SEAT_CHARGE;
+  const subtotal = rideFare + stopCharge + childSeatCharge;
+  const hst = subtotal * HST_RATE;
+
+  let gratuityPercent = Number(input.gratuityPercent);
+  if (!Number.isFinite(gratuityPercent) || !(APP_GRATUITY_PERCENTS as readonly number[]).includes(gratuityPercent)) {
+    gratuityPercent = APP_DEFAULT_GRATUITY_PERCENT;
+  }
+  const gratuity = (subtotal * gratuityPercent) / 100;
+  const total = subtotal + hst + gratuity;
+
+  return {
+    rideFare,
+    stopCharge,
+    childSeatCharge,
+    meetGreetCharge: 0,
+    bouquetCharge: 0,
+    subtotal,
+    hst,
+    gratuity,
+    gratuityPercent,
+    total,
+  };
+}
+
 // Distance-based pricing: Base price covers first X km, then extra per km after
 export const BASE_DISTANCE_KM = 17;
 export const EXTRA_KM_RATE = 3.2;

@@ -1,28 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import jwt from "jsonwebtoken";
+import { getCustomerFromRequest } from "@/lib/customer-auth";
 import { publishReservationFromDb } from "@/lib/realtime-bus";
-
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
-
-function getCustomerFromToken(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  
-  try {
-    const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email: string; type: string };
-    if (decoded.type !== "customer") return null;
-    return decoded;
-  } catch {
-    return null;
-  }
-}
+import {
+  calculateAppDistanceFare,
+  APP_DEFAULT_GRATUITY_PERCENT,
+} from "@/lib/reservation-pricing";
 
 // GET - Get customer's reservations
 export async function GET(req: NextRequest) {
   try {
-    const tokenData = getCustomerFromToken(req);
+    const tokenData = getCustomerFromRequest(req);
     if (!tokenData) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
@@ -36,7 +24,7 @@ export async function GET(req: NextRequest) {
       include: { assignedDriver: true },
     });
 
-    const formatted = reservations.map((r: typeof reservations[number]) => ({
+    const formatted = reservations.map((r: (typeof reservations)[number]) => ({
       id: r.id,
       bookingId: r.bookingId,
       status: r.status,
@@ -90,7 +78,7 @@ export async function GET(req: NextRequest) {
 // POST - Create a new reservation for customer
 export async function POST(req: NextRequest) {
   try {
-    const tokenData = getCustomerFromToken(req);
+    const tokenData = getCustomerFromRequest(req);
     if (!tokenData) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
@@ -102,6 +90,7 @@ export async function POST(req: NextRequest) {
     const {
       serviceType,
       vehicle,
+      vehicleId,
       passengers,
       childSeats,
       etr407,
@@ -112,22 +101,17 @@ export async function POST(req: NextRequest) {
       dropoffLocation,
       distance,
       duration,
+      distanceMeters,
+      pricePerKm: clientPricePerKm,
+      gratuityPercent: clientGratuityPercent,
       airline,
       flightNumber,
       flightNote,
-      rideFare,
-      stopCharge,
-      childSeatCharge,
-      subtotal,
-      hst,
-      gratuity,
-      total,
       specialRequirements,
       firstName,
       lastName,
       phone,
       email,
-      // Payment
       stripePaymentMethodId,
       stripeCustomerId,
       cardType,
@@ -141,10 +125,61 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate booking ID
+    const meters = Number(distanceMeters) || 0;
+    if (meters <= 0) {
+      return NextResponse.json(
+        { success: false, error: "Valid trip distance is required" },
+        { status: 400 }
+      );
+    }
+
+    let pricePerKm = 0;
+    const tierKey = typeof vehicleId === "string" ? vehicleId.trim() : "";
+    if (tierKey) {
+      const fleetRow = await prisma.appFleetVehicle.findFirst({
+        where: {
+          OR: [{ tierId: tierKey }, { id: tierKey }],
+          isActive: true,
+        },
+        select: { pricePerKm: true, title: true },
+      });
+      if (fleetRow?.pricePerKm) pricePerKm = fleetRow.pricePerKm;
+    }
+    if (pricePerKm <= 0) {
+      const byTitle = await prisma.appFleetVehicle.findFirst({
+        where: { title: vehicle, isActive: true },
+        select: { pricePerKm: true },
+      });
+      if (byTitle?.pricePerKm) pricePerKm = byTitle.pricePerKm;
+    }
+    if (pricePerKm <= 0) {
+      pricePerKm = Number(clientPricePerKm) || 0;
+    }
+    if (pricePerKm <= 0) {
+      return NextResponse.json(
+        { success: false, error: "Could not resolve vehicle pricing" },
+        { status: 400 }
+      );
+    }
+
+    const hasStop = typeof stops === "string" && stops.trim().length >= 3;
+    const pricing = calculateAppDistanceFare({
+      distanceMeters: meters,
+      pricePerKm,
+      hasStop,
+      childSeatCount: Number(childSeats) || 0,
+      gratuityPercent: Number(clientGratuityPercent) || APP_DEFAULT_GRATUITY_PERCENT,
+    });
+
+    if (!pricing) {
+      return NextResponse.json(
+        { success: false, error: "Unable to calculate fare" },
+        { status: 400 }
+      );
+    }
+
     const bookingId = `SARJ-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
-    // Get customer info for fallback
     const customer = await prisma.customer.findUnique({
       where: { id: tokenData.id },
     });
@@ -173,13 +208,13 @@ export async function POST(req: NextRequest) {
         airline: airline || null,
         flightNumber: flightNumber || null,
         flightNote: flightNote || null,
-        rideFare: rideFare || 0,
-        stopCharge: stopCharge || 0,
-        childSeatCharge: childSeatCharge || 0,
-        subtotal: subtotal || 0,
-        hst: hst || 0,
-        gratuity: gratuity || 0,
-        total: total || 0,
+        rideFare: pricing.rideFare,
+        stopCharge: pricing.stopCharge,
+        childSeatCharge: pricing.childSeatCharge,
+        subtotal: pricing.subtotal,
+        hst: pricing.hst,
+        gratuity: pricing.gratuity,
+        total: pricing.total,
         specialRequirements: specialRequirements || null,
         stripePaymentMethodId: stripePaymentMethodId || null,
         stripeCustomerId: stripeCustomerId || null,
@@ -189,11 +224,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Push the new booking to the customer's live stream (reservations list /
-    // home screen) so it shows up instantly without a manual refresh.
     await publishReservationFromDb(reservation.bookingId, "reservation_created");
 
-    // Live Auto Mode: instantly offer this ride to all eligible drivers
     const { maybeBroadcastNewReservation } = await import("@/lib/live-auto");
     await maybeBroadcastNewReservation(reservation.bookingId);
 
@@ -202,6 +234,16 @@ export async function POST(req: NextRequest) {
       message: "Reservation created successfully",
       bookingId: reservation.bookingId,
       reservationId: reservation.id,
+      pricing: {
+        rideFare: pricing.rideFare,
+        stopCharge: pricing.stopCharge,
+        childSeatCharge: pricing.childSeatCharge,
+        subtotal: pricing.subtotal,
+        hst: pricing.hst,
+        gratuity: pricing.gratuity,
+        gratuityPercent: pricing.gratuityPercent,
+        total: pricing.total,
+      },
     });
   } catch (error) {
     console.error("Create reservation error:", error);

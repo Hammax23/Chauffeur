@@ -66,6 +66,7 @@ export default function CustomerHomeScreen() {
   const liveScale = useRef(new Animated.Value(1)).current;
   const livePulse = useRef(new Animated.Value(0.45)).current;
   const [activeRide, setActiveRide] = useState<Reservation | null>(null);
+  const [activeRideCount, setActiveRideCount] = useState(0);
   const [fleetPreview, setFleetPreview] = useState<AppFleetVehicleDto[]>([]);
   const [fleetLoading, setFleetLoading] = useState(true);
 
@@ -174,8 +175,9 @@ export default function CustomerHomeScreen() {
         try {
           const data = await getReservations();
           if (data.success) {
-            const active = data.reservations.find((r) => ACTIVE_TRIP_STATUSES.has(r.status));
-            setActiveRide(active || null);
+            const actives = data.reservations.filter((r) => ACTIVE_TRIP_STATUSES.has(r.status));
+            setActiveRideCount(actives.length);
+            setActiveRide(actives[0] || null);
           }
         } catch {
           setActiveRide(null);
@@ -235,7 +237,7 @@ export default function CustomerHomeScreen() {
               <TouchableOpacity style={styles.iconBtn} activeOpacity={0.85} onPress={() => router.push("/customer/reservations")}>
                 <Ionicons name="calendar-outline" size={22} color={SLATE_900} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.iconBtn} activeOpacity={0.85} onPress={() => router.push("/customer/profile")}>
+              <TouchableOpacity style={styles.iconBtn} activeOpacity={0.85} onPress={() => router.push("/customer/reservations")}>
                 <Ionicons name="notifications-outline" size={22} color={SLATE_900} />
               </TouchableOpacity>
             </View>
@@ -286,6 +288,7 @@ export default function CustomerHomeScreen() {
                       </Text>
                       <Text style={styles.liveBookingMono} numberOfLines={1}>
                         {activeRide.bookingId}
+                        {activeRideCount > 1 ? ` · +${activeRideCount - 1} more` : ""}
                       </Text>
                     </View>
                     <View style={styles.liveTrackBtn}>

@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
@@ -56,18 +57,22 @@ export default function ReservationsScreen() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   // Booking IDs that just changed status — used to softly highlight cards on
   // arrival of a server-sent update.
   const [recentlyChanged, setRecentlyChanged] = useState<Set<string>>(new Set());
 
   const fetchReservations = useCallback(async () => {
     try {
+      setLoadError(null);
       const data = await getReservations();
       if (data.success) {
         setReservations(data.reservations);
+      } else {
+        setLoadError("Could not load reservations.");
       }
-    } catch {
-      // Silently fail
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "Could not load reservations.");
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -292,6 +297,20 @@ export default function ReservationsScreen() {
           <View style={styles.emptyState}>
             <ActivityIndicator size="large" color="#D4A04A" />
           </View>
+        ) : loadError ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="cloud-offline-outline" size={64} color="#ccc" />
+            <Text style={styles.emptyText}>{loadError}</Text>
+            <TouchableOpacity
+              style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#0f172a", borderRadius: 10 }}
+              onPress={() => {
+                setIsLoading(true);
+                void fetchReservations();
+              }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "600" }}>Retry</Text>
+            </TouchableOpacity>
+          </View>
         ) : filteredReservations.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="calendar-outline" size={64} color="#ccc" />
@@ -370,7 +389,17 @@ export default function ReservationsScreen() {
                       <Text style={styles.driverName}>{reservation.driver.name}</Text>
                       <Text style={styles.vehicleNumber}>{reservation.driver.vehiclePlate}</Text>
                     </View>
-                    <TouchableOpacity style={styles.callBtn}>
+                    <TouchableOpacity
+                      style={styles.callBtn}
+                      onPress={() => {
+                        const phone = reservation.driver?.phone?.replace(/[^0-9+]/g, "");
+                        if (!phone) {
+                          Alert.alert("Unavailable", "Driver phone number is not available.");
+                          return;
+                        }
+                        Linking.openURL(`tel:${phone}`).catch(() => {});
+                      }}
+                    >
                       <Ionicons name="call" size={18} color="#fff" />
                     </TouchableOpacity>
                   </View>

@@ -119,13 +119,7 @@ export default function LoginScreen() {
       if (r.success) {
         router.replace("/customer");
       } else {
-        const extra =
-          r.tokenAudience || r.allowedAudiences
-            ? `\n\nToken aud: ${JSON.stringify(r.tokenAudience ?? null)}\nAllowed: ${JSON.stringify(
-                r.allowedAudiences ?? []
-              )}`
-            : "";
-        Alert.alert("Apple Login Failed", (r.error || "Unable to login with Apple") + extra);
+        Alert.alert("Apple Login Failed", r.error || "Unable to login with Apple");
       }
     } catch (e: unknown) {
       const msg =

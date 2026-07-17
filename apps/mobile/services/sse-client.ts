@@ -186,7 +186,10 @@ export function openSseStream(
       if (xhr !== request) return;
       if (request.readyState === XMLHttpRequest.HEADERS_RECEIVED) {
         if (request.status === 401 || request.status === 403) {
-          scheduleReconnect(`Auth ${request.status}`);
+          stopped = true;
+          stopHeartbeatWatcher();
+          abortXhr();
+          setStatus("closed", { error: `Auth ${request.status}` });
           return;
         }
         if (request.status < 200 || request.status >= 300) {

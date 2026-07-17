@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
+import { getCustomerFromRequest } from "@/lib/customer-auth";
+import { verifyDriverToken } from "@/lib/driver-auth";
+import { verifyAdminAuth } from "@/lib/admin-auth";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -10,8 +13,19 @@ cloudinary.config({
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
 const DOCUMENT_TYPES = [...IMAGE_TYPES, "application/pdf"];
 
+async function isAuthorizedUploader(request: NextRequest): Promise<boolean> {
+  if (getCustomerFromRequest(request)) return true;
+  if (await verifyDriverToken(request)) return true;
+  const admin = await verifyAdminAuth(request);
+  return !!admin.authenticated;
+}
+
 export async function POST(request: NextRequest) {
   try {
+    if (!(await isAuthorizedUploader(request))) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
     const formData = await request.formData();
     const file = formData.get("file") as File;
     const type = (formData.get("type") as string) || "misc";

@@ -66,6 +66,27 @@ if (__DEV__) {
   console.log("[API] Using base URL:", API_BASE_URL);
 }
 
+type UnauthorizedRole = "customer" | "driver";
+type UnauthorizedListener = (role: UnauthorizedRole) => void;
+const unauthorizedListeners = new Set<UnauthorizedListener>();
+
+export function onUnauthorized(listener: UnauthorizedListener): () => void {
+  unauthorizedListeners.add(listener);
+  return () => {
+    unauthorizedListeners.delete(listener);
+  };
+}
+
+function emitUnauthorized(role: UnauthorizedRole) {
+  unauthorizedListeners.forEach((fn) => {
+    try {
+      fn(role);
+    } catch {
+      /* ignore */
+    }
+  });
+}
+
 // Types — declared early so session helpers can reference them
 export interface CustomerProfile {
   id: string;
@@ -398,8 +419,13 @@ async function apiRequest<T>(
   const data = await parseResponseBody<T & { error?: string }>(response);
 
   if (response.status === 401) {
-    if (endpoint.startsWith("/driver")) await clearDriverSession();
-    else if (endpoint.startsWith("/customer")) await clearCustomerSession();
+    if (endpoint.startsWith("/driver")) {
+      await clearDriverSession();
+      emitUnauthorized("driver");
+    } else if (endpoint.startsWith("/customer")) {
+      await clearCustomerSession();
+      emitUnauthorized("customer");
+    }
   }
 
   if (!response.ok) {
@@ -441,8 +467,13 @@ async function apiRequestWithResponse<T>(
   const data = await parseResponseBody<T>(response);
 
   if (response.status === 401) {
-    if (endpoint.startsWith("/driver")) await clearDriverSession();
-    else if (endpoint.startsWith("/customer")) await clearCustomerSession();
+    if (endpoint.startsWith("/driver")) {
+      await clearDriverSession();
+      emitUnauthorized("driver");
+    } else if (endpoint.startsWith("/customer")) {
+      await clearCustomerSession();
+      emitUnauthorized("customer");
+    }
   }
 
   return { ok: response.ok, status: response.status, data };
@@ -723,6 +754,7 @@ export async function getReservationById(bookingId: string) {
 export async function createReservation(params: {
   serviceType: string;
   vehicle: string;
+  vehicleId?: string;
   passengers?: number;
   childSeats?: number;
   etr407?: string;
@@ -733,6 +765,9 @@ export async function createReservation(params: {
   dropoffLocation: string;
   distance?: string;
   duration?: string;
+  distanceMeters?: number;
+  pricePerKm?: number;
+  gratuityPercent?: number;
   airline?: string;
   flightNumber?: string;
   flightNote?: string;
@@ -761,6 +796,19 @@ export async function createReservation(params: {
     method: "POST",
     body: JSON.stringify(params),
   });
+}
+
+export async function getDriverLiveLocation(bookingId: string) {
+  return apiRequest<{
+    success: boolean;
+    status?: string;
+    location: {
+      lat: number;
+      lng: number;
+      updatedAt: string | null;
+      driverName: string;
+    } | null;
+  }>(`/customer/reservations/${bookingId}/driver-location`);
 }
 
 export async function cancelReservation(bookingId: string) {

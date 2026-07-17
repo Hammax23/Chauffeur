@@ -9,6 +9,7 @@ import {
   logoutDriver,
   getDriverProfile,
   toggleDriverActive as apiToggleActive,
+  onUnauthorized,
 } from "../services/api";
 import { InteractionManager } from "react-native";
 import { registerPushToken } from "../services/notifications";
@@ -31,6 +32,12 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    return onUnauthorized((role) => {
+      if (role === "driver") setDriver(null);
+    });
+  }, []);
+
+  useEffect(() => {
     (async () => {
       try {
         const token = await getDriverToken();
@@ -44,8 +51,9 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
               await persistDriverProfile(data.driver);
             }
           } catch {
-            await clearDriverSession();
-            setDriver(null);
+            const stillHasToken = await getDriverToken();
+            if (!stillHasToken) setDriver(null);
+            // keep session on transient network errors
           }
         } else {
           setDriver(null);

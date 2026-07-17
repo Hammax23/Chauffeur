@@ -166,6 +166,9 @@ model Customer {
 
   /// Where this customer account was created (e.g. "app" via mobile, "web" via website/admin).
   registrationSource String @default("web")
+
+  /// Expo push notification token (customer app)
+  pushToken     String?
   
   reservations  Reservation[]
   

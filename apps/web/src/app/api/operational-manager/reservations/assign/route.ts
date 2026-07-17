@@ -30,6 +30,8 @@ export async function POST(request: NextRequest) {
       await revokeOffersForBooking(bookingId, driverId);
       await notifyDriverOfManualAssignment(bookingId, driverId);
       await publishReservationFromDb(bookingId, "driver_assigned");
+      const { notifyCustomerDriverAssigned } = await import("@/lib/customer-push");
+      await notifyCustomerDriverAssigned(bookingId);
     }
 
     if (!result.ok) {

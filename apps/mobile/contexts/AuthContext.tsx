@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { InteractionManager } from "react-native";
 import {
   CustomerProfile,
   getStoredCustomer,
@@ -12,7 +13,9 @@ import {
   getProfile,
   API_BASE_URL,
   updateProfile as apiUpdateProfile,
+  onUnauthorized,
 } from "../services/api";
+import { registerCustomerPushToken } from "../services/notifications";
 
 interface AuthContextType {
   user: CustomerProfile | null;
@@ -56,9 +59,21 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function scheduleCustomerPush(token: string) {
+  InteractionManager.runAfterInteractions(() => {
+    registerCustomerPushToken(token).catch(() => {});
+  });
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<CustomerProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    return onUnauthorized((role) => {
+      if (role === "customer") setUser(null);
+    });
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -71,10 +86,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const data = await getProfile();
             if (data.success && data.customer) {
               setUser(data.customer);
+              scheduleCustomerPush(token);
             }
-          } catch {
-            await clearCustomerSession();
-            setUser(null);
+          } catch (error: unknown) {
+            // Only wipe session on true auth failure; keep offline sessions.
+            const message = error instanceof Error ? error.message : "";
+            const stillHasToken = await getCustomerToken();
+            if (!stillHasToken) {
+              setUser(null);
+            } else if (/unauthorized|401/i.test(message)) {
+              await clearCustomerSession();
+              setUser(null);
+            }
+            // else: network/5xx — keep stored user + token
           }
         } else {
           setUser(null);
@@ -92,6 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await loginCustomer(email, password);
       if (data.success) {
         setUser(data.customer);
+        if (data.token) scheduleCustomerPush(data.token);
         return { success: true };
       }
       return { success: false, error: data.error || "Login failed" };
@@ -106,6 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await loginCustomerWithGoogle(idToken);
       if (data.success) {
         setUser(data.customer);
+        if (data.token) scheduleCustomerPush(data.token);
         return { success: true };
       }
       return {
@@ -128,6 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await loginCustomerWithApple(params);
       if (data.success) {
         setUser(data.customer);
+        if (data.token) scheduleCustomerPush(data.token);
         return { success: true };
       }
       return {
@@ -155,6 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await registerCustomer(params);
       if (data.success) {
         setUser(data.customer);
+        if (data.token) scheduleCustomerPush(data.token);
         return { success: true };
       }
       return { success: false, error: data.error || "Registration failed" };
@@ -179,8 +207,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(data.customer);
       }
     } catch {
-      await clearCustomerSession();
-      setUser(null);
+      const stillHasToken = await getCustomerToken();
+      if (!stillHasToken) setUser(null);
     }
   }, []);
 

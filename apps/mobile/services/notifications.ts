@@ -4,7 +4,6 @@ import { Platform } from 'react-native';
 import { API_BASE_URL } from './api';
 import Constants from 'expo-constants';
 
-// Configure notification behavior
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -43,8 +42,8 @@ export async function registerForPushNotificationsAsync() {
     
     const rawProjectId =
       Constants.easConfig?.projectId ??
-      ((Constants.expoConfig?.extra as any)?.eas?.projectId as string | undefined) ??
-      ((Constants.expoConfig?.extra as any)?.EAS_PROJECT_ID as string | undefined);
+      ((Constants.expoConfig?.extra as Record<string, unknown>)?.eas as { projectId?: string } | undefined)?.projectId ??
+      ((Constants.expoConfig?.extra as Record<string, unknown>)?.EAS_PROJECT_ID as string | undefined);
 
     const isUuid = (value: string | undefined) =>
       !!value &&
@@ -58,7 +57,6 @@ export async function registerForPushNotificationsAsync() {
         ? rawProjectId.trim()
         : undefined;
 
-    // Must pass a valid UUID when the native manifest does not include projectId (Expo Go / dev).
     if (!projectId) {
       if (__DEV__) {
         console.warn(
@@ -83,37 +81,42 @@ export async function registerForPushNotificationsAsync() {
   return token;
 }
 
+async function postPushToken(path: string, authToken: string) {
+  const pushToken = await registerForPushNotificationsAsync();
+  if (!pushToken) return false;
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${authToken}`,
+    },
+    body: JSON.stringify({ pushToken }),
+  });
+
+  const data = await response.json();
+  return !!data.success;
+}
+
+/** @deprecated Prefer registerDriverPushToken */
 export async function registerPushToken(authToken: string) {
+  return registerDriverPushToken(authToken);
+}
+
+export async function registerDriverPushToken(authToken: string) {
   try {
-    const pushToken = await registerForPushNotificationsAsync();
-    
-    if (!pushToken) {
-      console.log('No push token available');
-      return false;
-    }
-
-    const response = await fetch(`${API_BASE_URL}/driver/push-token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`,
-      },
-      body: JSON.stringify({ pushToken }),
-    });
-
-    const data = await response.json();
-    
-    if (data.success) {
-      console.log('Push token registered successfully');
-      return true;
-    } else {
-      console.error('Failed to register push token:', data.error);
-      return false;
-    }
+    return await postPushToken('/driver/push-token', authToken);
   } catch (error) {
-    if (__DEV__) {
-      console.warn('Push token registration skipped or failed:', error);
-    }
+    if (__DEV__) console.warn('Driver push registration failed:', error);
+    return false;
+  }
+}
+
+export async function registerCustomerPushToken(authToken: string) {
+  try {
+    return await postPushToken('/customer/push-token', authToken);
+  } catch (error) {
+    if (__DEV__) console.warn('Customer push registration failed:', error);
     return false;
   }
 }

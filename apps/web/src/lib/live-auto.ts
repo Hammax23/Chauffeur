@@ -542,6 +542,8 @@ export async function claimLiveOffer(
 
   await publishReservationFromDb(bookingId, "driver_assigned");
   await publishReservationFromDb(bookingId, "status_changed");
+  const { notifyCustomerDriverAssigned } = await import("@/lib/customer-push");
+  await notifyCustomerDriverAssigned(bookingId);
 
   return { ok: true };
 }
