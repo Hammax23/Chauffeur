@@ -361,6 +361,42 @@ export async function registerCustomer(params: {
   return data;
 }
 
+export async function forgotPassword(email: string) {
+  return apiRequestWithResponse<{
+    success: boolean;
+    message?: string;
+    sessionId?: string;
+    emailMasked?: string;
+    error?: string;
+  }>("/customer/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function verifyResetOtp(sessionId: string, otp: string) {
+  return apiRequestWithResponse<{
+    success: boolean;
+    message?: string;
+    resetToken?: string;
+    error?: string;
+  }>("/customer/auth/verify-reset-otp", {
+    method: "POST",
+    body: JSON.stringify({ sessionId, otp }),
+  });
+}
+
+export async function resetPassword(resetToken: string, newPassword: string) {
+  return apiRequestWithResponse<{
+    success: boolean;
+    message?: string;
+    error?: string;
+  }>("/customer/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ resetToken, newPassword }),
+  });
+}
+
 export async function logoutCustomer() {
   await removeToken();
   await removeStoredUser();

@@ -179,7 +179,7 @@ export function emailOtpBox(code: string, expiryMinutes: number): string {
   return `<div style="text-align:center;padding:28px 20px;margin:24px 0;background:rgba(201,160,99,0.08);border:2px solid ${GOLD};border-radius:12px;">
     <p style="margin:0 0 10px 0;color:${MUTED};font-size:11px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;">Verification code</p>
     <p style="margin:0;color:${GOLD};font-size:38px;font-weight:800;letter-spacing:0.35em;font-family:ui-monospace,Consolas,monospace;">${e(code)}</p>
-    <p style="margin:14px 0 0 0;color:${MUTED};font-size:13px;">Expires in <strong style="color:${TEXT};">${expiryMinutes} minutes</strong></p>
+    <p style="margin:14px 0 0 0;color:${MUTED};font-size:13px;">Expires in <strong style="color:${TEXT};">${expiryMinutes} ${expiryMinutes === 1 ? "minute" : "minutes"}</strong></p>
   </div>`;
 }
 
@@ -627,6 +627,29 @@ export function buildAdminOtpEmail(otp: string, expiryMinutes: number): string {
 
 export function buildSeoPanelOtpEmail(otp: string, expiryMinutes: number): string {
   return buildPanelOtpEmail(otp, expiryMinutes, "SEO Panel");
+}
+
+export function buildCustomerPasswordResetOtpEmail(otp: string, expiryMinutes: number): string {
+  return emailDocument(
+    emailHeader({
+      eyebrow: "Account security",
+      title: "Reset your password",
+      subtitle: "One-time verification code",
+      tone: "security",
+      badge: "Secure",
+    }) +
+      emailBody(
+        emailParagraph(
+          "We received a request to reset the password for your SARJ Worldwide account. Enter this code in the app to continue:"
+        ) +
+          emailOtpBox(otp, expiryMinutes) +
+          emailCallout(
+            "If you did not request a password reset, you can safely ignore this email. Your password will not change.",
+            "warning"
+          )
+      ) +
+      emailFooterNote()
+  );
 }
 
 function buildPanelOtpEmail(otp: string, expiryMinutes: number, panelLabel: string): string {
