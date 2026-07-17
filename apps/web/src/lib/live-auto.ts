@@ -112,7 +112,7 @@ export async function updateOpsSettings(patch: {
   };
 }
 
-async function selectEligibleDrivers(bookingId: string, onlyActive: boolean) {
+async function selectEligibleDrivers(bookingId: string, onlyAvailable: boolean) {
   const reservation = await prisma.reservation.findUnique({
     where: { bookingId },
     select: { rejectedDriverIds: true },
@@ -124,9 +124,10 @@ async function selectEligibleDrivers(bookingId: string, onlyActive: boolean) {
       .filter(Boolean)
   );
 
+  // Match admin Drivers page "Available" badge: status === "available"
   const drivers = await prisma.driver.findMany({
-    where: onlyActive ? { isActive: true } : undefined,
-    select: { id: true, pushToken: true, name: true, isActive: true },
+    where: onlyAvailable ? { status: "available" } : undefined,
+    select: { id: true, pushToken: true, name: true, isActive: true, status: true },
   });
 
   const eligible: { id: string; pushToken: string | null; name: string }[] = [];
@@ -218,10 +219,11 @@ export async function syncDriverIntoOpenLiveOffers(driverId: string): Promise<nu
 
   const driver = await prisma.driver.findUnique({
     where: { id: driverId },
-    select: { id: true, isActive: true, pushToken: true },
+    select: { id: true, isActive: true, pushToken: true, status: true },
   });
   if (!driver) return 0;
-  if (settings.onlyActiveDrivers && !driver.isActive) return 0;
+  // Same rule as broadcast: admin "Available" = status available
+  if (settings.onlyActiveDrivers && driver.status !== "available") return 0;
   if (await driverHasActiveAssignmentElsewhere(driverId, "__none__")) return 0;
 
   const openBookings = await prisma.reservation.findMany({
@@ -644,8 +646,8 @@ export async function listOpenOffersForDriver(driverId: string): Promise<DriverO
 
 export async function getLiveAutoDashboard() {
   const settings = await getOpsSettings();
-  const [activeDrivers, openOffers, openBookings] = await Promise.all([
-    prisma.driver.count({ where: { isActive: true } }),
+  const [availableDrivers, openOffers, openBookings] = await Promise.all([
+    prisma.driver.count({ where: { status: "available" } }),
     prisma.rideOffer.count({ where: { status: "OPEN" } }),
     prisma.reservation.findMany({
       where: {
@@ -687,7 +689,7 @@ export async function getLiveAutoDashboard() {
   return {
     settings,
     stats: {
-      activeDrivers,
+      activeDrivers: availableDrivers,
       openOffers,
       broadcastingRides: openBookings.length,
     },

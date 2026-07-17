@@ -228,7 +228,7 @@ export default function LiveAutoModePage() {
               </p>
               <p className={`text-sm mt-1 ${on ? "text-slate-300" : "text-slate-500"}`}>
                 {on
-                  ? "New bookings stream to active drivers in real time. First accept wins."
+                  ? "New bookings stream to every Available driver in real time. First accept wins."
                   : "Drivers only see rides that an admin or OM assigns manually."}
               </p>
             </div>
@@ -256,7 +256,7 @@ export default function LiveAutoModePage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
           <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold uppercase tracking-wide mb-2">
-            <Users className="w-3.5 h-3.5" /> Active drivers
+            <Users className="w-3.5 h-3.5" /> Available drivers
           </div>
           <p className="text-3xl font-bold text-slate-900">{data?.stats.activeDrivers ?? "—"}</p>
         </div>
@@ -277,9 +277,9 @@ export default function LiveAutoModePage() {
       <div className="rounded-2xl border border-slate-200 bg-white p-5 mb-6">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <p className="font-semibold text-slate-900">Only online (active) drivers</p>
+            <p className="font-semibold text-slate-900">Only Available drivers</p>
             <p className="text-sm text-slate-500 mt-0.5">
-              Offer rides only to drivers who have toggled Available in the app.
+              Offer rides only to drivers showing the green Available badge (same as Drivers page).
             </p>
           </div>
           <button
@@ -370,7 +370,7 @@ export default function LiveAutoModePage() {
         <h3 className="text-sm font-bold text-slate-900 mb-3">How it works</h3>
         <ol className="space-y-2 text-sm text-slate-600 list-decimal list-inside">
           <li>Enable Live Auto Mode with the switch above.</li>
-          <li>When a reservation is created, every eligible online driver receives it live (push + in-app).</li>
+          <li>When a reservation is created, every eligible Available driver receives it live (push + in-app).</li>
           <li>The first driver to Accept claims the ride atomically.</li>
           <li>All other drivers lose the offer instantly — no refresh required.</li>
           <li>Manual assign from Reservations still works and clears competing offers.</li>
