@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assignDriverToReservation } from "@/lib/data-store";
 import { verifyOperationalManagerAuth } from "@/lib/operational-manager-auth";
-import { sendPushNotification } from "@/lib/push-notifications";
 import { publishReservationFromDb } from "@/lib/realtime-bus";
-import prisma from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
   const auth = await verifyOperationalManagerAuth(request);
@@ -32,6 +30,8 @@ export async function POST(request: NextRequest) {
       await publishReservationFromDb(bookingId, "driver_assigned");
       const { notifyCustomerDriverAssigned } = await import("@/lib/customer-push");
       await notifyCustomerDriverAssigned(bookingId);
+      const { notifyDriverReservationAssigned } = await import("@/lib/driver-push");
+      await notifyDriverReservationAssigned(bookingId, driverId);
     }
 
     if (!result.ok) {
@@ -46,39 +46,6 @@ export async function POST(request: NextRequest) {
         );
       }
       return NextResponse.json({ success: false, error: "Failed to assign driver" }, { status: 500 });
-    }
-
-    try {
-      const driver = await prisma.driver.findUnique({
-        where: { id: driverId },
-        select: { pushToken: true, name: true },
-      });
-
-      const reservation = await prisma.reservation.findUnique({
-        where: { bookingId },
-        select: {
-          bookingId: true,
-          pickupLocation: true,
-          dropoffLocation: true,
-          serviceDate: true,
-          serviceTime: true,
-        },
-      });
-
-      if (driver?.pushToken && reservation) {
-        await sendPushNotification(
-          driver.pushToken,
-          "🚗 New Ride Request",
-          `New ride from ${reservation.pickupLocation} on ${reservation.serviceDate}`,
-          {
-            type: "new_assignment",
-            bookingId: reservation.bookingId,
-            screen: "DriverDashboard",
-          }
-        );
-      }
-    } catch (notifError) {
-      console.error("Failed to send push notification:", notifError);
     }
 
     return NextResponse.json({ success: true });

@@ -6,7 +6,6 @@ import {
   publishOpsLiveAuto,
   type DriverOfferRidePayload,
 } from "@/lib/driver-bus";
-import { sendBulkPushNotifications } from "@/lib/push-notifications";
 import { publishReservationFromDb } from "@/lib/realtime-bus";
 
 export type OpsSettingsData = {
@@ -190,24 +189,14 @@ export async function broadcastLiveOffers(bookingId: string): Promise<{
     ride,
   });
 
-  const pushPayload = eligible
-    .filter((d) => d.pushToken)
-    .map((d) => ({
-      pushToken: d.pushToken as string,
-      title: "New ride available",
-      body: `${ride.pickupLocation} → ${ride.dropoffLocation}`,
-      data: {
-        type: "live_offer",
-        bookingId,
-        screen: "DriverDashboard",
-      },
-    }));
-
-  if (pushPayload.length > 0) {
-    void sendBulkPushNotifications(pushPayload).catch((err) =>
-      console.error("[live-auto] push failed:", err)
-    );
-  }
+  const { sendDriverLiveOfferPushes } = await import("@/lib/driver-push");
+  void sendDriverLiveOfferPushes(eligible, {
+    bookingId,
+    pickupLocation: reservation.pickupLocation,
+    dropoffLocation: reservation.dropoffLocation,
+    serviceDate: reservation.serviceDate,
+    serviceTime: reservation.serviceTime,
+  }).catch((err) => console.error("[live-auto] push failed:", err));
 
   return { offered: driverIds.length, driverIds };
 }
@@ -235,6 +224,8 @@ export async function syncDriverIntoOpenLiveOffers(driverId: string): Promise<nu
 
   let added = 0;
   const serverTime = new Date().toISOString();
+  const { buildDriverLiveOfferCopy } = await import("@/lib/driver-push");
+  const { sendBulkPushNotifications } = await import("@/lib/push-notifications");
   const pushItems: Array<{
     pushToken: string;
     title: string;
@@ -272,11 +263,17 @@ export async function syncDriverIntoOpenLiveOffers(driverId: string): Promise<nu
     });
 
     if (driver.pushToken) {
+      const copy = buildDriverLiveOfferCopy(reservation);
       pushItems.push({
         pushToken: driver.pushToken,
-        title: "New ride available",
-        body: `${ride.pickupLocation} → ${ride.dropoffLocation}`,
-        data: { type: "live_offer", bookingId: reservation.bookingId, screen: "DriverDashboard" },
+        title: copy.title,
+        body: copy.body,
+        data: {
+          type: "live_offer",
+          bookingId: reservation.bookingId,
+          screen: "DriverDashboard",
+          channelId: "reservations",
+        },
       });
     }
     added += 1;

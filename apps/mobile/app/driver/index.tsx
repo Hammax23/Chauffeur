@@ -14,9 +14,10 @@ import {
   AppState,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useDriverAuth } from "../../contexts/DriverAuthContext";
+import { useDriverRideAlertOptional } from "../../contexts/DriverRideAlertContext";
 import { getDriverRides, acceptRide, rejectRide, DriverRide } from "../../services/api";
 import { syncDriverLiveTracking, syncLiveTrackingFromRideList } from "../../services/driver-live-session";
 import { openDriverStream, type DriverOfferEvent } from "../../services/driver-stream";
@@ -54,8 +55,12 @@ function offerToRide(event: DriverOfferEvent): DriverRide | null {
 
 export default function DriverDashboard() {
   const { driver, toggleActive, refreshProfile } = useDriverAuth();
+  const rideAlert = useDriverRideAlertOptional();
+  const params = useLocalSearchParams<{ tab?: string }>();
   const [isActive, setIsActive] = useState(driver?.isActive || false);
-  const [activeTab, setActiveTab] = useState<TabType>("requests");
+  const [activeTab, setActiveTab] = useState<TabType>(
+    params.tab === "upcoming" ? "upcoming" : "requests"
+  );
   const [rides, setRides] = useState<DriverRide[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -87,6 +92,18 @@ export default function DriverDashboard() {
   }, []);
 
   const applyOfferEvent = useCallback((event: DriverOfferEvent) => {
+    if (event.type === "offer_created" && event.ride && rideAlert) {
+      const pickup = event.ride.pickupLocation?.split(",")[0] || "Pickup";
+      const dropoff = event.ride.dropoffLocation?.split(",")[0] || "Dropoff";
+      const when = [event.ride.serviceDate, event.ride.serviceTime].filter(Boolean).join(" · ");
+      rideAlert.showRideAlert({
+        bookingId: event.bookingId,
+        title: event.ride.liveOffer ? "New Reservation Available" : "New Reservation Assigned",
+        body: when ? `${pickup} → ${dropoff}\n${when}` : `${pickup} → ${dropoff}`,
+        type: event.ride.liveOffer ? "live_offer" : "new_assignment",
+      });
+    }
+
     // Always keep badge accurate from list mutations when on Requests;
     // when on Upcoming, soft-refresh the request count only.
     if (activeTab !== "requests") {
@@ -131,7 +148,13 @@ export default function DriverDashboard() {
         return next;
       });
     }
-  }, [activeTab]);
+  }, [activeTab, rideAlert]);
+
+  useEffect(() => {
+    if (params.tab === "requests" || params.tab === "upcoming") {
+      setActiveTab(params.tab);
+    }
+  }, [params.tab]);
 
   // Admin may change name/photo in dashboard — re-fetch profile when this screen is shown
   useFocusEffect(
@@ -319,7 +342,11 @@ export default function DriverDashboard() {
             <Text style={styles.statusText}>{isActive ? "Active" : "Inactive"}</Text>
           </View>
           <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.notificationBtn}>
+            <TouchableOpacity
+              style={styles.notificationBtn}
+              onPress={() => setActiveTab("requests")}
+              accessibilityLabel="Open reservation requests"
+            >
               <Ionicons name="notifications-outline" size={24} color="#000" />
               {requestCount > 0 && (
                 <View style={styles.notificationBadge}>

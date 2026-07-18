@@ -12,7 +12,7 @@ import {
   onUnauthorized,
 } from "../services/api";
 import { InteractionManager } from "react-native";
-import { registerPushToken } from "../services/notifications";
+import { registerDriverPushToken } from "../services/notifications";
 import { stopDriverLocationTracking } from "../services/driver-location";
 
 interface DriverAuthContextType {
@@ -26,6 +26,14 @@ interface DriverAuthContextType {
 }
 
 const DriverAuthContext = createContext<DriverAuthContextType | undefined>(undefined);
+
+function scheduleDriverPush(token: string) {
+  InteractionManager.runAfterInteractions(() => {
+    registerDriverPushToken(token).catch((err) =>
+      console.log("Failed to register push token:", err)
+    );
+  });
+}
 
 export function DriverAuthProvider({ children }: { children: React.ReactNode }) {
   const [driver, setDriver] = useState<DriverProfile | null>(null);
@@ -49,6 +57,7 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
             if (data.success && data.driver) {
               setDriver(data.driver);
               await persistDriverProfile(data.driver);
+              scheduleDriverPush(token);
             }
           } catch {
             const stillHasToken = await getDriverToken();
@@ -73,11 +82,7 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
         setDriver(data.driver);
 
         if (data.token) {
-          InteractionManager.runAfterInteractions(() => {
-            registerPushToken(data.token!).catch((err) =>
-              console.log("Failed to register push token:", err)
-            );
-          });
+          scheduleDriverPush(data.token);
         }
 
         return { success: true };

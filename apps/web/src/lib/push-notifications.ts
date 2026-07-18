@@ -20,6 +20,10 @@ export async function sendPushNotification(
     body,
     data: data || {},
     priority: "high",
+    channelId:
+      typeof data?.channelId === "string" && data.channelId
+        ? data.channelId
+        : "reservations",
   };
 
   try {
@@ -54,7 +58,11 @@ export async function sendBulkPushNotifications(
       title: n.title,
       body: n.body,
       data: n.data || {},
-      priority: "high",
+      priority: "high" as const,
+      channelId:
+        typeof n.data?.channelId === "string" && n.data.channelId
+          ? n.data.channelId
+          : "reservations",
     }));
 
   if (messages.length === 0) {

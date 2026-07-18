@@ -5,26 +5,46 @@ import { API_BASE_URL } from './api';
 import Constants from 'expo-constants';
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
+  handleNotification: async (notification) => {
+    const type = notification.request.content.data?.type;
+    const isRideAlert = type === 'new_assignment' || type === 'live_offer';
+    // Foreground: custom in-app banner handles ride alerts (avoid double banner).
+    // Background/killed: system tray still shows the push.
+    return {
+      shouldShowAlert: !isRideAlert,
+      shouldShowBanner: !isRideAlert,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    };
+  },
 });
+
+async function ensureNotificationChannels() {
+  if (Platform.OS !== 'android') return;
+
+  await Notifications.setNotificationChannelAsync('reservations', {
+    name: 'Reservations',
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 250, 120, 250],
+    lightColor: '#D4A04A',
+    sound: 'default',
+    enableVibrate: true,
+    showBadge: true,
+  });
+
+  await Notifications.setNotificationChannelAsync('default', {
+    name: 'General',
+    importance: Notifications.AndroidImportance.DEFAULT,
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: '#C9A063',
+  });
+}
 
 export async function registerForPushNotificationsAsync() {
   let token;
 
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'default',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#C9A063',
-    });
-  }
+  await ensureNotificationChannels();
 
   if (Device.isDevice) {
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
