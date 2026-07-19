@@ -12,7 +12,7 @@ import {
   onUnauthorized,
 } from "../services/api";
 import { InteractionManager } from "react-native";
-import { registerDriverPushToken } from "../services/notifications";
+import { registerDriverPushToken, subscribeDriverPushTokenRefresh } from "../services/notifications";
 import { stopDriverLocationTracking } from "../services/driver-location";
 
 interface DriverAuthContextType {
@@ -45,6 +45,11 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
     });
   }, []);
 
+  // Re-register when FCM/APNs rotates the device token (app closed delivery depends on this)
+  useEffect(() => {
+    return subscribeDriverPushTokenRefresh(getDriverToken);
+  }, []);
+
   useEffect(() => {
     (async () => {
       try {
@@ -62,7 +67,8 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
           } catch {
             const stillHasToken = await getDriverToken();
             if (!stillHasToken) setDriver(null);
-            // keep session on transient network errors
+            // keep session on transient network errors — still try push register
+            if (stillHasToken) scheduleDriverPush(token);
           }
         } else {
           setDriver(null);
