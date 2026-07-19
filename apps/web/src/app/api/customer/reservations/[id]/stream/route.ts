@@ -6,6 +6,9 @@ import {
   subscribeReservation,
   type ReservationEvent,
 } from "@/lib/realtime-bus";
+import { warmCrossProcessBus } from "@/lib/cross-process-bus";
+
+warmCrossProcessBus();
 
 /**
  * Long-lived Server-Sent Events stream for a single reservation.
@@ -91,7 +94,7 @@ export async function GET(
       };
 
       // Initial connection comment + retry hint (browsers honor this; harmless to others).
-      safeEnqueue(`retry: 2000\n\n`);
+      safeEnqueue(`retry: 1500\n\n`);
 
       // Initial snapshot from DB
       try {

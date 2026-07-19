@@ -680,6 +680,11 @@ export interface AppFleetVehicleDto {
   sortOrder?: number;
 }
 
+export type AppFleetPricingDto = {
+  baseDistanceKm: number;
+  extraKmRate: number;
+};
+
 export async function getFleetVehicles(): Promise<{ success: boolean; vehicles: FleetVehicleDto[] }> {
   let response: Response;
   try {
@@ -709,7 +714,12 @@ export async function getFleetVehicles(): Promise<{ success: boolean; vehicles: 
 /** App reservation fleet (admin-managed App Fleets). */
 export async function getAppFleetVehicles(options?: {
   homeOnly?: boolean;
-}): Promise<{ success: boolean; vehicles: AppFleetVehicleDto[]; source?: string }> {
+}): Promise<{
+  success: boolean;
+  vehicles: AppFleetVehicleDto[];
+  pricing?: AppFleetPricingDto;
+  source?: string;
+}> {
   const qs = options?.homeOnly ? "?home=1" : "";
   let response: Response;
   try {
@@ -727,6 +737,7 @@ export async function getAppFleetVehicles(options?: {
   const data = await parseResponseBody<{
     success: boolean;
     vehicles?: AppFleetVehicleDto[];
+    pricing?: AppFleetPricingDto;
     source?: string;
     error?: string;
   }>(response);
@@ -734,7 +745,12 @@ export async function getAppFleetVehicles(options?: {
   if (!response.ok || !data.success || !data.vehicles?.length) {
     throw new Error(data.error || "Failed to load app fleet");
   }
-  return { success: true, vehicles: data.vehicles, source: data.source };
+  return {
+    success: true,
+    vehicles: data.vehicles,
+    pricing: data.pricing,
+    source: data.source,
+  };
 }
 
 // ==================== RESERVATIONS API ====================

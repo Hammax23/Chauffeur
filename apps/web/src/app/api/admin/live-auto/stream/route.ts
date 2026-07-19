@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
         }, DASHBOARD_DEBOUNCE_MS);
       };
 
-      safeEnqueue(`retry: 2000\n\n`);
+      safeEnqueue(`retry: 1500\n\n`);
 
       await pushDashboard();
 

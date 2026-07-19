@@ -21,12 +21,16 @@ export type CrossBusEnvelope = {
   v: 1;
   origin: string;
   bus: CrossBusName;
-  /** Local channel key, e.g. `driver:abc` or `reservation:XYZ` */
-  channel: string;
+  /** Single channel (legacy / one-target publish) */
+  channel?: string;
+  /** Multi-channel fan-out in one NOTIFY (batch publish) */
+  channels?: string[];
   /** Full event JSON when it fits; omitted on poke */
   payload?: unknown;
   /** True when payload was too large — receivers should reload */
   poke?: boolean;
+  /** Monotonic process-local sequence for debugging / gap detection */
+  seq?: number;
 };
 
 type ReloadHandler = (envelope: CrossBusEnvelope) => void | Promise<void>;
@@ -39,6 +43,7 @@ declare global {
     listenStarted: boolean;
     listenPromise: Promise<void> | null;
     reloadHandlers: Map<CrossBusName, ReloadHandler>;
+    seq: number;
   } | undefined;
 }
 
@@ -52,9 +57,16 @@ function state() {
       listenStarted: false,
       listenPromise: null,
       reloadHandlers: new Map(),
+      seq: 0,
     };
   }
   return globalThis.__sarjCrossProcessBus;
+}
+
+function nextSeq(): number {
+  const s = state();
+  s.seq += 1;
+  return s.seq;
 }
 
 function byteLength(s: string): number {
@@ -91,33 +103,64 @@ export function emitCrossBusLocal(
   state().local.emit(`${bus}|${channel}`, payload);
 }
 
+function emitLocalMany(bus: CrossBusName, channels: string[], payload: unknown): void {
+  const { local } = state();
+  for (const channel of channels) {
+    local.emit(`${bus}|${channel}`, payload);
+  }
+}
+
 /** Emit locally + fan out via NOTIFY (fire-and-forget). */
 export function publishCrossBus(
   bus: CrossBusName,
   channel: string,
   payload: unknown
 ): void {
-  const { local, origin } = state();
-  const key = `${bus}|${channel}`;
-  // Local first — zero latency for subscribers on this process
-  local.emit(key, payload);
+  publishCrossBusMany(bus, [channel], payload);
+}
 
-  const full: CrossBusEnvelope = {
-    v: 1,
-    origin,
-    bus,
-    channel,
-    payload,
-  };
+/**
+ * Emit to many channels locally + one Postgres NOTIFY (O(1) fan-out across workers).
+ */
+export function publishCrossBusMany(
+  bus: CrossBusName,
+  channels: string[],
+  payload: unknown
+): void {
+  const unique = [...new Set(channels.filter(Boolean))];
+  if (unique.length === 0) return;
+
+  const { origin } = state();
+  emitLocalMany(bus, unique, payload);
+
+  const seq = nextSeq();
+  const full: CrossBusEnvelope =
+    unique.length === 1
+      ? { v: 1, origin, bus, channel: unique[0], payload, seq }
+      : { v: 1, origin, bus, channels: unique, payload, seq };
+
   const fullJson = JSON.stringify(full);
   const envelope: CrossBusEnvelope =
     byteLength(fullJson) <= MAX_NOTIFY_BYTES
       ? full
-      : { v: 1, origin, bus, channel, poke: true };
+      : {
+          v: 1,
+          origin,
+          bus,
+          channel: unique[0],
+          channels: unique.length > 1 ? unique : undefined,
+          poke: true,
+          seq,
+        };
 
   void notifyPostgres(JSON.stringify(envelope)).catch((err) => {
     console.error("[cross-process-bus] NOTIFY failed:", err);
   });
+}
+
+/** Warm LISTEN early so the first publish is not racing cold start. */
+export function warmCrossProcessBus(): void {
+  void ensureListen();
 }
 
 async function notifyPostgres(payload: string): Promise<void> {
@@ -158,6 +201,7 @@ async function startListen(): Promise<void> {
 
   await client.connect();
   await client.query(`LISTEN ${PG_CHANNEL}`);
+  console.info("[cross-process-bus] LISTEN ready on", PG_CHANNEL);
 
   // Keep alive — idle connections can be dropped by some hosts
   const keepalive = setInterval(() => {
@@ -172,10 +216,11 @@ async function startListen(): Promise<void> {
     const s = state();
     s.listenStarted = false;
     s.listenPromise = null;
-    // Reconnect after brief delay if process still has subscribers
+    const jitter = 1500 + Math.floor(Math.random() * 1500);
+    console.warn(`[cross-process-bus] LISTEN ended — reconnect in ${jitter}ms`);
     setTimeout(() => {
       void ensureListen();
-    }, 2_000);
+    }, jitter);
   });
 }
 
@@ -192,13 +237,25 @@ async function handleRemoteNotify(raw: string): Promise<void> {
   // Ignore our own echoes
   if (envelope.origin === s.origin) return;
 
-  const key = `${envelope.bus}|${envelope.channel}`;
+  const channels =
+    envelope.channels && envelope.channels.length > 0
+      ? envelope.channels
+      : envelope.channel
+        ? [envelope.channel]
+        : [];
 
   if (envelope.poke) {
     const reload = s.reloadHandlers.get(envelope.bus);
     if (reload) {
       try {
-        await reload(envelope);
+        // Reload once per channel that looks like reservation:bookingId
+        if (channels.length === 0) {
+          await reload(envelope);
+        } else {
+          for (const channel of channels) {
+            await reload({ ...envelope, channel, channels: undefined });
+          }
+        }
       } catch (err) {
         console.error("[cross-process-bus] reload handler failed:", err);
       }
@@ -207,6 +264,6 @@ async function handleRemoteNotify(raw: string): Promise<void> {
   }
 
   if (envelope.payload !== undefined) {
-    s.local.emit(key, envelope.payload);
+    emitLocalMany(envelope.bus, channels, envelope.payload);
   }
 }

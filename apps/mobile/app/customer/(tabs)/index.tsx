@@ -414,8 +414,12 @@ export default function CustomerHomeScreen() {
                       </Text>
                       <View style={styles.fleetMeta}>
                         <Text style={styles.fleetPrice}>
-                          ${v.pricePerKm.toFixed(2)}
-                          <Text style={styles.fleetPriceUnit}>/km</Text>
+                          {v.hourlyRate > 0
+                            ? `$${v.hourlyRate.toFixed(0)}`
+                            : `$${v.pricePerKm.toFixed(2)}`}
+                          <Text style={styles.fleetPriceUnit}>
+                            {v.hourlyRate > 0 ? " base" : "/km"}
+                          </Text>
                         </Text>
                       </View>
                     </View>

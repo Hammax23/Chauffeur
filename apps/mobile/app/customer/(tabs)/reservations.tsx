@@ -88,6 +88,7 @@ export default function ReservationsScreen() {
 
   // Subscribe to live reservation events for this customer.
   const handleLiveEvent = useCallback((event: ReservationLiveEvent) => {
+    if (!event.data) return;
     if (event.type === "reservation_created" || event.type === "snapshot") {
       // For snapshots we only need to ensure the row exists; merge if we have it,
       // else trigger a single refetch to load full details (price, addresses).
@@ -102,7 +103,7 @@ export default function ReservationsScreen() {
           return prev;
         }
         const next = [...prev];
-        next[idx] = mergeLiveIntoReservation(next[idx], event.data);
+        next[idx] = mergeLiveIntoReservation(next[idx], event.data!);
         return next;
       });
       return;
@@ -112,7 +113,7 @@ export default function ReservationsScreen() {
       const idx = prev.findIndex((r) => r.bookingId === event.bookingId);
       if (idx === -1) return prev;
       const next = [...prev];
-      next[idx] = mergeLiveIntoReservation(next[idx], event.data);
+      next[idx] = mergeLiveIntoReservation(next[idx], event.data!);
       return next;
     });
 

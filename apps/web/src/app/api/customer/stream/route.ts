@@ -6,6 +6,9 @@ import {
   subscribeCustomer,
   type ReservationEvent,
 } from "@/lib/realtime-bus";
+import { warmCrossProcessBus } from "@/lib/cross-process-bus";
+
+warmCrossProcessBus();
 
 /**
  * Long-lived SSE feed for one customer.
@@ -71,7 +74,7 @@ export async function GET(req: NextRequest) {
       };
 
       // Hint to browsers / EventSource clients about retry; harmless to others.
-      safeEnqueue(`retry: 2000\n\n`);
+      safeEnqueue(`retry: 1500\n\n`);
 
       // Initial snapshot — one batched query (not N× loadReservationLiveData).
       try {

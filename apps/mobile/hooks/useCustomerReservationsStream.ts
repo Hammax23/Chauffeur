@@ -35,8 +35,7 @@ export interface UseCustomerReservationsStreamResult {
 
 /**
  * Subscribes to /api/customer/stream and forwards every reservation event to
- * `onEvent`. Auto-pauses while the screen is blurred or the app is in the
- * background so we never hold the SSE connection while the user can't see it.
+ * `onEvent`. On AppState resume, forces a fresh SSE reconnect for snapshot recovery.
  */
 export function useCustomerReservationsStream(
   options: UseCustomerReservationsStreamOptions
@@ -59,7 +58,7 @@ export function useCustomerReservationsStream(
     handleRef.current = null;
   }, []);
 
-  const ensureRunning = useCallback(() => {
+  const startStream = useCallback(() => {
     if (!enabled) return;
     const focusOk = !pauseOnBlur || focusedRef.current;
     const fgOk = !pauseOnBackground || foregroundedRef.current;
@@ -68,10 +67,12 @@ export function useCustomerReservationsStream(
       setStatus((s) => (s === "closed" ? s : "idle"));
       return;
     }
-    if (handleRef.current) return;
+
+    teardown();
 
     handleRef.current = openCustomerReservationsStream({
       onEvent: (event) => {
+        if (event.type === "driver_location") return;
         setLastEventAt(event.serverTime);
         setError(null);
         onEventRef.current(event);
@@ -91,7 +92,6 @@ export function useCustomerReservationsStream(
     });
   }, [enabled, pauseOnBackground, pauseOnBlur, teardown]);
 
-  // Mount / unmount + enabled change
   useEffect(() => {
     if (!enabled) {
       teardown();
@@ -100,30 +100,28 @@ export function useCustomerReservationsStream(
       setNextRetryMs(null);
       return;
     }
-    ensureRunning();
+    startStream();
     return teardown;
-  }, [enabled, ensureRunning, teardown]);
+  }, [enabled, startStream, teardown]);
 
-  // App background / foreground
   useEffect(() => {
     const sub = AppState.addEventListener("change", (next: AppStateStatus) => {
       const wasForeground = foregroundedRef.current;
       foregroundedRef.current = next === "active";
       if (foregroundedRef.current && !wasForeground) {
-        ensureRunning();
+        startStream();
       } else if (!foregroundedRef.current && pauseOnBackground) {
         teardown();
         setStatus((s) => (s === "closed" ? s : "idle"));
       }
     });
     return () => sub.remove();
-  }, [ensureRunning, pauseOnBackground, teardown]);
+  }, [startStream, pauseOnBackground, teardown]);
 
-  // Screen focus / blur
   useFocusEffect(
     useCallback(() => {
       focusedRef.current = true;
-      ensureRunning();
+      startStream();
       return () => {
         focusedRef.current = false;
         if (pauseOnBlur) {
@@ -131,7 +129,7 @@ export function useCustomerReservationsStream(
           setStatus((s) => (s === "closed" ? s : "idle"));
         }
       };
-    }, [ensureRunning, pauseOnBlur, teardown])
+    }, [startStream, pauseOnBlur, teardown])
   );
 
   return { status, error, nextRetryMs, lastEventAt };

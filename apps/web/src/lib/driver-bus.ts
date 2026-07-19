@@ -1,4 +1,4 @@
-import { publishCrossBus, subscribeCrossBus } from "@/lib/cross-process-bus";
+import { publishCrossBus, publishCrossBusMany, subscribeCrossBus } from "@/lib/cross-process-bus";
 
 /**
  * Pub/sub for driver Live Auto Mode offers.
@@ -72,8 +72,9 @@ export function publishOpsLiveAuto(event: DriverOfferEvent): void {
 }
 
 export function publishDriverMany(driverIds: string[], event: DriverOfferEvent): void {
-  for (const id of driverIds) {
-    publishDriver(id, event);
+  const channels = [...new Set(driverIds.filter(Boolean).map((id) => driverChannel(id)))];
+  if (channels.length > 0) {
+    publishCrossBusMany("driver", channels, event);
   }
   publishOpsLiveAuto(event);
 }

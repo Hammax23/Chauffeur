@@ -133,6 +133,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    let hourlyRate = 0;
     let pricePerKm = 0;
     const tierKey = typeof vehicleId === "string" ? vehicleId.trim() : "";
     if (tierKey) {
@@ -141,31 +142,43 @@ export async function POST(req: NextRequest) {
           OR: [{ tierId: tierKey }, { id: tierKey }],
           isActive: true,
         },
-        select: { pricePerKm: true, title: true },
+        select: { pricePerKm: true, hourlyRate: true, title: true },
       });
-      if (fleetRow?.pricePerKm) pricePerKm = fleetRow.pricePerKm;
+      if (fleetRow) {
+        hourlyRate = fleetRow.hourlyRate || 0;
+        pricePerKm = fleetRow.pricePerKm || 0;
+      }
     }
-    if (pricePerKm <= 0) {
+    if (hourlyRate <= 0 && pricePerKm <= 0) {
       const byTitle = await prisma.appFleetVehicle.findFirst({
         where: { title: vehicle, isActive: true },
-        select: { pricePerKm: true },
+        select: { pricePerKm: true, hourlyRate: true },
       });
-      if (byTitle?.pricePerKm) pricePerKm = byTitle.pricePerKm;
+      if (byTitle) {
+        hourlyRate = byTitle.hourlyRate || 0;
+        pricePerKm = byTitle.pricePerKm || 0;
+      }
     }
-    if (pricePerKm <= 0) {
+    if (hourlyRate <= 0 && pricePerKm <= 0) {
       pricePerKm = Number(clientPricePerKm) || 0;
     }
-    if (pricePerKm <= 0) {
+    if (hourlyRate <= 0 && pricePerKm <= 0) {
       return NextResponse.json(
         { success: false, error: "Could not resolve vehicle pricing" },
         { status: 400 }
       );
     }
 
+    const { getPricingConfig } = await import("@/lib/get-pricing-config");
+    const { charges } = await getPricingConfig();
+
     const hasStop = typeof stops === "string" && stops.trim().length >= 3;
     const pricing = calculateAppDistanceFare({
       distanceMeters: meters,
+      hourlyRate,
       pricePerKm,
+      baseDistanceKm: charges.baseDistanceKm,
+      extraKmRate: charges.extraKmRate,
       hasStop,
       childSeatCount: Number(childSeats) || 0,
       gratuityPercent: Number(clientGratuityPercent) || APP_DEFAULT_GRATUITY_PERCENT,

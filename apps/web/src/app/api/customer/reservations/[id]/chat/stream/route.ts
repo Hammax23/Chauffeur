@@ -65,6 +65,12 @@ export async function GET(
       };
 
       try {
+        controller.enqueue(encoder.encode(`retry: 1500\n\n`));
+      } catch {
+        /* closed */
+      }
+
+      try {
         const snapshot = await listMessagesForBooking(bookingId);
         send("snapshot", snapshot);
       } catch {

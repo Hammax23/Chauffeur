@@ -22,6 +22,8 @@ export type BookingDraft = {
   rideFare: string;
   pricePerKm: string;
   hourlyRate: string;
+  baseDistanceKm?: string;
+  extraKmRate?: string;
   distanceText: string;
   durationText: string;
   distanceMeters: string;

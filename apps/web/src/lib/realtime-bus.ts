@@ -21,7 +21,8 @@ export type ReservationEventType =
   | "status_changed"
   | "driver_assigned"
   | "driver_unassigned"
-  | "timing_updated";
+  | "timing_updated"
+  | "driver_location";
 
 export interface ReservationLiveDriver {
   name: string;
@@ -44,11 +45,24 @@ export interface ReservationLiveData {
   driver: ReservationLiveDriver | null;
 }
 
+export interface DriverLocationLivePayload {
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  heading: number | null;
+  speed: number | null;
+  updatedAt: string;
+}
+
 export interface ReservationEvent {
   type: ReservationEventType;
   bookingId: string;
   serverTime: string;
-  data: ReservationLiveData;
+  seq?: number;
+  /** Present for status / snapshot events */
+  data?: ReservationLiveData;
+  /** Present for driver_location events */
+  location?: DriverLocationLivePayload;
 }
 
 type Listener = (event: ReservationEvent) => void;
@@ -71,9 +85,61 @@ export function subscribeCustomer(customerId: string, listener: Listener): () =>
 
 export function publishReservation(event: ReservationEvent): void {
   publishCrossBus("reservation", reservationChannel(event.bookingId), event);
-  if (event.data.customerId) {
+  if (event.data?.customerId) {
     publishCrossBus("reservation", customerChannel(event.data.customerId), event);
   }
+}
+
+/**
+ * Throttled live GPS for an active booking. Publishes only on the reservation
+ * channel (not customer list) to keep location traffic scoped.
+ */
+const LOCATION_THROTTLE_MS = 2_500;
+declare global {
+  // eslint-disable-next-line no-var
+  var __sarjLocThrottle: Map<string, number> | undefined;
+}
+
+function locationThrottleMap(): Map<string, number> {
+  if (!globalThis.__sarjLocThrottle) {
+    globalThis.__sarjLocThrottle = new Map();
+  }
+  return globalThis.__sarjLocThrottle;
+}
+
+export function publishDriverLocationEvent(params: {
+  bookingId: string;
+  latitude: number;
+  longitude: number;
+  accuracy?: number | null;
+  heading?: number | null;
+  speed?: number | null;
+  force?: boolean;
+}): boolean {
+  const key = params.bookingId;
+  const now = Date.now();
+  const map = locationThrottleMap();
+  const last = map.get(key) ?? 0;
+  if (!params.force && now - last < LOCATION_THROTTLE_MS) {
+    return false;
+  }
+  map.set(key, now);
+
+  const event: ReservationEvent = {
+    type: "driver_location",
+    bookingId: params.bookingId,
+    serverTime: new Date().toISOString(),
+    location: {
+      latitude: params.latitude,
+      longitude: params.longitude,
+      accuracy: params.accuracy ?? null,
+      heading: params.heading ?? null,
+      speed: params.speed ?? null,
+      updatedAt: new Date().toISOString(),
+    },
+  };
+  publishCrossBus("reservation", reservationChannel(params.bookingId), event);
+  return true;
 }
 
 /** Map a Prisma reservation (+ optional assignedDriver) into live payload. */
@@ -173,8 +239,9 @@ export async function publishReservationFromDb(
 
 /** Oversized NOTIFY poke: rebuild from DB and emit locally only (no re-NOTIFY). */
 async function handleReservationPoke(envelope: CrossBusEnvelope): Promise<void> {
-  if (!envelope.channel.startsWith("reservation:")) return;
-  const bookingId = envelope.channel.slice("reservation:".length);
+  const channel = envelope.channel;
+  if (!channel || !channel.startsWith("reservation:")) return;
+  const bookingId = channel.slice("reservation:".length);
   if (!bookingId) return;
   try {
     const data = await loadReservationLiveData(bookingId);

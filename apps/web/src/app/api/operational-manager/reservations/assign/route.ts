@@ -43,9 +43,11 @@ export async function POST(request: NextRequest) {
     const { notifyDriverReservationAssigned } = await import("@/lib/driver-push");
     await Promise.all([
       notifyDriverOfManualAssignment(bookingId, driverId),
-      notifyDriverReservationAssigned(bookingId, driverId),
       publishReservationFromDb(bookingId, "driver_assigned"),
     ]);
+    void notifyDriverReservationAssigned(bookingId, driverId).catch((err) =>
+      console.error("[ops-assign] driver push", err)
+    );
 
     void import("@/lib/customer-push")
       .then(({ notifyCustomerDriverAssigned }) => notifyCustomerDriverAssigned(bookingId))

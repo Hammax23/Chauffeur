@@ -42,14 +42,16 @@ export async function POST(request: NextRequest) {
 
     await revokeOffersForBooking(bookingId, driverId);
 
-    // Driver-facing notify first (SSE + push) — don't wait on customer push
+    // SSE first (await), push never blocks the response
     const { notifyDriverOfManualAssignment } = await import("@/lib/live-auto");
     const { notifyDriverReservationAssigned } = await import("@/lib/driver-push");
     await Promise.all([
       notifyDriverOfManualAssignment(bookingId, driverId),
-      notifyDriverReservationAssigned(bookingId, driverId),
       publishReservationFromDb(bookingId, "driver_assigned"),
     ]);
+    void notifyDriverReservationAssigned(bookingId, driverId).catch((err) =>
+      console.error("[assign] driver push", err)
+    );
 
     void import("@/lib/customer-push")
       .then(({ notifyCustomerDriverAssigned }) => notifyCustomerDriverAssigned(bookingId))

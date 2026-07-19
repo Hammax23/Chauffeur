@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  AppState,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -160,6 +161,19 @@ export default function TripChatScreen({ bookingId, role, title }: Props) {
   );
 
   // SSE is the primary realtime channel — no duplicate initial HTTP load.
+  // Reconnect key bumps on AppState resume so we force a fresh snapshot.
+  const [sseEpoch, setSseEpoch] = useState(0);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        setSseEpoch((n) => n + 1);
+        void fetchHttp(true);
+      }
+    });
+    return () => sub.remove();
+  }, [fetchHttp]);
+
   useEffect(() => {
     if (!bookingId) return;
 
@@ -171,6 +185,7 @@ export default function TripChatScreen({ bookingId, role, title }: Props) {
         ? `/driver/rides/${bookingId}/chat/stream`
         : `/customer/reservations/${bookingId}/chat/stream`;
 
+    sseReady.current = false;
     handle = openSseStream(
       { path },
       {
@@ -212,7 +227,7 @@ export default function TripChatScreen({ bookingId, role, title }: Props) {
       handle?.close();
       sseReady.current = false;
     };
-  }, [appendLiveMessage, applySnapshot, bookingId, fetchHttp, role]);
+  }, [appendLiveMessage, applySnapshot, bookingId, fetchHttp, role, sseEpoch]);
 
   // Lightweight fallback poll only when live stream is down.
   useEffect(() => {

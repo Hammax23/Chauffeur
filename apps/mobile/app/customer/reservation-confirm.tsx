@@ -47,17 +47,32 @@ export default function ReservationConfirmScreen() {
   const childSeats = parseInt(draft?.childSeatCount || "0", 10) || 0;
   const distanceMeters = Math.max(0, parseFloat(draft?.distanceMeters || "0") || 0);
   const pricePerKm = Math.max(0, parseFloat(draft?.pricePerKm || "0") || 0);
+  const hourlyRate = Math.max(0, parseFloat(draft?.hourlyRate || "0") || 0);
+  const baseDistanceKm = Math.max(0, parseFloat(draft?.baseDistanceKm || "17") || 17);
+  const extraKmRate = Math.max(0, parseFloat(draft?.extraKmRate || "3.2") || 3.2);
 
   const fare = useMemo(() => {
     if (!draft) return null;
     return calculateAppDistanceFare({
       distanceMeters,
+      hourlyRate,
       pricePerKm,
+      baseDistanceKm,
+      extraKmRate,
       hasStop: !!draft.stopAddress.trim(),
       childSeatCount: childSeats,
       gratuityPercent,
     });
-  }, [draft, distanceMeters, pricePerKm, childSeats, gratuityPercent]);
+  }, [
+    draft,
+    distanceMeters,
+    hourlyRate,
+    pricePerKm,
+    baseDistanceKm,
+    extraKmRate,
+    childSeats,
+    gratuityPercent,
+  ]);
 
   const dateTimeSummary =
     draft?.pickupTimeDisplay?.trim() ||
@@ -239,7 +254,7 @@ export default function ReservationConfirmScreen() {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Fare summary</Text>
-          {fare.km > 0 && pricePerKm > 0 ? (
+          {fare.km > 0 ? (
             <>
               <View style={styles.fareRow}>
                 <Text style={styles.fareLabel}>Distance</Text>
@@ -247,10 +262,19 @@ export default function ReservationConfirmScreen() {
                   {draft.distanceText || `${fare.km.toFixed(2)} km`}
                 </Text>
               </View>
-              <View style={styles.fareRow}>
-                <Text style={styles.fareLabel}>Rate</Text>
-                <Text style={styles.fareValue}>${pricePerKm.toFixed(2)}/km</Text>
-              </View>
+              {hourlyRate > 0 ? (
+                <View style={styles.fareRow}>
+                  <Text style={styles.fareLabel}>Base rate</Text>
+                  <Text style={styles.fareValue}>
+                    ${hourlyRate.toFixed(2)} (first {baseDistanceKm} km)
+                  </Text>
+                </View>
+              ) : pricePerKm > 0 ? (
+                <View style={styles.fareRow}>
+                  <Text style={styles.fareLabel}>Rate</Text>
+                  <Text style={styles.fareValue}>${pricePerKm.toFixed(2)}/km</Text>
+                </View>
+              ) : null}
             </>
           ) : null}
           <View style={styles.fareRow}>

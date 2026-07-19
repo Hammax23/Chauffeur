@@ -231,17 +231,35 @@ export default function DriverDashboard() {
     }
   }, [activeTab]);
 
-  // Pause polling when app goes to background; refresh immediately on resume
+  // Pause polling when app goes to background; on resume force SSE reopen + refresh
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
       const active = state === "active";
       isFocusedRef.current = active;
       if (active) {
         fetchRides(activeTab, true);
+        // Force fresh SSE so we get a new snapshot after background kill
+        streamRef.current?.close();
+        streamRef.current = openDriverStream({
+          onEvent: applyOfferEvent,
+          onStatus: (status) => {
+            const healthy = status === "open";
+            sseHealthyRef.current = healthy;
+            if (activeTab === "requests") {
+              if (pollTimerRef.current) {
+                clearInterval(pollTimerRef.current);
+                pollTimerRef.current = null;
+              }
+              pollTimerRef.current = setInterval(() => {
+                if (isFocusedRef.current) fetchRides(activeTab, true);
+              }, healthy ? REQUESTS_POLL_HEALTHY_MS : REQUESTS_POLL_DEGRADED_MS);
+            }
+          },
+        });
       }
     });
     return () => sub.remove();
-  }, [activeTab, fetchRides]);
+  }, [activeTab, fetchRides, applyOfferEvent]);
 
   const handleToggleActive = async (value: boolean) => {
     setIsActive(value);

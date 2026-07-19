@@ -103,13 +103,21 @@ export default function FleetManagementPage() {
       await fetch("/api/admin/charges", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chargeKey: "baseDistanceKm", amount: pricingSettings.baseDistanceKm }),
+        body: JSON.stringify({
+          chargeKey: "baseDistanceKm",
+          chargeName: "Base Distance (KM)",
+          amount: pricingSettings.baseDistanceKm,
+        }),
       });
       // Update extraKmRate
       await fetch("/api/admin/charges", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chargeKey: "extraKmRate", amount: pricingSettings.extraKmRate }),
+        body: JSON.stringify({
+          chargeKey: "extraKmRate",
+          chargeName: "Extra KM Rate",
+          amount: pricingSettings.extraKmRate,
+        }),
       });
       setSeedMessage("Pricing settings saved!");
       setTimeout(() => setSeedMessage(""), 3000);

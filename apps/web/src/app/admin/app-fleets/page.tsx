@@ -15,6 +15,8 @@ import {
   ImageIcon,
   ToggleLeft,
   ToggleRight,
+  DollarSign,
+  Settings,
 } from "lucide-react";
 
 type AppFleetVehicle = {
@@ -33,6 +35,11 @@ type AppFleetVehicle = {
   showOnHome: boolean;
   isActive: boolean;
   sortOrder: number;
+};
+
+type PricingSettings = {
+  baseDistanceKm: number;
+  extraKmRate: number;
 };
 
 type FormState = Omit<AppFleetVehicle, "id">;
@@ -75,6 +82,11 @@ export default function AppFleetsAdminPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [filterGroup, setFilterGroup] = useState<"all" | "standard" | "executive">("all");
+  const [pricingSettings, setPricingSettings] = useState<PricingSettings>({
+    baseDistanceKm: 17,
+    extraKmRate: 3.2,
+  });
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const fetchVehicles = useCallback(async () => {
     setLoading(true);
@@ -94,9 +106,60 @@ export default function AppFleetsAdminPage() {
     }
   }, []);
 
+  const fetchPricingSettings = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/charges");
+      const data = await res.json();
+      if (data.success && data.charges) {
+        const baseKm = data.charges.find((c: { chargeKey: string }) => c.chargeKey === "baseDistanceKm");
+        const extraRate = data.charges.find((c: { chargeKey: string }) => c.chargeKey === "extraKmRate");
+        setPricingSettings({
+          baseDistanceKm: baseKm?.amount ?? 17,
+          extraKmRate: extraRate?.amount ?? 3.2,
+        });
+      }
+    } catch {
+      /* keep defaults */
+    }
+  }, []);
+
+  const savePricingSettings = async () => {
+    setSavingSettings(true);
+    setError("");
+    try {
+      await Promise.all([
+        fetch("/api/admin/charges", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chargeKey: "baseDistanceKm",
+            chargeName: "Base Distance (KM)",
+            amount: pricingSettings.baseDistanceKm,
+          }),
+        }),
+        fetch("/api/admin/charges", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chargeKey: "extraKmRate",
+            chargeName: "Extra KM Rate",
+            amount: pricingSettings.extraKmRate,
+          }),
+        }),
+      ]);
+      setMessage("Distance pricing settings saved");
+      setTimeout(() => setMessage(""), 3000);
+    } catch {
+      setError("Failed to save pricing settings");
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
   useEffect(() => {
     fetchVehicles();
-  }, [fetchVehicles]);
+    fetchPricingSettings();
+  }, [fetchVehicles, fetchPricingSettings]);
 
   const filtered = useMemo(() => {
     if (filterGroup === "all") return vehicles;
@@ -255,8 +318,8 @@ export default function AppFleetsAdminPage() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900">App Fleets</h1>
           <p className="text-sm text-gray-500 mt-1 max-w-xl">
-            Manage vehicles shown in the mobile app — titles, images, per-km & hourly pricing,
-            standard/executive groups. Website Fleet Pricing stays separate.
+            Set mobile app vehicle pricing the same way as Fleet Pricing — hourly base rate,
+            per-km, and shared distance settings (base km + extra km rate).
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -384,18 +447,10 @@ export default function AppFleetsAdminPage() {
               </select>
             </label>
             <label className="space-y-1.5">
-              <span className="text-xs font-semibold text-gray-500 uppercase">Price / km (CAD)</span>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.pricePerKm}
-                onChange={(e) => setForm((p) => ({ ...p, pricePerKm: parseFloat(e.target.value) || 0 }))}
-                className={fieldClass}
-              />
-            </label>
-            <label className="space-y-1.5">
-              <span className="text-xs font-semibold text-gray-500 uppercase">Hourly rate (CAD)</span>
+              <span className="text-xs font-semibold text-gray-500 uppercase flex items-center gap-1">
+                <DollarSign className="w-3 h-3 text-emerald-600" />
+                Hourly / Base Rate (CAD) *
+              </span>
               <input
                 type="number"
                 step="0.01"
@@ -404,6 +459,26 @@ export default function AppFleetsAdminPage() {
                 onChange={(e) => setForm((p) => ({ ...p, hourlyRate: parseFloat(e.target.value) || 0 }))}
                 className={fieldClass}
               />
+              <span className="text-[11px] text-gray-400">
+                Base price for distance bookings (first {pricingSettings.baseDistanceKm} km) and hourly bookings
+              </span>
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-xs font-semibold text-gray-500 uppercase flex items-center gap-1">
+                <DollarSign className="w-3 h-3 text-blue-600" />
+                Price / km (CAD)
+              </span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.pricePerKm}
+                onChange={(e) => setForm((p) => ({ ...p, pricePerKm: parseFloat(e.target.value) || 0 }))}
+                className={fieldClass}
+              />
+              <span className="text-[11px] text-gray-400">
+                Shown in app; distance fare uses base rate + extra km settings below
+              </span>
             </label>
             <label className="space-y-1.5">
               <span className="text-xs font-semibold text-gray-500 uppercase">Seating</span>
@@ -533,94 +608,216 @@ export default function AppFleetsAdminPage() {
             </button>
           </div>
         ) : (
-          <div className="divide-y divide-gray-100">
-            {filtered.map((v) => (
-              <div
-                key={v.id}
-                className={`flex flex-col sm:flex-row sm:items-center gap-4 px-4 py-4 ${
-                  !v.isActive ? "opacity-55 bg-gray-50/80" : ""
-                }`}
-              >
-                <div className="w-full sm:w-28 h-20 rounded-xl overflow-hidden bg-gray-100 shrink-0 border border-gray-100">
-                  {v.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={v.image} alt={v.title} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <ImageIcon className="w-6 h-6 text-gray-300" />
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-sm font-semibold text-gray-900 truncate">{v.title}</h3>
-                    <span
-                      className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${
-                        v.group === "executive"
-                          ? "bg-amber-50 text-amber-800"
-                          : "bg-slate-100 text-slate-600"
-                      }`}
-                    >
-                      {v.group}
-                    </span>
-                    <span className="text-[10px] font-medium text-gray-400 font-mono">{v.tierId}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-0.5 truncate">{v.subtitle || "—"}</p>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-gray-600">
-                    <span>
-                      <strong className="text-gray-900">${v.pricePerKm.toFixed(2)}</strong>/km
-                    </span>
-                    <span>
-                      <strong className="text-gray-900">${v.hourlyRate.toFixed(2)}</strong>/hr
-                    </span>
-                    <span className="text-gray-400">{v.category}</span>
-                    <span className="text-gray-400">Order {v.sortOrder}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-                  <button
-                    type="button"
-                    title={v.isActive ? "Active" : "Inactive"}
-                    onClick={() => toggleField(v, "isActive")}
-                    className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Vehicle
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Group
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Hourly / Base
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Per KM
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.map((v) => (
+                  <tr
+                    key={v.id}
+                    className={`hover:bg-gray-50/80 ${!v.isActive ? "opacity-55" : ""}`}
                   >
-                    {v.isActive ? (
-                      <ToggleRight className="w-5 h-5 text-emerald-600" />
-                    ) : (
-                      <ToggleLeft className="w-5 h-5" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    title={v.showOnHome ? "Shown on home" : "Hidden from home"}
-                    onClick={() => toggleField(v, "showOnHome")}
-                    className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border ${
-                      v.showOnHome
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : "border-gray-200 text-gray-400"
-                    }`}
-                  >
-                    Home
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openEdit(v)}
-                    className="p-2 rounded-lg hover:bg-gray-100 text-gray-600"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(v.id, v.title)}
-                    className="p-2 rounded-lg hover:bg-red-50 text-red-500"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-16 h-10 rounded-lg overflow-hidden bg-gray-100 shrink-0 border border-gray-100">
+                          {v.image ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={v.image} alt={v.title} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <ImageIcon className="w-4 h-4 text-gray-300" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-medium text-gray-900 truncate">{v.title}</div>
+                          <div className="text-xs text-gray-500 font-mono truncate">{v.tierId}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${
+                          v.group === "executive"
+                            ? "bg-amber-50 text-amber-800"
+                            : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        {v.group}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="inline-flex items-center gap-1 justify-end">
+                        <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="font-semibold text-gray-900">{v.hourlyRate.toFixed(2)}</span>
+                        <span className="text-xs text-gray-500">/hr</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="inline-flex items-center gap-1 justify-end">
+                        <DollarSign className="w-3.5 h-3.5 text-blue-600" />
+                        <span className="font-semibold text-gray-900">{v.pricePerKm.toFixed(2)}</span>
+                        <span className="text-xs text-gray-500">/km</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          title={v.isActive ? "Active" : "Inactive"}
+                          onClick={() => toggleField(v, "isActive")}
+                          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+                        >
+                          {v.isActive ? (
+                            <ToggleRight className="w-5 h-5 text-emerald-600" />
+                          ) : (
+                            <ToggleLeft className="w-5 h-5" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          title={v.showOnHome ? "Shown on home" : "Hidden from home"}
+                          onClick={() => toggleField(v, "showOnHome")}
+                          className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border ${
+                            v.showOnHome
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : "border-gray-200 text-gray-400"
+                          }`}
+                        >
+                          Home
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(v)}
+                          className="p-2 rounded-lg hover:bg-gray-100 text-blue-600"
+                          title="Edit pricing"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(v.id, v.title)}
+                          className="p-2 rounded-lg hover:bg-red-50 text-red-500"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
+      </div>
+
+      {/* Distance Pricing Settings — same keys as Fleet Pricing */}
+      <div className="mt-6 bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-900">
+          <Settings className="w-5 h-5 text-[#C9A063]" />
+          Distance Pricing Settings
+        </h2>
+        <p className="text-sm text-gray-500 mb-4">
+          Shared with website Fleet Pricing. App distance fare = vehicle base rate for the first{" "}
+          {pricingSettings.baseDistanceKm} km, then ${pricingSettings.extraKmRate.toFixed(2)} per extra km.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Base Distance (KM)</label>
+            <input
+              type="number"
+              value={pricingSettings.baseDistanceKm}
+              onChange={(e) =>
+                setPricingSettings({
+                  ...pricingSettings,
+                  baseDistanceKm: parseFloat(e.target.value) || 0,
+                })
+              }
+              className={fieldClass}
+              min={0}
+              step={1}
+            />
+            <p className="text-xs text-gray-500 mt-1">Vehicle base price covers up to this distance</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Extra KM Rate ($)</label>
+            <input
+              type="number"
+              value={pricingSettings.extraKmRate}
+              onChange={(e) =>
+                setPricingSettings({
+                  ...pricingSettings,
+                  extraKmRate: parseFloat(e.target.value) || 0,
+                })
+              }
+              className={fieldClass}
+              min={0}
+              step={0.1}
+            />
+            <p className="text-xs text-gray-500 mt-1">Charge per KM after base distance</p>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-4">
+          <button
+            type="button"
+            onClick={savePricingSettings}
+            disabled={savingSettings}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 text-sm font-semibold"
+          >
+            {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {savingSettings ? "Saving..." : "Save Settings"}
+          </button>
+          <p className="text-sm text-gray-500">
+            Example: {pricingSettings.baseDistanceKm} km = Base Rate ·{" "}
+            {pricingSettings.baseDistanceKm + 10} km = Base + (10 × $
+            {pricingSettings.extraKmRate.toFixed(2)})
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+        <h3 className="font-semibold text-blue-900 mb-2">How App Fleet Pricing Works</h3>
+        <ul className="text-sm text-blue-800 space-y-1">
+          <li>
+            • <strong>Base Price:</strong> Each vehicle&apos;s hourly rate is the base for distance
+            bookings (covers first {pricingSettings.baseDistanceKm} km)
+          </li>
+          <li>
+            • <strong>Extra KM:</strong> After {pricingSettings.baseDistanceKm} km, $
+            {pricingSettings.extraKmRate.toFixed(2)} is charged per additional km
+          </li>
+          <li>
+            • <strong>Hourly Rate:</strong> Also used if you add hourly bookings in the app later
+          </li>
+          <li>
+            • <strong>Active:</strong> Only active vehicles with a price appear in the mobile app
+          </li>
+        </ul>
       </div>
     </div>
   );

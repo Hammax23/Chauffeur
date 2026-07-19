@@ -32,6 +32,9 @@ import {
   calculateAppDistanceFare,
   APP_DEFAULT_GRATUITY_PERCENT,
   parseMaxPassengers,
+  BASE_DISTANCE_KM,
+  EXTRA_KM_RATE,
+  type AppDistancePricing,
 } from "../../utils/app-fare";
 import { saveBookingDraft } from "../../services/booking-draft";
 
@@ -128,6 +131,10 @@ export default function CreateReservationScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [passengersCount, setPassengersCount] = useState(1);
   const [fleetVehicles, setFleetVehicles] = useState<AppFleetVehicleDto[]>([]);
+  const [distancePricing, setDistancePricing] = useState<AppDistancePricing>({
+    baseDistanceKm: BASE_DISTANCE_KM,
+    extraKmRate: EXTRA_KM_RATE,
+  });
   const [fleetLoading, setFleetLoading] = useState(true);
   const [fleetError, setFleetError] = useState("");
   const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
@@ -172,8 +179,14 @@ export default function CreateReservationScreen() {
     setFleetLoading(true);
     setFleetError("");
     try {
-      const { vehicles } = await getAppFleetVehicles();
+      const { vehicles, pricing } = await getAppFleetVehicles();
       setFleetVehicles(vehicles);
+      if (pricing) {
+        setDistancePricing({
+          baseDistanceKm: pricing.baseDistanceKm || BASE_DISTANCE_KM,
+          extraKmRate: pricing.extraKmRate || EXTRA_KM_RATE,
+        });
+      }
       const tiers = buildVehicleTiersFromAppFleet(vehicles);
 
       const rawId = params.vehicleId;
@@ -331,12 +344,22 @@ export default function CreateReservationScreen() {
     if (meters == null || meters <= 0) return null;
     return calculateAppDistanceFare({
       distanceMeters: meters,
+      hourlyRate: selectedTier.hourlyRate,
       pricePerKm: selectedTier.pricePerKm,
+      baseDistanceKm: distancePricing.baseDistanceKm,
+      extraKmRate: distancePricing.extraKmRate,
       hasStop: showStopField && stopAddress.trim().length >= 3,
       childSeatCount,
       gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
     });
-  }, [selectedTier, routeSummary, showStopField, stopAddress, childSeatCount]);
+  }, [
+    selectedTier,
+    routeSummary,
+    showStopField,
+    stopAddress,
+    childSeatCount,
+    distancePricing,
+  ]);
 
   const maxPassengers = useMemo(
     () => parseMaxPassengers(selectedTier?.seating) ?? 8,
@@ -352,13 +375,22 @@ export default function CreateReservationScreen() {
   const tierFareById = useMemo(() => {
     const meters = routeSummary?.distanceMeters ?? null;
     if (meters == null || meters <= 0) return {} as Record<string, number>;
-    const km = meters / 1000;
     const out: Record<string, number> = {};
     for (const tier of vehicleTiers) {
-      out[tier.id] = km * tier.pricePerKm;
+      const fare = calculateAppDistanceFare({
+        distanceMeters: meters,
+        hourlyRate: tier.hourlyRate,
+        pricePerKm: tier.pricePerKm,
+        baseDistanceKm: distancePricing.baseDistanceKm,
+        extraKmRate: distancePricing.extraKmRate,
+        hasStop: false,
+        childSeatCount: 0,
+        gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
+      });
+      if (fare) out[tier.id] = fare.rideFare;
     }
     return out;
-  }, [vehicleTiers, routeSummary?.distanceMeters]);
+  }, [vehicleTiers, routeSummary?.distanceMeters, distancePricing]);
 
   const onDateChange = (event: DateTimePickerEvent, date?: Date) => {
     if (Platform.OS === "android") {
@@ -416,10 +448,15 @@ export default function CreateReservationScreen() {
       vehicle: selectedTier.title,
       vehicleId: selectedTier.id,
       vehicleSubtitle: selectedTier.subtitle,
-      vehiclePrice: `$${selectedTier.pricePerKm.toFixed(2)}/km`,
+      vehiclePrice:
+        selectedTier.hourlyRate > 0
+          ? `From $${selectedTier.hourlyRate.toFixed(2)}`
+          : `$${selectedTier.pricePerKm.toFixed(2)}/km`,
       rideFare: String(fareEstimate.rideFare ?? 0),
       pricePerKm: String(selectedTier.pricePerKm),
       hourlyRate: String(selectedTier.hourlyRate),
+      baseDistanceKm: String(distancePricing.baseDistanceKm),
+      extraKmRate: String(distancePricing.extraKmRate),
       distanceText: routeSummary?.distanceText ?? "",
       durationText: routeSummary?.durationText ?? "",
       distanceMeters: String(routeSummary?.distanceMeters ?? ""),
@@ -640,7 +677,9 @@ export default function CreateReservationScreen() {
                     </Text>
                   ) : (
                     <Text style={styles.carPriceText} numberOfLines={1}>
-                      ${selectedTier.pricePerKm.toFixed(2)}/km
+                      {selectedTier.hourlyRate > 0
+                        ? `From $${selectedTier.hourlyRate.toFixed(0)}`
+                        : `$${selectedTier.pricePerKm.toFixed(2)}/km`}
                     </Text>
                   )}
                   {vehicleTiers.length > 1 ? (
@@ -707,7 +746,9 @@ export default function CreateReservationScreen() {
                                 <Text style={styles.carDropdownPrice} numberOfLines={2}>
                                   {tierFare != null
                                     ? `$${tierFare.toFixed(2)}`
-                                    : `$${tier.pricePerKm.toFixed(2)}/km`}
+                                    : tier.hourlyRate > 0
+                                      ? `From $${tier.hourlyRate.toFixed(0)}`
+                                      : `$${tier.pricePerKm.toFixed(2)}/km`}
                                 </Text>
                               </View>
                             </TouchableOpacity>

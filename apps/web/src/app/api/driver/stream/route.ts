@@ -3,6 +3,9 @@ import jwt from "jsonwebtoken";
 import prisma from "@/lib/prisma";
 import { subscribeDriver, type DriverOfferEvent } from "@/lib/driver-bus";
 import { listOpenOffersForDriver } from "@/lib/live-auto";
+import { warmCrossProcessBus } from "@/lib/cross-process-bus";
+
+warmCrossProcessBus();
 
 /**
  * Long-lived SSE feed for one driver (Live Auto Mode offers).
@@ -58,7 +61,7 @@ export async function GET(req: NextRequest) {
         }
       };
 
-      safeEnqueue(`retry: 2000\n\n`);
+      safeEnqueue(`retry: 1500\n\n`);
 
       try {
         const openOffers = await listOpenOffersForDriver(driverId);

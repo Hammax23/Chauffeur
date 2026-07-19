@@ -169,7 +169,24 @@ export default function TrackRideScreen() {
     void reload();
   }, [reload]);
 
-  // Poll driver GPS while trip is active
+  // 2. Open the realtime SSE channel — server pushes status / driver / GPS.
+  const liveBookingId = typeof bookingId === "string" ? bookingId : null;
+  const live = useReservationStream(liveBookingId);
+
+  // Apply live GPS from SSE immediately
+  useEffect(() => {
+    if (!live.location || !reservation) return;
+    const active = ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP"].includes(reservation.status);
+    if (!active) return;
+    setDriverLoc({
+      lat: live.location.latitude,
+      lng: live.location.longitude,
+      updatedAt: live.location.updatedAt,
+      driverName: reservation.driver?.name || "Driver",
+    });
+  }, [live.location, reservation?.status, reservation?.driver?.name]);
+
+  // Poll driver GPS while trip is active — slow safety net when SSE is healthy
   useEffect(() => {
     if (!bookingId || !reservation) return;
     const active = ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP"].includes(reservation.status);
@@ -181,22 +198,20 @@ export default function TrackRideScreen() {
     const tick = async () => {
       try {
         const res = await getDriverLiveLocation(bookingId);
-        if (!cancelled && res.success) setDriverLoc(res.location);
+        if (!cancelled && res.success && res.location) setDriverLoc(res.location);
       } catch {
         /* ignore */
       }
     };
     void tick();
-    const id = setInterval(tick, 12_000);
+    // SSE is primary; poll slower when live, faster when reconnecting
+    const pollMs = live.status === "open" ? 40_000 : 8_000;
+    const id = setInterval(tick, pollMs);
     return () => {
       cancelled = true;
       clearInterval(id);
     };
-  }, [bookingId, reservation?.status]);
-
-  // 2. Open the realtime SSE channel — server pushes status / driver changes.
-  const liveBookingId = typeof bookingId === "string" ? bookingId : null;
-  const live = useReservationStream(liveBookingId);
+  }, [bookingId, reservation?.status, live.status]);
 
   // Merge live data into the existing reservation snapshot (status, driver, etc.).
   useEffect(() => {
