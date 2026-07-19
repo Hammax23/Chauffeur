@@ -1,5 +1,5 @@
 import prisma from "@/lib/prisma";
-import { driverHasActiveAssignmentElsewhere } from "@/lib/data-store";
+import { driverHasActiveAssignmentElsewhere, findBusyDriverIds } from "@/lib/data-store";
 import {
   publishDriver,
   publishDriverMany,
@@ -129,13 +129,15 @@ async function selectEligibleDrivers(bookingId: string, onlyAvailable: boolean) 
     select: { id: true, pushToken: true, name: true, isActive: true, status: true },
   });
 
-  const eligible: { id: string; pushToken: string | null; name: string }[] = [];
-  for (const d of drivers) {
-    if (rejected.has(d.id)) continue;
-    if (await driverHasActiveAssignmentElsewhere(d.id, bookingId)) continue;
-    eligible.push(d);
-  }
-  return eligible;
+  const candidates = drivers.filter((d) => !rejected.has(d.id));
+  const busy = await findBusyDriverIds(
+    candidates.map((d) => d.id),
+    bookingId
+  );
+
+  return candidates
+    .filter((d) => !busy.has(d.id))
+    .map((d) => ({ id: d.id, pushToken: d.pushToken, name: d.name }));
 }
 
 /**
@@ -233,21 +235,29 @@ export async function syncDriverIntoOpenLiveOffers(driverId: string): Promise<nu
     data: Record<string, string>;
   }> = [];
 
-  for (const reservation of openBookings) {
+  const toOffer = openBookings.filter((reservation) => {
     const rejected = new Set(
       (reservation.rejectedDriverIds || "")
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean)
     );
-    if (rejected.has(driverId)) continue;
+    return !rejected.has(driverId);
+  });
 
-    await prisma.rideOffer.upsert({
-      where: { bookingId_driverId: { bookingId: reservation.bookingId, driverId } },
-      create: { bookingId: reservation.bookingId, driverId, status: "OPEN" },
-      update: { status: "OPEN", respondedAt: null },
-    });
+  if (toOffer.length > 0) {
+    await prisma.$transaction(
+      toOffer.map((reservation) =>
+        prisma.rideOffer.upsert({
+          where: { bookingId_driverId: { bookingId: reservation.bookingId, driverId } },
+          create: { bookingId: reservation.bookingId, driverId, status: "OPEN" },
+          update: { status: "OPEN", respondedAt: null },
+        })
+      )
+    );
+  }
 
+  for (const reservation of toOffer) {
     const ride = mapRidePayload(reservation, true);
     publishDriver(driverId, {
       type: "offer_created",
@@ -320,6 +330,22 @@ export async function revokeOpenOffersForDriver(driverId: string): Promise<numbe
 export async function notifyDriverOfManualAssignment(bookingId: string, driverId: string): Promise<void> {
   const reservation = await prisma.reservation.findUnique({ where: { bookingId } });
   if (!reservation || reservation.assignedDriverId !== driverId) return;
+
+  // Ensure an offer row exists so reject/accept paths are consistent.
+  // Re-send after a prior reject: reopen CLAIMED from DECLINED.
+  await prisma.rideOffer.upsert({
+    where: { bookingId_driverId: { bookingId, driverId } },
+    create: {
+      bookingId,
+      driverId,
+      status: "CLAIMED",
+      respondedAt: new Date(),
+    },
+    update: {
+      status: "CLAIMED",
+      respondedAt: new Date(),
+    },
+  });
 
   const ride = mapRidePayload(reservation, false);
   publishDriver(driverId, {
@@ -538,9 +564,10 @@ export async function claimLiveOffer(
   }
 
   await publishReservationFromDb(bookingId, "driver_assigned");
-  await publishReservationFromDb(bookingId, "status_changed");
-  const { notifyCustomerDriverAssigned } = await import("@/lib/customer-push");
-  await notifyCustomerDriverAssigned(bookingId);
+  // Customer push must not block SSE/offer fan-out
+  void import("@/lib/customer-push")
+    .then(({ notifyCustomerDriverAssigned }) => notifyCustomerDriverAssigned(bookingId))
+    .catch((err) => console.error("[claimLiveOffer] customer push", err));
 
   return { ok: true };
 }
@@ -556,72 +583,96 @@ export async function declineLiveOffer(
     where: { bookingId_driverId: { bookingId, driverId } },
   });
 
-  // Live marketplace decline (not yet assigned)
-  if (offer?.status === "OPEN" && !reservation.assignedDriverId) {
+  const isAssignee = reservation.assignedDriverId === driverId;
+  const isOpenMarketplaceOffer =
+    !!offer &&
+    offer.status === "OPEN" &&
+    !reservation.assignedDriverId &&
+    reservation.status === "PENDING";
+
+  // Manual-assign winner often has CLAIMED offer (not OPEN) — must still allow reject
+  if (!isAssignee && !isOpenMarketplaceOffer) {
+    return { ok: false, reason: "not_found" };
+  }
+
+  const appendRejected = (existing: string | null | undefined) => {
+    const parts = (existing || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!parts.includes(driverId)) parts.push(driverId);
+    return parts.join(",");
+  };
+
+  if (isOpenMarketplaceOffer && offer) {
     await prisma.rideOffer.update({
       where: { id: offer.id },
       data: { status: "DECLINED", respondedAt: new Date() },
     });
 
-    const existingRejected = reservation.rejectedDriverIds || "";
-    const rejectedList = existingRejected.includes(driverId)
-      ? existingRejected
-      : existingRejected
-        ? `${existingRejected},${driverId}`
-        : driverId;
-
     await prisma.reservation.update({
       where: { id: reservation.id },
-      data: { rejectedDriverIds: rejectedList },
+      data: { rejectedDriverIds: appendRejected(reservation.rejectedDriverIds) },
     });
 
-    publishDriver(driverId, {
-      type: "offer_declined",
-      bookingId,
-      serverTime: new Date().toISOString(),
-    });
-    publishOpsLiveAuto({
-      type: "offer_declined",
-      bookingId,
-      serverTime: new Date().toISOString(),
-    });
+    const serverTime = new Date().toISOString();
+    publishDriver(driverId, { type: "offer_declined", bookingId, serverTime });
+    publishOpsLiveAuto({ type: "offer_declined", bookingId, serverTime });
 
     return { ok: true };
   }
 
-  // Classic reject: assigned to this driver
-  if (reservation.assignedDriverId === driverId) {
-    const existingRejected = reservation.rejectedDriverIds || "";
-    const rejectedList = existingRejected
-      ? `${existingRejected},${driverId}`
-      : driverId;
-
-    await prisma.reservation.update({
+  // Assigned to this driver (PENDING request or already claimed) — unassign
+  await prisma.$transaction(async (tx) => {
+    await tx.reservation.update({
       where: { id: reservation.id },
       data: {
         assignedDriverId: null,
         driverResponse: "REJECTED",
         driverRespondedAt: new Date(),
-        rejectedDriverIds: rejectedList,
+        rejectedDriverIds: appendRejected(reservation.rejectedDriverIds),
+        // Keep booking PENDING so ops can reassign
+        status: reservation.status === "ACCEPTED" ? "PENDING" : reservation.status,
       },
     });
 
     if (offer) {
-      await prisma.rideOffer.update({
+      await tx.rideOffer.update({
         where: { id: offer.id },
         data: { status: "DECLINED", respondedAt: new Date() },
       });
+    } else {
+      await tx.rideOffer.upsert({
+        where: { bookingId_driverId: { bookingId, driverId } },
+        create: {
+          bookingId,
+          driverId,
+          status: "DECLINED",
+          respondedAt: new Date(),
+        },
+        update: { status: "DECLINED", respondedAt: new Date() },
+      });
     }
+  });
 
+  const serverTime = new Date().toISOString();
+  publishDriver(driverId, { type: "offer_declined", bookingId, serverTime });
+  publishOpsLiveAuto({ type: "offer_declined", bookingId, serverTime });
+
+  try {
     await publishReservationFromDb(bookingId, "driver_unassigned");
-
-    // Re-broadcast to remaining drivers if Live Auto is on
-    await maybeBroadcastNewReservation(bookingId);
-
-    return { ok: true };
+  } catch (err) {
+    console.error("[declineLiveOffer] publishReservationFromDb", err);
   }
 
-  return { ok: false, reason: "not_found" };
+  // Re-broadcast to remaining drivers if Live Auto is on (this driver is in rejected list)
+  try {
+    await maybeBroadcastNewReservation(bookingId);
+  } catch (err) {
+    console.error("[declineLiveOffer] maybeBroadcast", err);
+  }
+
+  return { ok: true };
 }
 
 export async function listOpenOffersForDriver(driverId: string): Promise<DriverOfferRidePayload[]> {
@@ -645,44 +696,46 @@ export async function listOpenOffersForDriver(driverId: string): Promise<DriverO
 
 export async function getLiveAutoDashboard() {
   const settings = await getOpsSettings();
-  const [availableDrivers, openOffers, openBookings] = await Promise.all([
+
+  const openOfferBookingRows = await prisma.rideOffer.findMany({
+    where: { status: "OPEN" },
+    distinct: ["bookingId"],
+    select: { bookingId: true },
+  });
+  const openBookingIds = openOfferBookingRows.map((o) => o.bookingId);
+
+  const [availableDrivers, openOffers, openBookings, offerCounts] = await Promise.all([
     prisma.driver.count({ where: { status: "available" } }),
     prisma.rideOffer.count({ where: { status: "OPEN" } }),
-    prisma.reservation.findMany({
-      where: {
-        status: "PENDING",
-        assignedDriverId: null,
-        bookingId: {
-          in: (
-            await prisma.rideOffer.findMany({
-              where: { status: "OPEN" },
-              distinct: ["bookingId"],
-              select: { bookingId: true },
-            })
-          ).map((o) => o.bookingId),
-        },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 50,
-      select: {
-        bookingId: true,
-        firstName: true,
-        lastName: true,
-        pickupLocation: true,
-        dropoffLocation: true,
-        vehicle: true,
-        serviceDate: true,
-        serviceTime: true,
-        createdAt: true,
-      },
+    openBookingIds.length === 0
+      ? Promise.resolve([])
+      : prisma.reservation.findMany({
+          where: {
+            status: "PENDING",
+            assignedDriverId: null,
+            bookingId: { in: openBookingIds },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 50,
+          select: {
+            bookingId: true,
+            firstName: true,
+            lastName: true,
+            pickupLocation: true,
+            dropoffLocation: true,
+            vehicle: true,
+            serviceDate: true,
+            serviceTime: true,
+            createdAt: true,
+          },
+        }),
+    prisma.rideOffer.groupBy({
+      by: ["bookingId"],
+      where: { status: "OPEN" },
+      _count: { _all: true },
     }),
   ]);
 
-  const offerCounts = await prisma.rideOffer.groupBy({
-    by: ["bookingId"],
-    where: { status: "OPEN" },
-    _count: { _all: true },
-  });
   const countMap = new Map(offerCounts.map((c) => [c.bookingId, c._count._all]));
 
   return {

@@ -906,7 +906,7 @@ export async function updateRideStatus(bookingId: string, status: string) {
 export async function rejectRide(bookingId: string) {
   return apiRequest<{ success: boolean; message: string }>(
     `/driver/rides/${bookingId}`,
-    { method: "DELETE" }
+    { method: "PATCH", body: JSON.stringify({ action: "reject" }) }
   );
 }
 

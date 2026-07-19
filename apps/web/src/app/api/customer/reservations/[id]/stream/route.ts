@@ -30,7 +30,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const fetchCache = "force-no-store";
 
-const HEARTBEAT_MS = 20_000;
+const HEARTBEAT_MS = 15_000;
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
 function getCustomerIdFromRequest(req: NextRequest): string | null {
@@ -91,7 +91,7 @@ export async function GET(
       };
 
       // Initial connection comment + retry hint (browsers honor this; harmless to others).
-      safeEnqueue(`retry: 3000\n\n`);
+      safeEnqueue(`retry: 2000\n\n`);
 
       // Initial snapshot from DB
       try {

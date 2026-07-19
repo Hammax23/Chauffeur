@@ -24,7 +24,9 @@ import { openDriverStream, type DriverOfferEvent } from "../../services/driver-s
 
 type TabType = "requests" | "upcoming";
 
-const POLL_INTERVAL = 5000; // fallback / upcoming tab
+const POLL_INTERVAL = 12_000; // upcoming tab — SSE is primary
+const REQUESTS_POLL_HEALTHY_MS = 20_000; // SSE open: light safety net only
+const REQUESTS_POLL_DEGRADED_MS = 2_500; // SSE down/reconnecting: stay snappy
 
 function offerToRide(event: DriverOfferEvent): DriverRide | null {
   const r = event.ride;
@@ -68,6 +70,7 @@ export default function DriverDashboard() {
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const streamRef = useRef<ReturnType<typeof openDriverStream> | null>(null);
   const isFocusedRef = useRef(true);
+  const sseHealthyRef = useRef(false);
 
   const fetchRides = useCallback(async (tab: TabType, silent = false) => {
     try {
@@ -164,31 +167,43 @@ export default function DriverDashboard() {
     }, [refreshProfile])
   );
 
-  // Keep Live Auto SSE always connected on this screen; poll upcoming lightly
+  // Keep Live Auto SSE always connected on this screen; poll adapts to SSE health
   useFocusEffect(
     useCallback(() => {
       isFocusedRef.current = true;
       setIsLoading(true);
       fetchRides(activeTab);
 
+      const startPoll = (intervalMs: number) => {
+        if (pollTimerRef.current) {
+          clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
+        }
+        pollTimerRef.current = setInterval(() => {
+          if (isFocusedRef.current) fetchRides(activeTab, true);
+        }, intervalMs);
+      };
+
       streamRef.current?.close();
       streamRef.current = openDriverStream({
         onEvent: applyOfferEvent,
+        onStatus: (status) => {
+          const healthy = status === "open";
+          sseHealthyRef.current = healthy;
+          if (activeTab === "requests") {
+            startPoll(healthy ? REQUESTS_POLL_HEALTHY_MS : REQUESTS_POLL_DEGRADED_MS);
+          }
+        },
       });
 
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-
-      // Soft fallback for requests; faster poll for upcoming trip status
-      const intervalMs = activeTab === "requests" ? 30_000 : POLL_INTERVAL;
-      pollTimerRef.current = setInterval(() => {
-        if (isFocusedRef.current) fetchRides(activeTab, true);
-      }, intervalMs);
+      // Until first SSE open, poll fast so assign never feels stuck
+      startPoll(
+        activeTab === "requests" ? REQUESTS_POLL_DEGRADED_MS : POLL_INTERVAL
+      );
 
       return () => {
         isFocusedRef.current = false;
+        sseHealthyRef.current = false;
         streamRef.current?.close();
         streamRef.current = null;
         if (pollTimerRef.current) {
@@ -216,13 +231,17 @@ export default function DriverDashboard() {
     }
   }, [activeTab]);
 
-  // Pause polling when app goes to background
+  // Pause polling when app goes to background; refresh immediately on resume
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
-      isFocusedRef.current = state === "active";
+      const active = state === "active";
+      isFocusedRef.current = active;
+      if (active) {
+        fetchRides(activeTab, true);
+      }
     });
     return () => sub.remove();
-  }, []);
+  }, [activeTab, fetchRides]);
 
   const handleToggleActive = async (value: boolean) => {
     setIsActive(value);
@@ -302,8 +321,10 @@ export default function DriverDashboard() {
               Alert.alert("Error", "Failed to reject ride");
               fetchRides(activeTab, true);
             }
-          } catch {
-            Alert.alert("Error", "Something went wrong");
+          } catch (error: unknown) {
+            const message =
+              error instanceof Error ? error.message : "Something went wrong";
+            Alert.alert("Error", message);
             fetchRides(activeTab, true);
           }
         },

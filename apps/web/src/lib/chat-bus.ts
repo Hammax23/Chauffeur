@@ -1,5 +1,5 @@
-import { EventEmitter } from "node:events";
 import type { ChatMessageDto } from "@/lib/trip-chat";
+import { publishCrossBus, subscribeCrossBus } from "@/lib/cross-process-bus";
 
 export type ChatEvent = {
   type: "message";
@@ -10,24 +10,12 @@ export type ChatEvent = {
 
 type Listener = (event: ChatEvent) => void;
 
-declare global {
-  // eslint-disable-next-line no-var
-  var __sarjChatBus: EventEmitter | undefined;
-}
-
-const emitter: EventEmitter =
-  globalThis.__sarjChatBus ??
-  (globalThis.__sarjChatBus = (() => {
-    const e = new EventEmitter();
-    e.setMaxListeners(0);
-    return e;
-  })());
-
 const channel = (bookingId: string) => `chat:${bookingId}`;
 
 export function subscribeChat(bookingId: string, listener: Listener): () => void {
-  emitter.on(channel(bookingId), listener);
-  return () => emitter.off(channel(bookingId), listener);
+  return subscribeCrossBus("chat", channel(bookingId), (payload) => {
+    listener(payload as ChatEvent);
+  });
 }
 
 export function publishChatMessage(params: {
@@ -40,5 +28,5 @@ export function publishChatMessage(params: {
     serverTime: new Date().toISOString(),
     message: params.message,
   };
-  emitter.emit(channel(params.bookingId), event);
+  publishCrossBus("chat", channel(params.bookingId), event);
 }

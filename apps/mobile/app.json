@@ -16,10 +16,13 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sarjworldwide.chauffeur",
-      "buildNumber": "5",
+      "buildNumber": "9",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": ["location", "remote-notification"]
+        "UIBackgroundModes": [
+          "location",
+          "remote-notification"
+        ]
       }
     },
     "android": {

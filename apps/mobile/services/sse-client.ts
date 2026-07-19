@@ -20,9 +20,9 @@ import { API_BASE_URL, getToken } from "./api";
  * Each instance is single-use — call openSseStream() once per subscription.
  */
 
-const HEARTBEAT_GRACE_MS = 45_000;
-const INITIAL_BACKOFF_MS = 1_500;
-const MAX_BACKOFF_MS = 30_000;
+const HEARTBEAT_GRACE_MS = 40_000;
+const INITIAL_BACKOFF_MS = 800;
+const MAX_BACKOFF_MS = 8_000;
 
 export type SseConnectionStatus = "idle" | "connecting" | "open" | "reconnecting" | "closed";
 

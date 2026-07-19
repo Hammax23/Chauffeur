@@ -7,7 +7,11 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const fetchCache = "force-no-store";
 
-const HEARTBEAT_MS = 20_000;
+const HEARTBEAT_MS = 15_000;
+/** Debounce dashboard DB refresh after offer events (was fixed 8s poll). */
+const DASHBOARD_DEBOUNCE_MS = 400;
+/** Safety net if no events arrive for a while. */
+const DASHBOARD_IDLE_REFRESH_MS = 30_000;
 
 function sseFrame(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -24,6 +28,9 @@ export async function GET(req: NextRequest) {
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       let closed = false;
+      let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+      let refreshInFlight = false;
+
       const safeEnqueue = (chunk: string) => {
         if (closed) return;
         try {
@@ -33,31 +40,9 @@ export async function GET(req: NextRequest) {
         }
       };
 
-      safeEnqueue(`retry: 3000\n\n`);
-
-      try {
-        const dash = await getLiveAutoDashboard();
-        safeEnqueue(
-          sseFrame("dashboard", {
-            type: "snapshot",
-            serverTime: new Date().toISOString(),
-            ...dash,
-          })
-        );
-      } catch (err) {
-        console.error("[ops-live-auto-stream] snapshot:", err);
-      }
-
-      const unsubscribe = subscribeOpsLiveAuto((event: DriverOfferEvent) => {
-        safeEnqueue(sseFrame("offer", event));
-      });
-
-      const heartbeat = setInterval(() => {
-        safeEnqueue(`: keep-alive ${Date.now()}\n\n`);
-      }, HEARTBEAT_MS);
-
-      // Periodic dashboard refresh so stats stay accurate without client poll
-      const refresh = setInterval(async () => {
+      const pushDashboard = async () => {
+        if (closed || refreshInFlight) return;
+        refreshInFlight = true;
         try {
           const dash = await getLiveAutoDashboard();
           safeEnqueue(
@@ -67,16 +52,45 @@ export async function GET(req: NextRequest) {
               ...dash,
             })
           );
-        } catch {
-          /* ignore */
+        } catch (err) {
+          console.error("[ops-live-auto-stream] dashboard:", err);
+        } finally {
+          refreshInFlight = false;
         }
-      }, 8_000);
+      };
+
+      const scheduleDashboardRefresh = () => {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          debounceTimer = null;
+          void pushDashboard();
+        }, DASHBOARD_DEBOUNCE_MS);
+      };
+
+      safeEnqueue(`retry: 2000\n\n`);
+
+      await pushDashboard();
+
+      const unsubscribe = subscribeOpsLiveAuto((event: DriverOfferEvent) => {
+        safeEnqueue(sseFrame("offer", event));
+        // Event-driven stats refresh instead of hammering DB every 8s
+        scheduleDashboardRefresh();
+      });
+
+      const heartbeat = setInterval(() => {
+        safeEnqueue(`: keep-alive ${Date.now()}\n\n`);
+      }, HEARTBEAT_MS);
+
+      const idleRefresh = setInterval(() => {
+        void pushDashboard();
+      }, DASHBOARD_IDLE_REFRESH_MS);
 
       const cleanup = () => {
         if (closed) return;
         closed = true;
+        if (debounceTimer) clearTimeout(debounceTimer);
         clearInterval(heartbeat);
-        clearInterval(refresh);
+        clearInterval(idleRefresh);
         unsubscribe();
         try {
           controller.close();

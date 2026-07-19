@@ -23,7 +23,7 @@ import {
 import { openSseStream, type SseConnectionStatus, type SseStreamHandle } from "../services/sse-client";
 
 const ACCENT = "#C9A063";
-const FALLBACK_POLL_MS = 12_000;
+const FALLBACK_POLL_MS = 5_000;
 const SSE_BOOTSTRAP_MS = 4_000;
 
 type Role = "driver" | "customer";

@@ -117,7 +117,19 @@ export async function PATCH(
 
     const { bookingId } = await params;
     const body = await req.json();
-    const { status } = body;
+    const { status, action } = body;
+
+    // Reject / decline (preferred over DELETE — some networks block DELETE)
+    if (action === "reject" || status === "REJECTED") {
+      const result = await declineLiveOffer(bookingId, tokenData.id);
+      if (!result.ok) {
+        return NextResponse.json(
+          { success: false, error: "Ride not found or already unavailable" },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json({ success: true, message: "Ride rejected" });
+    }
 
     const validStatuses = ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP", "DONE"];
     if (!validStatuses.includes(status)) {

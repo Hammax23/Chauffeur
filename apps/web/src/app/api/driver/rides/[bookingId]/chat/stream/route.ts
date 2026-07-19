@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const fetchCache = "force-no-store";
 
-const HEARTBEAT_MS = 20_000;
+const HEARTBEAT_MS = 15_000;
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
 function getDriverIdFromRequest(req: NextRequest): string | null {

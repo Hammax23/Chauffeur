@@ -233,11 +233,34 @@ export async function driverHasActiveAssignmentElsewhere(
   return !!row;
 }
 
+/** Drivers who currently have any non-terminal assignment (optionally excluding one booking). */
+export async function findBusyDriverIds(
+  driverIds: string[],
+  excludeBookingId?: string
+): Promise<Set<string>> {
+  if (driverIds.length === 0) return new Set();
+  const rows = await prisma.reservation.findMany({
+    where: {
+      assignedDriverId: { in: driverIds },
+      status: { notIn: [...TERMINAL_RESERVATION_STATUSES] },
+      ...(excludeBookingId ? { bookingId: { not: excludeBookingId } } : {}),
+    },
+    select: { assignedDriverId: true },
+    distinct: ["assignedDriverId"],
+  });
+  return new Set(
+    rows
+      .map((r) => r.assignedDriverId)
+      .filter((id): id is string => typeof id === "string" && id.length > 0)
+  );
+}
+
 export type AssignDriverToReservationResult =
   | { ok: true }
   | { ok: false; reason: "busy" | "failed" };
 
-// Assign driver to reservation (blocks if driver already on another active ride)
+// Assign driver to reservation (blocks if driver already on another active ride).
+// Re-assigning a previously rejected driver is allowed — they are cleared from rejectedDriverIds.
 export async function assignDriverToReservation(
   bookingId: string,
   driverId: string
@@ -246,12 +269,25 @@ export async function assignDriverToReservation(
     if (await driverHasActiveAssignmentElsewhere(driverId, bookingId)) {
       return { ok: false, reason: "busy" };
     }
+
+    const existing = await prisma.reservation.findUnique({
+      where: { bookingId },
+      select: { rejectedDriverIds: true },
+    });
+
+    const rejectedClean = (existing?.rejectedDriverIds || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter((id) => id && id !== driverId)
+      .join(",") || null;
+
     await prisma.reservation.update({
       where: { bookingId },
       data: {
         assignedDriverId: driverId,
         driverResponse: null,
         driverRespondedAt: null,
+        rejectedDriverIds: rejectedClean,
       },
     });
     return { ok: true };

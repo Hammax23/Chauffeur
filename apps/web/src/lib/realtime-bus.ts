@@ -1,15 +1,17 @@
-import { EventEmitter } from "node:events";
 import prisma from "@/lib/prisma";
+import {
+  publishCrossBus,
+  subscribeCrossBus,
+  registerCrossBusReload,
+  emitCrossBusLocal,
+  type CrossBusEnvelope,
+} from "@/lib/cross-process-bus";
 
 /**
- * In-process pub/sub for live reservation updates (status, driver assignment, timing).
+ * Pub/sub for live reservation updates (status, driver assignment, timing).
  *
- * The bus is keyed by `bookingId`. Each subscriber receives a typed event whenever
- * the reservation changes. SSE endpoints subscribe per-connection and forward
- * frames to the client.
- *
- * Scope: single Node process. For multi-replica deployments, swap this module for
- * a Redis pub/sub adapter (same surface area).
+ * Local + Postgres LISTEN/NOTIFY so every Node process / PM2 worker receives
+ * the same events (multi-replica safe).
  */
 
 export type ReservationEventType =
@@ -51,52 +53,47 @@ export interface ReservationEvent {
 
 type Listener = (event: ReservationEvent) => void;
 
-/**
- * Persist the emitter across hot reloads / module re-eval in dev so subscribers
- * created on the first compile keep receiving events from later compiles.
- */
-declare global {
-  // eslint-disable-next-line no-var
-  var __sarjReservationBus: EventEmitter | undefined;
-}
-
-const emitter: EventEmitter =
-  globalThis.__sarjReservationBus ??
-  (globalThis.__sarjReservationBus = (() => {
-    const e = new EventEmitter();
-    e.setMaxListeners(0);
-    return e;
-  })());
-
 const reservationChannel = (bookingId: string) => `reservation:${bookingId}`;
 const customerChannel = (customerId: string) => `customer:${customerId}`;
 
 export function subscribeReservation(bookingId: string, listener: Listener): () => void {
-  emitter.on(reservationChannel(bookingId), listener);
-  return () => emitter.off(reservationChannel(bookingId), listener);
+  return subscribeCrossBus("reservation", reservationChannel(bookingId), (payload) => {
+    listener(payload as ReservationEvent);
+  });
 }
 
-/** Subscribe to every reservation event owned by this customer (used by the
- * reservations list / home screen). */
+/** Subscribe to every reservation event owned by this customer (list / home). */
 export function subscribeCustomer(customerId: string, listener: Listener): () => void {
-  emitter.on(customerChannel(customerId), listener);
-  return () => emitter.off(customerChannel(customerId), listener);
+  return subscribeCrossBus("reservation", customerChannel(customerId), (payload) => {
+    listener(payload as ReservationEvent);
+  });
 }
 
 export function publishReservation(event: ReservationEvent): void {
-  emitter.emit(reservationChannel(event.bookingId), event);
+  publishCrossBus("reservation", reservationChannel(event.bookingId), event);
   if (event.data.customerId) {
-    emitter.emit(customerChannel(event.data.customerId), event);
+    publishCrossBus("reservation", customerChannel(event.data.customerId), event);
   }
 }
 
-/** Build a `ReservationLiveData` snapshot from the database (used for SSE replays). */
-export async function loadReservationLiveData(bookingId: string): Promise<ReservationLiveData | null> {
-  const r = await prisma.reservation.findUnique({
-    where: { bookingId },
-    include: { assignedDriver: true },
-  });
-  if (!r) return null;
+/** Map a Prisma reservation (+ optional assignedDriver) into live payload. */
+export function mapReservationLiveData(r: {
+  bookingId: string;
+  status: string;
+  statusUpdatedAt: Date | null;
+  driverOnTheWayAt: Date | null;
+  driverStopPeriodsJson: string | null;
+  completedAt: Date | null;
+  customerId: string | null;
+  assignedDriver: {
+    name: string;
+    phone: string;
+    photo: string | null;
+    vehicle: string | null;
+    vehiclePlate: string | null;
+    rating: number | null;
+  } | null;
+}): ReservationLiveData {
   return {
     bookingId: r.bookingId,
     status: r.status,
@@ -118,9 +115,48 @@ export async function loadReservationLiveData(bookingId: string): Promise<Reserv
   };
 }
 
+/** Build a `ReservationLiveData` snapshot from the database (SSE replays). */
+export async function loadReservationLiveData(bookingId: string): Promise<ReservationLiveData | null> {
+  const r = await prisma.reservation.findUnique({
+    where: { bookingId },
+    include: { assignedDriver: true },
+  });
+  if (!r) return null;
+  return mapReservationLiveData(r);
+}
+
+/** Batch-load live payloads — one query instead of N× findUnique. */
+export async function loadReservationLiveDataMany(
+  bookingIds: string[]
+): Promise<ReservationLiveData[]> {
+  if (bookingIds.length === 0) return [];
+  const rows = await prisma.reservation.findMany({
+    where: { bookingId: { in: bookingIds } },
+    include: { assignedDriver: true },
+  });
+  const byId = new Map(rows.map((r) => [r.bookingId, mapReservationLiveData(r)]));
+  return bookingIds.map((id) => byId.get(id)).filter((d): d is ReservationLiveData => !!d);
+}
+
 /**
- * Convenience helper: load a fresh snapshot from DB and publish the given event type.
- * Use this from any route that mutates a reservation (status, assignment, etc).
+ * Publish when you already have live data (skips extra DB round-trip).
+ */
+export function publishReservationData(
+  bookingId: string,
+  type: ReservationEventType,
+  data: ReservationLiveData
+): void {
+  publishReservation({
+    type,
+    bookingId,
+    serverTime: new Date().toISOString(),
+    data,
+  });
+}
+
+/**
+ * Load a fresh snapshot from DB and publish. Prefer `publishReservationData`
+ * when the mutator already has the row in memory.
  */
 export async function publishReservationFromDb(
   bookingId: string,
@@ -129,13 +165,33 @@ export async function publishReservationFromDb(
   try {
     const data = await loadReservationLiveData(bookingId);
     if (!data) return;
-    publishReservation({
-      type,
-      bookingId,
-      serverTime: new Date().toISOString(),
-      data,
-    });
+    publishReservationData(bookingId, type, data);
   } catch (err) {
     console.error("[realtime-bus] Failed to publish reservation update:", err);
   }
 }
+
+/** Oversized NOTIFY poke: rebuild from DB and emit locally only (no re-NOTIFY). */
+async function handleReservationPoke(envelope: CrossBusEnvelope): Promise<void> {
+  if (!envelope.channel.startsWith("reservation:")) return;
+  const bookingId = envelope.channel.slice("reservation:".length);
+  if (!bookingId) return;
+  try {
+    const data = await loadReservationLiveData(bookingId);
+    if (!data) return;
+    const event: ReservationEvent = {
+      type: "status_changed",
+      bookingId,
+      serverTime: new Date().toISOString(),
+      data,
+    };
+    emitCrossBusLocal("reservation", reservationChannel(bookingId), event);
+    if (data.customerId) {
+      emitCrossBusLocal("reservation", customerChannel(data.customerId), event);
+    }
+  } catch (err) {
+    console.error("[realtime-bus] poke reload failed:", err);
+  }
+}
+
+registerCrossBusReload("reservation", handleReservationPoke);

@@ -23,17 +23,6 @@ export async function POST(request: NextRequest) {
 
     const result = await assignDriverToReservation(bookingId, driverId);
 
-    if (result.ok) {
-      await revokeOffersForBooking(bookingId, driverId);
-      const { notifyDriverOfManualAssignment } = await import("@/lib/live-auto");
-      await notifyDriverOfManualAssignment(bookingId, driverId);
-      await publishReservationFromDb(bookingId, "driver_assigned");
-      const { notifyCustomerDriverAssigned } = await import("@/lib/customer-push");
-      await notifyCustomerDriverAssigned(bookingId);
-      const { notifyDriverReservationAssigned } = await import("@/lib/driver-push");
-      await notifyDriverReservationAssigned(bookingId, driverId);
-    }
-
     if (!result.ok) {
       if (result.reason === "busy") {
         return NextResponse.json(
@@ -51,8 +40,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    await revokeOffersForBooking(bookingId, driverId);
+
+    // Driver-facing notify first (SSE + push) — don't wait on customer push
+    const { notifyDriverOfManualAssignment } = await import("@/lib/live-auto");
+    const { notifyDriverReservationAssigned } = await import("@/lib/driver-push");
+    await Promise.all([
+      notifyDriverOfManualAssignment(bookingId, driverId),
+      notifyDriverReservationAssigned(bookingId, driverId),
+      publishReservationFromDb(bookingId, "driver_assigned"),
+    ]);
+
+    void import("@/lib/customer-push")
+      .then(({ notifyCustomerDriverAssigned }) => notifyCustomerDriverAssigned(bookingId))
+      .catch((err) => console.error("[assign] customer notify", err));
+
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Assign driver error:", error);
     return NextResponse.json(
       { success: false, error: "Failed to assign driver" },

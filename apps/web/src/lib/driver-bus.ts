@@ -1,8 +1,8 @@
-import { EventEmitter } from "node:events";
+import { publishCrossBus, subscribeCrossBus } from "@/lib/cross-process-bus";
 
 /**
- * In-process pub/sub for driver Live Auto Mode offers.
- * Scope: single Node process (same constraint as realtime-bus / chat-bus).
+ * Pub/sub for driver Live Auto Mode offers.
+ * Local + Postgres LISTEN/NOTIFY (multi-process safe).
  */
 
 export type DriverOfferEventType =
@@ -47,39 +47,28 @@ export interface DriverOfferEvent {
 
 type Listener = (event: DriverOfferEvent) => void;
 
-declare global {
-  // eslint-disable-next-line no-var
-  var __sarjDriverBus: EventEmitter | undefined;
-}
-
-const emitter: EventEmitter =
-  globalThis.__sarjDriverBus ??
-  (globalThis.__sarjDriverBus = (() => {
-    const e = new EventEmitter();
-    e.setMaxListeners(0);
-    return e;
-  })());
-
 const driverChannel = (driverId: string) => `driver:${driverId}`;
 const OPS_CHANNEL = "ops:live-auto";
 
 export function subscribeDriver(driverId: string, listener: Listener): () => void {
-  emitter.on(driverChannel(driverId), listener);
-  return () => emitter.off(driverChannel(driverId), listener);
+  return subscribeCrossBus("driver", driverChannel(driverId), (payload) => {
+    listener(payload as DriverOfferEvent);
+  });
 }
 
 export function publishDriver(driverId: string, event: DriverOfferEvent): void {
-  emitter.emit(driverChannel(driverId), event);
+  publishCrossBus("driver", driverChannel(driverId), event);
 }
 
 /** Admin Live Auto dashboard — all offer lifecycle events. */
 export function subscribeOpsLiveAuto(listener: Listener): () => void {
-  emitter.on(OPS_CHANNEL, listener);
-  return () => emitter.off(OPS_CHANNEL, listener);
+  return subscribeCrossBus("driver", OPS_CHANNEL, (payload) => {
+    listener(payload as DriverOfferEvent);
+  });
 }
 
 export function publishOpsLiveAuto(event: DriverOfferEvent): void {
-  emitter.emit(OPS_CHANNEL, event);
+  publishCrossBus("driver", OPS_CHANNEL, event);
 }
 
 export function publishDriverMany(driverIds: string[], event: DriverOfferEvent): void {
