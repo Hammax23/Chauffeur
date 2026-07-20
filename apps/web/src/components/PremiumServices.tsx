@@ -34,12 +34,12 @@ export default function PremiumServices() {
             const IconComponent = LucideIcons[service.icon as keyof typeof LucideIcons] as React.ElementType;
 
             const serviceImages: Record<string, string> = {
-              "airport-transfers": "/heropics/airportTransfers.png",
-              "corporate-travel": "/heropics/buisnesstravel.png",
-              "point-to-point-transfers": "/cities.jpeg",
-              "hourly-chauffeur": "/heropics/hourlyasdirected.png",
-              "wedding-events": "/heropics/weddingsandevent.png",
-              "meet-greet": "/heropics/airport1.jpeg",
+              "airport-transfers": "/heropics/airport2.png",
+              "corporate-travel": "/corporate-section-1.jpg",
+              "point-to-point-transfers": "/p2p-section-1.jpg",
+              "hourly-chauffeur": "/hourly-section-1.jpg",
+              "wedding-events": "/wedding-section-1.jpg",
+              "meet-greet": "/meetgreet-section-1.jpg",
             };
             const imageUrl = serviceImages[service.slug] || "/cities.jpeg";
 

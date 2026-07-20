@@ -412,79 +412,81 @@ export default function CityFAQSection({ name, slug }: CityFAQSectionProps) {
     <section className="relative bg-white overflow-hidden">
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-px bg-gradient-to-r from-transparent via-[#C9A063]/25 to-transparent" />
 
-      <div className="max-w-[1250px] mx-auto px-6 sm:px-8 md:px-12">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-12 md:gap-16 items-start">
-          {/* Left — intro */}
-          <div className="lg:sticky lg:top-28">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-gray-200 bg-[#fafafa] mb-4">
-              <HelpCircle className="w-3.5 h-3.5 text-[#C9A063]" strokeWidth={2} />
-              <span className="text-gray-800 text-[11px] sm:text-[12px] font-medium tracking-widest uppercase">
-                GOOD TO KNOW
-              </span>
+      <div className="max-w-[1250px] mx-auto px-6 sm:px-8 md:px-12 mb-16">
+        <div className="w-full bg-white rounded-3xl border border-gray-100 p-8 md:p-12 shadow-sm">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-12 md:gap-16 items-start">
+            {/* Left — intro */}
+            <div className="lg:sticky lg:top-28">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-gray-200 bg-[#fafafa] mb-4">
+                <HelpCircle className="w-3.5 h-3.5 text-[#C9A063]" strokeWidth={2} />
+                <span className="text-gray-800 text-[11px] sm:text-[12px] font-medium tracking-widest uppercase">
+                  GOOD TO KNOW
+                </span>
+              </div>
+
+              <h2 className="text-[#1a2b3c] text-2xl sm:text-3xl md:text-[32px] font-bold tracking-tight mb-3 leading-tight lg:whitespace-nowrap">
+                Frequently Asked Questions
+              </h2>
+
+              <p className="text-gray-500 text-[14px] sm:text-[15px] leading-relaxed mb-6 max-w-md">
+                Find quick answers to common questions about our {name} service. Need more help? Our 24/7 support team is always available.
+              </p>
+
+              <Link
+                href="/contact"
+                className="group inline-flex items-center gap-2 text-[#C9A063] font-semibold text-[14px] hover:text-[#B8935A] transition-colors"
+              >
+                Contact our team
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" strokeWidth={2} />
+              </Link>
             </div>
 
-            <h2 className="text-[#1a2b3c] text-2xl sm:text-3xl md:text-[32px] font-bold tracking-tight mb-3 leading-tight">
-              Frequently Asked Questions
-            </h2>
-
-            <p className="text-gray-500 text-[14px] sm:text-[15px] leading-relaxed mb-6 max-w-md">
-              Find quick answers to common questions about our {name} service. Need more help? Our 24/7 support team is always available.
-            </p>
-
-            <Link
-              href="/contact"
-              className="group inline-flex items-center gap-2 text-[#C9A063] font-semibold text-[14px] hover:text-[#B8935A] transition-colors"
-            >
-              Contact our team
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" strokeWidth={2} />
-            </Link>
-          </div>
-
-          {/* Right — accordion */}
-          <div className="space-y-3">
-            {faqs.map((faq, index) => {
-              const isOpen = openIndex === index;
-              return (
-                <div
-                  key={index}
-                  className={`rounded-xl border transition-all duration-300 ${isOpen
-                    ? "border-[#C9A063]/35 bg-[#fafafa] shadow-sm shadow-[#C9A063]/5"
-                    : "border-gray-100 bg-white hover:border-gray-200"
-                    }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => toggle(index)}
-                    className="w-full flex items-start justify-between gap-4 px-5 py-4 sm:px-6 sm:py-4.5 text-left"
-                    aria-expanded={isOpen}
-                  >
-                    <span
-                      className={`text-[14px] sm:text-[15px] font-semibold leading-snug transition-colors ${isOpen ? "text-[#1a2b3c]" : "text-gray-800"
-                        }`}
-                    >
-                      {faq.question}
-                    </span>
-                    <span
-                      className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 ${isOpen ? "bg-[#C9A063] text-white rotate-180" : "bg-gray-100 text-gray-500"
-                        }`}
-                    >
-                      <ChevronDown className="w-4 h-4" strokeWidth={2.5} />
-                    </span>
-                  </button>
-
+            {/* Right — accordion */}
+            <div className="space-y-3">
+              {faqs.map((faq, index) => {
+                const isOpen = openIndex === index;
+                return (
                   <div
-                    className={`grid transition-all duration-300 ease-in-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                    key={index}
+                    className={`rounded-xl border transition-all duration-300 ${isOpen
+                      ? "border-[#C9A063]/35 bg-[#fafafa] shadow-sm shadow-[#C9A063]/5"
+                      : "border-gray-100 bg-white hover:border-gray-200"
                       }`}
                   >
-                    <div className="overflow-hidden">
-                      <p className="px-5 sm:px-6 pb-4 sm:pb-5 text-gray-500 text-[13px] sm:text-[14px] leading-relaxed border-t border-gray-100/80 pt-3.5">
-                        {faq.answer}
-                      </p>
+                    <button
+                      type="button"
+                      onClick={() => toggle(index)}
+                      className="w-full flex items-start justify-between gap-4 px-5 py-4 sm:px-6 sm:py-4.5 text-left"
+                      aria-expanded={isOpen}
+                    >
+                      <span
+                        className={`text-[14px] sm:text-[15px] font-semibold leading-snug transition-colors ${isOpen ? "text-[#1a2b3c]" : "text-gray-800"
+                          }`}
+                      >
+                        {faq.question}
+                      </span>
+                      <span
+                        className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 ${isOpen ? "bg-[#C9A063] text-white rotate-180" : "bg-gray-100 text-gray-500"
+                          }`}
+                      >
+                        <ChevronDown className="w-4 h-4" strokeWidth={2.5} />
+                      </span>
+                    </button>
+
+                    <div
+                      className={`grid transition-all duration-300 ease-in-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                        }`}
+                    >
+                      <div className="overflow-hidden">
+                        <p className="px-5 sm:px-6 pb-4 sm:pb-5 text-gray-500 text-[13px] sm:text-[14px] leading-relaxed border-t border-gray-100/80 pt-3.5">
+                          {faq.answer}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

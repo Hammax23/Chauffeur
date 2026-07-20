@@ -158,38 +158,6 @@ export const services: Service[] = [
     ],
     icon: "Car",
   },
-  {
-    slug: "luxury-fleet",
-    title: "Luxury Fleet Options",
-    shortDesc: "Mercedes, BMW, Range Rover, Cadillac & limousines—curated for every occasion",
-    description:
-      "Choose from our meticulously maintained fleet of luxury vehicles. From sleek Mercedes-Benz and BMW sedans to robust Range Rovers, Cadillacs, and limousines—each model is selected for comfort, style, and reliability. Whether you need an executive sedan for a meeting, an SUV for a family trip, or a limousine for a celebration, we match the right vehicle to your occasion. Complimentary amenities and optional child seats ensure every passenger travels in comfort.",
-    features: [
-      "Sedans, SUVs, limousines & people carriers",
-      "Mercedes-Benz, BMW, Range Rover, Cadillac & more",
-      "Rigorous maintenance & hygiene standards",
-      "Complimentary bottled water & WiFi",
-      "Child seats & accessibility options on request",
-      "Tailored to group size and occasion",
-    ],
-    icon: "CarFront",
-  },
-  {
-    slug: "premium-services",
-    title: "Premium Services",
-    shortDesc: "WiFi, refreshments, child seats & 24/7 concierge—every detail covered",
-    description:
-      "Elevate every journey with our premium add-ons and round-the-clock concierge support. In-car WiFi and charging keep you connected; bottled water and light refreshments add a touch of comfort. Child seats, extra luggage capacity, and special requests are accommodated wherever possible. Our 24/7 support line is there for bookings, changes, and assistance—so you can travel with complete peace of mind, every time.",
-    features: [
-      "In-car WiFi & USB charging points",
-      "Bottled water & light refreshments",
-      "Child seats & booster seats on request",
-      "24/7 concierge support for bookings & changes",
-      "Special requests considered—just ask",
-      "Consistent luxury across every ride",
-    ],
-    icon: "PhoneCall",
-  },
 ];
 
 export function getServiceBySlug(slug: string): Service | undefined {

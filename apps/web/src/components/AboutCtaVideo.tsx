@@ -14,7 +14,7 @@ export default function AboutCtaVideo() {
   }, []);
 
   return (
-    <section className="py-14 sm:py-16 md:py-20">
+    <section className="py-10 sm:py-12 md:py-16">
       <div className="max-w-[1100px] mx-auto px-6 sm:px-8 md:px-12">
         <div className="relative rounded-2xl overflow-hidden border border-[#C9A063]/25 shadow-xl shadow-gray-200/50 min-h-[380px]">
           <video

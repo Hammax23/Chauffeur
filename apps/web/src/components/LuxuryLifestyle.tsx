@@ -58,7 +58,7 @@ const features = [
 
 export default function LuxuryLifestyle() {
   return (
-    <section className="py-16 sm:py-20 md:py-24 bg-gradient-to-b from-gray-50 to-white">
+    <section className="py-10 sm:py-12 md:py-16 bg-gradient-to-b from-gray-50 to-white">
       <div className="max-w-[1100px] mx-auto px-6 sm:px-8 md:px-12">
         <div className="text-center mb-12 sm:mb-16">
           <h2 className="text-gray-900 text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-4 uppercase">

@@ -47,7 +47,7 @@ export default async function FleetPage() {
 
           {/* Description */}
           <p className="text-gray-300 text-sm sm:text-base md:text-lg max-w-4xl mx-auto leading-relaxed font-light mb-10">
-            From executive sedans to premium SUVs and vans—each vehicle is maintained to the
+            From executive sedans to premium SUVs and vans, each vehicle is maintained to the
             highest standards and ready to elevate your journey.
           </p>
 

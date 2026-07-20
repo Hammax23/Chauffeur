@@ -108,7 +108,7 @@ export default function BlogListing({ articles, categoryCounts }: BlogListingPro
 
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white tracking-tight mb-6">
             Insights for the
-            <span className="block mt-1 bg-gradient-to-r from-[#C9A063] via-[#E8C98A] to-[#C9A063] bg-clip-text text-transparent">
+            <span className="block mt-1 pb-2 bg-gradient-to-r from-[#C9A063] via-[#E8C98A] to-[#C9A063] bg-clip-text text-transparent">
               Discerning Traveller
             </span>
           </h1>
@@ -315,7 +315,7 @@ export default function BlogListing({ articles, categoryCounts }: BlogListingPro
                 Experience luxury chauffeur travel
               </h2>
               <p className="text-gray-600 text-[15px] sm:text-[16px] max-w-2xl mx-auto mb-8 leading-relaxed">
-                From airport transfers to corporate events and weddings — SARJ Worldwide delivers elegance, reliability, and world-class service on every journey.
+                From airport transfers to corporate events and weddings, SARJ Worldwide delivers elegance, reliability, and world-class service on every journey.
               </p>
               <div className="flex flex-wrap items-center justify-center gap-4">
                 <Link href="/reservation" className="group inline-flex items-center justify-center gap-2 px-10 py-4 rounded-full bg-[#C9A063] text-white font-semibold shadow-lg shadow-[#C9A063]/25 hover:bg-[#B8935A] active:scale-[0.98] transition-all duration-200">

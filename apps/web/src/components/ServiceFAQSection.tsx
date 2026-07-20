@@ -305,8 +305,8 @@ export default function ServiceFAQSection({ slug, title }: ServiceFAQSectionProp
               </span>
             </div>
 
-            <h2 className="text-[#1a2b3c] text-2xl sm:text-3xl md:text-[32px] font-bold tracking-tight mb-3 leading-tight">
-              {title} FAQ
+            <h2 className="text-[#1a2b3c] text-2xl sm:text-3xl md:text-[32px] font-bold tracking-tight mb-3 leading-tight lg:whitespace-nowrap">
+              Frequently Asked Questions
             </h2>
 
             <p className="text-gray-500 text-[14px] sm:text-[15px] leading-relaxed mb-6 max-w-md">

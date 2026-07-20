@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Instagram, Facebook, Linkedin, Phone, Mail, MapPin } from 'lucide-react';
 import { services as staticServices } from "@/data/services";
 
-const HIDDEN_SLUGS = ["vip-transport", "intercity-travel", "luxury-fleet", "premium-services"];
+const HIDDEN_SLUGS = ["vip-transport", "intercity-travel"];
 
 const footerLinkClass =
   "group inline-flex items-center gap-2 text-gray-400 text-[13px] font-light hover:text-[#C9A063] transition-all duration-300";

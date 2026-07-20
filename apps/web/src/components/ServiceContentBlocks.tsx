@@ -25,8 +25,8 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
           "Getting to Toronto Pearson shouldn't mean guessing when your ride will show up. Our airport transportation is built around your actual flight, not a fixed time slot: we track your arrival or departure and adjust pickup automatically for delays. Every trip includes a private vehicle and a professional chauffeur who handles the drive, parking, and route.",
           <>Looking for the best car service to Pearson Airport? Our <Link href="/cities-we-serve/mississauga" className="text-[#C9A063] font-semibold hover:underline">private airport transfer service in Mississauga</Link> and <Link href="/cities-we-serve/oakville" className="text-[#C9A063] font-semibold hover:underline">Toronto airport limo service in Oakville</Link> connect directly with Pearson for both arrivals and departures.</>
         ],
-        buttonText: "Book Now",
-        buttonLink: "/reservation",
+        buttonText: "Contact Us",
+        buttonLink: "/contact",
         image: "/heropics/airport2.png",
         imagePosition: "right" as const
       },
@@ -52,9 +52,9 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
           "A corporate traveler needs more than just a ride, they need consistency: the same standard of pickup, the same professional presentation, and a chauffeur who treats the schedule as fixed. Our corporate travel service is built for exactly that, with one point of contact handling pickups, waiting time, and multi-stop days without last-minute changes.",
           <>For companies in the city, our <Link href="/cities-we-serve/toronto-pearson" className="text-[#C9A063] font-semibold hover:underline">corporate limo service Toronto</Link> covers everything from a single airport pickup to a full day moving between offices and meetings.</>
         ],
-        buttonText: "Book Now",
-        buttonLink: "/reservation",
-        image: "/heropics/buisnesstravel.png",
+        buttonText: "Contact Us",
+        buttonLink: "/contact",
+        image: "/corporate-section-1.jpg",
         imagePosition: "right" as const
       },
       {
@@ -65,7 +65,7 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
         ],
         buttonText: "",
         buttonLink: "",
-        image: "/heropics/bussinuss.jpg",
+        image: "/corporate-section-2.jpg",
         imagePosition: "left" as const
       }
     ];
@@ -78,9 +78,9 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
           "Point-to-point is the simplest way to book a private ride: one pickup, one destination, nothing added on. It's different from an hourly booking, where the vehicle stays with you for a set period, and different from a multi-stop corporate itinerary. You tell us where you're starting and where you're going, and the trip is confirmed at a fixed rate in advance.",
           <>This is one of the most requested trips for our <Link href="/cities-we-serve/toronto-pearson" className="text-[#C9A063] font-semibold hover:underline">point to point service in Toronto</Link>, where a direct transfer to Pearson Airport is often all that&apos;s needed.</>
         ],
-        buttonText: "Book Now",
-        buttonLink: "/reservation",
-        image: "/heropics/hourlyasdirected.png",
+        buttonText: "Contact Us",
+        buttonLink: "/contact",
+        image: "/p2p-section-1.jpg",
         imagePosition: "right" as const
       },
       {
@@ -91,7 +91,7 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
         ],
         buttonText: "",
         buttonLink: "",
-        image: "/heropics/airportTransfers.png",
+        image: "/p2p-section-2.jpg",
         imagePosition: "left" as const
       }
     ];
@@ -103,9 +103,9 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
         paragraphs: [
           "Some days don't fit into a single trip. Hourly car service keeps your chauffeur and vehicle on call for a set block of time, so you can make several stops, run errands, attend back-to-back meetings, or simply have someone waiting outside while you're at dinner. It's the difference between booking a ride and booking a chauffeur for the day: one covers a single destination, the other stays with you until you're done."
         ],
-        buttonText: "Book Now",
-        buttonLink: "/reservation",
-        image: "/heropics/hourlyasdirected.png",
+        buttonText: "Contact Us",
+        buttonLink: "/contact",
+        image: "/hourly-section-1.jpg",
         imagePosition: "right" as const
       },
       {
@@ -116,7 +116,7 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
         ],
         buttonText: "",
         buttonLink: "",
-        image: "/heropics/weddingsandevent.png",
+        image: "/hourly-section-2.jpg",
         imagePosition: "left" as const
       }
     ];
@@ -129,9 +129,9 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
           "A wedding day rarely stays in one place. Our wedding car rentals are built around the full schedule, from picking up the wedding party before the ceremony to photos afterward and the drive to the reception, with return trips arranged for later in the evening. Every chauffeur is licensed, background-checked, and covered by commercial insurance, with punctual arrival guaranteed for every stop.",
           <>This is one of our most requested bookings for <Link href="/cities-we-serve/mississauga" className="text-[#C9A063] font-semibold hover:underline">wedding limo service in Mississauga</Link>, where couples often need transport across several venues in one afternoon.</>
         ],
-        buttonText: "Book Now",
-        buttonLink: "/reservation",
-        image: "/heropics/wed.jpeg",
+        buttonText: "Contact Us",
+        buttonLink: "/contact",
+        image: "/wedding-section-1.jpg",
         imagePosition: "right" as const
       },
       {
@@ -142,7 +142,7 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
         ],
         buttonText: "",
         buttonLink: "",
-        image: "/heropics/weddingsandevent.png",
+        image: "/wedding-section-2.jpg",
         imagePosition: "left" as const
       }
     ];
@@ -155,9 +155,9 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
           "Stepping off a long flight is easier when someone is already waiting, not circling the pickup zone outside. Our chauffeurs track your flight in real time, meet you at the gate, help with luggage, and walk you directly to a private vehicle. Delays don't leave anyone standing around, since pickup adjusts to your actual landing time, not a fixed schedule.",
           <>One of our most requested arrivals is our <Link href="/cities-we-serve/toronto-pearson" className="text-[#C9A063] font-semibold hover:underline">Toronto meet and greet service</Link>, where travelers benefit from having someone handle the walk from gate to car.</>
         ],
-        buttonText: "Book Now",
-        buttonLink: "/reservation",
-        image: "/heropics/airport1.jpeg",
+        buttonText: "Contact Us",
+        buttonLink: "/contact",
+        image: "/meetgreet-section-1.jpg",
         imagePosition: "right" as const
       },
       {
@@ -169,7 +169,7 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
         ],
         buttonText: "",
         buttonLink: "",
-        image: "/heropics/airport2.png",
+        image: "/meetgreet-section-2.jpg",
         imagePosition: "left" as const
       }
     ];
@@ -182,9 +182,9 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
           <>Need <Link href="/cities-we-serve/toronto-pearson" className="text-[#C9A063] font-semibold hover:underline">private VIP transportation in Toronto</Link>? SARJ Worldwide provides professionally coordinated journeys for airport arrivals, executive meetings, hotels, events, and private occasions. Clients can book private chauffeur transportation across Toronto for travel between downtown Toronto, Toronto Pearson International Airport, corporate offices, residences, and venues.</>,
           "Each booking is planned around pickup times, flight schedules, passenger numbers, luggage, and vehicle preferences. Luxury sedans, SUVs, executive vans, and professional chauffeurs support discreet, punctual, door-to-door travel for individuals, corporate guests, and high-profile passengers alike."
         ],
-        buttonText: "Book Now",
-        buttonLink: "/reservation",
-        image: "/heropics/buisnesstravel.png",
+        buttonText: "Contact Us",
+        buttonLink: "/contact",
+        image: "/vip-section-1.jpg",
         imagePosition: "right" as const
       },
       {
@@ -196,7 +196,7 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
         ],
         buttonText: "",
         buttonLink: "",
-        image: "/heropics/bussinuss.jpg",
+        image: "/vip-section-2.jpg",
         imagePosition: "left" as const
       }
     ];
@@ -211,7 +211,7 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
         ],
         buttonText: "Contact Us",
         buttonLink: "/contact",
-        image: "/heropics/buisnesstravel.png",
+        image: "/longdistance-section-1.jpg",
         imagePosition: "right" as const
       },
       {
@@ -223,7 +223,7 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
         ],
         buttonText: "",
         buttonLink: "",
-        image: "/heropics/airportTransfers.png",
+        image: "/longdistance-section-2.jpg",
         imagePosition: "left" as const
       }
     ];
@@ -236,8 +236,8 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
           service.description,
           "Whether you are traveling for business or leisure, our fleet of luxury vehicles and professional chauffeurs ensure your journey is nothing short of exceptional. We pride ourselves on punctuality, discretion, and personalized service tailored to your unique requirements. Experience the peace of mind that comes with knowing every detail of your transportation has been expertly managed by our dedicated team."
         ],
-        buttonText: `Book Your ${service.title} Now`,
-        buttonLink: "/reservation",
+        buttonText: "Contact Us",
+        buttonLink: "/contact",
         image: service.slug === 'hourly-chauffeur' ? '/heropics/hourlyasdirected.png' :
           service.slug === 'wedding-events' ? '/heropics/wed.jpeg' :
             '/heropics/buisnesstravel.png',
@@ -262,22 +262,22 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
     <div className="w-full bg-white space-y-14 md:space-y-20">
       {blocks.map((block, idx) => (
         <div key={idx} className="max-w-[1250px] mx-auto px-6 sm:px-8 md:px-12">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 md:gap-16 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 md:gap-16 lg:items-stretch items-center">
 
             {/* Image Box */}
-            <div className={`relative h-[280px] sm:h-[400px] lg:h-[550px] rounded-[32px] overflow-hidden shadow-sm border border-gray-100 order-1 ${block.imagePosition === 'left' ? 'lg:order-1' : 'lg:order-2'}`}>
+            <div className={`relative h-[300px] sm:h-[400px] lg:h-auto rounded-[32px] overflow-hidden shadow-sm border border-gray-100 order-1 ${block.imagePosition === 'left' ? 'lg:order-1' : 'lg:order-2'}`}>
               <Image
                 src={block.image}
-                alt={block.titleBlack}
+                alt={`${block.titleBlack} ${block.titleGold}`.replace(/\s+/g, ' ').trim()}
                 fill
                 className="object-cover"
               />
             </div>
 
             {/* Text Box */}
-            <div className={`flex flex-col order-2 ${block.imagePosition === 'left' ? 'lg:order-2' : 'lg:order-1'}`}>
-              <h2 className="text-[32px] sm:text-[40px] md:text-[44px] font-bold text-gray-900 leading-[1.15] tracking-tight mb-8">
-                {block.titleBlack} <span className="text-[#a88235]">{block.titleGold}</span>
+            <div className={`flex flex-col justify-center py-2 lg:py-6 order-2 ${block.imagePosition === 'left' ? 'lg:order-2' : 'lg:order-1'}`}>
+              <h2 className="text-[32px] sm:text-[40px] md:text-[44px] font-extrabold text-gray-900 leading-[1.15] tracking-tight mb-8">
+                {block.titleBlack} <span className="text-[#C9A063]">{block.titleGold}</span>
               </h2>
 
               <div className="space-y-6 text-gray-700 text-[16px] sm:text-[17px] leading-[1.8] font-normal mb-10">

@@ -10,9 +10,9 @@ import 'react-datepicker/dist/react-datepicker.css';
 
 const heroServices = [
   { title: "Airport Transfers", href: "/services/airport-transfers", image: "/heropics/airport2.png" },
-  { title: "Corporate Travel", href: "/services/corporate-travel", image: "/heropics/buisnesstravel.png" },
-  { title: "Wedding & Events", href: "/services/wedding-events", image: "/heropics/wed.jpeg" },
-  { title: "Hourly Chauffeur", href: "/services/hourly-chauffeur", image: "/heropics/hourlyasdirected.png" },
+  { title: "Corporate Travel", href: "/services/corporate-travel", image: "/corporate-section-1.jpg" },
+  { title: "Wedding & Events", href: "/services/wedding-events", image: "/wedding-section-1.jpg" },
+  { title: "Hourly Chauffeur", href: "/services/hourly-chauffeur", image: "/hourly-section-1.jpg" },
 ];
 
 const HeroSection = () => {
@@ -274,23 +274,23 @@ const HeroSection = () => {
 
         {/* Mobile Service Cards - Bottom */}
         <div className="lg:hidden w-full px-4 pb-8">
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             {heroServices.map((service, index) => (
               <Link
                 key={index}
                 href={service.href}
-                className="group relative aspect-square overflow-hidden rounded-lg bg-black/30 backdrop-blur-sm border border-white/20"
+                className="group relative aspect-[4/3] sm:aspect-[16/9] overflow-hidden rounded-xl bg-black/40 backdrop-blur-md border border-white/10 shadow-lg"
               >
                 <Image
                   src={service.image}
                   alt={service.title}
                   fill
-                  sizes="(max-width: 640px) 22vw, 100px"
-                  className="object-contain p-1 opacity-80 group-hover:opacity-100 transition-all duration-300"
+                  sizes="(max-width: 640px) 50vw, 30vw"
+                  className="object-cover opacity-80 group-hover:opacity-100 transition-all duration-300"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-                <div className="absolute bottom-0 left-0 right-0 p-1.5">
-                  <h3 className="text-white text-[8px] sm:text-[9px] font-semibold uppercase text-center leading-tight">
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 flex items-end">
+                  <h3 className="text-white text-[11px] sm:text-[13px] font-bold tracking-wide uppercase leading-tight group-hover:text-[#C9A063] transition-colors">
                     {service.title}
                   </h3>
                 </div>

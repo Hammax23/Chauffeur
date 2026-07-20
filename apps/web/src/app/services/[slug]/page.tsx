@@ -67,9 +67,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 const heroImageMap: Record<string, string> = {
   "airport-transfers": "/heropics/airport2.png",
-  "corporate-travel": "/heropics/buisnesstravel.png",
-  "hourly-chauffeur": "/heropics/hourlyasdirected.png",
-  "wedding-events": "/heropics/wed.jpeg",
+  "corporate-travel": "/corporate-section-1.jpg",
+  "point-to-point-transfers": "/p2p-section-1.jpg",
+  "hourly-chauffeur": "/hourly-section-1.jpg",
+  "wedding-events": "/wedding-section-1.jpg",
+  "meet-greet": "/meetgreet-section-1.jpg",
+  "vip-transport": "/vip-section-1.jpg",
+  "intercity-travel": "/longdistance-section-1.jpg",
 };
 
 export default async function ServicePage({ params }: Props) {
@@ -149,10 +153,10 @@ export default async function ServicePage({ params }: Props) {
             {/* CTA Buttons */}
             <div className="flex flex-wrap justify-center items-center gap-4 mt-8">
               <Link
-                href="/reservation"
+                href="/contact"
                 className="inline-flex items-center justify-center px-8 py-3.5 bg-[#C9A063] text-black text-[13px] font-bold uppercase tracking-[0.1em] rounded-md hover:bg-[#B8935A] transition-all duration-300 shadow-[0_0_20px_rgba(201,160,99,0.3)] hover:shadow-[0_0_30px_rgba(201,160,99,0.5)]"
               >
-                Book Now
+                Contact Us
               </Link>
               <a
                 href="tel:4168935779"
@@ -191,26 +195,27 @@ export default async function ServicePage({ params }: Props) {
                   Airport transportation,<br className="hidden sm:block" /> wherever you fly
                 </h2>
                 <p className="text-[#9ca3af] text-[15px] sm:text-[17px] leading-relaxed max-w-2xl mx-auto">
-                  One trusted provider for every airport run — flat fares, professional chauffeurs and reliable scheduling from anywhere in Oakville and Halton.
+                  One trusted provider for every airport run, flat fares, professional chauffeurs and reliable scheduling from anywhere in Oakville and Halton.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
                 {[
-                  { code: 'YYZ', name: 'Toronto Pearson Intl', desc: 'Approx. 30-40 min via the QEW' },
-                  { code: 'YTZ', name: 'Billy Bishop City', desc: 'Downtown Toronto island airport' },
-                  { code: 'YHM', name: 'Hamilton Intl', desc: 'Approx. 25 min via QEW & 403' },
-                  { code: 'BUF', name: 'Buffalo Niagara Intl', desc: 'Cross-border transfers, USA' },
-                  { code: 'YKF', name: 'Region of Waterloo Intl', desc: 'Kitchener-Waterloo regional' },
-                  { code: 'YXU', name: 'London Intl', desc: 'Plus Ottawa & Windsor on request' },
+                  { code: 'YYZ', name: 'Toronto Pearson Intl', desc: "Canada's busiest international gateway", slug: 'toronto-pearson' },
+                  { code: 'YUL', name: 'Montreal-Trudeau Intl', desc: 'Direct transfers to Montreal, Quebec', slug: 'montreal' },
+                  { code: 'YHM', name: 'Hamilton Intl', desc: 'Convenient regional airport transfers', slug: 'hamilton' },
+                  { code: 'BUF', name: 'Buffalo Niagara Intl', desc: 'Cross-border airport transfers, USA', slug: 'niagara-buffalo' },
+                  { code: 'YOW', name: 'Ottawa Intl', desc: "Private transfers to Canada's Capital", slug: 'ottawa' },
+                  { code: 'YXU', name: 'London Intl', desc: 'Reliable Southwestern Ontario transfers', slug: 'london' },
                 ].map((airport) => (
-                  <div 
-                    key={airport.code} 
+                  <Link
+                    href={`/cities-we-serve/${airport.slug}`}
+                    key={airport.code}
                     className="group relative bg-white/5 backdrop-blur-md border border-white/10 hover:border-[#c8a165]/50 hover:bg-white/10 rounded-2xl overflow-hidden transition-all duration-500 ease-out hover:-translate-y-1 hover:shadow-xl hover:shadow-[#c8a165]/10 flex items-stretch h-[120px] sm:h-[140px]"
                   >
                     {/* Golden edge indicator */}
                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-[#c8a165]/0 via-[#c8a165]/80 to-[#c8a165]/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                    
+
                     {/* Airport Code Block */}
                     <div className="w-[100px] sm:w-[130px] bg-black/40 border-r border-white/10 flex flex-col items-center justify-center shrink-0 p-4 relative overflow-hidden">
                       <div className="absolute inset-0 bg-gradient-to-br from-[#c8a165]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
@@ -224,11 +229,11 @@ export default async function ServicePage({ params }: Props) {
                       <div className="absolute right-6 top-1/2 -translate-y-1/2 opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-500 ease-out">
                         <ArrowRight className="w-5 h-5 text-[#c8a165]" />
                       </div>
-                      
+
                       <div className="text-white font-medium text-[16px] sm:text-[18px] mb-1.5 group-hover:text-[#c8a165] transition-colors duration-300 pr-8">{airport.name}</div>
                       <div className="text-gray-400 text-[13px] sm:text-[14px] leading-snug pr-8 group-hover:text-gray-300 transition-colors duration-300">{airport.desc}</div>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>

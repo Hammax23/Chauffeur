@@ -81,7 +81,7 @@ export default function ServicesNavDropdown({
     >
       <button
         type="button"
-        className={`inline-flex items-center gap-1 px-3 xl:px-4 py-2.5 text-[14px] xl:text-[15px] font-normal rounded-xl transition-all duration-300 whitespace-nowrap ${
+        className={`inline-flex items-center gap-1 px-5 py-2.5 text-[16px] font-normal rounded-xl transition-all duration-300 whitespace-nowrap ${
           open
             ? "text-[#C9A063] bg-white/5"
             : "text-white/90 hover:text-[#C9A063] hover:bg-white/5"

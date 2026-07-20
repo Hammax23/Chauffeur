@@ -46,7 +46,7 @@ export default function AboutPage() {
               Where Luxury Meets Reliability
             </h1>
             <p className="text-gray-600 text-[15px] sm:text-[17px] md:text-[18px] max-w-2xl mx-auto leading-relaxed font-light">
-              We&apos;re more than a chauffeur service—we craft experiences that match your lifestyle
+              We&apos;re more than a chauffeur service, we craft experiences that match your lifestyle
               and exceed your expectations.
             </p>
           </div>
@@ -55,19 +55,19 @@ export default function AboutPage() {
 
       {/* Stats bar */}
       <section className="relative -mt-4 sm:-mt-6 z-20">
-        <div className="max-w-[1100px] mx-auto px-6 sm:px-8 md:px-12">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        <div className="max-w-[1250px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-4 xl:gap-6">
             {stats.map(({ value, label, icon: Icon }) => (
               <div
                 key={label}
-                className="group flex flex-col items-center sm:flex-row sm:items-center gap-3 sm:gap-4 p-5 sm:p-6 rounded-2xl bg-white border border-gray-100 shadow-md shadow-gray-200/50 hover:shadow-xl hover:shadow-[#C9A063]/10 hover:border-[#C9A063]/30 transition-all duration-300"
+                className="group flex flex-col items-center sm:flex-row sm:items-center gap-3 lg:gap-3 xl:gap-4 p-4 lg:p-4 xl:p-6 rounded-2xl bg-white border border-gray-100 shadow-md shadow-gray-200/50 hover:shadow-xl hover:shadow-[#C9A063]/10 hover:border-[#C9A063]/30 transition-all duration-300"
               >
-                <div className="w-12 h-12 rounded-xl bg-[#f2f2f7] flex items-center justify-center flex-shrink-0 shadow-sm group-hover:scale-110 transition-transform duration-300">
-                  <Icon className="w-6 h-6 text-[#C9A063]" strokeWidth={1.5} />
+                <div className="w-10 h-10 lg:w-10 lg:h-10 xl:w-12 xl:h-12 rounded-xl bg-[#f2f2f7] flex items-center justify-center flex-shrink-0 shadow-sm group-hover:scale-110 transition-transform duration-300">
+                  <Icon className="w-5 h-5 lg:w-5 lg:h-5 xl:w-6 xl:h-6 text-[#C9A063]" strokeWidth={1.5} />
                 </div>
-                <div className="text-center sm:text-left">
-                  <p className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">{value}</p>
-                  <p className="text-[13px] sm:text-[14px] text-gray-600 font-light">{label}</p>
+                <div className="text-center sm:text-left min-w-0">
+                  <p className="text-lg sm:text-xl lg:text-xl xl:text-2xl 2xl:text-3xl font-bold text-gray-900 tracking-tight whitespace-nowrap">{value}</p>
+                  <p className="text-[11px] sm:text-[13px] lg:text-[12px] xl:text-[14px] text-gray-600 font-light mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis">{label}</p>
                 </div>
               </div>
             ))}
@@ -76,23 +76,24 @@ export default function AboutPage() {
       </section>
 
       {/* Story + Image */}
-      <section className="py-14 sm:py-16 md:py-20">
+      <section className="py-10 sm:py-12 md:py-16">
         <div className="max-w-[1100px] mx-auto px-6 sm:px-8 md:px-12">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
             <div className="pl-6 border-l-4 border-[#C9A063] rounded-l">
               <span className="inline-block text-[12px] sm:text-[13px] font-bold tracking-[0.2em] uppercase text-[#C9A063] mb-4">
                 Our Story
               </span>
-                <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight mb-5">
-                  Built on a belief that every journey deserves to be exceptional
-                </h2>
-              <p className="text-gray-600 text-[15px] sm:text-[16px] leading-relaxed">
-                SARJ Worldwide was founded on a simple idea: whether you&apos;re heading to the airport, a
-                critical business meeting, or your wedding, you deserve luxury chauffeur services
-                that combine elegance, punctuality, and discretion. Our curated fleet and
-                professional drivers have served clients across major cities worldwide, earning a
-                reputation for reliability and world-class service.
-              </p>
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight mb-5">
+                Built on a belief that every journey deserves to be exceptional
+              </h2>
+              <div className="text-gray-600 text-[15px] sm:text-[16px] leading-relaxed">
+                <p className="mb-4">
+                  SARJ Worldwide was founded on a simple yet powerful belief: every journey should be comfortable, reliable, and unforgettable. Whether you're traveling to the airport, attending an important business meeting, celebrating your wedding day, or exploring a new city, we are committed to providing a luxury chauffeur experience that exceeds expectations.
+                </p>
+                <p>
+                  With a carefully curated fleet of premium vehicles and a team of experienced, professional chauffeurs, we proudly serve clients across major cities worldwide. Our reputation has been built on punctuality, discretion, exceptional service, and attention to every detail. At SARJ Worldwide, we don't just provide transportation—we deliver a seamless, first-class travel experience designed around your comfort, safety, and peace of mind.
+                </p>
+              </div>
             </div>
             <div className="relative rounded-2xl overflow-hidden shadow-xl shadow-gray-300/50 border border-gray-100">
               <div className="aspect-[4/3] sm:aspect-[3/4] lg:aspect-[4/5] relative">
@@ -111,7 +112,7 @@ export default function AboutPage() {
       </section>
 
       {/* Mission */}
-      <section className="py-10 sm:py-14 md:py-16">
+      <section className="py-10 sm:py-12 md:py-16">
         <div className="max-w-[1100px] mx-auto px-6 sm:px-8 md:px-12">
           <div className="relative rounded-2xl bg-white border border-gray-100 shadow-lg shadow-gray-200/50 overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-r from-[#C9A063]/[0.02] to-transparent pointer-events-none" />
@@ -123,7 +124,7 @@ export default function AboutPage() {
                 Seamless, stress-free transportation so you can focus on what matters
               </h2>
               <p className="text-gray-600 text-[15px] sm:text-[16px] leading-relaxed max-w-3xl">
-                We handle every detail—flight tracking, meet & greet, multi-stop itineraries, and
+                We handle every detail, flight tracking, meet & greet, multi-stop itineraries, and
                 round-the-clock support. From airport transfers and corporate travel to weddings and
                 VIP events, our mission is to make every ride feel like a privilege, not a chore.
               </p>

@@ -42,9 +42,9 @@ export default function ServiceQuoteForm({ prefilledPickup }: { prefilledPickup?
   };
 
   return (
-    <div className="w-full bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+    <div className="w-full bg-white rounded-xl shadow-lg border border-gray-200">
       {/* Header section matching the black background */}
-      <div className="bg-[#1a1a1a] p-6 text-white">
+      <div className="bg-[#1a1a1a] p-6 text-white rounded-t-xl">
         <h3 className="text-2xl font-serif mb-2">Get Your Instant Quote</h3>
         <p className="text-[#C9A063] text-sm font-medium">Live rates · book in minutes</p>
       </div>
