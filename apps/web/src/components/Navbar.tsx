@@ -5,6 +5,7 @@ import { Phone, Menu, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import ServicesNavDropdown from "@/components/ServicesNavDropdown";
 import AirportsNavDropdown from "@/components/AirportsNavDropdown";
+import { SeoBodySlot } from "@/components/SeoPageLiveExtras";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
