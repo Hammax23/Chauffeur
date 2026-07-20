@@ -39,8 +39,18 @@ const nodeRequire = createRequire(
   typeof __filename !== "undefined" ? __filename : `${process.cwd()}/package.json`
 );
 
+declare const __non_webpack_require__: NodeRequire | undefined;
+
+/** Runtime-only require — webpack must not statically resolve `pg`. */
+function runtimeRequire(moduleId: string): unknown {
+  if (typeof __non_webpack_require__ === "function") {
+    return __non_webpack_require__(moduleId);
+  }
+  return nodeRequire(moduleId);
+}
+
 function createPgClient(connectionString: string): PgListenClient {
-  const pg = nodeRequire("pg") as {
+  const pg = runtimeRequire("pg") as {
     Client: new (config: { connectionString: string }) => PgListenClient;
   };
   return new pg.Client({ connectionString });

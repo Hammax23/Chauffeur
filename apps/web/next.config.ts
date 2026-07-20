@@ -1,10 +1,15 @@
+import path from "node:path";
 import type { NextConfig } from "next";
+
+/** Monorepo root (`Chauffeur/`) — avoids wrong lockfile/workspace detection on VPS. */
+const monorepoRoot = path.join(__dirname, "../..");
 
 const nextConfig: NextConfig = {
   // Enable React strict mode for better development
   reactStrictMode: true,
   
   output: "standalone",
+  outputFileTracingRoot: monorepoRoot,
   
   // Optimize production builds
   poweredByHeader: false,
