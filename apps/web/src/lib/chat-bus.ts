@@ -1,3 +1,5 @@
+import "server-only";
+
 import type { ChatMessageDto } from "@/lib/trip-chat";
 import { publishCrossBus, subscribeCrossBus } from "@/lib/cross-process-bus";
 

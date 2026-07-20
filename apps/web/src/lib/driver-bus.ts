@@ -1,3 +1,5 @@
+import "server-only";
+
 import { publishCrossBus, publishCrossBusMany, subscribeCrossBus } from "@/lib/cross-process-bus";
 
 /**

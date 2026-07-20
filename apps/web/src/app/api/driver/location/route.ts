@@ -3,9 +3,6 @@ import prisma from "@/lib/prisma";
 import { verifyDriverToken } from "@/lib/driver-auth";
 import { TERMINAL_RESERVATION_STATUSES } from "@/lib/reservation-driver-assignment";
 import { publishDriverLocationEvent } from "@/lib/realtime-bus";
-import { warmCrossProcessBus } from "@/lib/cross-process-bus";
-
-warmCrossProcessBus();
 
 export async function POST(request: NextRequest) {
   try {

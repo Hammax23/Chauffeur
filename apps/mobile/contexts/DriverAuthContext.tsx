@@ -12,7 +12,7 @@ import {
   onUnauthorized,
 } from "../services/api";
 import { InteractionManager } from "react-native";
-import { registerDriverPushToken, subscribeDriverPushTokenRefresh } from "../services/notifications";
+import { registerDriverPushToken, subscribeDriverPushTokenRefresh, resetPushTokenRegistrationCache } from "../services/notifications";
 import { stopDriverLocationTracking } from "../services/driver-location";
 
 interface DriverAuthContextType {
@@ -102,6 +102,7 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
 
   const logout = useCallback(async () => {
     await stopDriverLocationTracking();
+    resetPushTokenRegistrationCache();
     await logoutDriver();
     setDriver(null);
   }, []);

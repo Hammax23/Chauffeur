@@ -6,9 +6,6 @@ import {
   subscribeCustomer,
   type ReservationEvent,
 } from "@/lib/realtime-bus";
-import { warmCrossProcessBus } from "@/lib/cross-process-bus";
-
-warmCrossProcessBus();
 
 /**
  * Long-lived SSE feed for one customer.

@@ -3,13 +3,33 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Enable React strict mode for better development
   reactStrictMode: true,
-  
+
   // Optimize production builds
   poweredByHeader: false,
-  
+
   // Compression
   compress: true,
-  
+
+  /**
+   * Keep Node DB drivers out of the bundler graph.
+   * `pg` and its deps (`pgpass`, etc.) need Node built-ins (`path`, `fs`, `stream`).
+   * @see https://nextjs.org/docs/app/api-reference/config/next-config-js/serverExternalPackages
+   */
+  serverExternalPackages: [
+    "pg",
+    "pg-connection-string",
+    "pg-pool",
+    "pg-native",
+    "pgpass",
+    "pg-types",
+    "pg-protocol",
+    "postgres-array",
+    "postgres-bytea",
+    "postgres-date",
+    "postgres-interval",
+    "split2",
+  ],
+
   // Image optimization - disabled for VPS compatibility
   images: {
     unoptimized: true,
@@ -42,12 +62,12 @@ const nextConfig: NextConfig = {
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
   },
-  
+
   // Experimental optimizations
   experimental: {
     // optimizeCss requires 'critters' package - disabled for now
   },
-  
+
   // Headers for caching and security
   async headers() {
     return [

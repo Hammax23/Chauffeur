@@ -3,9 +3,6 @@ import jwt from "jsonwebtoken";
 import prisma from "@/lib/prisma";
 import { subscribeDriver, type DriverOfferEvent } from "@/lib/driver-bus";
 import { listOpenOffersForDriver } from "@/lib/live-auto";
-import { warmCrossProcessBus } from "@/lib/cross-process-bus";
-
-warmCrossProcessBus();
 
 /**
  * Long-lived SSE feed for one driver (Live Auto Mode offers).

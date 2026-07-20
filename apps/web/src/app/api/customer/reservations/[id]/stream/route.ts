@@ -6,9 +6,6 @@ import {
   subscribeReservation,
   type ReservationEvent,
 } from "@/lib/realtime-bus";
-import { warmCrossProcessBus } from "@/lib/cross-process-bus";
-
-warmCrossProcessBus();
 
 /**
  * Long-lived Server-Sent Events stream for a single reservation.

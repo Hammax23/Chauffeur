@@ -1,4 +1,7 @@
+import "server-only";
+
 import { randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
 import { EventEmitter } from "node:events";
 
 /**
@@ -8,12 +11,40 @@ import { EventEmitter } from "node:events";
  * Postgres LISTEN/NOTIFY mirrors publishes to every other Node process
  * so PM2 / multi-replica deploys don't drop events.
  *
- * Payload limit: Postgres NOTIFY ~8KB. Oversized events send a poke;
- * the receiving process reloads from DB when a reload handler is registered.
+ * Server-only: never import this module from Client Components.
+ * `pg` is loaded only via createRequire at runtime — no static `import "pg"`,
+ * so Next/webpack cannot pull pgpass/`path`/`fs` into a client or instrumentation bundle.
  */
 
 const PG_CHANNEL = "sarj_realtime";
 const MAX_NOTIFY_BYTES = 7500;
+
+/** Minimal surface we use from `pg.Client` — avoids `import … from "pg"`. */
+type PgListenClient = {
+  on(event: "error", listener: (err: Error) => void): void;
+  on(
+    event: "notification",
+    listener: (msg: { channel: string; payload?: string }) => void
+  ): void;
+  on(event: "end", listener: () => void): void;
+  connect(): Promise<void>;
+  query(sql: string): Promise<unknown>;
+};
+
+/**
+ * Load `pg` through Node's require — never through the bundler.
+ * `__filename` is available in Next's compiled server chunks (CJS).
+ */
+const nodeRequire = createRequire(
+  typeof __filename !== "undefined" ? __filename : `${process.cwd()}/package.json`
+);
+
+function createPgClient(connectionString: string): PgListenClient {
+  const pg = nodeRequire("pg") as {
+    Client: new (config: { connectionString: string }) => PgListenClient;
+  };
+  return new pg.Client({ connectionString });
+}
 
 export type CrossBusName = "reservation" | "driver" | "chat";
 
@@ -187,8 +218,7 @@ async function startListen(): Promise<void> {
     return;
   }
 
-  const { Client } = await import("pg");
-  const client = new Client({ connectionString: databaseUrl });
+  const client = createPgClient(databaseUrl);
 
   client.on("error", (err) => {
     console.error("[cross-process-bus] LISTEN client error:", err);
