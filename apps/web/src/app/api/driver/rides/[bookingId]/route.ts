@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 import { publishReservationFromDb } from "@/lib/realtime-bus";
+import { claimLiveOffer, declineLiveOffer } from "@/lib/live-auto";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
@@ -31,7 +32,22 @@ function getDriverFromToken(req: NextRequest) {
   }
 }
 
-// GET - Get single ride details for driver
+async function findRideForDriver(bookingId: string, driverId: string) {
+  const assigned = await prisma.reservation.findFirst({
+    where: { bookingId, assignedDriverId: driverId },
+  });
+  if (assigned) return assigned;
+
+  const openOffer = await prisma.rideOffer.findFirst({
+    where: { bookingId, driverId, status: "OPEN" },
+  });
+  if (!openOffer) return null;
+
+  return prisma.reservation.findFirst({
+    where: { bookingId, status: "PENDING", assignedDriverId: null },
+  });
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ bookingId: string }> }
@@ -43,14 +59,17 @@ export async function GET(
     }
 
     const { bookingId } = await params;
-
-    const reservation = await prisma.reservation.findFirst({
-      where: { bookingId, assignedDriverId: tokenData.id },
-    });
+    const reservation = await findRideForDriver(bookingId, tokenData.id);
 
     if (!reservation) {
       return NextResponse.json({ success: false, error: "Ride not found" }, { status: 404 });
     }
+
+    const liveOffer =
+      !reservation.assignedDriverId &&
+      !!(await prisma.rideOffer.findFirst({
+        where: { bookingId, driverId: tokenData.id, status: "OPEN" },
+      }));
 
     return NextResponse.json({
       success: true,
@@ -77,6 +96,7 @@ export async function GET(
         driverOnTheWayAt: reservation.driverOnTheWayAt?.toISOString() ?? null,
         driverStopPeriodsJson: reservation.driverStopPeriodsJson ?? null,
         completedAt: reservation.completedAt?.toISOString() ?? null,
+        liveOffer,
       },
     });
   } catch (error) {
@@ -85,7 +105,6 @@ export async function GET(
   }
 }
 
-// PATCH - Update ride status (driver controls: ON THE WAY -> ARRIVED -> CIC -> DONE)
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ bookingId: string }> }
@@ -98,7 +117,19 @@ export async function PATCH(
 
     const { bookingId } = await params;
     const body = await req.json();
-    const { status } = body;
+    const { status, action } = body;
+
+    // Reject / decline (preferred over DELETE — some networks block DELETE)
+    if (action === "reject" || status === "REJECTED") {
+      const result = await declineLiveOffer(bookingId, tokenData.id);
+      if (!result.ok) {
+        return NextResponse.json(
+          { success: false, error: "Ride not found or already unavailable" },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json({ success: true, message: "Ride rejected" });
+    }
 
     const validStatuses = ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP", "DONE"];
     if (!validStatuses.includes(status)) {
@@ -106,6 +137,26 @@ export async function PATCH(
         { success: false, error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` },
         { status: 400 }
       );
+    }
+
+    if (status === "ACCEPTED") {
+      const claim = await claimLiveOffer(bookingId, tokenData.id);
+      if (!claim.ok) {
+        if (claim.reason === "taken") {
+          return NextResponse.json(
+            { success: false, error: "This ride was just accepted by another driver." },
+            { status: 409 }
+          );
+        }
+        if (claim.reason === "busy") {
+          return NextResponse.json(
+            { success: false, error: "You already have an active ride." },
+            { status: 409 }
+          );
+        }
+        return NextResponse.json({ success: false, error: "Ride not found" }, { status: 404 });
+      }
+      return NextResponse.json({ success: true, message: "Status updated to ACCEPTED" });
     }
 
     const reservation = await prisma.reservation.findFirst({
@@ -139,7 +190,10 @@ export async function PATCH(
       }
       const open = periods.find((x) => !x.end);
       if (open) {
-        return NextResponse.json({ success: false, error: "Already at a stop — tap Continue first" }, { status: 400 });
+        return NextResponse.json(
+          { success: false, error: "Already at a stop — tap Continue first" },
+          { status: 400 }
+        );
       }
       periods.push({ start: now.toISOString() });
       updateData.driverStopPeriodsJson = JSON.stringify(periods);
@@ -148,7 +202,10 @@ export async function PATCH(
     if (status === "CIC" && reservation.status === "STOP") {
       const last = periods[periods.length - 1];
       if (!last || last.end) {
-        return NextResponse.json({ success: false, error: "No active stop to continue from" }, { status: 400 });
+        return NextResponse.json(
+          { success: false, error: "No active stop to continue from" },
+          { status: 400 }
+        );
       }
       last.end = now.toISOString();
       updateData.driverStopPeriodsJson = JSON.stringify(periods);
@@ -173,7 +230,6 @@ export async function PATCH(
       data: updateData,
     });
 
-    // Push real-time update to subscribed customers (track-ride / home).
     await publishReservationFromDb(bookingId, "status_changed");
 
     return NextResponse.json({ success: true, message: `Status updated to ${status}` });
@@ -183,7 +239,6 @@ export async function PATCH(
   }
 }
 
-// DELETE - Reject/cancel a ride request (only PENDING rides)
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ bookingId: string }> }
@@ -195,30 +250,10 @@ export async function DELETE(
     }
 
     const { bookingId } = await params;
-
-    const reservation = await prisma.reservation.findFirst({
-      where: { bookingId, assignedDriverId: tokenData.id },
-    });
-
-    if (!reservation) {
+    const result = await declineLiveOffer(bookingId, tokenData.id);
+    if (!result.ok) {
       return NextResponse.json({ success: false, error: "Ride not found" }, { status: 404 });
     }
-
-    // Track which driver rejected + unassign
-    const existingRejected = reservation.rejectedDriverIds || "";
-    const rejectedList = existingRejected ? `${existingRejected},${tokenData.id}` : tokenData.id;
-
-    await prisma.reservation.update({
-      where: { id: reservation.id },
-      data: {
-        assignedDriverId: null,
-        driverResponse: "REJECTED",
-        driverRespondedAt: new Date(),
-        rejectedDriverIds: rejectedList,
-      },
-    });
-
-    await publishReservationFromDb(bookingId, "driver_unassigned");
 
     return NextResponse.json({ success: true, message: "Ride rejected" });
   } catch (error) {

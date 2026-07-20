@@ -32,6 +32,7 @@ import ServiceFAQSection from "@/components/ServiceFAQSection";
 import { GoogleMapsProvider } from "@/components/GoogleMapsProvider";
 import type { Metadata } from "next";
 import { buildPageMetadata } from "@/lib/seo-metadata";
+import { getSeoSettings, getSeoPageByPath } from "@/lib/seo-config";
 
 const iconMap: Record<ServiceIconKey, React.ElementType> = {
   PlaneTakeoff,
@@ -82,27 +83,31 @@ export default async function ServicePage({ params }: Props) {
   if (!service) notFound();
 
   const Icon = iconMap[service.icon];
-  const baseUrl = "https://sarjworldwide.ca";
+  const [settings, seoPage] = await Promise.all([
+    getSeoSettings(),
+    getSeoPageByPath(`/services/${slug}`),
+  ]);
+  const baseUrl = settings.siteUrl.replace(/\/$/, "");
   const serviceUrl = `${baseUrl}/services/${slug}`;
   const bgImage = heroImageMap[slug] || "/cover1.jpeg";
 
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
-    "itemListElement": [
-      { "@type": "ListItem", "position": 1, "name": "Home", "item": baseUrl },
-      { "@type": "ListItem", "position": 2, "name": "Services", "item": `${baseUrl}/services` },
-      { "@type": "ListItem", "position": 3, "name": service.title, "item": serviceUrl },
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: baseUrl },
+      { "@type": "ListItem", position: 2, name: "Services", item: `${baseUrl}/services` },
+      { "@type": "ListItem", position: 3, name: crumbName, item: serviceUrl },
     ],
   };
 
   const serviceJsonLd = {
     "@context": "https://schema.org",
     "@type": "Service",
-    "name": service.title,
-    "description": service.description,
-    "provider": { "@type": "LocalBusiness", "name": "SARJ Worldwide Chauffeur Services" },
-    "url": serviceUrl,
+    name: service.title,
+    description: service.description,
+    provider: { "@type": "LocalBusiness", name: "SARJ Worldwide Chauffeur Services" },
+    url: serviceUrl,
   };
 
   return (

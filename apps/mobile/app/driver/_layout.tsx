@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack, router } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   View,
@@ -8,15 +8,29 @@ import {
   Linking,
   InteractionManager,
   AppState,
+  ActivityIndicator,
   type AppStateStatus,
 } from "react-native";
 import { ensureForegroundLocationPermission, stopDriverLocationTracking } from "../../services/driver-location";
 import { syncDriverLiveTracking } from "../../services/driver-live-session";
 import { useDriverAuth } from "../../contexts/DriverAuthContext";
+import { getDriverToken } from "../../services/api";
+import { DriverRideAlertProvider } from "../../contexts/DriverRideAlertContext";
 
 export default function DriverLayout() {
-  const { isAuthenticated } = useDriverAuth();
+  const { isAuthenticated, isLoading: authLoading } = useDriverAuth();
+  const [tokenOk, setTokenOk] = useState<boolean | null>(null);
   const [locationGranted, setLocationGranted] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (authLoading) return;
+    void (async () => {
+      const token = await getDriverToken();
+      const ok = !!token && isAuthenticated;
+      setTokenOk(ok);
+      if (!ok) router.replace("/login");
+    })();
+  }, [authLoading, isAuthenticated]);
 
   const requestLocation = async () => {
     const res = await ensureForegroundLocationPermission();
@@ -24,19 +38,19 @@ export default function DriverLayout() {
   };
 
   useEffect(() => {
-    requestLocation();
-  }, []);
+    if (tokenOk) requestLocation();
+  }, [tokenOk]);
 
   /** Permission revoked while logged in — stop native GPS / foreground service. */
   useEffect(() => {
-    if (locationGranted === false && isAuthenticated) {
+    if (locationGranted === false && tokenOk) {
       stopDriverLocationTracking().catch(() => {});
     }
-  }, [locationGranted, isAuthenticated]);
+  }, [locationGranted, tokenOk]);
 
   /** GPS only while server reports an active trip (ON THE WAY / ARRIVED / CIC). Re-sync on resume. */
   useEffect(() => {
-    if (locationGranted !== true || !isAuthenticated) {
+    if (locationGranted !== true || !tokenOk) {
       return;
     }
     let cancelled = false;
@@ -51,10 +65,10 @@ export default function DriverLayout() {
     return () => {
       cancelled = true;
     };
-  }, [locationGranted, isAuthenticated]);
+  }, [locationGranted, tokenOk]);
 
   useEffect(() => {
-    if (locationGranted !== true || !isAuthenticated) {
+    if (locationGranted !== true || !tokenOk) {
       return;
     }
     const onChange = (state: AppStateStatus) => {
@@ -64,7 +78,17 @@ export default function DriverLayout() {
     };
     const sub = AppState.addEventListener("change", onChange);
     return () => sub.remove();
-  }, [locationGranted, isAuthenticated]);
+  }, [locationGranted, tokenOk]);
+
+  if (authLoading || tokenOk === null) {
+    return (
+      <View style={[styles.blocker, { backgroundColor: "#0b0b0b" }]}>
+        <ActivityIndicator size="large" color="#D4A04A" />
+      </View>
+    );
+  }
+
+  if (!tokenOk) return null;
 
   // Hard requirement: driver must enable location while using the app
   if (locationGranted === false) {
@@ -87,12 +111,14 @@ export default function DriverLayout() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="ride-details" />
-      <Stack.Screen name="chat" />
-      <Stack.Screen name="profile" />
-    </Stack>
+    <DriverRideAlertProvider>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="ride-details" />
+        <Stack.Screen name="chat" />
+        <Stack.Screen name="profile" />
+      </Stack>
+    </DriverRideAlertProvider>
   );
 }
 

@@ -3,6 +3,7 @@ import { AppState, type AppStateStatus } from "react-native";
 import { useFocusEffect } from "expo-router";
 import {
   openReservationStream,
+  type DriverLocationLivePayload,
   type ReservationLiveData,
   type ReservationLiveEvent,
   type ReservationStreamHandle,
@@ -20,6 +21,7 @@ export interface UseReservationStreamOptions {
 
 export interface UseReservationStreamResult {
   data: ReservationLiveData | null;
+  location: DriverLocationLivePayload | null;
   status: ReservationStreamStatus;
   error: string | null;
   /** ms until the next reconnect when status === "reconnecting". */
@@ -32,6 +34,7 @@ export interface UseReservationStreamResult {
  * Subscribes to /api/customer/reservations/[id]/stream and exposes a live
  * reservation snapshot. Auto-pauses while the screen is blurred or the app is
  * backgrounded so we never hold an SSE connection while the user can't see it.
+ * On AppState resume, forces a fresh SSE reconnect so missed events are recovered via snapshot.
  */
 export function useReservationStream(
   bookingId: string | null | undefined,
@@ -40,6 +43,7 @@ export function useReservationStream(
   const { pauseOnBlur = true, pauseOnBackground = true, onEvent } = options;
 
   const [data, setData] = useState<ReservationLiveData | null>(null);
+  const [location, setLocation] = useState<DriverLocationLivePayload | null>(null);
   const [status, setStatus] = useState<ReservationStreamStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [nextRetryMs, setNextRetryMs] = useState<number | null>(null);
@@ -56,7 +60,7 @@ export function useReservationStream(
     handleRef.current = null;
   }, []);
 
-  const ensureRunning = useCallback(() => {
+  const startStream = useCallback(() => {
     if (!bookingId) return;
     const focusOk = !pauseOnBlur || focusedRef.current;
     const fgOk = !pauseOnBackground || foregroundedRef.current;
@@ -65,13 +69,19 @@ export function useReservationStream(
       setStatus((s) => (s === "closed" ? s : "idle"));
       return;
     }
-    if (handleRef.current) return;
+
+    // Always reopen — resume/focus must get a fresh snapshot
+    teardown();
 
     handleRef.current = openReservationStream(bookingId, {
       onEvent: (event) => {
-        setData(event.data);
         setLastEventAt(event.serverTime);
         setError(null);
+        if (event.type === "driver_location" && event.location) {
+          setLocation(event.location);
+        } else if (event.data) {
+          setData(event.data);
+        }
         onEventRef.current?.(event);
       },
       onStatus: (next, info) => {
@@ -94,36 +104,37 @@ export function useReservationStream(
     if (!bookingId) {
       teardown();
       setData(null);
+      setLocation(null);
       setStatus("idle");
       setError(null);
       setNextRetryMs(null);
       setLastEventAt(null);
       return;
     }
-    ensureRunning();
+    startStream();
     return teardown;
-  }, [bookingId, ensureRunning, teardown]);
+  }, [bookingId, startStream, teardown]);
 
-  // App background / foreground
+  // App background / foreground — force reconnect on resume
   useEffect(() => {
     const sub = AppState.addEventListener("change", (next: AppStateStatus) => {
       const wasForeground = foregroundedRef.current;
       foregroundedRef.current = next === "active";
       if (foregroundedRef.current && !wasForeground) {
-        ensureRunning();
+        startStream();
       } else if (!foregroundedRef.current && pauseOnBackground) {
         teardown();
         setStatus((s) => (s === "closed" ? s : "idle"));
       }
     });
     return () => sub.remove();
-  }, [ensureRunning, pauseOnBackground, teardown]);
+  }, [startStream, pauseOnBackground, teardown]);
 
   // Screen focus / blur
   useFocusEffect(
     useCallback(() => {
       focusedRef.current = true;
-      ensureRunning();
+      startStream();
       return () => {
         focusedRef.current = false;
         if (pauseOnBlur) {
@@ -131,8 +142,8 @@ export function useReservationStream(
           setStatus((s) => (s === "closed" ? s : "idle"));
         }
       };
-    }, [ensureRunning, pauseOnBlur, teardown])
+    }, [startStream, pauseOnBlur, teardown])
   );
 
-  return { data, status, error, nextRetryMs, lastEventAt };
+  return { data, location, status, error, nextRetryMs, lastEventAt };
 }

@@ -28,7 +28,15 @@ import {
   resolveTierIdFromFleetVehicleId,
   type VehicleTierOption,
 } from "../../data/vehicle-tiers";
-import * as Location from "expo-location";
+import {
+  calculateAppDistanceFare,
+  APP_DEFAULT_GRATUITY_PERCENT,
+  parseMaxPassengers,
+  BASE_DISTANCE_KM,
+  EXTRA_KM_RATE,
+  type AppDistancePricing,
+} from "../../utils/app-fare";
+import { saveBookingDraft } from "../../services/booking-draft";
 
 /** Silent default — create UI no longer asks for service type (distance bookings). */
 const DEFAULT_SERVICE_TYPE = "Point-to-Point transportation";
@@ -123,6 +131,10 @@ export default function CreateReservationScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [passengersCount, setPassengersCount] = useState(1);
   const [fleetVehicles, setFleetVehicles] = useState<AppFleetVehicleDto[]>([]);
+  const [distancePricing, setDistancePricing] = useState<AppDistancePricing>({
+    baseDistanceKm: BASE_DISTANCE_KM,
+    extraKmRate: EXTRA_KM_RATE,
+  });
   const [fleetLoading, setFleetLoading] = useState(true);
   const [fleetError, setFleetError] = useState("");
   const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
@@ -155,12 +167,26 @@ export default function CreateReservationScreen() {
   const [phoneNumber, setPhoneNumber] = useState(user?.phone || "");
   const [email, setEmail] = useState(user?.email || "");
 
+  useEffect(() => {
+    if (!user) return;
+    setFirstName((prev) => prev || user.firstName || "");
+    setLastName((prev) => prev || user.lastName || "");
+    setPhoneNumber((prev) => prev || user.phone || "");
+    setEmail((prev) => prev || user.email || "");
+  }, [user]);
+
   const loadFleet = useCallback(async () => {
     setFleetLoading(true);
     setFleetError("");
     try {
-      const { vehicles } = await getAppFleetVehicles();
+      const { vehicles, pricing } = await getAppFleetVehicles();
       setFleetVehicles(vehicles);
+      if (pricing) {
+        setDistancePricing({
+          baseDistanceKm: pricing.baseDistanceKm || BASE_DISTANCE_KM,
+          extraKmRate: pricing.extraKmRate || EXTRA_KM_RATE,
+        });
+      }
       const tiers = buildVehicleTiersFromAppFleet(vehicles);
 
       const rawId = params.vehicleId;
@@ -309,44 +335,62 @@ export default function CreateReservationScreen() {
   });
 
   /**
-   * Live fare estimate.
-   *
-   *   ride fare = distanceKm * pricePerKm     (full decimal precision — e.g. 1.7 km × $3.05/km)
-   *   subtotal  = ride fare + stop charge + child seat charge
-   *   HST       = 13% × subtotal
-   *   Gratuity  = 15% × subtotal
-   *   total     = subtotal + HST + gratuity
-   *
-   * Returns null until we have both a route distance and a selected vehicle —
-   * UI then shows "—" placeholders.
+   * Live fare estimate (same formula as confirm + server).
+   * Gratuity preview uses default tip percent.
    */
   const fareEstimate = useMemo(() => {
     if (!selectedTier) return null;
     const meters = routeSummary?.distanceMeters ?? null;
     if (meters == null || meters <= 0) return null;
-    const km = meters / 1000;
-    const pricePerKm = Math.max(0, selectedTier.pricePerKm);
-    const rideFare = km * pricePerKm;
-    const stopCharge = showStopField && stopAddress.trim().length >= 3 ? 15 : 0;
-    const childSeatCharge = childSeatCount * 25;
-    const subtotal = rideFare + stopCharge + childSeatCharge;
-    const hst = subtotal * 0.13;
-    const gratuity = subtotal * 0.15;
-    const total = subtotal + hst + gratuity;
-    return { km, pricePerKm, rideFare, stopCharge, childSeatCharge, subtotal, hst, gratuity, total };
-  }, [selectedTier, routeSummary, showStopField, stopAddress, childSeatCount]);
+    return calculateAppDistanceFare({
+      distanceMeters: meters,
+      hourlyRate: selectedTier.hourlyRate,
+      pricePerKm: selectedTier.pricePerKm,
+      baseDistanceKm: distancePricing.baseDistanceKm,
+      extraKmRate: distancePricing.extraKmRate,
+      hasStop: showStopField && stopAddress.trim().length >= 3,
+      childSeatCount,
+      gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
+    });
+  }, [
+    selectedTier,
+    routeSummary,
+    showStopField,
+    stopAddress,
+    childSeatCount,
+    distancePricing,
+  ]);
+
+  const maxPassengers = useMemo(
+    () => parseMaxPassengers(selectedTier?.seating) ?? 8,
+    [selectedTier]
+  );
+
+  useEffect(() => {
+    setPassengersCount((n) => Math.min(n, maxPassengers));
+    setChildSeatCount((n) => Math.min(n, passengersCount, maxPassengers));
+  }, [maxPassengers, passengersCount]);
 
   /** Per-tier ride fare for the list (Uber-style price on the right). */
   const tierFareById = useMemo(() => {
     const meters = routeSummary?.distanceMeters ?? null;
     if (meters == null || meters <= 0) return {} as Record<string, number>;
-    const km = meters / 1000;
     const out: Record<string, number> = {};
     for (const tier of vehicleTiers) {
-      out[tier.id] = km * tier.pricePerKm;
+      const fare = calculateAppDistanceFare({
+        distanceMeters: meters,
+        hourlyRate: tier.hourlyRate,
+        pricePerKm: tier.pricePerKm,
+        baseDistanceKm: distancePricing.baseDistanceKm,
+        extraKmRate: distancePricing.extraKmRate,
+        hasStop: false,
+        childSeatCount: 0,
+        gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
+      });
+      if (fare) out[tier.id] = fare.rideFare;
     }
     return out;
-  }, [vehicleTiers, routeSummary?.distanceMeters]);
+  }, [vehicleTiers, routeSummary?.distanceMeters, distancePricing]);
 
   const onDateChange = (event: DateTimePickerEvent, date?: Date) => {
     if (Platform.OS === "android") {
@@ -358,7 +402,7 @@ export default function CreateReservationScreen() {
     if (date) setPickupAt(date);
   };
 
-  const continueToConfirm = () => {
+  const continueToConfirm = async () => {
     if (!pickupAddress.trim() || !dropoffAddress.trim()) {
       Alert.alert("Missing info", "Please enter pickup and drop-off addresses.");
       return;
@@ -380,36 +424,53 @@ export default function CreateReservationScreen() {
       );
       return;
     }
-    router.push({
-      pathname: "/customer/reservation-confirm",
-      params: {
-        serviceType,
-        pickupAddress,
-        dropoffAddress,
-        stopAddress: showStopField ? stopAddress : "",
-        serviceDate: serviceDateStr,
-        serviceTime: serviceTimeStr,
-        pickupTimeDisplay,
-        passengers: String(passengersCount),
-        vehicle: selectedTier.title,
-        vehicleId: selectedTier.id,
-        vehicleSubtitle: selectedTier.subtitle,
-        vehiclePrice: `$${selectedTier.pricePerKm.toFixed(2)}/km`,
-        rideFare: String(fareEstimate?.rideFare ?? 0),
-        pricePerKm: String(selectedTier.pricePerKm),
-        hourlyRate: String(selectedTier.hourlyRate),
-        distanceText: routeSummary?.distanceText ?? "",
-        durationText: routeSummary?.durationText ?? "",
-        distanceMeters: String(routeSummary?.distanceMeters ?? ""),
-        durationSeconds: String(routeSummary?.durationSeconds ?? ""),
-        tollRoute: tollRoute ? "Yes" : "No",
-        childSeatCount: String(childSeatCount),
-        firstName,
-        lastName,
-        phoneNumber,
-        email,
-      },
+    if (passengersCount > maxPassengers) {
+      Alert.alert(
+        "Too many passengers",
+        `This vehicle seats up to ${maxPassengers} passengers.`
+      );
+      return;
+    }
+    if (childSeatCount > passengersCount) {
+      Alert.alert("Child seats", "Child seats cannot exceed the passenger count.");
+      return;
+    }
+
+    await saveBookingDraft({
+      serviceType,
+      pickupAddress,
+      dropoffAddress,
+      stopAddress: showStopField ? stopAddress : "",
+      serviceDate: serviceDateStr,
+      serviceTime: serviceTimeStr,
+      pickupTimeDisplay,
+      passengers: String(passengersCount),
+      vehicle: selectedTier.title,
+      vehicleId: selectedTier.id,
+      vehicleSubtitle: selectedTier.subtitle,
+      vehiclePrice:
+        selectedTier.hourlyRate > 0
+          ? `From $${selectedTier.hourlyRate.toFixed(2)}`
+          : `$${selectedTier.pricePerKm.toFixed(2)}/km`,
+      rideFare: String(fareEstimate.rideFare ?? 0),
+      pricePerKm: String(selectedTier.pricePerKm),
+      hourlyRate: String(selectedTier.hourlyRate),
+      baseDistanceKm: String(distancePricing.baseDistanceKm),
+      extraKmRate: String(distancePricing.extraKmRate),
+      distanceText: routeSummary?.distanceText ?? "",
+      durationText: routeSummary?.durationText ?? "",
+      distanceMeters: String(routeSummary?.distanceMeters ?? ""),
+      durationSeconds: String(routeSummary?.durationSeconds ?? ""),
+      tollRoute: tollRoute ? "Yes" : "No",
+      childSeatCount: String(childSeatCount),
+      firstName,
+      lastName,
+      phoneNumber,
+      email,
+      seating: selectedTier.seating || "",
     });
+
+    router.push("/customer/reservation-confirm");
   };
 
   return (
@@ -616,7 +677,9 @@ export default function CreateReservationScreen() {
                     </Text>
                   ) : (
                     <Text style={styles.carPriceText} numberOfLines={1}>
-                      ${selectedTier.pricePerKm.toFixed(2)}/km
+                      {selectedTier.hourlyRate > 0
+                        ? `From $${selectedTier.hourlyRate.toFixed(0)}`
+                        : `$${selectedTier.pricePerKm.toFixed(2)}/km`}
                     </Text>
                   )}
                   {vehicleTiers.length > 1 ? (
@@ -683,7 +746,9 @@ export default function CreateReservationScreen() {
                                 <Text style={styles.carDropdownPrice} numberOfLines={2}>
                                   {tierFare != null
                                     ? `$${tierFare.toFixed(2)}`
-                                    : `$${tier.pricePerKm.toFixed(2)}/km`}
+                                    : tier.hourlyRate > 0
+                                      ? `From $${tier.hourlyRate.toFixed(0)}`
+                                      : `$${tier.pricePerKm.toFixed(2)}/km`}
                                 </Text>
                               </View>
                             </TouchableOpacity>
@@ -715,7 +780,7 @@ export default function CreateReservationScreen() {
                 <Text style={styles.dualCounterValue}>{passengersCount}</Text>
                 <TouchableOpacity
                   style={[styles.counterBtn, styles.counterBtnAdd]}
-                  onPress={() => setPassengersCount(Math.min(50, passengersCount + 1))}
+                  onPress={() => setPassengersCount(Math.min(maxPassengers, passengersCount + 1))}
                   hitSlop={6}
                 >
                   <Ionicons name="add" size={16} color="#fff" />
@@ -739,7 +804,9 @@ export default function CreateReservationScreen() {
                 <Text style={styles.dualCounterValue}>{childSeatCount}</Text>
                 <TouchableOpacity
                   style={[styles.counterBtn, styles.counterBtnAdd]}
-                  onPress={() => setChildSeatCount(childSeatCount + 1)}
+                  onPress={() =>
+                    setChildSeatCount(Math.min(passengersCount, childSeatCount + 1))
+                  }
                   hitSlop={6}
                 >
                   <Ionicons name="add" size={16} color="#fff" />

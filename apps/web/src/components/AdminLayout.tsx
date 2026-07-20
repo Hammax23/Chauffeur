@@ -19,11 +19,13 @@ import {
   DollarSign,
   Smartphone,
   Globe,
+  Radio,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/reservations", label: "Reservations", icon: CalendarCheck },
+  { href: "/admin/live-auto", label: "Live Auto Mode", icon: Radio },
   { href: "/admin/custom-reservation", label: "Custom Reservation", icon: PlusCircle },
   { href: "/admin/quotes", label: "Online Quotes", icon: FileText },
   { href: "/admin/fleet", label: "Fleet Pricing", icon: DollarSign },

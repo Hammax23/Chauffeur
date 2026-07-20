@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { InteractionManager } from "react-native";
 import {
   CustomerProfile,
-  getStoredUser,
-  getToken,
+  getStoredCustomer,
+  getCustomerToken,
+  clearCustomerSession,
   loginCustomer,
   loginCustomerWithApple,
   loginCustomerWithGoogle,
@@ -11,7 +13,9 @@ import {
   getProfile,
   API_BASE_URL,
   updateProfile as apiUpdateProfile,
+  onUnauthorized,
 } from "../services/api";
+import { registerCustomerPushToken } from "../services/notifications";
 
 interface AuthContextType {
   user: CustomerProfile | null;
@@ -55,32 +59,52 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function scheduleCustomerPush(token: string) {
+  InteractionManager.runAfterInteractions(() => {
+    registerCustomerPushToken(token).catch(() => {});
+  });
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<CustomerProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check for existing session on mount
+  useEffect(() => {
+    return onUnauthorized((role) => {
+      if (role === "customer") setUser(null);
+    });
+  }, []);
+
   useEffect(() => {
     (async () => {
       try {
-        const token = await getToken();
+        const token = await getCustomerToken();
         if (token) {
-          const stored = await getStoredUser();
-          if (stored) {
-            setUser(stored);
-          }
-          // Refresh profile from server in background
+          const stored = await getStoredCustomer();
+          if (stored) setUser(stored);
           try {
             const data = await getProfile();
             if (data.success && data.customer) {
               setUser(data.customer);
+              scheduleCustomerPush(token);
             }
-          } catch {
-            // Token might be expired
+          } catch (error: unknown) {
+            // Only wipe session on true auth failure; keep offline sessions.
+            const message = error instanceof Error ? error.message : "";
+            const stillHasToken = await getCustomerToken();
+            if (!stillHasToken) {
+              setUser(null);
+            } else if (/unauthorized|401/i.test(message)) {
+              await clearCustomerSession();
+              setUser(null);
+            }
+            // else: network/5xx — keep stored user + token
           }
+        } else {
+          setUser(null);
         }
       } catch {
-        // No stored session
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
@@ -92,6 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await loginCustomer(email, password);
       if (data.success) {
         setUser(data.customer);
+        if (data.token) scheduleCustomerPush(data.token);
         return { success: true };
       }
       return { success: false, error: data.error || "Login failed" };
@@ -106,13 +131,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await loginCustomerWithGoogle(idToken);
       if (data.success) {
         setUser(data.customer);
+        if (data.token) scheduleCustomerPush(data.token);
         return { success: true };
       }
       return {
         success: false,
         error: data.error || "Google login failed",
-        tokenAudience: (data as any).tokenAudience ?? null,
-        allowedAudiences: (data as any).allowedAudiences ?? undefined,
+        tokenAudience: (data as { tokenAudience?: string | string[] | null }).tokenAudience ?? null,
+        allowedAudiences: (data as { allowedAudiences?: string[] }).allowedAudiences ?? undefined,
       };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Google login failed";
@@ -128,14 +154,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await loginCustomerWithApple(params);
       if (data.success) {
         setUser(data.customer);
+        if (data.token) scheduleCustomerPush(data.token);
         return { success: true };
       }
       return {
         success: false,
         error: data.error || "Apple login failed",
-        tokenAudience: (data as any).tokenAudience ?? null,
-        allowedAudiences: (data as any).allowedAudiences ?? undefined,
-        tokenIssuer: (data as any).tokenIssuer ?? null,
+        tokenAudience: (data as { tokenAudience?: string | string[] | null }).tokenAudience ?? null,
+        allowedAudiences: (data as { allowedAudiences?: string[] }).allowedAudiences ?? undefined,
+        tokenIssuer: (data as { tokenIssuer?: string | null }).tokenIssuer ?? null,
       };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Apple login failed";
@@ -155,6 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await registerCustomer(params);
       if (data.success) {
         setUser(data.customer);
+        if (data.token) scheduleCustomerPush(data.token);
         return { success: true };
       }
       return { success: false, error: data.error || "Registration failed" };
@@ -179,7 +207,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(data.customer);
       }
     } catch {
-      // Silently fail
+      const stillHasToken = await getCustomerToken();
+      if (!stillHasToken) setUser(null);
     }
   }, []);
 

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
 import prisma from "@/lib/prisma";
 import {
-  loadReservationLiveData,
+  loadReservationLiveDataMany,
   subscribeCustomer,
   type ReservationEvent,
 } from "@/lib/realtime-bus";
@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const fetchCache = "force-no-store";
 
-const HEARTBEAT_MS = 20_000;
+const HEARTBEAT_MS = 15_000;
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 /** Cap how many initial snapshots we replay; older bookings are still fetched on next list refresh. */
 const SNAPSHOT_LIMIT = 30;
@@ -71,9 +71,9 @@ export async function GET(req: NextRequest) {
       };
 
       // Hint to browsers / EventSource clients about retry; harmless to others.
-      safeEnqueue(`retry: 3000\n\n`);
+      safeEnqueue(`retry: 1500\n\n`);
 
-      // Initial snapshot for the most recent active/recent bookings owned by this customer.
+      // Initial snapshot — one batched query (not N× loadReservationLiveData).
       try {
         const recent = await prisma.reservation.findMany({
           where: { customerId },
@@ -81,12 +81,11 @@ export async function GET(req: NextRequest) {
           take: SNAPSHOT_LIMIT,
           select: { bookingId: true },
         });
-        const snapshots = await Promise.all(
-          recent.map((row) => loadReservationLiveData(row.bookingId))
+        const snapshots = await loadReservationLiveDataMany(
+          recent.map((row) => row.bookingId)
         );
         const now = new Date().toISOString();
         for (const data of snapshots) {
-          if (!data) continue;
           const snap: ReservationEvent = {
             type: "snapshot",
             bookingId: data.bookingId,

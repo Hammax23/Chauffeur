@@ -7,6 +7,7 @@ import {
   StatusBar,
 } from "react-native";
 import { router } from "expo-router";
+import { resolveBootDestination } from "../services/api";
 
 export default function SplashScreen() {
   const logoOpacity = useRef(new Animated.Value(0)).current;
@@ -31,11 +32,18 @@ export default function SplashScreen() {
       ]),
     ]).start();
 
+    let cancelled = false;
     const timer = setTimeout(() => {
-      router.replace("/login");
+      void (async () => {
+        const dest = await resolveBootDestination();
+        if (!cancelled) router.replace(dest);
+      })();
     }, 3500);
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, []);
 
   return (

@@ -14,12 +14,30 @@ export default async function SeoSchemaScripts() {
 
   if (schemas.length === 0) {
     const baseUrl = settings.siteUrl.replace(/\/$/, "");
+    const address =
+      settings.organizationAddress ||
+      settings.organizationCity ||
+      settings.organizationRegion ||
+      settings.organizationPostal
+        ? {
+            "@type": "PostalAddress",
+            streetAddress: settings.organizationAddress || undefined,
+            addressLocality: settings.organizationCity || undefined,
+            addressRegion: settings.organizationRegion || undefined,
+            postalCode: settings.organizationPostal || undefined,
+            addressCountry: settings.organizationCountry || "CA",
+          }
+        : undefined;
+
     schemas.push({
       "@context": "https://schema.org",
       "@type": "LocalBusiness",
       name: settings.organizationName || settings.siteName,
       url: baseUrl,
       logo: settings.organizationLogo || `${baseUrl}/logo1.png`,
+      ...(settings.organizationPhone ? { telephone: settings.organizationPhone } : {}),
+      ...(settings.organizationEmail ? { email: settings.organizationEmail } : {}),
+      ...(address ? { address } : {}),
     });
     schemas.push({
       "@context": "https://schema.org",

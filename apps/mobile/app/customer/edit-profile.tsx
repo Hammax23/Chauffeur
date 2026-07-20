@@ -16,7 +16,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../contexts/AuthContext";
 import * as ImagePicker from "expo-image-picker";
-import { API_BASE_URL } from "../../services/api";
+import { API_BASE_URL, getCustomerToken } from "../../services/api";
 
 export default function EditProfileScreen() {
   const { user, updateProfile } = useAuth();
@@ -59,8 +59,10 @@ export default function EditProfileScreen() {
       } as any);
       formData.append("type", "customer");
 
+      const authToken = await getCustomerToken();
       const response = await fetch(`${API_BASE_URL}/upload`, {
         method: "POST",
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
         body: formData,
       });
       const data = await response.json();

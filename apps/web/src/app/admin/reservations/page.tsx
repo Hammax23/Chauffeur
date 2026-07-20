@@ -242,7 +242,7 @@ export default function ReservationsPage() {
     }
   };
 
-  // Open reassign modal — fetch all drivers, excluding ones who already rejected
+  // Open reassign modal — previously rejected drivers can be sent the request again
   const openReassignModal = async (bookingId: string, rejectedDriverIds?: string | null) => {
     setReassignBookingId(bookingId);
     setLoadingDrivers(true);
@@ -1088,12 +1088,13 @@ export default function ReservationsPage() {
                       </div>
                       <button
                         onClick={() => handleReassign(d.id)}
-                        disabled={assigningDriver === d.id || d.wasRejected}
+                        disabled={assigningDriver === d.id}
+                        title={d.wasRejected ? "Send this reservation to this driver again" : "Assign driver"}
                         className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-colors flex-shrink-0 ${
-                          d.wasRejected
-                            ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                            : assigningDriver === d.id
+                          assigningDriver === d.id
                             ? "bg-[#C9A063] text-white opacity-70"
+                            : d.wasRejected
+                            ? "bg-amber-700 text-white hover:bg-amber-800"
                             : "bg-[#1C1C1E] text-white hover:bg-[#2C2C2E]"
                         }`}
                       >
@@ -1102,7 +1103,7 @@ export default function ReservationsPage() {
                         ) : (
                           <UserCheck className="w-3 h-3" />
                         )}
-                        {d.wasRejected ? "Rejected" : "Assign"}
+                        {d.wasRejected ? "Send again" : "Assign"}
                       </button>
                     </div>
                   ))}

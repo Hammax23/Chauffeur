@@ -1,6 +1,86 @@
 import prisma from "@/lib/prisma";
 import type { SeoPage, SeoSettings } from "@prisma/client";
 import { discoverSitePages, normalizeSeoPath } from "@/lib/seo-pages";
+import { decodeHtmlEntities } from "@/lib/sanitize";
+
+function decodePageTextFields(page: SeoPage): SeoPage {
+  return {
+    ...page,
+    pageLabel: page.pageLabel ? decodeHtmlEntities(page.pageLabel) : page.pageLabel,
+    title: page.title ? decodeHtmlEntities(page.title) : page.title,
+    metaDescription: page.metaDescription
+      ? decodeHtmlEntities(page.metaDescription)
+      : page.metaDescription,
+    keywords: page.keywords ? decodeHtmlEntities(page.keywords) : page.keywords,
+    canonicalUrl: page.canonicalUrl ? decodeHtmlEntities(page.canonicalUrl) : page.canonicalUrl,
+    ogTitle: page.ogTitle ? decodeHtmlEntities(page.ogTitle) : page.ogTitle,
+    ogDescription: page.ogDescription
+      ? decodeHtmlEntities(page.ogDescription)
+      : page.ogDescription,
+    ogImage: page.ogImage ? decodeHtmlEntities(page.ogImage) : page.ogImage,
+    twitterTitle: page.twitterTitle ? decodeHtmlEntities(page.twitterTitle) : page.twitterTitle,
+    twitterDescription: page.twitterDescription
+      ? decodeHtmlEntities(page.twitterDescription)
+      : page.twitterDescription,
+    twitterImage: page.twitterImage ? decodeHtmlEntities(page.twitterImage) : page.twitterImage,
+    h1: page.h1 ? decodeHtmlEntities(page.h1) : page.h1,
+    focusKeyword: page.focusKeyword ? decodeHtmlEntities(page.focusKeyword) : page.focusKeyword,
+    breadcrumbLabel: page.breadcrumbLabel
+      ? decodeHtmlEntities(page.breadcrumbLabel)
+      : page.breadcrumbLabel,
+    sitemapChangeFreq: page.sitemapChangeFreq
+      ? decodeHtmlEntities(page.sitemapChangeFreq)
+      : page.sitemapChangeFreq,
+    bodyContentPosition: page.bodyContentPosition
+      ? decodeHtmlEntities(page.bodyContentPosition)
+      : page.bodyContentPosition,
+    internalNotes: page.internalNotes ? decodeHtmlEntities(page.internalNotes) : page.internalNotes,
+  };
+}
+
+function decodeSettingsText(settings: SeoSettings): SeoSettings {
+  return {
+    ...settings,
+    siteUrl: decodeHtmlEntities(settings.siteUrl),
+    siteName: decodeHtmlEntities(settings.siteName),
+    titleTemplate: decodeHtmlEntities(settings.titleTemplate),
+    defaultTitle: decodeHtmlEntities(settings.defaultTitle),
+    defaultDescription: decodeHtmlEntities(settings.defaultDescription),
+    defaultKeywords: settings.defaultKeywords
+      ? decodeHtmlEntities(settings.defaultKeywords)
+      : settings.defaultKeywords,
+    defaultOgImage: settings.defaultOgImage
+      ? decodeHtmlEntities(settings.defaultOgImage)
+      : settings.defaultOgImage,
+    twitterHandle: settings.twitterHandle
+      ? decodeHtmlEntities(settings.twitterHandle)
+      : settings.twitterHandle,
+    organizationName: settings.organizationName
+      ? decodeHtmlEntities(settings.organizationName)
+      : settings.organizationName,
+    organizationLogo: settings.organizationLogo
+      ? decodeHtmlEntities(settings.organizationLogo)
+      : settings.organizationLogo,
+    organizationPhone: settings.organizationPhone
+      ? decodeHtmlEntities(settings.organizationPhone)
+      : settings.organizationPhone,
+    organizationEmail: settings.organizationEmail
+      ? decodeHtmlEntities(settings.organizationEmail)
+      : settings.organizationEmail,
+    organizationAddress: settings.organizationAddress
+      ? decodeHtmlEntities(settings.organizationAddress)
+      : settings.organizationAddress,
+    organizationCity: settings.organizationCity
+      ? decodeHtmlEntities(settings.organizationCity)
+      : settings.organizationCity,
+    organizationRegion: settings.organizationRegion
+      ? decodeHtmlEntities(settings.organizationRegion)
+      : settings.organizationRegion,
+    organizationPostal: settings.organizationPostal
+      ? decodeHtmlEntities(settings.organizationPostal)
+      : settings.organizationPostal,
+  };
+}
 
 const DEFAULT_SETTINGS: Omit<SeoSettings, "createdAt" | "updatedAt"> = {
   id: "global",
@@ -46,7 +126,7 @@ export async function getSeoSettings(): Promise<SeoSettings> {
 
   try {
     const settings = await prisma.seoSettings.findUnique({ where: { id: "global" } });
-    if (settings) return settings;
+    if (settings) return decodeSettingsText(settings);
 
     return await prisma.seoSettings.create({
       data: {
@@ -68,7 +148,8 @@ export async function getSeoPageByPath(path: string): Promise<SeoPage | null> {
   if (!process.env.DATABASE_URL?.trim()) return null;
 
   try {
-    return await prisma.seoPage.findUnique({ where: { path: normalized } });
+    const page = await prisma.seoPage.findUnique({ where: { path: normalized } });
+    return page ? decodePageTextFields(page) : null;
   } catch {
     return null;
   }
@@ -83,7 +164,15 @@ export async function getActiveRedirects(): Promise<
     return await prisma.seoRedirect.findMany({
       where: { isActive: true },
       select: { sourcePath: true, destinationPath: true, redirectType: true },
-    });
+    }).then((rows) =>
+      rows.map((r) => ({
+        ...r,
+        sourcePath: normalizeSeoPath(decodeHtmlEntities(r.sourcePath)),
+        destinationPath: r.destinationPath.startsWith("http")
+          ? decodeHtmlEntities(r.destinationPath)
+          : normalizeSeoPath(decodeHtmlEntities(r.destinationPath)),
+      }))
+    );
   } catch {
     return [];
   }

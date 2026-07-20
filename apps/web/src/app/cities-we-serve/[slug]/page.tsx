@@ -24,8 +24,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const name = await getCityDisplayName(slug);
   return buildPageMetadata(`/cities-we-serve/${slug}`, {
     title: `Chauffeur Service in ${name} | SARJ Worldwide`,
-    description: `SARJ Worldwide chauffeur service in ${name}. Airport transfers, executive chauffeur, wedding transport. Reserve now.`,
-    keywords: [`${name} chauffeur`, `SARJ Worldwide ${name}`, `${name} chauffeur service`, "airport transfer chauffeur"],
+    description:
+      region.description?.trim() ||
+      `SARJ Worldwide chauffeur service in ${name}. Airport transfers, executive chauffeur, wedding transport. Reserve now.`,
+    keywords: [
+      `${name} chauffeur`,
+      `SARJ Worldwide ${name}`,
+      `${name} chauffeur service`,
+      "airport transfer chauffeur",
+    ],
   });
 }
 
@@ -35,16 +42,26 @@ export default async function CityServicePage({ params }: PageProps) {
   if (!region) notFound();
 
   const name = await getCityDisplayName(slug);
-  const baseUrl = "https://sarjworldwide.ca";
+  const [settings, seoPage] = await Promise.all([
+    getSeoSettings(),
+    getSeoPageByPath(`/cities-we-serve/${slug}`),
+  ]);
+  const baseUrl = settings.siteUrl.replace(/\/$/, "");
   const url = `${baseUrl}/cities-we-serve/${slug}`;
+  const crumbName = seoPage?.breadcrumbLabel?.trim() || name;
 
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
-    "itemListElement": [
-      { "@type": "ListItem", "position": 1, "name": "Home", "item": baseUrl },
-      { "@type": "ListItem", "position": 2, "name": "Cities We Service", "item": `${baseUrl}/cities-we-serve` },
-      { "@type": "ListItem", "position": 3, "name": name, "item": url },
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: baseUrl },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Cities We Service",
+        item: `${baseUrl}/cities-we-serve`,
+      },
+      { "@type": "ListItem", position: 3, name: crumbName, item: url },
     ],
   };
 

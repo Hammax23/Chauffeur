@@ -17,7 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { getReservationById, Reservation } from "../../services/api";
+import { getReservationById, getDriverLiveLocation, Reservation, API_BASE_URL } from "../../services/api";
 import { useReservationStream } from "../../hooks/useReservationStream";
 import type { ReservationStreamStatus } from "../../services/reservation-stream";
 
@@ -31,10 +31,10 @@ const SLATE_500 = "#64748b";
 const SLATE_400 = "#94a3b8";
 const SLATE_200 = "#e2e8f0";
 
-type RideStatus = "pending" | "accepted" | "on_the_way" | "arrived" | "customer_in_car" | "stop" | "done";
+type RideStatus = "pending" | "accepted" | "on_the_way" | "arrived" | "customer_in_car" | "stop" | "done" | "cancelled";
 
 interface StatusStep {
-  id: Exclude<RideStatus, "pending">;
+  id: Exclude<RideStatus, "pending" | "cancelled">;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
 }
@@ -62,6 +62,7 @@ const friendlyStatus = (status: RideStatus) => {
     case "customer_in_car": return "In your ride";
     case "stop": return "Stopped";
     case "done": return "Trip completed";
+    case "cancelled": return "Cancelled";
     default: return "Awaiting driver";
   }
 };
@@ -75,6 +76,7 @@ const statusSubtitle = (status: RideStatus) => {
     case "customer_in_car": return "Enjoy the ride — sit back and relax.";
     case "stop": return "Trip is currently paused.";
     case "done": return "Thanks for riding with SARJ.";
+    case "cancelled": return "This reservation was cancelled.";
     default: return "";
   }
 };
@@ -88,6 +90,7 @@ const getStatusTone = (status: RideStatus): "neutral" | "info" | "active" | "suc
     case "customer_in_car": return "active";
     case "stop": return "warn";
     case "done": return "success";
+    case "cancelled": return "warn";
     default: return "neutral";
   }
 };
@@ -101,6 +104,8 @@ function statusFromString(status: string): RideStatus {
     case "CIC": return "customer_in_car";
     case "STOP": return "stop";
     case "DONE": return "done";
+    case "CANCELLED":
+    case "CANCELED": return "cancelled";
     default: return "pending";
   }
 }
@@ -132,30 +137,81 @@ export default function TrackRideScreen() {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [driverLoc, setDriverLoc] = useState<{
+    lat: number;
+    lng: number;
+    updatedAt: string | null;
+    driverName: string;
+  } | null>(null);
+
+  const reload = useCallback(async () => {
+    if (!bookingId) {
+      setIsLoading(false);
+      setLoadError("Missing booking id");
+      return;
+    }
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const data = await getReservationById(bookingId);
+      if (data.success) setReservation(data.reservation);
+      else setLoadError("Could not load this reservation.");
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "Could not load this reservation.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [bookingId]);
 
   // 1. Load the full reservation snapshot once for static fields (price, addresses, dates).
   useEffect(() => {
-    if (!bookingId) {
-      setIsLoading(false);
+    void reload();
+  }, [reload]);
+
+  // 2. Open the realtime SSE channel — server pushes status / driver / GPS.
+  const liveBookingId = typeof bookingId === "string" ? bookingId : null;
+  const live = useReservationStream(liveBookingId);
+
+  // Apply live GPS from SSE immediately
+  useEffect(() => {
+    if (!live.location || !reservation) return;
+    const active = ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP"].includes(reservation.status);
+    if (!active) return;
+    setDriverLoc({
+      lat: live.location.latitude,
+      lng: live.location.longitude,
+      updatedAt: live.location.updatedAt,
+      driverName: reservation.driver?.name || "Driver",
+    });
+  }, [live.location, reservation?.status, reservation?.driver?.name]);
+
+  // Poll driver GPS while trip is active — slow safety net when SSE is healthy
+  useEffect(() => {
+    if (!bookingId || !reservation) return;
+    const active = ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP"].includes(reservation.status);
+    if (!active) {
+      setDriverLoc(null);
       return;
     }
     let cancelled = false;
-    (async () => {
+    const tick = async () => {
       try {
-        const data = await getReservationById(bookingId);
-        if (!cancelled && data.success) setReservation(data.reservation);
+        const res = await getDriverLiveLocation(bookingId);
+        if (!cancelled && res.success && res.location) setDriverLoc(res.location);
       } catch {
-        // Stream will still try to provide live status
-      } finally {
-        if (!cancelled) setIsLoading(false);
+        /* ignore */
       }
-    })();
-    return () => { cancelled = true; };
-  }, [bookingId]);
-
-  // 2. Open the realtime SSE channel — server pushes status / driver changes.
-  const liveBookingId = typeof bookingId === "string" ? bookingId : null;
-  const live = useReservationStream(liveBookingId);
+    };
+    void tick();
+    // SSE is primary; poll slower when live, faster when reconnecting
+    const pollMs = live.status === "open" ? 40_000 : 8_000;
+    const id = setInterval(tick, pollMs);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [bookingId, reservation?.status, live.status]);
 
   // Merge live data into the existing reservation snapshot (status, driver, etc.).
   useEffect(() => {
@@ -266,6 +322,38 @@ export default function TrackRideScreen() {
       </LinearGradient>
     );
   }
+
+  if (loadError || !reservation) {
+    return (
+      <LinearGradient colors={["#f1f4f9", "#fafbfc", "#ffffff"]} locations={[0, 0.38, 1]} style={styles.gradientFill}>
+        <SafeAreaView style={[styles.safeArea, { justifyContent: "center", alignItems: "center", padding: 24 }]} edges={["top"]}>
+          <Text style={{ fontSize: 16, fontWeight: "700", color: SLATE_900, marginBottom: 8, textAlign: "center" }}>
+            Unable to load ride
+          </Text>
+          <Text style={{ fontSize: 14, color: SLATE_500, textAlign: "center", marginBottom: 16 }}>
+            {loadError || "Reservation not found."}
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: ACCENT, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 }}
+            onPress={() => void reload()}
+          >
+            <Text style={{ fontWeight: "700", color: "#111" }}>Retry</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={{ marginTop: 12 }} onPress={() => router.back()}>
+            <Text style={{ color: SLATE_600, fontWeight: "600" }}>Go back</Text>
+          </TouchableOpacity>
+        </SafeAreaView>
+      </LinearGradient>
+    );
+  }
+
+  const mapUrl = driverLoc
+    ? `${API_BASE_URL}/places/staticmap?${new URLSearchParams({
+        markers: `D:${driverLoc.lat},${driverLoc.lng}`,
+        w: "640",
+        h: "280",
+      }).toString()}`
+    : null;
 
   return (
     <LinearGradient colors={["#f1f4f9", "#fafbfc", "#ffffff"]} locations={[0, 0.38, 1]} style={styles.gradientFill}>
@@ -390,6 +478,27 @@ export default function TrackRideScreen() {
               />
             </View>
           </View>
+
+          {/* Live location map */}
+          {driverLoc && mapUrl ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionEyebrow}>LIVE LOCATION</Text>
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() =>
+                  Linking.openURL(
+                    `https://www.google.com/maps/search/?api=1&query=${driverLoc.lat},${driverLoc.lng}`
+                  ).catch(() => {})
+                }
+              >
+                <Image source={{ uri: mapUrl }} style={{ width: "100%", height: 180, borderRadius: 14 }} />
+                <Text style={{ marginTop: 8, fontSize: 12, color: SLATE_500 }}>
+                  {driverLoc.driverName} · tap map to open ·{" "}
+                  {formatRelative(driverLoc.updatedAt) || "updating"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
 
           {/* Driver section */}
           <View style={styles.section}>

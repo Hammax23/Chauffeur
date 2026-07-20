@@ -116,7 +116,7 @@ export function buildVehicleTiersFromAppFleet(appFleet: AppFleetVehicleDto[]): V
       seating: v.seating,
       luggage: v.luggage,
     }))
-    .filter((t) => t.imageUrl && t.pricePerKm > 0);
+    .filter((t) => t.imageUrl && (t.hourlyRate > 0 || t.pricePerKm > 0));
 }
 
 export function findTierById(tiers: VehicleTierOption[], id: string): VehicleTierOption | undefined {

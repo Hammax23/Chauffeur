@@ -38,6 +38,21 @@ export async function POST(req: NextRequest) {
       select: { isActive: true, status: true },
     });
 
+    // Live Auto: sync marketplace offers when going online/offline
+    try {
+      const {
+        syncDriverIntoOpenLiveOffers,
+        revokeOpenOffersForDriver,
+      } = await import("@/lib/live-auto");
+      if (driver.isActive) {
+        await syncDriverIntoOpenLiveOffers(tokenData.id);
+      } else {
+        await revokeOpenOffersForDriver(tokenData.id);
+      }
+    } catch (err) {
+      console.error("[toggle-active] live-auto sync:", err);
+    }
+
     return NextResponse.json({
       success: true,
       isActive: driver.isActive,

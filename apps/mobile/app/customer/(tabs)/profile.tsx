@@ -7,11 +7,15 @@ import {
   StatusBar,
   Image,
   Alert,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../../contexts/AuthContext";
+
+const SITE = "https://sarjworldwide.ca";
+const SUPPORT_EMAIL = "mailto:info@sarjworldwide.ca";
 
 export default function CustomerProfileScreen() {
   const { user, logout } = useAuth();
@@ -34,30 +38,44 @@ export default function CustomerProfileScreen() {
     router.push("/customer/edit-profile");
   };
 
+  const openUrl = (url: string) => {
+    Linking.openURL(url).catch(() => {
+      Alert.alert("Unable to open", "Please try again later.");
+    });
+  };
+
+  const handleDeactivate = () => {
+    Alert.alert(
+      "Deactivate account",
+      "To deactivate your account, contact SARJ support. We will confirm before removing your data.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Email support", onPress: () => openUrl(SUPPORT_EMAIL) },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-        
-        {/* Header */}
         <Text style={styles.headerTitle}>Customer's Profile</Text>
 
-        {/* Profile Card */}
         <View style={styles.profileCard}>
           {user?.photo ? (
-            <Image
-              source={{ uri: user.photo }}
-              style={styles.profileAvatar}
-            />
+            <Image source={{ uri: user.photo }} style={styles.profileAvatar} />
           ) : (
-            <View style={[styles.profileAvatar, { backgroundColor: '#D4A04A', justifyContent: 'center', alignItems: 'center' }]}>
-              <Text style={{ color: '#fff', fontSize: 20, fontWeight: '700' }}>
-                {user?.firstName?.[0]}{user?.lastName?.[0]}
+            <View style={[styles.profileAvatar, { backgroundColor: "#D4A04A", justifyContent: "center", alignItems: "center" }]}>
+              <Text style={{ color: "#fff", fontSize: 20, fontWeight: "700" }}>
+                {user?.firstName?.[0]}
+                {user?.lastName?.[0]}
               </Text>
             </View>
           )}
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{user?.firstName} {user?.lastName}</Text>
+            <Text style={styles.profileName}>
+              {user?.firstName} {user?.lastName}
+            </Text>
             <Text style={styles.profileEmail}>{user?.email}</Text>
           </View>
           <TouchableOpacity style={styles.editBtn} onPress={handleEditProfile}>
@@ -66,39 +84,35 @@ export default function CustomerProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Menu Items */}
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => openUrl(SUPPORT_EMAIL)}>
           <Text style={styles.menuText}>Contact Us</Text>
           <Ionicons name="chevron-forward" size={20} color="#ccc" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => openUrl(`${SITE}/refund-policy`)}>
           <Text style={styles.menuText}>Refund Policy</Text>
           <Ionicons name="chevron-forward" size={20} color="#ccc" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => openUrl(`${SITE}/privacy-policy`)}>
           <Text style={styles.menuText}>Privacy Policy</Text>
           <Ionicons name="chevron-forward" size={20} color="#ccc" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => openUrl(`${SITE}/terms-of-service`)}>
           <Text style={styles.menuText}>Terms & Conditions</Text>
           <Ionicons name="chevron-forward" size={20} color="#ccc" />
         </TouchableOpacity>
 
-        {/* Logout */}
         <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
           <Text style={styles.dangerText}>Logout</Text>
           <Ionicons name="chevron-forward" size={20} color="#e53935" />
         </TouchableOpacity>
 
-        {/* Deactivate Account */}
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} onPress={handleDeactivate}>
           <Text style={styles.dangerText}>Deactivate Account</Text>
           <Ionicons name="chevron-forward" size={20} color="#e53935" />
         </TouchableOpacity>
-
       </ScrollView>
     </SafeAreaView>
   );
@@ -150,29 +164,29 @@ const styles = StyleSheet.create({
   },
   profileEmail: {
     fontSize: 12,
-    color: "#D4A04A",
+    color: "rgba(255,255,255,0.7)",
   },
   editBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
+    backgroundColor: "#D4A04A",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
     gap: 4,
   },
   editBtnText: {
-    fontSize: 13,
-    fontWeight: "500",
+    fontSize: 12,
+    fontWeight: "600",
     color: "#1a1a1a",
   },
   menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
   },
   menuText: {
     fontSize: 15,

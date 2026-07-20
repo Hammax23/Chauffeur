@@ -1,17 +1,18 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import {
   DriverProfile,
-  getToken,
-  getStoredUser,
+  getDriverToken,
+  getStoredDriver,
+  clearDriverSession,
+  persistDriverProfile,
   loginDriver,
   logoutDriver,
   getDriverProfile,
-  setStoredUser,
-  type CustomerProfile,
   toggleDriverActive as apiToggleActive,
+  onUnauthorized,
 } from "../services/api";
 import { InteractionManager } from "react-native";
-import { registerPushToken } from "../services/notifications";
+import { registerDriverPushToken, subscribeDriverPushTokenRefresh, resetPushTokenRegistrationCache } from "../services/notifications";
 import { stopDriverLocationTracking } from "../services/driver-location";
 
 interface DriverAuthContextType {
@@ -26,31 +27,54 @@ interface DriverAuthContextType {
 
 const DriverAuthContext = createContext<DriverAuthContextType | undefined>(undefined);
 
+function scheduleDriverPush(token: string) {
+  InteractionManager.runAfterInteractions(() => {
+    registerDriverPushToken(token).catch((err) =>
+      console.log("Failed to register push token:", err)
+    );
+  });
+}
+
 export function DriverAuthProvider({ children }: { children: React.ReactNode }) {
   const [driver, setDriver] = useState<DriverProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    return onUnauthorized((role) => {
+      if (role === "driver") setDriver(null);
+    });
+  }, []);
+
+  // Re-register when FCM/APNs rotates the device token (app closed delivery depends on this)
+  useEffect(() => {
+    return subscribeDriverPushTokenRefresh(getDriverToken);
+  }, []);
+
+  useEffect(() => {
     (async () => {
       try {
-        const token = await getToken();
+        const token = await getDriverToken();
         if (token) {
-          const stored = await getStoredUser();
-          if (stored && "driverId" in stored) {
-            setDriver(stored as unknown as DriverProfile);
-          }
+          const stored = await getStoredDriver();
+          if (stored) setDriver(stored);
           try {
             const data = await getDriverProfile();
             if (data.success && data.driver) {
               setDriver(data.driver);
-              await setStoredUser(data.driver as unknown as CustomerProfile);
+              await persistDriverProfile(data.driver);
+              scheduleDriverPush(token);
             }
           } catch {
-            // Token might be expired
+            const stillHasToken = await getDriverToken();
+            if (!stillHasToken) setDriver(null);
+            // keep session on transient network errors — still try push register
+            if (stillHasToken) scheduleDriverPush(token);
           }
+        } else {
+          setDriver(null);
         }
       } catch {
-        // No stored session
+        setDriver(null);
       } finally {
         setIsLoading(false);
       }
@@ -63,16 +87,8 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
       if (data.success) {
         setDriver(data.driver);
 
-        // Live GPS is synced from `driver-live-session` when layout mounts / dashboard focuses — only if
-        // server reports an active trip (ON THE WAY / ARRIVED / CIC). Deferred push avoids native races.
-
-        // Defer push registration until after the navigation transition (fewer native crashes on some devices).
         if (data.token) {
-          InteractionManager.runAfterInteractions(() => {
-            registerPushToken(data.token!).catch((err) =>
-              console.log("Failed to register push token:", err)
-            );
-          });
+          scheduleDriverPush(data.token);
         }
 
         return { success: true };
@@ -86,6 +102,7 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
 
   const logout = useCallback(async () => {
     await stopDriverLocationTracking();
+    resetPushTokenRegistrationCache();
     await logoutDriver();
     setDriver(null);
   }, []);
@@ -95,10 +112,11 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
       const data = await getDriverProfile();
       if (data.success && data.driver) {
         setDriver(data.driver);
-        await setStoredUser(data.driver as unknown as CustomerProfile);
+        await persistDriverProfile(data.driver);
       }
     } catch {
-      // Silently fail
+      await clearDriverSession();
+      setDriver(null);
     }
   }, []);
 

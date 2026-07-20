@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const fetchCache = "force-no-store";
 
-const HEARTBEAT_MS = 20_000;
+const HEARTBEAT_MS = 15_000;
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
 function getDriverIdFromRequest(req: NextRequest): string | null {
@@ -63,6 +63,12 @@ export async function GET(
           /* closed */
         }
       };
+
+      try {
+        controller.enqueue(encoder.encode(`retry: 1500\n\n`));
+      } catch {
+        /* closed */
+      }
 
       try {
         const snapshot = await listMessagesForBooking(bookingId);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
+import { listOpenOffersForDriver } from "@/lib/live-auto";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
@@ -18,7 +19,59 @@ function getDriverFromToken(req: NextRequest) {
   }
 }
 
-// GET - Get rides assigned to this driver
+function mapAssignedRide(r: {
+  id: string;
+  bookingId: string;
+  status: string;
+  driverOnTheWayAt: Date | null;
+  driverStopPeriodsJson: string | null;
+  completedAt: Date | null;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string;
+  serviceType: string;
+  vehicle: string;
+  passengers: number;
+  childSeats: number;
+  serviceDate: string;
+  serviceTime: string;
+  pickupLocation: string;
+  stops: string | null;
+  dropoffLocation: string;
+  distance: string | null;
+  duration: string | null;
+  total: number;
+  createdAt: Date;
+}, liveOffer = false) {
+  return {
+    id: r.id,
+    bookingId: r.bookingId,
+    status: r.status,
+    driverOnTheWayAt: r.driverOnTheWayAt?.toISOString() ?? null,
+    driverStopPeriodsJson: r.driverStopPeriodsJson ?? null,
+    completedAt: r.completedAt?.toISOString() ?? null,
+    customerName: `${r.firstName} ${r.lastName}`,
+    phone: r.phone,
+    email: r.email,
+    serviceType: r.serviceType,
+    vehicle: r.vehicle,
+    passengers: r.passengers,
+    childSeats: r.childSeats,
+    serviceDate: r.serviceDate,
+    serviceTime: r.serviceTime,
+    pickupLocation: r.pickupLocation,
+    stops: r.stops || "",
+    dropoffLocation: r.dropoffLocation,
+    distance: r.distance || "",
+    duration: r.duration || "",
+    total: r.total,
+    createdAt: r.createdAt.toISOString(),
+    liveOffer,
+  };
+}
+
+// GET - Get rides assigned to this driver (+ live open offers for requests tab)
 export async function GET(req: NextRequest) {
   try {
     const tokenData = getDriverFromToken(req);
@@ -32,11 +85,8 @@ export async function GET(req: NextRequest) {
     let whereClause: Record<string, unknown> = { assignedDriverId: tokenData.id };
 
     if (tab === "requests") {
-      // New ride requests: assigned to driver but still PENDING
       whereClause.status = "PENDING";
     } else if (tab === "upcoming") {
-      // Upcoming rides: accepted-but-not-yet-started OR actively in progress
-      // (includes STOP = paused mid-trip)
       whereClause.status = { in: ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP"] };
     } else if (tab === "completed") {
       whereClause.status = { in: ["DONE", "CANCELLED"] };
@@ -48,30 +98,41 @@ export async function GET(req: NextRequest) {
       include: { customer: true },
     });
 
-    const rides = reservations.map((r: typeof reservations[number]) => ({
-      id: r.id,
-      bookingId: r.bookingId,
-      status: r.status,
-      driverOnTheWayAt: r.driverOnTheWayAt?.toISOString() ?? null,
-      driverStopPeriodsJson: r.driverStopPeriodsJson ?? null,
-      completedAt: r.completedAt?.toISOString() ?? null,
-      customerName: `${r.firstName} ${r.lastName}`,
-      phone: r.phone,
-      email: r.email,
-      serviceType: r.serviceType,
-      vehicle: r.vehicle,
-      passengers: r.passengers,
-      childSeats: r.childSeats,
-      serviceDate: r.serviceDate,
-      serviceTime: r.serviceTime,
-      pickupLocation: r.pickupLocation,
-      stops: r.stops || "",
-      dropoffLocation: r.dropoffLocation,
-      distance: r.distance || "",
-      duration: r.duration || "",
-      total: r.total,
-      createdAt: r.createdAt.toISOString(),
-    }));
+    const rides = reservations.map((r) => mapAssignedRide(r, false));
+
+    if (tab === "requests") {
+      const liveOffers = await listOpenOffersForDriver(tokenData.id);
+      const assignedIds = new Set(rides.map((r) => r.bookingId));
+      for (const offer of liveOffers) {
+        if (assignedIds.has(offer.bookingId)) continue;
+        rides.push({
+          id: offer.bookingId,
+          bookingId: offer.bookingId,
+          status: offer.status,
+          driverOnTheWayAt: null,
+          driverStopPeriodsJson: null,
+          completedAt: null,
+          customerName: offer.customerName,
+          phone: offer.phone,
+          email: offer.email,
+          serviceType: offer.serviceType,
+          vehicle: offer.vehicle,
+          passengers: offer.passengers,
+          childSeats: offer.childSeats,
+          serviceDate: offer.serviceDate,
+          serviceTime: offer.serviceTime,
+          pickupLocation: offer.pickupLocation,
+          stops: offer.stops,
+          dropoffLocation: offer.dropoffLocation,
+          distance: offer.distance,
+          duration: offer.duration,
+          total: offer.total,
+          createdAt: offer.createdAt,
+          liveOffer: true,
+        });
+      }
+      rides.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
 
     return NextResponse.json({ success: true, rides });
   } catch (error) {

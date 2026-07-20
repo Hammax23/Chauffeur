@@ -14,15 +14,15 @@ import { API_BASE_URL, getToken } from "./api";
  *   • Frame parser handles `event:` / `data:` blocks separated by "\n\n"
  *   • Comment lines (": ...") are treated as heartbeats — they bump the
  *     activity clock so the heartbeat watcher doesn't trigger a reconnect.
- *   • Exponential backoff on disconnect (1.5s → 30s cap, reset on success)
+ *   • Exponential backoff on disconnect (0.6s → 8s cap, reset on success)
  *   • close() aborts immediately and disables future reconnects
  *
  * Each instance is single-use — call openSseStream() once per subscription.
  */
 
-const HEARTBEAT_GRACE_MS = 45_000;
-const INITIAL_BACKOFF_MS = 1_500;
-const MAX_BACKOFF_MS = 30_000;
+const HEARTBEAT_GRACE_MS = 40_000;
+const INITIAL_BACKOFF_MS = 600;
+const MAX_BACKOFF_MS = 8_000;
 
 export type SseConnectionStatus = "idle" | "connecting" | "open" | "reconnecting" | "closed";
 
@@ -152,7 +152,7 @@ export function openSseStream(
 
     let token: string | null = null;
     try {
-      token = await getToken();
+      token = await getToken(options.path);
     } catch {
       token = null;
     }
@@ -186,7 +186,10 @@ export function openSseStream(
       if (xhr !== request) return;
       if (request.readyState === XMLHttpRequest.HEADERS_RECEIVED) {
         if (request.status === 401 || request.status === 403) {
-          scheduleReconnect(`Auth ${request.status}`);
+          stopped = true;
+          stopHeartbeatWatcher();
+          abortXhr();
+          setStatus("closed", { error: `Auth ${request.status}` });
           return;
         }
         if (request.status < 200 || request.status >= 300) {

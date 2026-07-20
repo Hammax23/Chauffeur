@@ -186,5 +186,27 @@ export async function postChatMessage(params: {
     );
   }
 
+  if (params.senderType === "DRIVER" && reservation.customerId) {
+    void (async () => {
+      try {
+        const customer = await prisma.customer.findUnique({
+          where: { id: reservation.customerId! },
+          select: { pushToken: true },
+        });
+        if (customer?.pushToken) {
+          const preview = body.length > 80 ? `${body.slice(0, 77)}…` : body;
+          await sendPushNotification(
+            customer.pushToken,
+            "New message from chauffeur",
+            preview,
+            { type: "chat", bookingId: reservation.bookingId }
+          );
+        }
+      } catch {
+        /* non-fatal */
+      }
+    })();
+  }
+
   return dto;
 }

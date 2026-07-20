@@ -18,15 +18,19 @@ export default function HistoryScreen() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const fetchReservations = useCallback(async () => {
     try {
+      setLoadError(null);
       const data = await getReservations();
       if (data.success) {
         setReservations(data.reservations);
+      } else {
+        setLoadError("Could not load history.");
       }
-    } catch {
-      // Silently fail
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "Could not load history.");
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -68,6 +72,20 @@ export default function HistoryScreen() {
         {isLoading ? (
           <View style={styles.emptyState}>
             <ActivityIndicator size="large" color="#D4A04A" />
+          </View>
+        ) : loadError ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="cloud-offline-outline" size={64} color="#ccc" />
+            <Text style={styles.emptyText}>{loadError}</Text>
+            <TouchableOpacity
+              style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#0f172a", borderRadius: 10 }}
+              onPress={() => {
+                setIsLoading(true);
+                void fetchReservations();
+              }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "600" }}>Retry</Text>
+            </TouchableOpacity>
           </View>
         ) : completed.length === 0 ? (
           <View style={styles.emptyState}>
@@ -133,7 +151,9 @@ export default function HistoryScreen() {
                 </View>
 
                 <View style={styles.footerRow}>
-                  <Text style={styles.totalText}>Total: ${reservation.total}</Text>
+                  <Text style={styles.totalText}>
+                    Total: ${Number(reservation.total || 0).toFixed(2)}
+                  </Text>
                   <View style={styles.ctaRow}>
                     <Text style={styles.ctaText}>View</Text>
                     <Ionicons name="chevron-forward" size={16} color="#111" />

@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT - Update charge
+// PUT - Update charge (by id, or upsert by chargeKey)
 export async function PUT(request: NextRequest) {
   const auth = await verifyAdminAuth(request);
   if (!auth.authenticated) {
@@ -67,19 +67,53 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { id, ...updateData } = body;
+    const { id, chargeKey, chargeName, amount, isPercentage, isActive } = body as {
+      id?: string;
+      chargeKey?: string;
+      chargeName?: string;
+      amount?: number | string;
+      isPercentage?: boolean;
+      isActive?: boolean;
+    };
 
-    if (!id) {
-      return NextResponse.json({ success: false, error: "Charge ID required" }, { status: 400 });
+    const parsedAmount = amount !== undefined ? parseFloat(String(amount)) : undefined;
+
+    if (id) {
+      const updateData: Record<string, unknown> = {};
+      if (chargeName !== undefined) updateData.chargeName = chargeName;
+      if (parsedAmount !== undefined) updateData.amount = parsedAmount;
+      if (isPercentage !== undefined) updateData.isPercentage = isPercentage;
+      if (isActive !== undefined) updateData.isActive = isActive;
+
+      const charge = await prisma.reservationCharges.update({
+        where: { id },
+        data: updateData,
+      });
+      return NextResponse.json({ success: true, charge });
     }
 
-    if (updateData.amount !== undefined) {
-      updateData.amount = parseFloat(updateData.amount);
+    if (!chargeKey) {
+      return NextResponse.json(
+        { success: false, error: "Charge ID or chargeKey required" },
+        { status: 400 }
+      );
     }
 
-    const charge = await prisma.reservationCharges.update({
-      where: { id },
-      data: updateData,
+    const charge = await prisma.reservationCharges.upsert({
+      where: { chargeKey },
+      create: {
+        chargeKey,
+        chargeName: chargeName || chargeKey,
+        amount: parsedAmount ?? 0,
+        isPercentage: isPercentage ?? false,
+        isActive: isActive !== false,
+      },
+      update: {
+        ...(chargeName !== undefined ? { chargeName } : {}),
+        ...(parsedAmount !== undefined ? { amount: parsedAmount } : {}),
+        ...(isPercentage !== undefined ? { isPercentage } : {}),
+        ...(isActive !== undefined ? { isActive } : {}),
+      },
     });
 
     return NextResponse.json({ success: true, charge });

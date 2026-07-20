@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { validatePassword } from "@/lib/password-policy";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
@@ -13,6 +14,14 @@ export async function POST(req: NextRequest) {
     if (!firstName || !lastName || !email || !phone || !password) {
       return NextResponse.json(
         { success: false, error: "All required fields must be provided" },
+        { status: 400 }
+      );
+    }
+
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      return NextResponse.json(
+        { success: false, error: passwordError },
         { status: 400 }
       );
     }

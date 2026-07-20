@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { Instagram, Facebook, Linkedin, Phone, Mail, MapPin } from 'lucide-react';
 import { services as staticServices } from "@/data/services";
+import { SeoBodySlot } from "@/components/SeoPageLiveExtras";
 
 const HIDDEN_SLUGS = ["vip-transport", "intercity-travel"];
 
@@ -33,6 +34,8 @@ const Footer = () => {
   }, []);
 
   return (
+    <>
+    <SeoBodySlot position="bottom" />
     <footer className="relative bg-gradient-to-b from-[#0a0a0a] via-black to-[#0a0a0a] overflow-hidden">
       {/* Background Effects */}
       <div className="absolute inset-0 opacity-20">
@@ -262,6 +265,7 @@ const Footer = () => {
         </div>
       </div>
     </footer>
+    </>
   );
 };
 

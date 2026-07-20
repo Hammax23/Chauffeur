@@ -1,12 +1,14 @@
 const { withEntitlementsPlist } = require("expo/config-plugins");
 
 /**
- * First TestFlight build: provisioning profile was created without Push / Sign in with Apple.
- * Remove those entitlements so the profile matches. Re-enable after profile is regenerated.
+ * First TestFlight: Sign in with Apple was not on the provisioning profile.
+ * Keep stripping Apple Sign In until that capability is added in Apple Developer.
+ *
+ * IMPORTANT: Do NOT strip `aps-environment` — remote push (WhatsApp-style
+ * notifications while the app is closed) requires it.
  */
 module.exports = function withStripIosCapabilities(config) {
   return withEntitlementsPlist(config, (config) => {
-    delete config.modResults["aps-environment"];
     delete config.modResults["com.apple.developer.applesignin"];
     return config;
   });

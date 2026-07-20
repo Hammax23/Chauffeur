@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assignDriverToReservation } from "@/lib/data-store";
 import { verifyAdminAuth } from "@/lib/admin-auth";
-import { sendPushNotification } from "@/lib/push-notifications";
 import { publishReservationFromDb } from "@/lib/realtime-bus";
-import prisma from "@/lib/prisma";
+import { revokeOffersForBooking } from "@/lib/live-auto";
 
 export async function POST(request: NextRequest) {
   const auth = await verifyAdminAuth(request);
@@ -24,11 +23,6 @@ export async function POST(request: NextRequest) {
 
     const result = await assignDriverToReservation(bookingId, driverId);
 
-    if (result.ok) {
-      // Live update for any customer streaming this reservation
-      await publishReservationFromDb(bookingId, "driver_assigned");
-    }
-
     if (!result.ok) {
       if (result.reason === "busy") {
         return NextResponse.json(
@@ -46,43 +40,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Send push notification to driver
-    try {
-      const driver = await prisma.driver.findUnique({
-        where: { id: driverId },
-        select: { pushToken: true, name: true },
-      });
+    await revokeOffersForBooking(bookingId, driverId);
 
-      const reservation = await prisma.reservation.findUnique({
-        where: { bookingId },
-        select: { 
-          bookingId: true,
-          pickupLocation: true,
-          dropoffLocation: true,
-          serviceDate: true,
-          serviceTime: true,
-        },
-      });
+    // SSE first (await), push never blocks the response
+    const { notifyDriverOfManualAssignment } = await import("@/lib/live-auto");
+    const { notifyDriverReservationAssigned } = await import("@/lib/driver-push");
+    await Promise.all([
+      notifyDriverOfManualAssignment(bookingId, driverId),
+      publishReservationFromDb(bookingId, "driver_assigned"),
+    ]);
+    void notifyDriverReservationAssigned(bookingId, driverId).catch((err) =>
+      console.error("[assign] driver push", err)
+    );
 
-      if (driver?.pushToken && reservation) {
-        await sendPushNotification(
-          driver.pushToken,
-          "🚗 New Ride Request",
-          `New ride from ${reservation.pickupLocation} on ${reservation.serviceDate}`,
-          {
-            type: "new_assignment",
-            bookingId: reservation.bookingId,
-            screen: "DriverDashboard",
-          }
-        );
-      }
-    } catch (notifError) {
-      console.error("Failed to send push notification:", notifError);
-      // Don't fail the assignment if notification fails
-    }
+    void import("@/lib/customer-push")
+      .then(({ notifyCustomerDriverAssigned }) => notifyCustomerDriverAssigned(bookingId))
+      .catch((err) => console.error("[assign] customer notify", err));
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Assign driver error:", error);
     return NextResponse.json(
       { success: false, error: "Failed to assign driver" },

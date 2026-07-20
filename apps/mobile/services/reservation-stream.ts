@@ -13,7 +13,8 @@ export type ReservationLiveEventType =
   | "status_changed"
   | "driver_assigned"
   | "driver_unassigned"
-  | "timing_updated";
+  | "timing_updated"
+  | "driver_location";
 
 export interface ReservationLiveDriver {
   name: string;
@@ -35,11 +36,22 @@ export interface ReservationLiveData {
   driver: ReservationLiveDriver | null;
 }
 
+export interface DriverLocationLivePayload {
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  heading: number | null;
+  speed: number | null;
+  updatedAt: string;
+}
+
 export interface ReservationLiveEvent {
   type: ReservationLiveEventType;
   bookingId: string;
   serverTime: string;
-  data: ReservationLiveData;
+  seq?: number;
+  data?: ReservationLiveData;
+  location?: DriverLocationLivePayload;
 }
 
 // Re-export connection-status type for hooks that already imported it from here.

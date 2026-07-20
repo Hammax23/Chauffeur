@@ -122,6 +122,7 @@ model Driver {
   vehicleRegistrationUrl       String?
   
   reservations  Reservation[]
+  rideOffers    RideOffer[]
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -165,6 +166,9 @@ model Customer {
 
   /// Where this customer account was created (e.g. "app" via mobile, "web" via website/admin).
   registrationSource String @default("web")
+
+  /// Expo push notification token (customer app)
+  pushToken     String?
   
   reservations  Reservation[]
   
@@ -377,6 +381,35 @@ model SeoSettings {
   defaultPriority       Float    @default(0.8)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+}
+
+/// Global operations settings (single row, id = "global")
+model OpsSettings {
+  id                 String   @id @default("global")
+  /// When true, new PENDING reservations are broadcast live to all eligible drivers.
+  /// First driver to accept claims the ride; others lose the offer instantly.
+  liveAutoMode       Boolean  @default(false)
+  /// Only drivers with isActive=true receive live offers.
+  onlyActiveDrivers  Boolean  @default(true)
+  updatedAt          DateTime @updatedAt
+  createdAt          DateTime @default(now())
+}
+
+/// Live Auto Mode — multi-driver offer for a reservation (first claim wins).
+model RideOffer {
+  id          String    @id @default(cuid())
+  bookingId   String
+  driverId    String
+  /// OPEN | CLAIMED | REVOKED | DECLINED | EXPIRED
+  status      String    @default("OPEN")
+  createdAt   DateTime  @default(now())
+  respondedAt DateTime?
+
+  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, driverId])
+  @@index([driverId, status])
+  @@index([bookingId, status])
 }
 
 /// Per-page SEO overrides

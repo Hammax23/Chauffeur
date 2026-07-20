@@ -16,9 +16,13 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sarjworldwide.chauffeur",
-      "buildNumber": "4",
+      "buildNumber": "9",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": [
+          "location",
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -28,7 +32,13 @@
       },
       "package": "com.sarjworldwide.chauffeur",
       "versionCode": 1,
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.WAKE_LOCK"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -41,6 +51,16 @@
       "expo-secure-store",
       "expo-font",
       "expo-asset",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#D4A04A",
+          "defaultChannel": "reservations",
+          "sounds": [],
+          "enableBackgroundRemoteNotifications": true
+        }
+      ],
       [
         "expo-location",
         {

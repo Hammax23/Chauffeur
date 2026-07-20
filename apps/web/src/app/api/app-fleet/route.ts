@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { APP_FLEET_SEED } from "@/data/app-fleet-seed";
 import { fleetData } from "@/data/fleet";
+import { BASE_DISTANCE_KM, EXTRA_KM_RATE } from "@/lib/reservation-pricing";
 
 function siteOrigin(request: NextRequest): string {
   const fromEnv = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/+$/, "");
@@ -16,6 +17,31 @@ function absolutizeImage(image: string, base: string): string {
   if (!image) return "";
   if (image.startsWith("http")) return image;
   return `${base}${image.startsWith("/") ? "" : "/"}${image}`;
+}
+
+async function loadDistancePricing() {
+  let baseDistanceKm = BASE_DISTANCE_KM;
+  let extraKmRate = EXTRA_KM_RATE;
+  try {
+    const rows = await prisma.reservationCharges.findMany({
+      where: {
+        chargeKey: { in: ["baseDistanceKm", "extraKmRate"] },
+        isActive: true,
+      },
+      select: { chargeKey: true, amount: true },
+    });
+    for (const row of rows) {
+      if (row.chargeKey === "baseDistanceKm") baseDistanceKm = row.amount;
+      if (row.chargeKey === "extraKmRate") extraKmRate = row.amount;
+    }
+  } catch {
+    /* defaults */
+  }
+  return { baseDistanceKm, extraKmRate };
+}
+
+function hasPricedVehicle(v: { hourlyRate: number; pricePerKm: number }) {
+  return v.hourlyRate > 0 || v.pricePerKm > 0;
 }
 
 function staticFallback(base: string) {
@@ -43,7 +69,7 @@ function staticFallback(base: string) {
       showOnHome: seed.showOnHome,
       sortOrder: seed.sortOrder,
     };
-  }).filter((v) => v.imageUrl && v.pricePerKm > 0);
+  }).filter((v) => v.imageUrl && hasPricedVehicle(v));
 }
 
 /** Public app fleet list for mobile reservation + home preview. */
@@ -51,6 +77,7 @@ export async function GET(request: NextRequest) {
   try {
     const base = siteOrigin(request);
     const homeOnly = request.nextUrl.searchParams.get("home") === "1";
+    const pricing = await loadDistancePricing();
 
     const rows = await prisma.appFleetVehicle.findMany({
       where: {
@@ -61,7 +88,12 @@ export async function GET(request: NextRequest) {
     });
 
     if (rows.length === 0) {
-      return NextResponse.json({ success: true, vehicles: staticFallback(base), source: "static" });
+      return NextResponse.json({
+        success: true,
+        vehicles: staticFallback(base),
+        pricing,
+        source: "static",
+      });
     }
 
     const vehicles = rows
@@ -83,15 +115,16 @@ export async function GET(request: NextRequest) {
         showOnHome: v.showOnHome,
         sortOrder: v.sortOrder,
       }))
-      .filter((v) => v.imageUrl && v.pricePerKm > 0);
+      .filter((v) => v.imageUrl && hasPricedVehicle(v));
 
-    return NextResponse.json({ success: true, vehicles, source: "db" });
+    return NextResponse.json({ success: true, vehicles, pricing, source: "db" });
   } catch (error) {
     console.error("[AppFleet public GET]", error);
     const base = siteOrigin(request);
     return NextResponse.json({
       success: true,
       vehicles: staticFallback(base),
+      pricing: { baseDistanceKm: BASE_DISTANCE_KM, extraKmRate: EXTRA_KM_RATE },
       source: "static",
     });
   }
