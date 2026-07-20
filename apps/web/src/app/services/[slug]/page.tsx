@@ -89,6 +89,7 @@ export default async function ServicePage({ params }: Props) {
   ]);
   const baseUrl = settings.siteUrl.replace(/\/$/, "");
   const serviceUrl = `${baseUrl}/services/${slug}`;
+  const crumbName = seoPage?.breadcrumbLabel?.trim() || service.title;
   const bgImage = heroImageMap[slug] || "/cover1.jpeg";
 
   const breadcrumbJsonLd = {

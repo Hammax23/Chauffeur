@@ -88,10 +88,10 @@ export default function AboutPage() {
               </h2>
               <div className="text-gray-600 text-[15px] sm:text-[16px] leading-relaxed">
                 <p className="mb-4">
-                  SARJ Worldwide was founded on a simple yet powerful belief: every journey should be comfortable, reliable, and unforgettable. Whether you're traveling to the airport, attending an important business meeting, celebrating your wedding day, or exploring a new city, we are committed to providing a luxury chauffeur experience that exceeds expectations.
+                  SARJ Worldwide was founded on a simple yet powerful belief: every journey should be comfortable, reliable, and unforgettable. Whether you&apos;re traveling to the airport, attending an important business meeting, celebrating your wedding day, or exploring a new city, we are committed to providing a luxury chauffeur experience that exceeds expectations.
                 </p>
                 <p>
-                  With a carefully curated fleet of premium vehicles and a team of experienced, professional chauffeurs, we proudly serve clients across major cities worldwide. Our reputation has been built on punctuality, discretion, exceptional service, and attention to every detail. At SARJ Worldwide, we don't just provide transportation—we deliver a seamless, first-class travel experience designed around your comfort, safety, and peace of mind.
+                  With a carefully curated fleet of premium vehicles and a team of experienced, professional chauffeurs, we proudly serve clients across major cities worldwide. Our reputation has been built on punctuality, discretion, exceptional service, and attention to every detail. At SARJ Worldwide, we don&apos;t just provide transportation—we deliver a seamless, first-class travel experience designed around your comfort, safety, and peace of mind.
                 </p>
               </div>
             </div>

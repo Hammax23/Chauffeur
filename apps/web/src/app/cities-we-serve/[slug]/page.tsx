@@ -6,6 +6,7 @@ import CityServicePageContent from "@/components/CityServicePageContent";
 import { getCityBySlug, getCityDisplayName, getAllCitySlugs } from "@/lib/managed-cities";
 import type { Metadata } from "next";
 import { buildPageMetadata } from "@/lib/seo-metadata";
+import { getSeoPageByPath, getSeoSettings } from "@/lib/seo-config";
 import { GoogleMapsProvider } from "@/components/GoogleMapsProvider";
 
 interface PageProps {

@@ -8,6 +8,7 @@ import CityFAQSection from "@/components/CityFAQSection";
 
 interface CityServicePageContentProps {
   name: string;
+  slug: string;
   h1?: string | null;
   description?: string | null;
 }
