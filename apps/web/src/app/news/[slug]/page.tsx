@@ -88,7 +88,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
       <TopNav />
       <Navbar />
 
-      <section className="relative pt-[117px] md:pt-[132px] pb-16 md:pb-24">
+      <section className="relative pt-[108px] md:pt-[120px] pb-16 md:pb-24">
         <div className="absolute inset-0 z-0">
           <Image
             src={article.image}

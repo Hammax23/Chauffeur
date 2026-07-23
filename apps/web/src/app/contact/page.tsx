@@ -219,7 +219,7 @@ export default function ContactPage() {
       <Navbar />
 
       {/* Hero */}
-      <section className="pt-[117px] md:pt-[132px] relative overflow-hidden">
+      <section className="pt-[108px] md:pt-[120px] relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-[#C9A063]/[0.03] via-transparent to-[#C9A063]/[0.05]" />
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-px bg-gradient-to-r from-transparent via-[#C9A063]/20 to-transparent" />
         <div className="max-w-[1100px] mx-auto px-6 sm:px-8 md:px-12 pt-10 pb-8 sm:pt-12 sm:pb-10 md:pt-14 md:pb-12 relative z-10">

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { Phone, Menu, X } from 'lucide-react';
+import { Phone, Menu, X, ChevronRight } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import ServicesNavDropdown from "@/components/ServicesNavDropdown";
 import AirportsNavDropdown from "@/components/AirportsNavDropdown";
@@ -28,7 +28,7 @@ const Navbar = () => {
         : 'bg-black/60 backdrop-blur-xl'
     }`}>
       <div className="max-w-[1600px] mx-auto px-4 md:px-8">
-        <div className="flex items-center justify-between h-[85px] md:h-[100px]">
+        <div className="flex items-center justify-between h-[76px] md:h-[88px]">
           <div className="flex items-center gap-4 lg:gap-8">
             <Link href="/" className="flex items-center shrink-0">
               <Image 
@@ -36,7 +36,7 @@ const Navbar = () => {
                 alt="SARJ Worldwide Chauffeur Services Logo" 
                 width={210}
                 height={110}
-                className="object-contain object-left w-auto h-14 sm:h-16 md:h-[110px] md:w-[210px]"
+                className="object-contain object-left w-auto h-[52px] sm:h-[60px] md:h-[100px] md:w-[190px]"
               />
             </Link>
 
@@ -71,8 +71,12 @@ const Navbar = () => {
           </div>
 
           <div className="flex items-center gap-4 shrink-0 pl-4">
-            <Link href="/reservation" className="hidden lg:inline-flex items-center justify-center px-6 py-3 bg-[#C9A063] hover:bg-[#B8935A] text-white text-[13px] xl:text-[14px] font-semibold uppercase tracking-wider rounded-xl transition-all duration-300 shadow-lg shadow-black/20 whitespace-nowrap">
-              ONLINE RESERVATION
+            <Link
+              href="/reservation"
+              className="group relative hidden lg:inline-flex items-center justify-center gap-2 px-5 xl:px-6 py-2.5 rounded-md border border-[#C9A063]/70 bg-white/[0.06] backdrop-blur-md text-[#F0E6D3] text-[11px] xl:text-[12px] font-semibold uppercase tracking-[0.14em] hover:bg-[#C9A063] hover:text-white hover:border-[#C9A063] hover:shadow-[0_0_24px_rgba(201,160,99,0.35)] transition-all duration-300 whitespace-nowrap"
+            >
+              Online Reservation
+              <ChevronRight className="w-3.5 h-3.5 opacity-80 group-hover:translate-x-0.5 transition-transform duration-300" strokeWidth={2} />
             </Link>
 
             <button
@@ -115,8 +119,12 @@ const Navbar = () => {
               CONTACT
             </Link>
             
-            <Link href="/reservation" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-base font-medium text-left">
-              ONLINE RESERVATION
+            <Link
+              href="/reservation"
+              onClick={() => setIsMenuOpen(false)}
+              className="flex w-full mt-2 items-center justify-center gap-2 px-4 py-3 rounded-md border border-[#C9A063]/70 bg-white/[0.06] text-[#F0E6D3] text-sm font-semibold uppercase tracking-[0.14em] hover:bg-[#C9A063] hover:text-white transition-all"
+            >
+              Online Reservation
             </Link>
 
             <div className="pt-3 mt-3 pb-2 border-t border-gray-800">
