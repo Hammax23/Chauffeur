@@ -42,11 +42,11 @@ const WhyChoose = () => {
       <div className="max-w-[1400px] mx-auto px-6 sm:px-8 md:px-12 relative z-10">
         {/* Header Section */}
         <div className="mb-6 sm:mb-7">
-          <div className="flex justify-center mb-3">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-gray-200 bg-white">
+          <div className="flex justify-center">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#C9A063]/30 bg-[#C9A063]/5 mb-6">
               <div className="w-1.5 h-1.5 rounded-full bg-[#C9A063]" />
-              <span className="text-gray-800 text-[11px] sm:text-[12px] font-medium tracking-widest uppercase">
-                WHY CHOOSE US
+              <span className="text-[#C9A063] text-xs sm:text-sm font-semibold tracking-widest uppercase">
+                Why Choose Us
               </span>
             </div>
           </div>

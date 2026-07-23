@@ -61,7 +61,7 @@ const HeroSection = () => {
 
       <div className="relative z-10 flex flex-col min-h-screen pt-[108px] sm:pt-[118px]">
         <div className="max-w-[1600px] mx-auto w-full px-8">
-          <div className="text-left mb-3 sm:mb-4 md:mb-5 mt-12 sm:mt-16 md:mt-24 lg:mt-28 max-w-[800px] lg:ml-[240px]">
+          <div className="text-left mb-3 sm:mb-4 md:mb-5 mt-6 sm:mt-8 md:mt-12 lg:mt-16 max-w-[800px] lg:ml-[240px]">
             <p className="text-white/90 text-sm sm:text-base md:text-lg mb-3 sm:mb-4 font-normal tracking-wide">
               Where Would You Like To Go?
             </p>

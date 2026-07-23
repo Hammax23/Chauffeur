@@ -5,7 +5,7 @@ const TopNav = () => {
   return (
     <div className="fixed top-0 left-0 right-0 z-[60] bg-black/90 backdrop-blur-xl border-b border-white/10">
       <div className="max-w-[1600px] mx-auto px-4 sm:px-8">
-        <div className="flex items-center justify-center sm:justify-between h-[45px]">
+        <div className="flex items-center justify-center sm:justify-between h-[32px]">
           <div className="hidden sm:flex items-center gap-6">
             {/* <a 
               href="mailto:info@luxride.com" 
@@ -28,11 +28,11 @@ const TopNav = () => {
           </div>
 
           <div className="flex items-center justify-center sm:justify-end gap-4">
-            <div className="hidden sm:block w-px h-4 bg-white/20"></div>
+            <div className="hidden sm:block w-px h-3 bg-white/20"></div>
             
-            <span className="flex items-center gap-2 text-white/90 group">
-              <Phone className="w-4 h-4 sm:w-3.5 sm:h-3.5 flex-shrink-0" strokeWidth={2} />
-              <span className="text-[25px] sm:text-[25px] font-light tracking-wide"> +1 416-893-5779</span>
+            <span className="flex items-center gap-1.5 text-white/90 group">
+              <Phone className="w-3 h-3 flex-shrink-0" strokeWidth={2} />
+              <span className="text-[13px] font-semibold tracking-wide">+1 416-893-5779</span>
             </span>
 
 

@@ -20,7 +20,7 @@ export default async function CitiesWeServePage() {
     <main className="min-h-screen bg-black">
       <TopNav />
       <Navbar />
-      <div className="pt-[130px] md:pt-[145px]">
+      <div className="pt-[117px] md:pt-[132px]">
         <CitiesWeServiceContent cities={cities.map((c) => ({ slug: c.slug, label: c.label }))} />
       </div>
       <Footer />

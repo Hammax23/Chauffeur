@@ -192,7 +192,7 @@ const GlobalFootprint = () => {
         </div>
 
         {/* Dotted Map */}
-        <div className="relative mb-8 max-w-6xl mx-auto">
+        <div className="relative mb-8 max-w-4xl mx-auto">
           <div className="relative bg-transparent overflow-hidden p-2 sm:p-4">
             <svg
               viewBox="0 50 1200 350"
