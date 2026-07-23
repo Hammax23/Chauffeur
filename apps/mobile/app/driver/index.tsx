@@ -166,8 +166,13 @@ export default function DriverDashboard() {
     } catch {
       // Silently fail
     } finally {
-      if (!silent && gen === fetchGenRef.current) {
+      // Always clear the full-screen loader when the *latest* request finishes —
+      // even silent AppState/poll fetches. Otherwise a silent fetch that bumps
+      // fetchGen can strand isLoading=true forever (spinner until pull-to-refresh).
+      if (gen === fetchGenRef.current) {
         setIsLoading(false);
+        if (!silent) setRefreshing(false);
+      } else if (!silent) {
         setRefreshing(false);
       }
     }
@@ -254,8 +259,10 @@ export default function DriverDashboard() {
   useFocusEffect(
     useCallback(() => {
       isFocusedRef.current = true;
+      // Full-page loader only until the first fetch for this focus settles.
+      // (Silent AppState/poll must also clear this — see fetchRides finally.)
       setIsLoading(true);
-      fetchRides(activeTab);
+      void fetchRides(activeTab, false);
 
       const startPoll = (intervalMs: number) => {
         if (pollTimerRef.current) {
