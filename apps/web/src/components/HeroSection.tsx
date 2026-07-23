@@ -1,10 +1,11 @@
 "use client";
-import { MapPin, Clock, Plus, ChevronDown, HelpCircle } from 'lucide-react';
-import { useState } from 'react';
+import { MapPin, Clock, Plus, ChevronDown, HelpCircle, LocateFixed, Loader2 } from 'lucide-react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import PlacesAutocomplete from '@/components/PlacesAutocomplete';
+import { useGoogleMaps } from '@/components/GoogleMapsProvider';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
@@ -17,13 +18,74 @@ const heroServices = [
 
 const HeroSection = () => {
   const router = useRouter();
+  const { isLoaded: mapsLoaded } = useGoogleMaps();
   const [bookingMode, setBookingMode] = useState<"distance" | "hourly">("distance");
   const [pickup, setPickup] = useState("");
   const [dropoff, setDropoff] = useState("");
   const [pickupDateTime, setPickupDateTime] = useState<Date | null>(null);
   const [duration, setDuration] = useState(3);
   const [durationDropdownOpen, setDurationDropdownOpen] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
+  const handleGetMyLocation = useCallback(() => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      setLocationError("Location is not supported on this device.");
+      return;
+    }
+
+    setLocating(true);
+    setLocationError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+
+        try {
+          if (!mapsLoaded || !window.google?.maps) {
+            setPickup(`${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+            setLocating(false);
+            return;
+          }
+
+          const geocoder = new window.google.maps.Geocoder();
+          const address = await new Promise<string>((resolve, reject) => {
+            geocoder.geocode(
+              { location: { lat: latitude, lng: longitude } },
+              (results, status) => {
+                if (status === "OK" && results?.[0]?.formatted_address) {
+                  resolve(results[0].formatted_address);
+                } else {
+                  reject(new Error(String(status)));
+                }
+              }
+            );
+          });
+          setPickup(address);
+        } catch {
+          setPickup(`${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+          setLocationError("Address lookup failed — coordinates filled instead.");
+        } finally {
+          setLocating(false);
+        }
+      },
+      (err) => {
+        setLocating(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          setLocationError("Location permission denied. Enable it in browser settings.");
+        } else if (err.code === err.TIMEOUT) {
+          setLocationError("Location request timed out. Try again.");
+        } else {
+          setLocationError("Could not get your location. Try again.");
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 30000,
+      }
+    );
+  }, [mapsLoaded]);
 
   const handleNext = () => {
     const params = new URLSearchParams();
@@ -112,13 +174,37 @@ const HeroSection = () => {
                   <MapPin className="w-4 h-4 text-[#C9A063]" strokeWidth={2} />
                 </div>
                 <div className="flex flex-col flex-1 min-w-0">
-                  <label className="text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Pickup</label>
+                  <div className="flex items-center justify-between gap-2 mb-0.5">
+                    <label className="text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wide">
+                      Pickup
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleGetMyLocation}
+                      disabled={locating}
+                      className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold text-[#C9A063] hover:text-[#B8935A] disabled:opacity-60 transition-colors whitespace-nowrap"
+                      title="Use your current location"
+                    >
+                      {locating ? (
+                        <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2.5} />
+                      ) : (
+                        <LocateFixed className="w-3 h-3" strokeWidth={2.5} />
+                      )}
+                      {locating ? "Locating…" : "Get my location"}
+                    </button>
+                  </div>
                   <PlacesAutocomplete
                     value={pickup}
-                    onChange={setPickup}
+                    onChange={(v) => {
+                      setPickup(v);
+                      if (locationError) setLocationError(null);
+                    }}
                     placeholder="Enter pickup location"
                     className="text-[14px] sm:text-[15px] text-gray-900 placeholder:text-gray-400 outline-none bg-transparent w-full py-0.5 border-0 focus:ring-0"
                   />
+                  {locationError && (
+                    <p className="text-[10px] text-red-500 mt-0.5 leading-tight">{locationError}</p>
+                  )}
                 </div>
               </div>
 

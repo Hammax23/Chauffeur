@@ -161,7 +161,7 @@ const GlobalFootprint = () => {
   const [activeId, setActiveId] = useState<string | null>(null);
 
   return (
-    <section className="relative pt-12 md:pt-16 pb-6 md:pb-8 bg-gradient-to-b from-[#fafbfc] to-white">
+    <section className="relative pt-12 md:pt-16 pb-2 md:pb-3 bg-gradient-to-b from-[#fafbfc] to-white">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-4 sm:mb-6 md:mb-8">
@@ -192,7 +192,7 @@ const GlobalFootprint = () => {
         </div>
 
         {/* Dotted Map */}
-        <div className="relative mb-8 max-w-4xl mx-auto">
+        <div className="relative mb-2 max-w-4xl mx-auto">
           <div className="relative bg-transparent overflow-hidden p-2 sm:p-4">
             <svg
               viewBox="0 50 1200 350"

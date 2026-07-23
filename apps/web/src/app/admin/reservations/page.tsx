@@ -636,7 +636,11 @@ export default function ReservationsPage() {
                         <div className="space-y-2">
                           <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Payment</h4>
                           <div className="text-sm text-gray-700 space-y-1">
-                            {r.cardType && r.cardLast4 ? (
+                            {r.cardType === "Cash on Delivery" ? (
+                              <p className="flex items-center gap-2 text-amber-700">
+                                <span className="font-medium">Cash on Delivery</span>
+                              </p>
+                            ) : r.cardType && r.cardLast4 ? (
                               <>
                                 <p className="flex items-center gap-2">
                                   <CreditCard className="w-4 h-4 text-gray-400" />
@@ -649,7 +653,7 @@ export default function ReservationsPage() {
                             )}
                             {r.paymentStatus && (
                               <p className={`text-xs font-medium ${r.paymentStatus === 'PAID' ? 'text-green-600' : 'text-amber-600'}`}>
-                                Status: {r.paymentStatus}
+                                Status: {r.paymentStatus.replace(/_/g, " ")}
                               </p>
                             )}
                           </div>

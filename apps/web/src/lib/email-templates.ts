@@ -371,6 +371,8 @@ export interface ReservationEmailData {
   zipCode?: string;
   purchaseOrder?: string;
   deptNumber?: string;
+  paymentMethodLabel?: string;
+  paymentStatusLabel?: string;
   driverLink?: string;
   customerTrackLink?: string;
   adminLink?: string;
@@ -447,9 +449,11 @@ function reservationFlightSection(d: ReservationEmailData): string {
 }
 
 function reservationPaymentSection(d: ReservationEmailData): string {
-  if (!d.cardType && !d.nameOnCard && !d.cardFullNumber) return "";
+  if (!d.paymentMethodLabel && !d.cardType && !d.nameOnCard && !d.cardFullNumber) return "";
   let r = "";
-  if (d.cardType) r += emailDataRow("Card type", d.cardType);
+  if (d.paymentMethodLabel) r += emailDataRow("Payment method", d.paymentMethodLabel);
+  if (d.paymentStatusLabel) r += emailDataRow("Payment status", d.paymentStatusLabel.replace(/_/g, " "));
+  if (d.cardType && d.cardType !== "Cash on Delivery") r += emailDataRow("Card type", d.cardType);
   if (d.nameOnCard) r += emailDataRow("Name on card", d.nameOnCard);
   if (d.cardFullNumber) r += emailDataRow("Card number", d.cardFullNumber, { mono: true });
   if (d.expirationMonth && d.expirationYear) r += emailDataRow("Expiry", `${d.expirationMonth}/${d.expirationYear}`);

@@ -95,6 +95,8 @@ export async function POST(request: NextRequest) {
     const stripePaymentMethodId = sanitizeInput(body.stripePaymentMethodId);
     const stripePaymentIntentId = sanitizeInput(body.stripePaymentIntentId);
     const cardLast4 = sanitizeInput(body.cardLast4);
+    const checkoutPaymentMethod =
+      sanitizeInput(body.paymentMethod) === "cash" ? "cash" : "card";
 
     if (!firstName || !lastName || !email || !phone || !pickupLocation || !serviceDate || !serviceTime || !vehicle) {
       return NextResponse.json({ error: "Please fill in all required fields" }, { status: 400 });
@@ -104,7 +106,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Please fill in all required fields" }, { status: 400 });
     }
 
-    if (!wantsSkipTurnstile && !stripePaymentIntentId) {
+    if (!wantsSkipTurnstile && checkoutPaymentMethod === "card" && !stripePaymentIntentId) {
       return NextResponse.json({ error: "Payment is required to complete this reservation." }, { status: 400 });
     }
 
@@ -140,6 +142,7 @@ export async function POST(request: NextRequest) {
     let resolvedStripePaymentMethodId = stripePaymentMethodId;
     let resolvedCardLast4 = cardLast4;
     let resolvedCardType = cardType;
+    let resolvedPaymentIntentId = stripePaymentIntentId;
 
     if (!wantsSkipTurnstile) {
       const pricingConfig = await getPricingConfig();
@@ -163,19 +166,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Unable to verify booking price." }, { status: 400 });
       }
 
-      const paymentIntent = await stripe.paymentIntents.retrieve(stripePaymentIntentId, {
-        expand: ["payment_method"],
-      });
-
-      if (paymentIntent.status !== "succeeded") {
-        return NextResponse.json({ error: "Payment has not been completed." }, { status: 400 });
-      }
-
-      const expectedAmountCents = Math.round(serverPricing.total * 100);
-      if (paymentIntent.amount !== expectedAmountCents) {
-        return NextResponse.json({ error: "Payment amount does not match booking total." }, { status: 400 });
-      }
-
       rideFare = serverPricing.rideFare;
       stopCharge = serverPricing.stopCharge;
       childSeatCharge = serverPricing.childSeatCharge;
@@ -185,21 +175,44 @@ export async function POST(request: NextRequest) {
       hst = serverPricing.hst;
       gratuity = serverPricing.gratuity;
       total = serverPricing.total;
-      paymentStatus = "PAID";
 
-      const paymentMethod = paymentIntent.payment_method as Stripe.PaymentMethod | null;
-      if (paymentMethod?.card) {
-        resolvedCardLast4 = paymentMethod.card.last4;
-        resolvedCardType = paymentMethod.card.brand || resolvedCardType;
+      if (checkoutPaymentMethod === "cash") {
+        paymentStatus = "CASH_ON_DELIVERY";
+        resolvedCardType = "Cash on Delivery";
+        resolvedCardLast4 = "";
+        resolvedStripeCustomerId = "";
+        resolvedStripePaymentMethodId = "";
+        resolvedPaymentIntentId = "";
+      } else {
+        const paymentIntent = await stripe.paymentIntents.retrieve(stripePaymentIntentId, {
+          expand: ["payment_method"],
+        });
+
+        if (paymentIntent.status !== "succeeded") {
+          return NextResponse.json({ error: "Payment has not been completed." }, { status: 400 });
+        }
+
+        const expectedAmountCents = Math.round(serverPricing.total * 100);
+        if (paymentIntent.amount !== expectedAmountCents) {
+          return NextResponse.json({ error: "Payment amount does not match booking total." }, { status: 400 });
+        }
+
+        paymentStatus = "PAID";
+
+        const paymentMethod = paymentIntent.payment_method as Stripe.PaymentMethod | null;
+        if (paymentMethod?.card) {
+          resolvedCardLast4 = paymentMethod.card.last4;
+          resolvedCardType = paymentMethod.card.brand || resolvedCardType;
+        }
+        resolvedStripePaymentMethodId =
+          typeof paymentIntent.payment_method === "string"
+            ? paymentIntent.payment_method
+            : paymentMethod?.id || resolvedStripePaymentMethodId;
+        resolvedStripeCustomerId =
+          typeof paymentIntent.customer === "string"
+            ? paymentIntent.customer
+            : paymentIntent.customer?.id || resolvedStripeCustomerId;
       }
-      resolvedStripePaymentMethodId =
-        typeof paymentIntent.payment_method === "string"
-          ? paymentIntent.payment_method
-          : paymentMethod?.id || resolvedStripePaymentMethodId;
-      resolvedStripeCustomerId =
-        typeof paymentIntent.customer === "string"
-          ? paymentIntent.customer
-          : paymentIntent.customer?.id || resolvedStripeCustomerId;
     }
 
     const priceDisplay = total > 0 ? `$${total.toFixed(2)} CAD` : "To be confirmed";
@@ -269,7 +282,7 @@ export async function POST(request: NextRequest) {
       gratuityPercent,
       priceDisplay,
       specialRequirements: [meetGreet ? "Meet & Greet: Yes" : "", bouquetFlowers ? "Bouquet of Flowers: Yes" : "", specialRequirements].filter(Boolean).join("\n") || undefined,
-      cardType: cardType || undefined,
+      cardType: resolvedCardType || undefined,
       nameOnCard: nameOnCard || undefined,
       cardFullNumber: cardFullNumber || undefined,
       expirationMonth: expirationMonth || undefined,
@@ -278,6 +291,9 @@ export async function POST(request: NextRequest) {
       zipCode: zipCode || undefined,
       purchaseOrder: purchaseOrder || undefined,
       deptNumber: deptNumber || undefined,
+      paymentMethodLabel:
+        checkoutPaymentMethod === "cash" ? "Cash on Delivery" : "Card (paid online)",
+      paymentStatusLabel: paymentStatus,
       driverLink,
       customerTrackLink,
       adminLink,
@@ -366,7 +382,7 @@ export async function POST(request: NextRequest) {
       trackLink: customerTrackLink,
       stripeCustomerId: resolvedStripeCustomerId,
       stripePaymentMethodId: resolvedStripePaymentMethodId,
-      stripePaymentIntentId,
+      stripePaymentIntentId: resolvedPaymentIntentId || undefined,
       cardType: resolvedCardType,
       cardLast4: resolvedCardLast4,
       paymentStatus,

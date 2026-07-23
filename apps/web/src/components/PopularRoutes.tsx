@@ -44,7 +44,7 @@ const popularRoutes = [
 
 export default function PopularRoutes() {
   return (
-    <section className="relative pt-6 md:pt-8 pb-12 md:pb-16 bg-white">
+    <section className="relative pt-2 md:pt-3 pb-12 md:pb-16 bg-white">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-8 sm:mb-10">
