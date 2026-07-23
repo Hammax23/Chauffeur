@@ -1,5 +1,8 @@
 import prisma from "./prisma";
-import { TERMINAL_RESERVATION_STATUSES } from "./reservation-driver-assignment";
+import {
+  TERMINAL_RESERVATION_STATUSES,
+  isReservationTerminal,
+} from "./reservation-driver-assignment";
 
 // Reservation interface for API compatibility
 export interface ReservationData {
@@ -261,6 +264,7 @@ export type AssignDriverToReservationResult =
 
 // Assign driver to reservation (blocks if driver already on another active ride).
 // Re-assigning a previously rejected driver is allowed — they are cleared from rejectedDriverIds.
+// Re-assigning a DONE/CANCELLED booking reopens it as PENDING so Requests + Accept work again.
 export async function assignDriverToReservation(
   bookingId: string,
   driverId: string
@@ -272,14 +276,22 @@ export async function assignDriverToReservation(
 
     const existing = await prisma.reservation.findUnique({
       where: { bookingId },
-      select: { rejectedDriverIds: true },
+      select: { rejectedDriverIds: true, status: true },
     });
 
-    const rejectedClean = (existing?.rejectedDriverIds || "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter((id) => id && id !== driverId)
-      .join(",") || null;
+    if (!existing) {
+      return { ok: false, reason: "failed" };
+    }
+
+    const rejectedClean =
+      (existing.rejectedDriverIds || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter((id) => id && id !== driverId)
+        .join(",") || null;
+
+    const reopenFromTerminal = isReservationTerminal(existing.status);
+    const now = new Date();
 
     await prisma.reservation.update({
       where: { bookingId },
@@ -288,6 +300,15 @@ export async function assignDriverToReservation(
         driverResponse: null,
         driverRespondedAt: null,
         rejectedDriverIds: rejectedClean,
+        ...(reopenFromTerminal
+          ? {
+              status: "PENDING",
+              completedAt: null,
+              driverOnTheWayAt: null,
+              driverStopPeriodsJson: null,
+              statusUpdatedAt: now,
+            }
+          : {}),
       },
     });
     return { ok: true };

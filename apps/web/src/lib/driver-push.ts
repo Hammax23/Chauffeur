@@ -53,6 +53,7 @@ export async function notifyDriverReservationAssigned(
       where: { bookingId },
       select: {
         bookingId: true,
+        status: true,
         pickupLocation: true,
         dropoffLocation: true,
         serviceDate: true,
@@ -63,6 +64,8 @@ export async function notifyDriverReservationAssigned(
     });
 
     if (!reservation) return;
+    // Requests + Accept only apply to PENDING — don't notify on DONE/active reassigns.
+    if (reservation.status !== "PENDING") return;
 
     const targetDriverId = driverId || reservation.assignedDriverId;
     if (!targetDriverId) return;

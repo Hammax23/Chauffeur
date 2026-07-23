@@ -2,26 +2,94 @@ import { useCallback } from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   ScrollView,
   StatusBar,
   Image,
   Alert,
+  Pressable,
+  Platform,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useDriverAuth } from "../../contexts/DriverAuthContext";
+import { useDriverTheme } from "../../contexts/DriverThemeContext";
+import { GOLD } from "../../theme/driver-theme";
+
+const SITE = "https://sarjworldwide.ca";
+
+type MenuRowProps = {
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  onPress?: () => void;
+  danger?: boolean;
+  chevronColor: string;
+  textColor: string;
+  borderColor: string;
+  cardBg: string;
+  blurTint: "light" | "dark";
+  blurIntensity: number;
+};
+
+function MenuRow({
+  label,
+  icon,
+  onPress,
+  danger,
+  chevronColor,
+  textColor,
+  borderColor,
+  cardBg,
+  blurTint,
+  blurIntensity,
+}: MenuRowProps) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.menuWrap, pressed && styles.pressed]}
+    >
+      <BlurView
+        intensity={blurIntensity}
+        tint={blurTint}
+        style={[
+          styles.menuItem,
+          {
+            borderColor,
+            backgroundColor: Platform.OS === "android" ? cardBg : "transparent",
+          },
+        ]}
+      >
+        <View style={[styles.menuIconWrap, danger && styles.menuIconDanger]}>
+          <Ionicons name={icon} size={18} color={danger ? "#FF453A" : GOLD} />
+        </View>
+        <Text style={[styles.menuText, { color: danger ? "#FF453A" : textColor }]}>{label}</Text>
+        <Ionicons name="chevron-forward" size={18} color={danger ? "#FF453A" : chevronColor} />
+      </BlurView>
+    </Pressable>
+  );
+}
 
 export default function DriverProfileScreen() {
   const { driver, logout, refreshProfile } = useDriverAuth();
+  const { palette } = useDriverTheme();
+  const blurIntensity = Platform.OS === "ios" ? 48 : 28;
+  const cardBlur = Platform.OS === "ios" ? 36 : 22;
 
   useFocusEffect(
     useCallback(() => {
       refreshProfile();
     }, [refreshProfile])
   );
+
+  const openUrl = (url: string) => {
+    Linking.openURL(url).catch(() => {
+      Alert.alert("Unable to open", "Please try again later.");
+    });
+  };
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -37,227 +105,413 @@ export default function DriverProfileScreen() {
     ]);
   };
 
+  const infoRows = [
+    { label: "Phone", value: driver?.phone || "N/A", icon: "call-outline" as const },
+    { label: "Vehicle", value: driver?.vehicle || "N/A", icon: "car-sport-outline" as const },
+    { label: "Car Code", value: driver?.vehicleCode || "N/A", icon: "keypad-outline" as const },
+    {
+      label: "License Plate",
+      value: driver?.vehiclePlate || "N/A",
+      icon: "document-text-outline" as const,
+    },
+  ];
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={20} color="#000" />
-            <Text style={styles.backText}>Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Driver's Profile</Text>
-          <View style={styles.headerSpacer} />
-        </View>
+    <View style={[styles.root, { backgroundColor: palette.root }]}>
+      <StatusBar barStyle={palette.statusBar} backgroundColor={palette.root} />
+      <LinearGradient colors={[...palette.bg]} style={StyleSheet.absoluteFill} />
+      <View style={styles.ambientGlow} pointerEvents="none">
+        <LinearGradient
+          colors={[...palette.glow]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.15, y: 0 }}
+          end={{ x: 0.85, y: 0.5 }}
+        />
+      </View>
 
-        {/* Profile Card */}
-        <View style={styles.profileCard}>
-          {driver?.photo ? (
-            <Image key={driver.photo} source={{ uri: driver.photo }} style={styles.profileAvatar} />
-          ) : (
-            <View style={[styles.profileAvatar, { backgroundColor: '#D4A04A', justifyContent: 'center', alignItems: 'center' }]}>
-              <Text style={{ color: '#fff', fontSize: 20, fontWeight: '700' }}>{driver?.name?.[0] || 'D'}</Text>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <Pressable
+              onPress={() => router.back()}
+              style={({ pressed }) => [styles.glassCircleWrap, pressed && styles.pressed]}
+              accessibilityLabel="Go back"
+            >
+              <BlurView
+                intensity={blurIntensity}
+                tint={palette.blurTint}
+                style={[styles.glassCircle, { borderColor: palette.glassBorder }]}
+              >
+                <Ionicons name="chevron-back" size={22} color={palette.icon} />
+              </BlurView>
+            </Pressable>
+
+            <Text style={[styles.headerTitle, { color: palette.text }]}>Profile</Text>
+
+            <View style={styles.headerSpacer} />
+          </View>
+
+          {/* Hero */}
+          <BlurView
+            intensity={cardBlur}
+            tint={palette.blurTint}
+            style={[
+              styles.heroCard,
+              {
+                borderColor: palette.border,
+                backgroundColor: Platform.OS === "android" ? palette.cardAndroid : "transparent",
+              },
+            ]}
+          >
+            <View style={styles.avatarRing}>
+              {driver?.photo ? (
+                <Image key={driver.photo} source={{ uri: driver.photo }} style={styles.avatar} />
+              ) : (
+                <LinearGradient colors={[GOLD, "#A87830"]} style={styles.avatar}>
+                  <Text style={styles.avatarLetter}>{driver?.name?.[0] || "D"}</Text>
+                </LinearGradient>
+              )}
             </View>
-          )}
-          <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{driver?.name || "N/A"}</Text>
-            <Text style={styles.profileEmail}>{driver?.email || "N/A"}</Text>
+            <Text style={[styles.profileName, { color: palette.text }]}>
+              {driver?.name || "Driver"}
+            </Text>
+            <Text style={[styles.profileEmail, { color: palette.muted }]}>
+              {driver?.email || "N/A"}
+            </Text>
+
+            <View style={styles.statRow}>
+              <View style={[styles.statChip, { backgroundColor: palette.metaChipBg, borderColor: palette.border }]}>
+                <Ionicons name="star" size={14} color={GOLD} />
+                <Text style={[styles.statValue, { color: palette.text }]}>
+                  {driver?.rating?.toFixed(1) || "5.0"}
+                </Text>
+                <Text style={[styles.statLabel, { color: palette.muted }]}>Rating</Text>
+              </View>
+              <View style={[styles.statChip, { backgroundColor: palette.metaChipBg, borderColor: palette.border }]}>
+                <Ionicons name="navigate" size={14} color={GOLD} />
+                <Text style={[styles.statValue, { color: palette.text }]}>
+                  {driver?.totalTrips || 0}
+                </Text>
+                <Text style={[styles.statLabel, { color: palette.muted }]}>Trips</Text>
+              </View>
+              <View style={[styles.statChip, { backgroundColor: palette.metaChipBg, borderColor: palette.border }]}>
+                <View
+                  style={[
+                    styles.onlineDot,
+                    { backgroundColor: driver?.isActive ? "#34C759" : "#8E8E93" },
+                  ]}
+                />
+                <Text style={[styles.statValue, { color: palette.text }]}>
+                  {driver?.isActive ? "Online" : "Offline"}
+                </Text>
+                <Text style={[styles.statLabel, { color: palette.muted }]}>Status</Text>
+              </View>
+            </View>
+          </BlurView>
+
+          {/* Details */}
+          <Text style={[styles.sectionEyebrow, { color: GOLD }]}>DETAILS</Text>
+          <BlurView
+            intensity={cardBlur}
+            tint={palette.blurTint}
+            style={[
+              styles.infoCard,
+              {
+                borderColor: palette.border,
+                backgroundColor: Platform.OS === "android" ? palette.cardAndroid : "transparent",
+              },
+            ]}
+          >
+            {infoRows.map((row, index) => (
+              <View
+                key={row.label}
+                style={[
+                  styles.infoRow,
+                  index < infoRows.length - 1 && {
+                    borderBottomWidth: StyleSheet.hairlineWidth,
+                    borderBottomColor: palette.border,
+                  },
+                ]}
+              >
+                <View style={styles.infoLeft}>
+                  <View style={[styles.infoIcon, { backgroundColor: palette.metaChipBg }]}>
+                    <Ionicons name={row.icon} size={15} color={GOLD} />
+                  </View>
+                  <Text style={[styles.infoLabel, { color: palette.muted }]}>{row.label}</Text>
+                </View>
+                <Text style={styles.infoValue} numberOfLines={1}>
+                  {row.value}
+                </Text>
+              </View>
+            ))}
+          </BlurView>
+
+          {/* Menu */}
+          <Text style={[styles.sectionEyebrow, { color: GOLD }]}>SUPPORT</Text>
+          <View style={styles.menuList}>
+            <MenuRow
+              label="Privacy Policy"
+              icon="shield-checkmark-outline"
+              onPress={() => openUrl(`${SITE}/privacy-policy`)}
+              chevronColor={palette.menuChevron}
+              textColor={palette.text}
+              borderColor={palette.border}
+              cardBg={palette.cardAndroid}
+              blurTint={palette.blurTint}
+              blurIntensity={cardBlur}
+            />
+            <MenuRow
+              label="Terms & Conditions"
+              icon="document-outline"
+              onPress={() => openUrl(`${SITE}/terms-of-service`)}
+              chevronColor={palette.menuChevron}
+              textColor={palette.text}
+              borderColor={palette.border}
+              cardBg={palette.cardAndroid}
+              blurTint={palette.blurTint}
+              blurIntensity={cardBlur}
+            />
+            <MenuRow
+              label="Contact Us"
+              icon="mail-outline"
+              onPress={() => openUrl(`${SITE}/contact`)}
+              chevronColor={palette.menuChevron}
+              textColor={palette.text}
+              borderColor={palette.border}
+              cardBg={palette.cardAndroid}
+              blurTint={palette.blurTint}
+              blurIntensity={cardBlur}
+            />
+            <MenuRow
+              label="Logout"
+              icon="log-out-outline"
+              onPress={handleLogout}
+              danger
+              chevronColor={palette.menuChevron}
+              textColor={palette.text}
+              borderColor={palette.border}
+              cardBg={palette.cardAndroid}
+              blurTint={palette.blurTint}
+              blurIntensity={cardBlur}
+            />
           </View>
-        </View>
-
-        {/* Phone Number */}
-        <View style={styles.infoCard}>
-          <Text style={styles.infoLabel}>Phone Number</Text>
-          <Text style={styles.infoValue}>{driver?.phone || "N/A"}</Text>
-        </View>
-
-        {/* Assigned Vehicle */}
-        <View style={styles.infoCard}>
-          <Text style={styles.sectionLabel}>Assigned Vehicle</Text>
-          
-          <View style={styles.vehicleRow}>
-            <Text style={styles.vehicleLabel}>Vehicle Type:</Text>
-            <Text style={styles.vehicleValue}>{driver?.vehicle || "N/A"}</Text>
-          </View>
-          
-          <View style={styles.vehicleRow}>
-            <Text style={styles.vehicleLabel}>Car Code:</Text>
-            <Text style={styles.vehicleValue}>{driver?.vehicleCode || "N/A"}</Text>
-          </View>
-          
-          <View style={[styles.vehicleRow, { marginBottom: 0 }]}>
-            <Text style={styles.vehicleLabel}>Car License Plate:</Text>
-            <Text style={styles.vehicleValue}>{driver?.vehiclePlate || "N/A"}</Text>
-          </View>
-        </View>
-
-        {/* Stats */}
-        <View style={styles.infoCard}>
-          <Text style={styles.sectionLabel}>Stats</Text>
-          <View style={styles.vehicleRow}>
-            <Text style={styles.vehicleLabel}>Rating:</Text>
-            <Text style={styles.vehicleValue}>⭐ {driver?.rating?.toFixed(1) || "5.0"}</Text>
-          </View>
-          <View style={[styles.vehicleRow, { marginBottom: 0 }]}>
-            <Text style={styles.vehicleLabel}>Total Trips:</Text>
-            <Text style={styles.vehicleValue}>{driver?.totalTrips || 0}</Text>
-          </View>
-        </View>
-
-        {/* Menu Items */}
-        <TouchableOpacity style={styles.menuItem}>
-          <Text style={styles.menuText}>Privacy Policy</Text>
-          <Ionicons name="chevron-forward" size={20} color="#666" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.menuItem}>
-          <Text style={styles.menuText}>Terms & Conditions</Text>
-          <Ionicons name="chevron-forward" size={20} color="#666" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.menuItem}>
-          <Text style={styles.menuText}>Contact Us</Text>
-          <Ionicons name="chevron-forward" size={20} color="#666" />
-        </TouchableOpacity>
-
-        {/* Logout */}
-        <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Logout</Text>
-          <Ionicons name="chevron-forward" size={20} color="#e53935" />
-        </TouchableOpacity>
-
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+  ambientGlow: {
+    position: "absolute",
+    top: -40,
+    left: -20,
+    right: -20,
+    height: 260,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "transparent",
   },
   container: {
     flex: 1,
-    backgroundColor: "#fff",
   },
   contentContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 40,
+    paddingHorizontal: 18,
+    paddingTop: 8,
+    paddingBottom: 48,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 24,
-  },
-  backButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  backText: {
-    fontSize: 16,
-    color: "#000",
-    marginLeft: 4,
+    marginBottom: 20,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#000",
-    textAlign: "center",
+    fontSize: 17,
+    fontWeight: "700",
+    letterSpacing: -0.2,
   },
   headerSpacer: {
-    flex: 1,
+    width: 44,
+    height: 44,
   },
-  profileCard: {
-    backgroundColor: "#1a1a1a",
-    borderRadius: 12,
-    padding: 20,
-    flexDirection: "row",
+  glassCircleWrap: {
+    borderRadius: 22,
+  },
+  glassCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    overflow: "hidden",
     alignItems: "center",
-    marginBottom: 16,
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  profileAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    marginRight: 16,
+  heroCard: {
+    borderRadius: 24,
+    overflow: "hidden",
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    marginBottom: 22,
+    borderWidth: StyleSheet.hairlineWidth,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.28,
+        shadowRadius: 20,
+      },
+      android: { elevation: 6 },
+    }),
   },
-  profileInfo: {
-    flex: 1,
+  avatarRing: {
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    padding: 3,
+    borderWidth: 2,
+    borderColor: GOLD,
+    marginBottom: 14,
+  },
+  avatar: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 43,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarLetter: {
+    color: "#fff",
+    fontSize: 32,
+    fontWeight: "700",
   },
   profileName: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#fff",
+    fontSize: 24,
+    fontWeight: "700",
+    letterSpacing: -0.4,
     marginBottom: 4,
   },
   profileEmail: {
     fontSize: 14,
-    color: "#999",
+    marginBottom: 18,
+  },
+  statRow: {
+    flexDirection: "row",
+    gap: 8,
+    width: "100%",
+  },
+  statChip: {
+    flex: 1,
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  statValue: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  statLabel: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  onlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginBottom: 2,
+  },
+  sectionEyebrow: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1.5,
+    marginBottom: 10,
+    marginLeft: 4,
   },
   infoCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#e8e8e8",
+    borderRadius: 20,
+    overflow: "hidden",
+    marginBottom: 22,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 14,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    gap: 12,
+  },
+  infoLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flexShrink: 0,
+  },
+  infoIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
   infoLabel: {
     fontSize: 14,
-    color: "#666",
+    fontWeight: "500",
   },
   infoValue: {
-    fontSize: 14,
-    color: "#D4A04A",
-    fontWeight: "500",
+    flex: 1,
     textAlign: "right",
-    position: "absolute",
-    right: 16,
-    top: 16,
-  },
-  sectionLabel: {
     fontSize: 14,
-    fontWeight: "500",
-    color: "#000",
-    marginBottom: 16,
+    fontWeight: "600",
+    color: GOLD,
   },
-  vehicleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
+  menuList: {
+    gap: 10,
   },
-  vehicleLabel: {
-    fontSize: 14,
-    color: "#666",
-  },
-  vehicleValue: {
-    fontSize: 14,
-    color: "#D4A04A",
-    fontWeight: "500",
+  menuWrap: {
+    borderRadius: 16,
   },
   menuItem: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#e8e8e8",
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    overflow: "hidden",
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  menuIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(212,160,74,0.14)",
+  },
+  menuIconDanger: {
+    backgroundColor: "rgba(255,69,58,0.12)",
   },
   menuText: {
+    flex: 1,
     fontSize: 15,
-    color: "#000",
+    fontWeight: "600",
   },
-  logoutText: {
-    fontSize: 15,
-    color: "#e53935",
+  pressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.985 }],
   },
 });

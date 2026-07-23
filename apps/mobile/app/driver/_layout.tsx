@@ -8,7 +8,6 @@ import {
   Linking,
   InteractionManager,
   AppState,
-  ActivityIndicator,
   type AppStateStatus,
 } from "react-native";
 import { ensureForegroundLocationPermission, stopDriverLocationTracking } from "../../services/driver-location";
@@ -16,6 +15,9 @@ import { syncDriverLiveTracking } from "../../services/driver-live-session";
 import { useDriverAuth } from "../../contexts/DriverAuthContext";
 import { getDriverToken } from "../../services/api";
 import { DriverRideAlertProvider } from "../../contexts/DriverRideAlertContext";
+import { DriverThemeProvider } from "../../contexts/DriverThemeContext";
+import { SlimSpinner } from "../../components/SlimSpinner";
+import { GOLD } from "../../theme/driver-theme";
 
 export default function DriverLayout() {
   const { isAuthenticated, isLoading: authLoading } = useDriverAuth();
@@ -83,7 +85,7 @@ export default function DriverLayout() {
   if (authLoading || tokenOk === null) {
     return (
       <View style={[styles.blocker, { backgroundColor: "#0b0b0b" }]}>
-        <ActivityIndicator size="large" color="#D4A04A" />
+        <SlimSpinner size={34} stroke={2} color={GOLD} />
       </View>
     );
   }
@@ -111,14 +113,16 @@ export default function DriverLayout() {
   }
 
   return (
-    <DriverRideAlertProvider>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="ride-details" />
-        <Stack.Screen name="chat" />
-        <Stack.Screen name="profile" />
-      </Stack>
-    </DriverRideAlertProvider>
+    <DriverThemeProvider>
+      <DriverRideAlertProvider>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="ride-details" />
+          <Stack.Screen name="chat" />
+          <Stack.Screen name="profile" />
+        </Stack>
+      </DriverRideAlertProvider>
+    </DriverThemeProvider>
   );
 }
 

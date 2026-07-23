@@ -332,6 +332,8 @@ export async function revokeOpenOffersForDriver(driverId: string): Promise<numbe
 export async function notifyDriverOfManualAssignment(bookingId: string, driverId: string): Promise<void> {
   const reservation = await prisma.reservation.findUnique({ where: { bookingId } });
   if (!reservation || reservation.assignedDriverId !== driverId) return;
+  // Never push ghost offers for completed/active trips — Requests tab is PENDING-only.
+  if (reservation.status !== "PENDING") return;
 
   // Ensure an offer row exists so reject/accept paths are consistent.
   // Re-send after a prior reject: reopen CLAIMED from DECLINED.
@@ -661,18 +663,13 @@ export async function declineLiveOffer(
   publishDriver(driverId, { type: "offer_declined", bookingId, serverTime });
   publishOpsLiveAuto({ type: "offer_declined", bookingId, serverTime });
 
-  try {
-    await publishReservationFromDb(bookingId, "driver_unassigned");
-  } catch (err) {
-    console.error("[declineLiveOffer] publishReservationFromDb", err);
-  }
-
-  // Re-broadcast to remaining drivers if Live Auto is on (this driver is in rejected list)
-  try {
-    await maybeBroadcastNewReservation(bookingId);
-  } catch (err) {
-    console.error("[declineLiveOffer] maybeBroadcast", err);
-  }
+  // Return fast to the rejecting driver — admin bus + Live Auto rebroadcast must not block UX
+  void publishReservationFromDb(bookingId, "driver_unassigned").catch((err) =>
+    console.error("[declineLiveOffer] publishReservationFromDb", err)
+  );
+  void maybeBroadcastNewReservation(bookingId).catch((err) =>
+    console.error("[declineLiveOffer] maybeBroadcast", err)
+  );
 
   return { ok: true };
 }
