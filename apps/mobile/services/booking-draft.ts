@@ -35,6 +35,11 @@ export type BookingDraft = {
   phoneNumber: string;
   email: string;
   seating?: string;
+  /** Parcel Delivery fields */
+  recipientName?: string;
+  recipientPhone?: string;
+  parcelWeight?: string;
+  parcelNote?: string;
 };
 
 export async function saveBookingDraft(draft: BookingDraft): Promise<void> {

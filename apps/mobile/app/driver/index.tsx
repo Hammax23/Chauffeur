@@ -28,6 +28,7 @@ import { SlimSpinner } from "../../components/SlimSpinner";
 import { getDriverRides, acceptRide, rejectRide, DriverRide } from "../../services/api";
 import { syncDriverLiveTracking, syncLiveTrackingFromRideList } from "../../services/driver-live-session";
 import { openDriverStream, type DriverOfferEvent } from "../../services/driver-stream";
+import { isParcelServiceType } from "../../utils/parcel";
 
 type TabType = "requests" | "upcoming";
 
@@ -70,6 +71,7 @@ function offerToRide(event: DriverOfferEvent): DriverRide | null {
     distance: r.distance,
     duration: r.duration,
     total: r.total,
+    specialRequirements: r.specialRequirements,
     createdAt: r.createdAt,
     liveOffer: r.liveOffer,
   };
@@ -667,6 +669,12 @@ export default function DriverDashboard() {
                           <Text style={[styles.customerName, { color: palette.text }]} numberOfLines={1}>
                             {ride.customerName}
                           </Text>
+                          {isParcelServiceType(ride.serviceType) ? (
+                            <View style={styles.parcelBadge}>
+                              <Ionicons name="cube" size={10} color="#8B6914" />
+                              <Text style={styles.parcelBadgeText}>PARCEL</Text>
+                            </View>
+                          ) : null}
                           {activeTab === "requests" && (
                             <View style={[styles.newBadge, ride.liveOffer && styles.liveBadge]}>
                               {ride.liveOffer ? (
@@ -1071,6 +1079,23 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(245,166,35,0.45)",
     overflow: "visible",
+  },
+  parcelBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(212,160,74,0.18)",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(212,160,74,0.45)",
+  },
+  parcelBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#8B6914",
+    letterSpacing: 0.4,
   },
   liveBadge: {
     backgroundColor: "rgba(52,199,89,0.14)",

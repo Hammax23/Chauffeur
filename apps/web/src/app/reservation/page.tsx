@@ -38,6 +38,12 @@ import Turnstile from "@/components/Turnstile";
 import { fleetData, RESERVATION_HIDE_HOURLY_RATE_IDS, RESERVATION_EXCLUDED_VEHICLE_IDS, getFleetForReservation, type FleetVehicle, type FleetCategory } from "@/data/fleet";
 import { calculateReservationPricing } from "@/lib/reservation-pricing";
 import { GoogleMapsProvider, useGoogleMaps } from "@/components/GoogleMapsProvider";
+import {
+  PARCEL_SERVICE_TYPE,
+  encodeParcelRequirements,
+  formatParcelWeight,
+  isParcelServiceType,
+} from "@/lib/parcel";
 
 const COUNTRY_CODES = [
   { code: "+1", label: "CA", name: "Canada", flagCode: "ca" },
@@ -211,6 +217,11 @@ function ReservationPageContent() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [specialRequirements, setSpecialRequirements] = useState("");
+  const [recipientName, setRecipientName] = useState("");
+  const [recipientPhone, setRecipientPhone] = useState("");
+  const [parcelWeight, setParcelWeight] = useState("");
+  const [parcelNote, setParcelNote] = useState("");
+  const isParcel = isParcelServiceType(serviceType);
 
   // Flight Info states
   const [airlineName, setAirlineName] = useState("");
@@ -250,13 +261,22 @@ function ReservationPageContent() {
     const airlineParam = searchParams.get("airline");
     const flightParam = searchParams.get("flight");
     
-    if (modeParam === "hourly" || modeParam === "distance") {
-      setBookingMode(modeParam);
+    if (modeParam === "hourly" || modeParam === "distance" || modeParam === "parcel") {
       if (modeParam === "hourly") {
+        setBookingMode("hourly");
         setServiceType("Hourly ride");
-      } else if (serviceTypeParam) {
-        setServiceType(serviceTypeParam);
+      } else if (modeParam === "parcel") {
+        setBookingMode("distance");
+        setServiceType(PARCEL_SERVICE_TYPE);
+      } else {
+        setBookingMode("distance");
+        if (serviceTypeParam) {
+          setServiceType(serviceTypeParam);
+        }
       }
+    } else if (serviceTypeParam && isParcelServiceType(serviceTypeParam)) {
+      setBookingMode("distance");
+      setServiceType(PARCEL_SERVICE_TYPE);
     }
     if (pickupParam) setPickupLocation(pickupParam);
     if (dropoffParam) setDropoffLocation(dropoffParam);
@@ -313,6 +333,17 @@ function ReservationPageContent() {
     setEmailError("");
     try {
       const vehicleName = resolveVehicle(selectedVehicle)?.name || selectedVehicle;
+      const parcelExtra = isParcelServiceType(serviceType)
+        ? encodeParcelRequirements({
+            recipientName,
+            recipientPhone,
+            parcelWeight: formatParcelWeight(parcelWeight),
+            parcelNote,
+          })
+        : "";
+      const mergedSpecialRequirements = [parcelExtra, specialRequirements.trim()]
+        .filter(Boolean)
+        .join("\n");
       const res = await fetch("/api/reservation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -321,8 +352,8 @@ function ReservationPageContent() {
           serviceType,
           bookingMode,
           transferType,
-          adultsCount,
-          childrenCount,
+          adultsCount: isParcelServiceType(serviceType) ? 1 : adultsCount,
+          childrenCount: isParcelServiceType(serviceType) ? 0 : childrenCount,
           hourlyDuration,
           returnDateTime: returnDateTime ? returnDateTime.toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" }) : undefined,
           pickupLocation, dropoffLocation,
@@ -331,13 +362,13 @@ function ReservationPageContent() {
           serviceTime: pickupDateTime ? pickupDateTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }) : "",
           vehicle: vehicleName,
           vehicleId: selectedVehicle,
-          passengers: passengersCount,
-          childSeatCount,
-          childSeatType,
+          passengers: isParcelServiceType(serviceType) ? 1 : passengersCount,
+          childSeatCount: isParcelServiceType(serviceType) ? 0 : childSeatCount,
+          childSeatType: isParcelServiceType(serviceType) ? "" : childSeatType,
           etr407,
-          meetGreet,
-          bouquetFlowers,
-          specialRequirements,
+          meetGreet: isParcelServiceType(serviceType) ? false : meetGreet,
+          bouquetFlowers: isParcelServiceType(serviceType) ? false : bouquetFlowers,
+          specialRequirements: mergedSpecialRequirements,
           routeDistance, routeDuration, routePrice,
           routeDistanceValue,
           gratuityPercent,
@@ -358,7 +389,7 @@ function ReservationPageContent() {
     } finally {
       setEmailSending(false);
     }
-  }, [firstName, lastName, email, phone, countryCode, serviceType, bookingMode, transferType, adultsCount, childrenCount, hourlyDuration, returnDateTime, pickupLocation, dropoffLocation, stops, pickupDateTime, selectedVehicle, passengersCount, childSeatCount, childSeatType, etr407, meetGreet, bouquetFlowers, specialRequirements, routeDistance, routeDuration, routePrice, routeDistanceValue, gratuityPercent, airlineName, flightNumber, flightNote, billingAddress, zipCode, purchaseOrder, deptNumber, checkoutPaymentMethod, turnstileToken, resolveVehicle]);
+  }, [firstName, lastName, email, phone, countryCode, serviceType, bookingMode, transferType, adultsCount, childrenCount, hourlyDuration, returnDateTime, pickupLocation, dropoffLocation, stops, pickupDateTime, selectedVehicle, passengersCount, childSeatCount, childSeatType, etr407, meetGreet, bouquetFlowers, specialRequirements, recipientName, recipientPhone, parcelWeight, parcelNote, routeDistance, routeDuration, routePrice, routeDistanceValue, gratuityPercent, airlineName, flightNumber, flightNote, billingAddress, zipCode, purchaseOrder, deptNumber, checkoutPaymentMethod, turnstileToken, resolveVehicle]);
 
   const confirmCashReservation = useCallback(async () => {
     if (!termsAccepted || !turnstileToken || emailSending) return;
@@ -368,6 +399,17 @@ function ReservationPageContent() {
     setEmailError("");
     try {
       const vehicleName = resolveVehicle(selectedVehicle)?.name || selectedVehicle;
+      const parcelExtra = isParcelServiceType(serviceType)
+        ? encodeParcelRequirements({
+            recipientName,
+            recipientPhone,
+            parcelWeight: formatParcelWeight(parcelWeight),
+            parcelNote,
+          })
+        : "";
+      const mergedSpecialRequirements = [parcelExtra, specialRequirements.trim()]
+        .filter(Boolean)
+        .join("\n");
       const res = await fetch("/api/reservation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -376,8 +418,8 @@ function ReservationPageContent() {
           serviceType,
           bookingMode,
           transferType,
-          adultsCount,
-          childrenCount,
+          adultsCount: isParcelServiceType(serviceType) ? 1 : adultsCount,
+          childrenCount: isParcelServiceType(serviceType) ? 0 : childrenCount,
           hourlyDuration,
           returnDateTime: returnDateTime ? returnDateTime.toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" }) : undefined,
           pickupLocation, dropoffLocation,
@@ -386,13 +428,13 @@ function ReservationPageContent() {
           serviceTime: pickupDateTime ? pickupDateTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }) : "",
           vehicle: vehicleName,
           vehicleId: selectedVehicle,
-          passengers: passengersCount,
-          childSeatCount,
-          childSeatType,
+          passengers: isParcelServiceType(serviceType) ? 1 : passengersCount,
+          childSeatCount: isParcelServiceType(serviceType) ? 0 : childSeatCount,
+          childSeatType: isParcelServiceType(serviceType) ? "" : childSeatType,
           etr407,
-          meetGreet,
-          bouquetFlowers,
-          specialRequirements,
+          meetGreet: isParcelServiceType(serviceType) ? false : meetGreet,
+          bouquetFlowers: isParcelServiceType(serviceType) ? false : bouquetFlowers,
+          specialRequirements: mergedSpecialRequirements,
           routeDistance, routeDuration, routePrice,
           routeDistanceValue,
           gratuityPercent,
@@ -415,7 +457,7 @@ function ReservationPageContent() {
     } finally {
       setEmailSending(false);
     }
-  }, [termsAccepted, turnstileToken, emailSending, resolveVehicle, selectedVehicle, firstName, lastName, email, phone, countryCode, serviceType, bookingMode, transferType, adultsCount, childrenCount, hourlyDuration, returnDateTime, pickupLocation, dropoffLocation, stops, pickupDateTime, passengersCount, childSeatCount, childSeatType, etr407, meetGreet, bouquetFlowers, specialRequirements, routeDistance, routeDuration, routePrice, routeDistanceValue, gratuityPercent, airlineName, flightNumber, flightNote, billingAddress, zipCode, purchaseOrder, deptNumber]);
+  }, [termsAccepted, turnstileToken, emailSending, resolveVehicle, selectedVehicle, firstName, lastName, email, phone, countryCode, serviceType, bookingMode, transferType, adultsCount, childrenCount, hourlyDuration, returnDateTime, pickupLocation, dropoffLocation, stops, pickupDateTime, passengersCount, childSeatCount, childSeatType, etr407, meetGreet, bouquetFlowers, specialRequirements, recipientName, recipientPhone, parcelWeight, parcelNote, routeDistance, routeDuration, routePrice, routeDistanceValue, gratuityPercent, airlineName, flightNumber, flightNote, billingAddress, zipCode, purchaseOrder, deptNumber]);
 
   // Store route data; price is recalculated via useEffect when vehicle or route changes
   const handleRouteCalculated = useCallback((distance: string, duration: string, distanceValue: number, durationValue: number) => {
@@ -507,9 +549,9 @@ function ReservationPageContent() {
         distanceMeters: routeDistanceValue,
         hourlyDuration,
         stopCount: activeStopCount,
-        childSeatCount,
-        meetGreet,
-        bouquetFlowers,
+        childSeatCount: isParcel ? 0 : childSeatCount,
+        meetGreet: isParcel ? false : meetGreet,
+        bouquetFlowers: isParcel ? false : bouquetFlowers,
         gratuityPercent,
       },
       pricingFleetSource,
@@ -535,6 +577,7 @@ function ReservationPageContent() {
     gratuityPercent,
     pricingFleetSource,
     pricingConfig,
+    isParcel,
   ]);
 
   const paymentAmountCents = pricingSummary ? Math.round(pricingSummary.total * 100) : 0;
@@ -612,6 +655,10 @@ function ReservationPageContent() {
       if (!pickupLocation.trim()) { setStepError("Please enter a pickup location."); return false; }
       if (bookingMode === "distance" && !dropoffLocation.trim()) { setStepError("Please enter a drop-off location."); return false; }
       if (!pickupDateTime) { setStepError("Please select date and time."); return false; }
+      if (isParcel) {
+        if (!recipientName.trim()) { setStepError("Please enter the recipient name."); return false; }
+        if (!recipientPhone.trim()) { setStepError("Please enter the recipient phone number."); return false; }
+      }
     } else if (step === 2) {
       if (!selectedVehicle) { setStepError("Please select a vehicle."); return false; }
     } else if (step === 3) {
@@ -828,11 +875,11 @@ function ReservationPageContent() {
                         Step 1
                       </p>
                       <h2 className="text-base sm:text-lg font-semibold text-gray-900 tracking-tight leading-tight">
-                        Ride Details
+                        {isParcel ? "Parcel Details" : "Ride Details"}
                       </h2>
                     </div>
 
-                    <div className="grid grid-cols-2 p-0.5 rounded-lg bg-gray-100 border border-gray-200/70">
+                    <div className="grid grid-cols-3 p-0.5 rounded-lg bg-gray-100 border border-gray-200/70">
                       <button
                         type="button"
                         onClick={() => {
@@ -840,8 +887,8 @@ function ReservationPageContent() {
                           setServiceType("Point-to-Point transportation");
                           setDropoffLocation("");
                         }}
-                        className={`py-1.5 sm:py-2 rounded-md text-[11px] sm:text-[12px] font-semibold uppercase tracking-[0.08em] transition-all duration-200 ${
-                          bookingMode === "distance"
+                        className={`py-1.5 sm:py-2 rounded-md text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.06em] transition-all duration-200 ${
+                          bookingMode === "distance" && !isParcel
                             ? "bg-gray-900 text-white shadow-sm"
                             : "text-gray-500 hover:text-gray-800"
                         }`}
@@ -855,13 +902,32 @@ function ReservationPageContent() {
                           setServiceType("Hourly ride");
                           setDropoffLocation("");
                         }}
-                        className={`py-1.5 sm:py-2 rounded-md text-[11px] sm:text-[12px] font-semibold uppercase tracking-[0.08em] transition-all duration-200 ${
+                        className={`py-1.5 sm:py-2 rounded-md text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.06em] transition-all duration-200 ${
                           bookingMode === "hourly"
                             ? "bg-gray-900 text-white shadow-sm"
                             : "text-gray-500 hover:text-gray-800"
                         }`}
                       >
                         Hourly
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBookingMode("distance");
+                          setServiceType(PARCEL_SERVICE_TYPE);
+                          setAdultsCount(1);
+                          setChildrenCount(0);
+                          setChildSeatCount(0);
+                          setMeetGreet(false);
+                          setBouquetFlowers(false);
+                        }}
+                        className={`py-1.5 sm:py-2 rounded-md text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.06em] transition-all duration-200 ${
+                          isParcel
+                            ? "bg-gray-900 text-white shadow-sm"
+                            : "text-gray-500 hover:text-gray-800"
+                        }`}
+                      >
+                        Parcel
                       </button>
                     </div>
                   </div>
@@ -1021,7 +1087,14 @@ function ReservationPageContent() {
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Passengers</label>
+                          <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                            {isParcel ? "Service" : "Passengers"}
+                          </label>
+                          {isParcel ? (
+                            <div className="flex items-center px-3 py-2 border border-[#C9A063]/35 rounded-lg bg-[#C9A063]/8 min-h-[38px]">
+                              <span className="text-[13px] font-semibold text-[#8B6914]">Parcel Delivery</span>
+                            </div>
+                          ) : (
                           <div className="flex items-center justify-between px-3 py-1.5 border border-gray-200 rounded-lg bg-white min-h-[38px]">
                             <span className="text-[13px] font-semibold text-gray-900 tabular-nums">{passengersCount}</span>
                             <div className="flex items-center gap-1.5">
@@ -1045,8 +1118,68 @@ function ReservationPageContent() {
                               </button>
                             </div>
                           </div>
+                          )}
                         </div>
                       </div>
+
+                      {isParcel && (
+                        <div className="rounded-xl border border-gray-200 p-3 space-y-2.5 bg-white">
+                          <p className="text-[10px] font-semibold text-[#C9A063] uppercase tracking-wider">Recipient</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            <div>
+                              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Name</label>
+                              <input
+                                type="text"
+                                value={recipientName}
+                                onChange={(e) => { setRecipientName(e.target.value); setStepError(""); }}
+                                placeholder="Who receives the parcel?"
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Phone</label>
+                              <input
+                                type="tel"
+                                value={recipientPhone}
+                                onChange={(e) => { setRecipientPhone(e.target.value); setStepError(""); }}
+                                placeholder="Recipient phone"
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                              Parcel weight
+                            </label>
+                            <div className="flex gap-2">
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                min="0"
+                                step="0.1"
+                                value={parcelWeight}
+                                onChange={(e) => setParcelWeight(e.target.value)}
+                                placeholder="e.g. 2.5"
+                                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all"
+                              />
+                              <span className="inline-flex items-center justify-center min-w-[52px] px-3 rounded-lg border border-gray-200 bg-gray-50 text-[12px] font-bold text-gray-500 tracking-wide">
+                                kg
+                              </span>
+                            </div>
+                            <p className="mt-1 text-[11px] text-gray-400">Approximate weight helps the chauffeur prepare</p>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Package note</label>
+                            <input
+                              type="text"
+                              value={parcelNote}
+                              onChange={(e) => setParcelNote(e.target.value)}
+                              placeholder="e.g. Small box, fragile"
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all"
+                            />
+                          </div>
+                        </div>
+                      )}
 
                     </div>
                   )}
@@ -1208,6 +1341,7 @@ function ReservationPageContent() {
                             </div>
                             
                             {/* Child Seat */}
+                            {!isParcel && (
                             <div className="px-4 py-3">
                               <div className="flex items-center justify-between">
                                 <div>
@@ -1244,8 +1378,10 @@ function ReservationPageContent() {
                                 </div>
                               )}
                             </div>
+                            )}
                             
                             {/* Meet & Greet */}
+                            {!isParcel && (
                             <div className="px-4 py-3 flex items-center justify-between">
                               <div>
                                 <span className="block text-[14px] font-medium text-gray-900">Meet & Greet</span>
@@ -1259,8 +1395,10 @@ function ReservationPageContent() {
                                 <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300 ${meetGreet ? 'translate-x-5' : 'translate-x-0'}`} />
                               </button>
                             </div>
+                            )}
                             
                             {/* Bouquet of Flowers */}
+                            {!isParcel && (
                             <div className="px-4 py-3 flex items-center justify-between">
                               <div>
                                 <span className="block text-[14px] font-medium text-gray-900">Bouquet of Flowers</span>
@@ -1274,6 +1412,7 @@ function ReservationPageContent() {
                                 <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300 ${bouquetFlowers ? 'translate-x-5' : 'translate-x-0'}`} />
                               </button>
                             </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1697,7 +1836,7 @@ function ReservationPageContent() {
                           Service Type
                         </div>
                         <div className="text-[14px] text-gray-900">
-                          {bookingMode === "distance" ? "Distance" : "Hourly"}
+                          {isParcel ? "Parcel Delivery" : bookingMode === "distance" ? "Distance" : "Hourly"}
                         </div>
                       </div>
 
@@ -1779,13 +1918,16 @@ function ReservationPageContent() {
                       <div className="py-3">
                         <div className="rounded-lg bg-[#f1f2f4] px-3 py-2.5">
                           <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-1">
-                            Passengers
+                            {isParcel ? "Recipient" : "Passengers"}
                           </div>
                           <div className="text-[14px] text-gray-900">
-                            {adultsCount} adult{adultsCount === 1 ? "" : "s"}
-                            {childrenCount > 0
-                              ? `, ${childrenCount} child${childrenCount === 1 ? "" : "ren"}`
-                              : ""}
+                            {isParcel
+                              ? [recipientName, recipientPhone].filter(Boolean).join(" · ") || "—"
+                              : `${adultsCount} adult${adultsCount === 1 ? "" : "s"}${
+                                  childrenCount > 0
+                                    ? `, ${childrenCount} child${childrenCount === 1 ? "" : "ren"}`
+                                    : ""
+                                }`}
                           </div>
                         </div>
                       </div>

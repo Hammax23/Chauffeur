@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   ScrollView,
   StatusBar,
@@ -12,36 +11,64 @@ import {
   Pressable,
   Dimensions,
   ActivityIndicator,
+  Modal,
+  KeyboardAvoidingView,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
+import MapView, { Marker, PROVIDER_DEFAULT, type Region } from "react-native-maps";
+import * as Location from "expo-location";
 import { useAuth } from "../../../contexts/AuthContext";
-import { getReservations, Reservation, getAppFleetVehicles, type AppFleetVehicleDto } from "../../../services/api";
+import { useCustomerTheme } from "../../../contexts/CustomerThemeContext";
+import {
+  getReservations,
+  Reservation,
+  getAppFleetVehicles,
+  type AppFleetVehicleDto,
+} from "../../../services/api";
 import { useReservationStream } from "../../../hooks/useReservationStream";
+import { SlimSpinner } from "../../../components/SlimSpinner";
+import { GooglePlacesAddressField } from "../../../components/GooglePlacesAddressField";
+import { GOLD } from "../../../theme/driver-theme";
+import { isParcelServiceType } from "../../../utils/parcel";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const ACCENT = GOLD;
+const ACCENT_DARK = "#A87830";
+const DEFAULT_REGION: Region = {
+  latitude: 43.6532,
+  longitude: -79.3832,
+  latitudeDelta: 0.035,
+  longitudeDelta: 0.025,
+};
+const MAP_TOP_RATIO = 0.38;
+const SHEET_TOP = SCREEN_HEIGHT * MAP_TOP_RATIO;
+const MAP_LAT_DELTA = 0.028;
+const MAP_LNG_DELTA = 0.02;
 
-const ACCENT = "#C9A063";
-const ACCENT_DARK = "#A67C32";
-const SLATE_900 = "#0f172a";
-const SLATE_600 = "#475569";
-const SLATE_400 = "#94a3b8";
+/** Center pin in the visible map band above the bottom sheet (not mid full-screen). */
+function regionForVisibleMap(lat: number, lng: number): Region {
+  // Visible band is top MAP_TOP_RATIO of the screen; its visual mid ≈ MAP_TOP_RATIO/2.
+  // Full MapView mid is 0.5 — shift center south so the pin sits in that visible mid.
+  const visibleMidY = MAP_TOP_RATIO / 2;
+  const offsetRatio = 0.5 - visibleMidY;
+  return {
+    latitude: lat - MAP_LAT_DELTA * offsetRatio,
+    longitude: lng,
+    latitudeDelta: MAP_LAT_DELTA,
+    longitudeDelta: MAP_LNG_DELTA,
+  };
+}
 
-const trustPoints = [
-  { id: "1", icon: "shield-checkmark-outline" as const, title: "Licensed & insured", desc: "Vetted professional chauffeurs" },
-  { id: "2", icon: "diamond-outline" as const, title: "5-star service", desc: "Premium standards, every ride" },
-  { id: "3", icon: "headset-outline" as const, title: "24/7 concierge", desc: "Real people, anytime you call" },
-];
+const ACTIVE_TRIP_STATUSES = new Set(["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP"]);
 
 function displayFullName(first?: string | null, last?: string | null): string {
   const full = [first, last].filter((s) => s?.trim()).join(" ").trim();
   return full || "there";
 }
 
-/** First segment of address; short airport-style tokens shown uppercase for readability */
 function formatPlaceShort(loc: string): string {
   const raw = loc.split(",")[0]?.trim() || loc;
   if (!raw) return "";
@@ -52,75 +79,59 @@ function formatPlaceShort(loc: string): string {
   return compact.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-const ACTIVE_TRIP_STATUSES = new Set(["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP"]);
+function formatReverseGeocodeAddress(
+  place: Location.LocationGeocodedAddress | undefined
+): string | null {
+  if (!place) return null;
+  const streetLine = [place.streetNumber, place.street].filter(Boolean).join(" ").trim();
+  const parts = [
+    streetLine || place.name || "",
+    place.city || place.subregion || "",
+  ]
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return null;
+  return parts.join(", ");
+}
+
+function greetingLine(name: string) {
+  const h = new Date().getHours();
+  const part = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  return `${part}, ${name.split(" ")[0]}`;
+}
 
 export default function CustomerHomeScreen() {
   const { user } = useAuth();
+  const { isDark, toggleTheme } = useCustomerTheme();
+  const insets = useSafeAreaInsets();
+  const mapRef = useRef<MapView | null>(null);
   const fadeAnim = useMemo(() => new Animated.Value(0), []);
-  const slideAnim = useMemo(() => new Animated.Value(16), []);
-  // iOS-style spring scale on the hero press.
-  const heroScale = useRef(new Animated.Value(1)).current;
-  // Subtle breathing on the hero CTA arrow.
-  const heroArrowAnim = useRef(new Animated.Value(0)).current;
-  // Press feedback + live-dot pulse for the chauffeur status card.
-  const liveScale = useRef(new Animated.Value(1)).current;
+  const slideAnim = useMemo(() => new Animated.Value(24), []);
   const livePulse = useRef(new Animated.Value(0.45)).current;
+
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [myCoords, setMyCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [pickupLabel, setPickupLabel] = useState("Finding your location…");
+  const [pickupAddress, setPickupAddress] = useState("");
+  const [pickupManual, setPickupManual] = useState(false);
+  const [pickupEditorOpen, setPickupEditorOpen] = useState(false);
+  const [pickupDraft, setPickupDraft] = useState("");
+  const [locating, setLocating] = useState(true);
+  const [locationDenied, setLocationDenied] = useState(false);
   const [activeRide, setActiveRide] = useState<Reservation | null>(null);
   const [activeRideCount, setActiveRideCount] = useState(0);
   const [fleetPreview, setFleetPreview] = useState<AppFleetVehicleDto[]>([]);
   const [fleetLoading, setFleetLoading] = useState(true);
 
+  const fullName = displayFullName(user?.firstName, user?.lastName);
+
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 520, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 520, useNativeDriver: true }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 480, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 480, useNativeDriver: true }),
     ]).start();
   }, [fadeAnim, slideAnim]);
 
-  // Gentle, looped horizontal breath on the hero arrow — communicates "tap me"
-  // without being noisy. Eased so it feels Apple-like rather than mechanical.
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(heroArrowAnim, {
-          toValue: 1,
-          duration: 1400,
-          useNativeDriver: true,
-        }),
-        Animated.timing(heroArrowAnim, {
-          toValue: 0,
-          duration: 1400,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [heroArrowAnim]);
-
-  const handleHeroPressIn = useCallback(() => {
-    Animated.spring(heroScale, {
-      toValue: 0.97,
-      useNativeDriver: true,
-      speed: 30,
-      bounciness: 0,
-    }).start();
-  }, [heroScale]);
-  const handleHeroPressOut = useCallback(() => {
-    Animated.spring(heroScale, {
-      toValue: 1,
-      useNativeDriver: true,
-      speed: 18,
-      bounciness: 6,
-    }).start();
-  }, [heroScale]);
-
-  const heroArrowTranslate = heroArrowAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 3],
-  });
-
-  // Pulsing dot on the chauffeur-status card — runs whenever a ride is active.
   useEffect(() => {
     if (!activeRide) {
       livePulse.stopAnimation();
@@ -137,24 +148,66 @@ export default function CustomerHomeScreen() {
     return () => loop.stop();
   }, [activeRide, livePulse]);
 
-  const handleLivePressIn = useCallback(() => {
-    Animated.spring(liveScale, {
-      toValue: 0.98,
-      useNativeDriver: true,
-      speed: 30,
-      bounciness: 0,
-    }).start();
-  }, [liveScale]);
-  const handleLivePressOut = useCallback(() => {
-    Animated.spring(liveScale, {
-      toValue: 1,
-      useNativeDriver: true,
-      speed: 18,
-      bounciness: 5,
-    }).start();
-  }, [liveScale]);
+  const applyLocation = useCallback(async (lat: number, lng: number, opts?: { manual?: boolean; label?: string }) => {
+    setCoords({ lat, lng });
+    if (!opts?.manual) {
+      setMyCoords({ lat, lng });
+    }
+    if (opts?.manual) setPickupManual(true);
+    mapRef.current?.animateToRegion(regionForVisibleMap(lat, lng), 650);
+    if (opts?.label?.trim()) {
+      setPickupLabel(opts.label.trim());
+      setPickupAddress(opts.label.trim());
+      return;
+    }
+    try {
+      const results = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+      const label = formatReverseGeocodeAddress(results[0]);
+      const resolved = label || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      setPickupLabel(resolved);
+      setPickupAddress(resolved);
+    } catch {
+      const fallback = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      setPickupLabel(fallback);
+      setPickupAddress(fallback);
+    }
+  }, []);
 
-  const friendlyStatus = (s: string) => (s === "ACCEPTED" ? "Driver assigned" : s === "CIC" ? "In car" : s);
+  const resolveLocation = useCallback(async () => {
+    setLocating(true);
+    setLocationDenied(false);
+    try {
+      const current = await Location.getForegroundPermissionsAsync();
+      let status = current.status;
+      if (status !== "granted") {
+        const req = await Location.requestForegroundPermissionsAsync();
+        status = req.status;
+      }
+      if (status !== "granted") {
+        setLocationDenied(true);
+        if (!pickupManual) setPickupLabel("Enable location for pickup");
+        setLocating(false);
+        return;
+      }
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      await applyLocation(position.coords.latitude, position.coords.longitude, {
+        manual: false,
+      });
+      setPickupManual(false);
+    } catch {
+      if (!pickupManual) setPickupLabel("Couldn’t detect location");
+    } finally {
+      setLocating(false);
+    }
+  }, [applyLocation, pickupManual]);
+
+  // Auto-locate only when user hasn't chosen a custom pickup
+  const resolveLocationIfNeeded = useCallback(async () => {
+    if (pickupManual) return;
+    await resolveLocation();
+  }, [pickupManual, resolveLocation]);
 
   const loadFleetPreview = useCallback(async () => {
     setFleetLoading(true);
@@ -170,7 +223,8 @@ export default function CustomerHomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadFleetPreview();
+      void resolveLocationIfNeeded();
+      void loadFleetPreview();
       (async () => {
         try {
           const data = await getReservations();
@@ -183,11 +237,9 @@ export default function CustomerHomeScreen() {
           setActiveRide(null);
         }
       })();
-    }, [loadFleetPreview])
+    }, [resolveLocationIfNeeded, loadFleetPreview])
   );
 
-  // Live-update the active-ride pill via SSE so the status reflects driver
-  // changes instantly while the home screen is open.
   const liveBookingId = activeRide?.bookingId ?? null;
   const liveActive = useReservationStream(liveBookingId);
   useEffect(() => {
@@ -201,808 +253,984 @@ export default function CustomerHomeScreen() {
     setActiveRide({ ...activeRide, status: next.status });
   }, [liveActive.data, activeRide]);
 
+  const friendlyStatus = (s: string) =>
+    s === "ACCEPTED" ? "Driver assigned" : s === "CIC" ? "In car" : s;
+
+  const openPickupEditor = useCallback(() => {
+    setPickupDraft(pickupAddress || pickupLabel);
+    setPickupEditorOpen(true);
+  }, [pickupAddress, pickupLabel]);
+
+  const bookingParams = useCallback(
+    (extra?: Record<string, string>) => {
+      const params: Record<string, string> = { ...(extra || {}) };
+      const address = (pickupAddress || pickupLabel).trim();
+      if (address && address !== "Finding your location…" && address !== "Enable location for pickup") {
+        params.pickup = address;
+      }
+      if (coords) {
+        params.pickupLat = String(coords.lat);
+        params.pickupLng = String(coords.lng);
+      }
+      return params;
+    },
+    [pickupAddress, pickupLabel, coords]
+  );
+
+  const openRide = useCallback(
+    () => router.push({ pathname: "/customer/create-reservation", params: bookingParams() }),
+    [bookingParams]
+  );
+  const openParcel = useCallback(
+    () =>
+      router.push({
+        pathname: "/customer/create-reservation",
+        params: bookingParams({ prefill: "parcel" }),
+      }),
+    [bookingParams]
+  );
+
+  const recenter = useCallback(() => {
+    if (pickupManual && coords) {
+      mapRef.current?.animateToRegion(regionForVisibleMap(coords.lat, coords.lng), 500);
+      return;
+    }
+    if (myCoords) {
+      mapRef.current?.animateToRegion(regionForVisibleMap(myCoords.lat, myCoords.lng), 500);
+      return;
+    }
+    void resolveLocation();
+  }, [coords, myCoords, pickupManual, resolveLocation]);
+
+  const sheetPadBottom = (Platform.OS === "ios" ? 88 : 72) + insets.bottom;
+
   return (
-    <LinearGradient colors={["#f1f4f9", "#fafbfc", "#ffffff"]} locations={[0, 0.38, 1]} style={styles.gradientFill}>
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <StatusBar barStyle="dark-content" />
+    <View style={styles.root}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+
+      {/* Live map background */}
+      <MapView
+        ref={mapRef}
+        style={StyleSheet.absoluteFill}
+        provider={PROVIDER_DEFAULT}
+        initialRegion={DEFAULT_REGION}
+        showsUserLocation={false}
+        showsMyLocationButton={false}
+        showsCompass={false}
+        showsTraffic={false}
+        rotateEnabled={false}
+        pitchEnabled={false}
+        toolbarEnabled={false}
+        userInterfaceStyle={isDark ? "dark" : "light"}
+      >
+        {/* Custom “you are here”: blue ring under black person (native blue dot was covering the person) */}
+        {myCoords ? (
+          <Marker
+            coordinate={{ latitude: myCoords.lat, longitude: myCoords.lng }}
+            anchor={{ x: 0.5, y: 1 }}
+            tracksViewChanges
+            flat={false}
+            zIndex={10}
+          >
+            <View style={styles.meMarker} pointerEvents="none">
+              <View style={styles.meBubble}>
+                <View style={styles.meSilhouette}>
+                  <View style={styles.meHead} />
+                  <View style={styles.meTorso} />
+                  <View style={styles.meArm} />
+                </View>
+              </View>
+              <View style={styles.meStem} />
+              <View style={styles.meDotHalo}>
+                <View style={styles.meDot} />
+              </View>
+            </View>
+          </Marker>
+        ) : null}
+
+        {coords && pickupManual ? (
+          <Marker
+            coordinate={{ latitude: coords.lat, longitude: coords.lng }}
+            pinColor={ACCENT}
+            title="Pickup"
+            description={pickupLabel}
+          />
+        ) : null}
+      </MapView>
+
+      {/* Soft fade into sheet */}
+      <LinearGradient
+        colors={["transparent", "rgba(255,255,255,0.35)", "rgba(248,246,242,0.95)"]}
+        locations={[0, 0.55, 1]}
+        style={[styles.mapFade, { top: SHEET_TOP - 70, height: 90 }]}
+        pointerEvents="none"
+      />
+
+      {/* Top floating chrome */}
+      <SafeAreaView style={styles.topSafe} edges={["top"]} pointerEvents="box-none">
+        <View style={styles.topRow} pointerEvents="box-none">
+          <Pressable
+            onPress={() => router.push("/customer/profile")}
+            style={({ pressed }) => [styles.fab, pressed && styles.pressed]}
+          >
+            {user?.photo ? (
+              <Image source={{ uri: user.photo }} style={styles.fabAvatar} />
+            ) : (
+              <LinearGradient colors={[ACCENT, ACCENT_DARK]} style={styles.fabAvatar}>
+                <Text style={styles.fabInitials}>
+                  {(user?.firstName?.[0] || "S")}
+                  {(user?.lastName?.[0] || "")}
+                </Text>
+              </LinearGradient>
+            )}
+          </Pressable>
+
+          <Pressable
+            onPress={openPickupEditor}
+            style={({ pressed }) => [styles.pickupChip, pressed && styles.pressed]}
+          >
+            <View style={styles.pickupDot} />
+            <View style={styles.pickupCopy}>
+              <Text style={styles.pickupEyebrow}>
+                {pickupManual ? "PICKUP POINT · EDIT" : "PICKUP POINT"}
+              </Text>
+              <Text style={styles.pickupLabel} numberOfLines={1}>
+                {pickupLabel}
+              </Text>
+            </View>
+            {locating ? (
+              <ActivityIndicator size="small" color={ACCENT} />
+            ) : (
+              <Ionicons name="chevron-down" size={16} color="#94a3b8" />
+            )}
+          </Pressable>
+
+          <Pressable
+            onPress={toggleTheme}
+            style={({ pressed }) => [styles.fab, pressed && styles.pressed]}
+            accessibilityLabel={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={20} color="#1C1C1E" />
+          </Pressable>
+        </View>
+
+        {locationDenied ? (
+          <Pressable onPress={resolveLocation} style={styles.locationBanner}>
+            <Ionicons name="location-outline" size={16} color={ACCENT_DARK} />
+            <Text style={styles.locationBannerText}>Turn on location to set pickup</Text>
+          </Pressable>
+        ) : null}
+      </SafeAreaView>
+
+      {/* Recenter FAB — sits above sheet */}
+      <Pressable
+        onPress={recenter}
+        style={[styles.recenterFab, { bottom: SCREEN_HEIGHT - SHEET_TOP + 18 }]}
+      >
+        <Ionicons name="navigate" size={18} color="#1C1C1E" />
+      </Pressable>
+
+      {/* Bottom sheet */}
+      <Animated.View
+        style={[
+          styles.sheet,
+          {
+            top: SHEET_TOP,
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+            backgroundColor: isDark ? "#141210" : "#F8F6F2",
+          },
+        ]}
+      >
+        <View style={styles.sheetHandleWrap}>
+          <View style={[styles.sheetHandle, { backgroundColor: isDark ? "#3A3530" : "#D6D0C6" }]} />
+        </View>
 
         <ScrollView
-          style={styles.container}
-          contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.sheetContent, { paddingBottom: sheetPadBottom }]}
+          bounces
         >
-          {/* Top bar */}
-          <Animated.View style={[styles.topBar, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-            <TouchableOpacity style={styles.profileTap} activeOpacity={0.85} onPress={() => router.push("/customer/profile")}>
-              <View style={styles.avatarWrap}>
-                {user?.photo ? (
-                  <Image source={{ uri: user.photo }} style={styles.avatar} />
-                ) : (
-                  <View style={[styles.avatar, styles.avatarFallback]}>
-                    <Text style={styles.avatarInitials}>
-                      {(user?.firstName?.[0] || "S")}
-                      {(user?.lastName?.[0] || "")}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <View style={styles.greetingBlock}>
-                <Text style={styles.greetingLine} numberOfLines={1} ellipsizeMode="tail">
-                  <Text style={styles.greetingHi}>Hi, </Text>
-                  <Text style={styles.greetingName}>{displayFullName(user?.firstName, user?.lastName)}</Text>
-                </Text>
-              </View>
-            </TouchableOpacity>
-            <View style={styles.topActions}>
-              <TouchableOpacity style={styles.iconBtn} activeOpacity={0.85} onPress={() => router.push("/customer/reservations")}>
-                <Ionicons name="calendar-outline" size={22} color={SLATE_900} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.iconBtn} activeOpacity={0.85} onPress={() => router.push("/customer/reservations")}>
-                <Ionicons name="notifications-outline" size={22} color={SLATE_900} />
-              </TouchableOpacity>
+          <View style={styles.greetingRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.brandMark, { color: ACCENT }]}>SARJ WORLDWIDE</Text>
+              <Text style={[styles.greeting, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]} numberOfLines={1}>
+                {greetingLine(fullName)}
+              </Text>
             </View>
-          </Animated.View>
-
-          {/* Active ride — slim live status card */}
-          {activeRide ? (
-            <Animated.View
-              style={{
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }, { scale: liveScale }],
-              }}
+            <Pressable
+              onPress={() => router.push("/customer/reservations")}
+              style={({ pressed }) => [
+                styles.bookingsPill,
+                {
+                  backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "#FFF",
+                  borderColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.06)",
+                },
+                pressed && styles.pressed,
+              ]}
             >
-              <Pressable
-                onPress={() =>
-                  router.push({ pathname: "/customer/track-ride", params: { bookingId: activeRide.bookingId } })
-                }
-                onPressIn={handleLivePressIn}
-                onPressOut={handleLivePressOut}
-                android_ripple={{ color: "rgba(16,185,129,0.10)", borderless: false, radius: 220 }}
-              >
-                <View style={styles.liveCard}>
-                  {/* Row 1 — eyebrow + status */}
-                  <View style={styles.liveTopRow}>
-                    <View style={styles.liveDotWrap}>
-                      <Animated.View style={[styles.liveDotHalo, { opacity: livePulse }]} />
-                      <View style={styles.liveDot} />
-                    </View>
-                    <Text style={styles.liveEyebrow} numberOfLines={1}>
-                      Your Chauffeur Status
-                    </Text>
-                    <View style={styles.liveStatusChip}>
-                      <Text style={styles.liveStatusChipText} numberOfLines={1}>
-                        {friendlyStatus(activeRide.status)}
-                      </Text>
-                    </View>
-                  </View>
+              <Ionicons name="calendar-outline" size={15} color={ACCENT} />
+              <Text style={[styles.bookingsPillText, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]}>
+                Bookings
+              </Text>
+            </Pressable>
+          </View>
 
-                  <View style={styles.liveDivider} />
-
-                  {/* Row 2 — route + track */}
-                  <View style={styles.liveBottomRow}>
-                    <View style={styles.liveRouteCol}>
-                      <Text style={styles.liveRouteText} numberOfLines={1}>
-                        <Text style={styles.liveRoutePlace}>{formatPlaceShort(activeRide.pickupLocation)}</Text>
-                        <Text style={styles.liveRouteArrow}>  →  </Text>
-                        <Text style={styles.liveRoutePlace}>{formatPlaceShort(activeRide.dropoffLocation)}</Text>
-                      </Text>
-                      <Text style={styles.liveBookingMono} numberOfLines={1}>
-                        {activeRide.bookingId}
-                        {activeRideCount > 1 ? ` · +${activeRideCount - 1} more` : ""}
-                      </Text>
-                    </View>
-                    <View style={styles.liveTrackBtn}>
-                      <Text style={styles.liveTrackBtnText}>Track</Text>
-                      <Ionicons name="chevron-forward" size={14} color={ACCENT_DARK} />
-                    </View>
-                  </View>
+          {/* Live trip */}
+          {activeRide ? (
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/customer/track-ride",
+                  params: { bookingId: activeRide.bookingId },
+                })
+              }
+              style={({ pressed }) => [styles.liveCard, pressed && styles.pressed]}
+            >
+              <View style={styles.liveTop}>
+                <View style={styles.liveDotWrap}>
+                  <Animated.View style={[styles.liveDotHalo, { opacity: livePulse }]} />
+                  <View style={styles.liveDot} />
                 </View>
-              </Pressable>
-            </Animated.View>
+                <Text style={styles.liveEyebrow}>LIVE TRIP</Text>
+                <View style={styles.liveChip}>
+                  <Text style={styles.liveChipText}>{friendlyStatus(activeRide.status)}</Text>
+                </View>
+              </View>
+              <Text style={styles.liveRoute} numberOfLines={1}>
+                {formatPlaceShort(activeRide.pickupLocation)} →{" "}
+                {formatPlaceShort(activeRide.dropoffLocation)}
+              </Text>
+              <Text style={styles.liveMeta}>
+                {activeRide.bookingId}
+                {activeRideCount > 1 ? ` · +${activeRideCount - 1} more` : ""}
+                {isParcelServiceType(activeRide.serviceType) ? " · Parcel" : ""}
+              </Text>
+            </Pressable>
           ) : null}
 
-          {/* Hero CTA */}
-          <Animated.View
-            style={[
-              styles.heroWrap,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }, { scale: heroScale }],
-              },
-            ]}
-          >
+          {/* Service tiles — Ride primary, Parcel secondary */}
+          <View style={styles.serviceGrid}>
             <Pressable
-              onPress={() => router.push("/customer/create-reservation")}
-              onPressIn={handleHeroPressIn}
-              onPressOut={handleHeroPressOut}
-              android_ripple={{ color: "rgba(201,160,99,0.08)", borderless: false, radius: 220 }}
+              onPress={openRide}
+              style={({ pressed }) => [styles.rideTile, pressed && styles.pressed]}
             >
-              <View style={styles.heroCard}>
-                <LinearGradient
-                  colors={["#0E172A", "#0A1120", "#070B14"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={StyleSheet.absoluteFill}
-                />
-                {/* Very subtle gold ambient on the CTA side only */}
-                <LinearGradient
-                  colors={["rgba(201,160,99,0.18)", "rgba(201,160,99,0)"]}
-                  start={{ x: 1, y: 0.4 }}
-                  end={{ x: 0.4, y: 0.7 }}
-                  style={styles.heroGlow}
-                  pointerEvents="none"
-                />
-                {/* iOS glass top edge */}
-                <View style={styles.heroTopHairline} pointerEvents="none" />
-
-                <View style={styles.heroInner}>
-                  <View style={styles.heroCopy}>
-                    <Text style={styles.heroKicker}>CHAUFFEUR SERVICE</Text>
-                    <Text style={styles.heroTitle} numberOfLines={1} ellipsizeMode="tail">
-                      Reserve your next ride
-                    </Text>
-                    <Text style={styles.heroSub} numberOfLines={1} ellipsizeMode="tail">
-                      Airport · hourly · point-to-point
-                    </Text>
-                  </View>
-
-                  <View style={styles.heroCtaOuter}>
-                    <BlurView intensity={Platform.OS === "ios" ? 32 : 0} tint="dark" style={styles.heroCtaGlass}>
-                      <LinearGradient
-                        colors={["#E2B772", ACCENT, ACCENT_DARK]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.heroCtaDisc}
-                      >
-                        <Animated.View style={{ transform: [{ translateX: heroArrowTranslate }] }}>
-                          <Ionicons name="arrow-forward" size={16} color="#fff" />
-                        </Animated.View>
-                      </LinearGradient>
-                    </BlurView>
-                  </View>
-                </View>
+              <LinearGradient
+                colors={["#1C1710", "#0E0C0A"]}
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.rideIcon}>
+                <Ionicons name="car-sport" size={22} color={ACCENT} />
+              </View>
+              <Text style={styles.rideTitle}>Book a Ride</Text>
+              <Text style={styles.rideSub}>Airport · hourly · city</Text>
+              <View style={styles.rideCta}>
+                <Text style={styles.rideCtaText}>Reserve</Text>
+                <Ionicons name="arrow-forward" size={14} color="#1A1208" />
               </View>
             </Pressable>
-          </Animated.View>
 
-          {/* Fleet */}
-          <Animated.View style={[styles.sectionBlock, { opacity: fadeAnim }]}>
-            <View style={styles.sectionHeadingRow}>
-              <View>
-                <Text style={styles.sectionEyebrow}>FLEET</Text>
-                <Text style={styles.sectionTitle}>Premium vehicles</Text>
+            <Pressable
+              onPress={openParcel}
+              style={({ pressed }) => [
+                styles.parcelTile,
+                {
+                  backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "#FFF",
+                  borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
+                },
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.parcelIcon}>
+                <Ionicons name="cube-outline" size={20} color={ACCENT} />
               </View>
-              <TouchableOpacity onPress={() => router.push("/customer/create-reservation")} hitSlop={12}>
-                <Text style={styles.linkText}>Book a vehicle</Text>
-              </TouchableOpacity>
+              <Text style={[styles.parcelTitle, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]}>
+                Send a Parcel
+              </Text>
+              <Text style={[styles.parcelSub, { color: isDark ? "#A1A1AA" : "#64748b" }]}>
+                Same-day chauffeur delivery
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* Where to */}
+          <Pressable
+            onPress={openRide}
+            style={({ pressed }) => [
+              styles.whereBar,
+              {
+                backgroundColor: isDark ? "rgba(255,255,255,0.07)" : "#FFF",
+                borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
+              },
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons name="search" size={18} color={ACCENT} />
+            <Text style={[styles.wherePlaceholder, { color: isDark ? "#A1A1AA" : "#94a3b8" }]}>
+              Where to?
+            </Text>
+            <View style={styles.whereNow}>
+              <Text style={styles.whereNowText}>Now</Text>
             </View>
+          </Pressable>
 
-            {fleetLoading ? (
-              <View style={styles.fleetLoading}>
-                <ActivityIndicator color={ACCENT} />
-                <Text style={styles.fleetLoadingText}>Loading fleet…</Text>
-              </View>
-            ) : fleetPreview.length === 0 ? (
-              <Text style={styles.fleetEmpty}>Fleet preview unavailable. You can still book from the next step.</Text>
-            ) : (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.fleetScroll}
-                decelerationRate="fast"
-              >
-                {fleetPreview.map((v) => (
-                  <TouchableOpacity
-                    key={v.id}
-                    style={styles.fleetCard}
-                    activeOpacity={0.92}
-                    onPress={() =>
-                      router.push({
-                        pathname: "/customer/create-reservation",
-                        params: { vehicleId: v.id },
-                      })
-                    }
-                  >
-                    <Image source={{ uri: v.imageUrl }} style={styles.fleetImage} resizeMode="cover" />
-                    <LinearGradient colors={["transparent", "rgba(15,23,42,0.92)"]} style={styles.fleetOverlay} />
-                    <View style={styles.fleetTag}>
-                      <Text style={styles.fleetTagText}>{v.category}</Text>
-                    </View>
-                    <View style={styles.fleetInfo}>
-                      <Text style={styles.fleetName} numberOfLines={2}>
-                        {v.title}
-                      </Text>
-                      <View style={styles.fleetMeta}>
-                        <Text style={styles.fleetPrice}>
-                          {v.hourlyRate > 0
-                            ? `$${v.hourlyRate.toFixed(0)}`
-                            : `$${v.pricePerKm.toFixed(2)}`}
-                          <Text style={styles.fleetPriceUnit}>
-                            {v.hourlyRate > 0 ? " base" : "/km"}
-                          </Text>
-                        </Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
-          </Animated.View>
+          {/* Fleet strip */}
+          <View style={styles.fleetHeader}>
+            <Text style={[styles.fleetTitle, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]}>
+              Premium fleet
+            </Text>
+            <Pressable onPress={openRide} hitSlop={10}>
+              <Text style={styles.fleetLink}>Book</Text>
+            </Pressable>
+          </View>
 
-          {/* Trust */}
-          <Animated.View style={[styles.sectionBlock, { opacity: fadeAnim, paddingBottom: 8 }]}>
-            <View style={styles.trustHeadingRow}>
-              <View>
-                <Text style={styles.sectionEyebrow}>WHY SARJ</Text>
-                <Text style={styles.trustSectionTitle}>The chauffeur standard</Text>
-              </View>
-              <View style={styles.trustHeadingMark} />
+          {fleetLoading ? (
+            <View style={styles.fleetLoading}>
+              <SlimSpinner size={24} stroke={2} color={ACCENT} />
             </View>
-            <View style={styles.trustCard}>
-              {trustPoints.map((item, index) => (
-                <View key={item.id} style={styles.trustRow}>
-                  <View style={styles.trustIconTile}>
-                    <Ionicons name={item.icon} size={15} color={ACCENT_DARK} />
-                  </View>
-                  <View style={styles.trustCopyCol}>
-                    <Text style={styles.trustTitle} numberOfLines={1}>{item.title}</Text>
-                    <Text style={styles.trustDesc} numberOfLines={1}>{item.desc}</Text>
-                  </View>
-                  {index < trustPoints.length - 1 ? (
-                    <View style={styles.trustRowDivider} pointerEvents="none" />
-                  ) : null}
-                </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.fleetScroll}
+            >
+              {fleetPreview.map((v) => (
+                <Pressable
+                  key={v.id}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/customer/create-reservation",
+                      params: bookingParams({ vehicleId: v.id }),
+                    })
+                  }
+                  style={({ pressed }) => [styles.fleetCard, pressed && styles.pressed]}
+                >
+                  <Image source={{ uri: v.imageUrl }} style={styles.fleetImage} resizeMode="contain" />
+                  <Text style={styles.fleetName} numberOfLines={1}>
+                    {v.title}
+                  </Text>
+                  <Text style={styles.fleetPrice}>
+                    {v.hourlyRate > 0
+                      ? `$${v.hourlyRate.toFixed(0)} base`
+                      : `$${v.pricePerKm.toFixed(2)}/km`}
+                  </Text>
+                </Pressable>
               ))}
-            </View>
-          </Animated.View>
-
-          <Text style={styles.footerBrand}></Text>
-          <View style={{ height: 96 }} />
+            </ScrollView>
+          )}
         </ScrollView>
-      </SafeAreaView>
-    </LinearGradient>
+      </Animated.View>
+
+      {/* Change pickup location */}
+      <Modal
+        visible={pickupEditorOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setPickupEditorOpen(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalRoot}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <Pressable style={styles.modalBackdrop} onPress={() => setPickupEditorOpen(false)} />
+          <View style={[styles.modalSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Set pickup point</Text>
+              <Pressable onPress={() => setPickupEditorOpen(false)} hitSlop={10}>
+                <Ionicons name="close" size={22} color="#64748b" />
+              </Pressable>
+            </View>
+            <Text style={styles.modalSub}>Search an address or use your current location.</Text>
+
+            <GooglePlacesAddressField
+              value={pickupDraft}
+              onChangeText={setPickupDraft}
+              placeholder="Search street, place, or airport"
+              iconName="search-outline"
+              autoFocus
+              onPlaceResolved={(place) => {
+                if (place.lat != null && place.lng != null) {
+                  void applyLocation(place.lat, place.lng, {
+                    manual: true,
+                    label: place.address,
+                  });
+                } else {
+                  setPickupManual(true);
+                  setPickupLabel(place.address);
+                  setPickupAddress(place.address);
+                }
+                setPickupEditorOpen(false);
+              }}
+            />
+
+            <Pressable
+              onPress={async () => {
+                setPickupEditorOpen(false);
+                await resolveLocation();
+              }}
+              style={({ pressed }) => [styles.useGpsBtn, pressed && styles.pressed]}
+            >
+              <Ionicons name="locate" size={18} color={ACCENT} />
+              <Text style={styles.useGpsText}>Use my current location</Text>
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  gradientFill: {
+  root: {
     flex: 1,
+    backgroundColor: "#E8E4DE",
   },
-  safeArea: {
-    flex: 1,
-    backgroundColor: "transparent",
+  mapFade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
   },
-  container: {
-    flex: 1,
-  },
-  contentContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 6,
-  },
-
-  topBar: {
-    flexDirection: "row",
+  meMarker: {
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 22,
-    paddingTop: 4,
+    width: 44,
   },
-  profileTap: {
-    flexDirection: "row",
+  meBubble: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: "#0B0B0B",
     alignItems: "center",
-    flex: 1,
-    gap: 12,
-  },
-  avatarWrap: {
-    borderRadius: 26,
-    padding: 2,
-    backgroundColor: "#fff",
+    justifyContent: "center",
     ...Platform.select({
       ios: {
-        shadowColor: "#0f172a",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.35,
+        shadowRadius: 5,
+      },
+      android: { elevation: 5 },
+    }),
+  },
+  meSilhouette: {
+    width: 22,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "flex-end",
+  },
+  meHead: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: "#FFF",
+    marginBottom: 2,
+  },
+  meTorso: {
+    width: 14,
+    height: 11,
+    borderTopLeftRadius: 7,
+    borderTopRightRadius: 7,
+    backgroundColor: "#FFF",
+  },
+  meArm: {
+    position: "absolute",
+    right: -1,
+    top: 8,
+    width: 3,
+    height: 10,
+    borderRadius: 2,
+    backgroundColor: "#FFF",
+    transform: [{ rotate: "35deg" }],
+  },
+  meStem: {
+    width: 2.5,
+    height: 11,
+    backgroundColor: "#0B0B0B",
+    marginTop: -1,
+  },
+  meDotHalo: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(66,133,244,0.22)",
+    marginTop: -3,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  meDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#4285F4",
+    borderWidth: 2.5,
+    borderColor: "#FFF",
+  },
+  topSafe: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+  },
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingTop: 6,
+    gap: 10,
+  },
+  fab: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FFF",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+      },
+      android: { elevation: 4 },
+    }),
+  },
+  fabAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fabInitials: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  pickupChip: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 8,
       },
       android: { elevation: 3 },
     }),
   },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: ACCENT,
+  pickupDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#22C55E",
   },
-  avatarFallback: {
-    backgroundColor: ACCENT,
-    justifyContent: "center",
-    alignItems: "center",
-    borderColor: ACCENT,
-  },
-  avatarInitials: {
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "700",
-  },
-  greetingBlock: {
+  pickupCopy: {
     flex: 1,
     minWidth: 0,
-    justifyContent: "center",
   },
-  greetingLine: {
-    fontSize: 16,
-    lineHeight: 21,
+  pickupEyebrow: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#94a3b8",
+    letterSpacing: 0.8,
   },
-  greetingHi: {
-    color: SLATE_600,
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  greetingName: {
-    color: SLATE_900,
+  pickupLabel: {
+    fontSize: 13,
     fontWeight: "700",
-    fontSize: 16,
+    color: "#1C1C1E",
+    marginTop: 1,
   },
-  topActions: {
+  locationBanner: {
+    alignSelf: "center",
+    marginTop: 10,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
-  iconBtn: {
+  locationBannerText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#1C1C1E",
+  },
+  recenterFab: {
+    position: "absolute",
+    right: 16,
+    zIndex: 15,
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.85)",
-    borderWidth: 1,
-    borderColor: "rgba(15,23,42,0.06)",
-    justifyContent: "center",
+    backgroundColor: "#FFF",
     alignItems: "center",
+    justifyContent: "center",
     ...Platform.select({
       ios: {
-        shadowColor: "#0f172a",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
         shadowRadius: 8,
       },
-      android: { elevation: 2 },
+      android: { elevation: 4 },
     }),
   },
-
-  liveCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(15, 23, 42, 0.08)",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 18,
+  sheet: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    zIndex: 10,
     ...Platform.select({
       ios: {
-        shadowColor: "#0f172a",
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.06,
-        shadowRadius: 14,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -8 },
+        shadowOpacity: 0.14,
+        shadowRadius: 18,
       },
-      android: { elevation: 2 },
+      android: { elevation: 12 },
     }),
   },
-  liveTopRow: {
+  sheetHandleWrap: {
+    alignItems: "center",
+    paddingTop: 10,
+    paddingBottom: 4,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+  },
+  sheetContent: {
+    paddingHorizontal: 16,
+    paddingTop: 6,
+  },
+  greetingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 14,
+  },
+  brandMark: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.6,
+    marginBottom: 2,
+  },
+  greeting: {
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
+  bookingsPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  bookingsPillText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  liveCard: {
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
+    backgroundColor: "#0F1A12",
+  },
+  liveTop: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    marginBottom: 8,
   },
   liveDotWrap: {
     width: 14,
     height: 14,
-    justifyContent: "center",
     alignItems: "center",
-    position: "relative",
+    justifyContent: "center",
   },
   liveDotHalo: {
     position: "absolute",
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: "rgba(16,185,129,0.35)",
+    backgroundColor: "rgba(52,199,89,0.4)",
   },
   liveDot: {
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: "#10B981",
+    backgroundColor: "#34C759",
   },
   liveEyebrow: {
     flex: 1,
-    minWidth: 0,
     fontSize: 11,
-    fontWeight: "700",
-    color: SLATE_600,
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-  },
-  liveStatusChip: {
-    flexShrink: 0,
-    backgroundColor: "#ECFDF5",
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(16, 185, 129, 0.28)",
-  },
-  liveStatusChipText: {
-    fontSize: 10.5,
     fontWeight: "800",
-    color: "#047857",
-    letterSpacing: 0.4,
+    color: "rgba(255,255,255,0.55)",
+    letterSpacing: 1.1,
+  },
+  liveChip: {
+    backgroundColor: "rgba(52,199,89,0.16)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  liveChipText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#34C759",
     textTransform: "uppercase",
   },
-  liveDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: "rgba(15,23,42,0.08)",
-    marginVertical: 10,
+  liveRoute: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FFF",
   },
-  liveBottomRow: {
+  liveMeta: {
+    marginTop: 4,
+    fontSize: 11,
+    color: "rgba(255,255,255,0.5)",
+  },
+  serviceGrid: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+  },
+  rideTile: {
+    flex: 1.15,
+    minHeight: 148,
+    borderRadius: 20,
+    overflow: "hidden",
+    padding: 14,
+    justifyContent: "space-between",
+  },
+  rideIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(212,160,74,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rideTitle: {
+    marginTop: 12,
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#FFF",
+    letterSpacing: -0.3,
+  },
+  rideSub: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.6)",
+    marginBottom: 12,
+  },
+  rideCta: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: ACCENT,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  rideCtaText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#1A1208",
+  },
+  parcelTile: {
+    flex: 0.95,
+    minHeight: 148,
+    borderRadius: 20,
+    padding: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    justifyContent: "flex-start",
+  },
+  parcelIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(212,160,74,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  parcelTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    letterSpacing: -0.2,
+  },
+  parcelSub: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  whereBar: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 18,
   },
-  liveRouteCol: {
+  wherePlaceholder: {
     flex: 1,
-    minWidth: 0,
-  },
-  liveRouteText: {
-    fontSize: 13.5,
+    fontSize: 15,
     fontWeight: "600",
-    color: SLATE_900,
-    letterSpacing: -0.1,
   },
-  liveRoutePlace: {
-    color: SLATE_900,
-  },
-  liveRouteArrow: {
-    color: SLATE_400,
-    fontWeight: "500",
-  },
-  liveBookingMono: {
-    marginTop: 2,
-    fontSize: 10.5,
-    fontWeight: "600",
-    color: SLATE_400,
-    letterSpacing: 0.4,
-    ...Platform.select({
-      ios: { fontFamily: "Menlo" },
-      android: { fontFamily: "monospace" },
-    }),
-  },
-  liveTrackBtn: {
-    flexShrink: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
+  whereNow: {
+    backgroundColor: "rgba(212,160,74,0.16)",
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: "rgba(201,160,99,0.10)",
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(201,160,99,0.30)",
+    paddingVertical: 5,
+    borderRadius: 10,
   },
-  liveTrackBtnText: {
+  whereNowText: {
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "800",
     color: ACCENT_DARK,
-    letterSpacing: 0.2,
   },
-
-  heroWrap: {
-    marginBottom: 24,
-  },
-  heroCard: {
-    position: "relative",
-    borderRadius: 18,
-    overflow: "hidden",
-    backgroundColor: "#0A1120",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.05)",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#020617",
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.22,
-        shadowRadius: 22,
-      },
-      android: { elevation: 6 },
-    }),
-  },
-  heroGlow: {
-    position: "absolute",
-    top: -30,
-    right: -40,
-    width: 200,
-    height: 160,
-    borderRadius: 200,
-  },
-  heroTopHairline: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: "rgba(255,255,255,0.10)",
-  },
-  heroInner: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    gap: 14,
-  },
-  heroCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  heroKicker: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "rgba(201,160,99,0.85)",
-    letterSpacing: 2,
-    marginBottom: 6,
-  },
-  heroTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#fff",
-    letterSpacing: -0.3,
-    lineHeight: 22,
-  },
-  heroSub: {
-    fontSize: 12,
-    color: "rgba(226, 232, 240, 0.55)",
-    lineHeight: 16,
-    marginTop: 3,
-    letterSpacing: 0.1,
-  },
-  heroCtaOuter: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    padding: 2,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.10)",
-    overflow: "hidden",
-    justifyContent: "center",
-    alignItems: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: ACCENT_DARK,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.28,
-        shadowRadius: 8,
-      },
-      android: { elevation: 4 },
-    }),
-  },
-  heroCtaGlass: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    overflow: "hidden",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  heroCtaDisc: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  sectionBlock: {
-    marginBottom: 28,
-  },
-  sectionHeading: {
-    marginBottom: 14,
-  },
-  sectionHeadingRow: {
+  fleetHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-end",
-    marginBottom: 14,
+    alignItems: "center",
+    marginBottom: 10,
   },
-  sectionEyebrow: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: SLATE_400,
-    letterSpacing: 2,
-    marginBottom: 6,
+  fleetTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: -0.2,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: SLATE_900,
-    letterSpacing: -0.4,
-  },
-  linkText: {
+  fleetLink: {
     fontSize: 13,
     fontWeight: "700",
-    color: ACCENT_DARK,
+    color: ACCENT,
   },
-
   fleetLoading: {
     paddingVertical: 28,
     alignItems: "center",
-    gap: 10,
-  },
-  fleetLoadingText: {
-    fontSize: 13,
-    color: SLATE_600,
-  },
-  fleetEmpty: {
-    fontSize: 13,
-    color: SLATE_600,
-    lineHeight: 20,
   },
   fleetScroll: {
     paddingRight: 8,
-    gap: 12,
+    gap: 10,
   },
   fleetCard: {
-    width: SCREEN_WIDTH * 0.58,
-    height: 200,
-    borderRadius: 18,
-    overflow: "hidden",
-    marginRight: 12,
-    backgroundColor: "#e2e8f0",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#0f172a",
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.12,
-        shadowRadius: 14,
-      },
-      android: { elevation: 5 },
-    }),
+    width: SCREEN_WIDTH * 0.42,
+    backgroundColor: "#F4F0EA",
+    borderRadius: 16,
+    padding: 10,
+    marginRight: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(0,0,0,0.06)",
   },
   fleetImage: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  fleetOverlay: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  fleetTag: {
-    position: "absolute",
-    top: 12,
-    left: 12,
-    backgroundColor: "rgba(255,255,255,0.92)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  fleetTagText: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: SLATE_900,
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
-  },
-  fleetInfo: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 14,
+    width: "100%",
+    height: 72,
+    marginBottom: 8,
   },
   fleetName: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#fff",
-    marginBottom: 6,
-    lineHeight: 20,
-  },
-  fleetMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1C1C1E",
   },
   fleetPrice: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: ACCENT,
-  },
-  fleetPriceUnit: {
+    marginTop: 3,
     fontSize: 12,
-    fontWeight: "600",
-    color: "rgba(255,255,255,0.75)",
-  },
-
-  trustHeadingRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    marginBottom: 12,
-  },
-  trustSectionTitle: {
-    fontSize: 17,
     fontWeight: "700",
-    color: SLATE_900,
-    letterSpacing: -0.3,
+    color: ACCENT_DARK,
   },
-  trustHeadingMark: {
-    width: 28,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: ACCENT,
-    opacity: 0.85,
-    marginBottom: 6,
+  pressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.985 }],
   },
-  trustCard: {
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(15,23,42,0.08)",
-    overflow: "hidden",
+  modalRoot: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  modalSheet: {
+    backgroundColor: "#F8F6F2",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    zIndex: 2,
     ...Platform.select({
       ios: {
-        shadowColor: "#0f172a",
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.04,
-        shadowRadius: 10,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -6 },
+        shadowOpacity: 0.15,
+        shadowRadius: 16,
       },
-      android: { elevation: 1 },
+      android: { elevation: 16 },
     }),
   },
-  trustRow: {
-    position: "relative",
+  modalHandle: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#D6D0C6",
+    marginBottom: 12,
+  },
+  modalHeader: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    gap: 12,
+    justifyContent: "space-between",
+    marginBottom: 6,
   },
-  trustRowDivider: {
-    position: "absolute",
-    left: 14 + 28 + 12,
-    right: 14,
-    bottom: 0,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: "rgba(15,23,42,0.08)",
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#1C1C1E",
+    letterSpacing: -0.3,
   },
-  trustIconTile: {
-    width: 28,
-    height: 28,
-    borderRadius: 9,
-    backgroundColor: "rgba(201,160,99,0.10)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(201,160,99,0.30)",
-    justifyContent: "center",
+  modalSub: {
+    fontSize: 13,
+    color: "#64748b",
+    marginBottom: 14,
+    lineHeight: 18,
+  },
+  useGpsBtn: {
+    marginTop: 14,
+    marginBottom: 4,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: "#FFF",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(0,0,0,0.08)",
   },
-  trustCopyCol: {
-    flex: 1,
-    minWidth: 0,
-  },
-  trustTitle: {
-    fontSize: 13.5,
-    fontWeight: "600",
-    color: SLATE_900,
-    letterSpacing: -0.1,
-    marginBottom: 1,
-  },
-  trustDesc: {
-    fontSize: 11.5,
-    color: SLATE_600,
-    lineHeight: 15,
-    letterSpacing: 0.05,
-  },
-
-  footerBrand: {
-    textAlign: "center",
-    fontSize: 11,
+  useGpsText: {
+    fontSize: 14,
     fontWeight: "700",
-    color: SLATE_400,
-    letterSpacing: 2,
-    marginTop: 8,
+    color: "#1C1C1E",
   },
 });

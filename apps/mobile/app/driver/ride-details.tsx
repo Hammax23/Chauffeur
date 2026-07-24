@@ -20,6 +20,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { getDriverRideDetail, updateRideStatus, DriverRide } from "../../services/api";
 import { syncDriverLiveTracking } from "../../services/driver-live-session";
 import { SlimSpinner } from "../../components/SlimSpinner";
+import { isParcelServiceType, parseParcelRequirements } from "../../utils/parcel";
 
 type RideStatus =
   | "pending"
@@ -691,13 +692,48 @@ export default function RideDetailsScreen() {
                     </Text>
                   </LinearGradient>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.customerName}>{ride?.customerName || "N/A"}</Text>
+                    <View style={styles.customerNameRow}>
+                      <Text style={styles.customerName}>{ride?.customerName || "N/A"}</Text>
+                      {isParcelServiceType(ride?.serviceType) ? (
+                        <View style={styles.parcelBadge}>
+                          <Ionicons name="cube" size={11} color="#8B6914" />
+                          <Text style={styles.parcelBadgeText}>PARCEL</Text>
+                        </View>
+                      ) : null}
+                    </View>
                     <Text style={styles.customerMeta}>
-                      {ride?.passengers || 0} passenger{(ride?.passengers || 0) === 1 ? "" : "s"}
+                      {isParcelServiceType(ride?.serviceType)
+                        ? "Parcel delivery"
+                        : `${ride?.passengers || 0} passenger${(ride?.passengers || 0) === 1 ? "" : "s"}`}
                       {ride?.vehicle ? ` · ${ride.vehicle}` : ""}
                     </Text>
                   </View>
                 </View>
+                {(() => {
+                  const parcel = isParcelServiceType(ride?.serviceType)
+                    ? parseParcelRequirements(ride?.specialRequirements)
+                    : null;
+                  if (!parcel || (!parcel.recipientName && !parcel.recipientPhone && !parcel.parcelWeight && !parcel.parcelNote)) {
+                    return null;
+                  }
+                  return (
+                    <View style={styles.parcelInfoBox}>
+                      <Text style={styles.parcelInfoTitle}>Recipient</Text>
+                      {parcel.recipientName ? (
+                        <Text style={styles.parcelInfoLine}>{parcel.recipientName}</Text>
+                      ) : null}
+                      {parcel.recipientPhone ? (
+                        <Text style={styles.parcelInfoLine}>{parcel.recipientPhone}</Text>
+                      ) : null}
+                      {parcel.parcelWeight ? (
+                        <Text style={styles.parcelInfoLine}>Weight · {parcel.parcelWeight}</Text>
+                      ) : null}
+                      {parcel.parcelNote ? (
+                        <Text style={styles.parcelInfoNote}>{parcel.parcelNote}</Text>
+                      ) : null}
+                    </View>
+                  );
+                })()}
                 {canMessage ? (
                   <TouchableOpacity
                     style={styles.messageBtn}
@@ -1152,6 +1188,56 @@ const styles = StyleSheet.create({
   avatar: { width: 50, height: 50, borderRadius: 25, alignItems: "center", justifyContent: "center" },
   avatarText: { color: "#fff", fontSize: 18, fontWeight: "800" },
   customerName: { fontSize: 17, fontWeight: "800", color: INK, letterSpacing: -0.3 },
+  customerNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  parcelBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(212,160,74,0.16)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(212,160,74,0.4)",
+  },
+  parcelBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#8B6914",
+    letterSpacing: 0.4,
+  },
+  parcelInfoBox: {
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(212,160,74,0.1)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(212,160,74,0.35)",
+  },
+  parcelInfoTitle: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#8B6914",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    marginBottom: 4,
+  },
+  parcelInfoLine: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: INK,
+    marginTop: 2,
+  },
+  parcelInfoNote: {
+    fontSize: 13,
+    color: MUTED,
+    marginTop: 6,
+  },
   customerMeta: { fontSize: 12, color: MUTED, marginTop: 2 },
   messageBtn: {
     flexDirection: "row",

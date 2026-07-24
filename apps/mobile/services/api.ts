@@ -855,6 +855,7 @@ export interface DriverRide {
   distance: string;
   duration: string;
   total: number;
+  specialRequirements?: string;
   createdAt: string;
   /** ISO — trip timer starts here (first ON THE WAY). */
   driverOnTheWayAt?: string | null;

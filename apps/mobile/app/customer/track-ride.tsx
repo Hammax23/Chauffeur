@@ -20,6 +20,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { getReservationById, getDriverLiveLocation, Reservation, API_BASE_URL } from "../../services/api";
 import { useReservationStream } from "../../hooks/useReservationStream";
 import type { ReservationStreamStatus } from "../../services/reservation-stream";
+import { isParcelServiceType } from "../../utils/parcel";
 
 // Palette — kept consistent with customer/index.tsx
 const ACCENT = "#C9A063";
@@ -583,9 +584,13 @@ export default function TrackRideScreen() {
                 </View>
                 <View style={styles.tripMetaDivider} />
                 <View style={styles.tripMetaItem}>
-                  <Text style={styles.tripMetaLabel}>GUESTS</Text>
+                  <Text style={styles.tripMetaLabel}>
+                    {isParcelServiceType(reservation?.serviceType) ? "SERVICE" : "GUESTS"}
+                  </Text>
                   <Text style={styles.tripMetaValue}>
-                    {reservation?.passengers ?? 0}
+                    {isParcelServiceType(reservation?.serviceType)
+                      ? "Parcel"
+                      : reservation?.passengers ?? 0}
                   </Text>
                 </View>
               </View>

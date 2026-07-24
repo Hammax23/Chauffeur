@@ -42,6 +42,7 @@ function mapAssignedRide(r: {
   distance: string | null;
   duration: string | null;
   total: number;
+  specialRequirements: string | null;
   createdAt: Date;
 }, liveOffer = false) {
   return {
@@ -66,6 +67,7 @@ function mapAssignedRide(r: {
     distance: r.distance || "",
     duration: r.duration || "",
     total: r.total,
+    specialRequirements: r.specialRequirements || "",
     createdAt: r.createdAt.toISOString(),
     liveOffer,
   };
@@ -127,6 +129,7 @@ export async function GET(req: NextRequest) {
           distance: offer.distance,
           duration: offer.duration,
           total: offer.total,
+          specialRequirements: offer.specialRequirements || "",
           createdAt: offer.createdAt,
           liveOffer: true,
         });

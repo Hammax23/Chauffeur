@@ -36,6 +36,7 @@ function mapRidePayload(
     distance: string | null;
     duration: string | null;
     total: number;
+    specialRequirements?: string | null;
     createdAt: Date;
   },
   liveOffer: boolean
@@ -58,6 +59,7 @@ function mapRidePayload(
     distance: r.distance || "",
     duration: r.duration || "",
     total: r.total,
+    specialRequirements: r.specialRequirements || "",
     createdAt: r.createdAt.toISOString(),
     liveOffer,
   };

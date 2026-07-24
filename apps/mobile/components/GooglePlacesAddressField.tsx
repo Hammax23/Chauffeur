@@ -36,6 +36,13 @@ export interface GooglePlacesAddressFieldProps {
   placeholder?: string;
   iconName?: GooglePlacesAddressFieldIcon;
   containerStyle?: object;
+  /** Fired after a suggestion is resolved (includes lat/lng when available). */
+  onPlaceResolved?: (place: {
+    address: string;
+    lat?: number;
+    lng?: number;
+  }) => void;
+  autoFocus?: boolean;
 }
 
 export function GooglePlacesAddressField({
@@ -44,6 +51,8 @@ export function GooglePlacesAddressField({
   placeholder = "Search address",
   iconName = "location-outline",
   containerStyle,
+  onPlaceResolved,
+  autoFocus,
 }: GooglePlacesAddressFieldProps) {
   const sessionRef = useRef<string>(randomUUID());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -166,12 +175,21 @@ export function GooglePlacesAddressField({
     setResolving(true);
     setBanner(null);
     try {
-      const { formattedAddress } = await fetchPlaceFormattedAddress(p.placeId, sessionRef.current);
+      const { formattedAddress, location } = await fetchPlaceFormattedAddress(
+        p.placeId,
+        sessionRef.current
+      );
       onChangeText(formattedAddress);
+      onPlaceResolved?.({
+        address: formattedAddress,
+        lat: location?.lat,
+        lng: location?.lng,
+      });
       sessionRef.current = randomUUID();
     } catch (e) {
       setBanner(e instanceof Error ? e.message : "Could not confirm address");
       onChangeText(p.description);
+      onPlaceResolved?.({ address: p.description });
       sessionRef.current = randomUUID();
     } finally {
       setResolving(false);
@@ -197,6 +215,7 @@ export function GooglePlacesAddressField({
           autoCapitalize="words"
           returnKeyType="search"
           editable={!resolving}
+          autoFocus={autoFocus}
           accessibilityLabel={placeholder}
         />
         {(loading || resolving) && <ActivityIndicator size="small" color={ACCENT} style={styles.spinner} />}

@@ -102,6 +102,7 @@ export async function GET(req: NextRequest) {
               distance: r.distance || "",
               duration: r.duration || "",
               total: r.total,
+              specialRequirements: r.specialRequirements || "",
               createdAt: r.createdAt.toISOString(),
               liveOffer: false,
             },

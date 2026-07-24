@@ -8,8 +8,14 @@ import {
   CreditCard, DollarSign, UserX, UserCheck, RotateCcw, Shield, MessageSquare,
 } from "lucide-react";
 import DriverTripTimingPanel from "@/components/DriverTripTimingPanel";
+import { isParcelServiceType, parseParcelRequirements } from "@/lib/parcel";
 
 const STATUS_OPTIONS = ["ALL", "PENDING", "ON THE WAY", "ARRIVED", "CIC", "STOP", "DONE"];
+const SERVICE_FILTER_OPTIONS = [
+  { id: "ALL", label: "All services" },
+  { id: "RIDES", label: "Rides" },
+  { id: "PARCEL", label: "Parcel" },
+] as const;
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
   PENDING: { bg: "bg-gray-100", text: "text-gray-700", dot: "bg-gray-400" },
@@ -85,6 +91,7 @@ export default function ReservationsPage() {
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [serviceFilter, setServiceFilter] = useState<"ALL" | "RIDES" | "PARCEL">("ALL");
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
@@ -183,6 +190,11 @@ export default function ReservationsPage() {
 
   const filtered = reservations.filter((r) => {
     const matchesStatus = statusFilter === "ALL" || r.status === statusFilter;
+    const isParcel = isParcelServiceType(r.serviceType);
+    const matchesService =
+      serviceFilter === "ALL" ||
+      (serviceFilter === "PARCEL" && isParcel) ||
+      (serviceFilter === "RIDES" && !isParcel);
     const query = searchQuery.toLowerCase();
     const matchesSearch =
       !query ||
@@ -192,9 +204,12 @@ export default function ReservationsPage() {
       r.phone?.toLowerCase().includes(query) ||
       r.email?.toLowerCase().includes(query) ||
       r.pickupLocation?.toLowerCase().includes(query) ||
-      r.dropoffLocation?.toLowerCase().includes(query);
-    return matchesStatus && matchesSearch;
+      r.dropoffLocation?.toLowerCase().includes(query) ||
+      r.serviceType?.toLowerCase().includes(query);
+    return matchesStatus && matchesService && matchesSearch;
   });
+
+  const parcelCount = reservations.filter((r) => isParcelServiceType(r.serviceType)).length;
 
   const statusCounts = STATUS_OPTIONS.reduce((acc, s) => {
     acc[s] = s === "ALL" ? reservations.length : reservations.filter((r) => r.status === s).length;
@@ -339,7 +354,7 @@ export default function ReservationsPage() {
       </div>
 
       {/* Status Filter Tabs */}
-      <div className="flex flex-wrap gap-2 mb-5">
+      <div className="flex flex-wrap gap-2 mb-3">
         {STATUS_OPTIONS.map((s) => {
           const colors = s === "ALL" ? { bg: "bg-gray-100", text: "text-gray-700", dot: "bg-gray-500" } : STATUS_COLORS[s] || STATUS_COLORS.PENDING;
           const isActive = statusFilter === s;
@@ -355,6 +370,33 @@ export default function ReservationsPage() {
             >
               <span className={`w-2 h-2 rounded-full ${colors.dot}`} />
               {s} ({statusCounts[s]})
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Service type filter */}
+      <div className="flex flex-wrap gap-2 mb-5">
+        {SERVICE_FILTER_OPTIONS.map((opt) => {
+          const count =
+            opt.id === "ALL"
+              ? reservations.length
+              : opt.id === "PARCEL"
+                ? parcelCount
+                : reservations.length - parcelCount;
+          const isActive = serviceFilter === opt.id;
+          return (
+            <button
+              key={opt.id}
+              onClick={() => setServiceFilter(opt.id)}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                isActive
+                  ? "bg-[#1C1C1E] text-white"
+                  : "bg-white text-gray-600 hover:bg-gray-50 border border-gray-200"
+              }`}
+            >
+              {opt.id === "PARCEL" ? <Filter className="w-3.5 h-3.5" /> : null}
+              {opt.label} ({count})
             </button>
           );
         })}
@@ -403,6 +445,8 @@ export default function ReservationsPage() {
             {filtered.map((r) => {
               const isExpanded = expandedRow === r.bookingId;
               const statusStyle = STATUS_COLORS[r.status] || STATUS_COLORS.PENDING;
+              const isParcel = isParcelServiceType(r.serviceType);
+              const parcelInfo = parseParcelRequirements(r.specialRequirements);
               return (
                 <div key={r.bookingId}>
                   {/* Row */}
@@ -411,8 +455,13 @@ export default function ReservationsPage() {
                     className="grid grid-cols-1 lg:grid-cols-[180px_1fr_1fr_140px_120px_100px_90px] gap-2 lg:gap-4 px-5 py-4 hover:bg-gray-50 cursor-pointer transition-colors items-center"
                   >
                     {/* Booking ID */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-bold text-[#C9A063]">{r.bookingId}</span>
+                      {isParcel ? (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase bg-[#C9A063]/15 text-[#8B6914] border border-[#C9A063]/35">
+                          Parcel
+                        </span>
+                      ) : null}
                       {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                     </div>
 
@@ -555,8 +604,20 @@ export default function ReservationsPage() {
                           <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Trip Details</h4>
                           <div className="text-sm text-gray-700 space-y-1">
                             {r.serviceType && <p><span className="text-gray-500">Service:</span> {r.serviceType}</p>}
-                            <p><span className="text-gray-500">Passengers:</span> {r.passengers}</p>
-                            {r.childSeats > 0 && <p><span className="text-gray-500">Child Seats:</span> {r.childSeats} {r.childSeatType ? `(${r.childSeatType})` : ""}</p>}
+                            {!isParcel && <p><span className="text-gray-500">Passengers:</span> {r.passengers}</p>}
+                            {!isParcel && r.childSeats > 0 && <p><span className="text-gray-500">Child Seats:</span> {r.childSeats} {r.childSeatType ? `(${r.childSeatType})` : ""}</p>}
+                            {isParcel && parcelInfo?.recipientName ? (
+                              <p><span className="text-gray-500">Recipient:</span> {parcelInfo.recipientName}</p>
+                            ) : null}
+                            {isParcel && parcelInfo?.recipientPhone ? (
+                              <p><span className="text-gray-500">Recipient phone:</span> {parcelInfo.recipientPhone}</p>
+                            ) : null}
+                            {isParcel && parcelInfo?.parcelWeight ? (
+                              <p><span className="text-gray-500">Weight:</span> {parcelInfo.parcelWeight}</p>
+                            ) : null}
+                            {isParcel && parcelInfo?.parcelNote ? (
+                              <p><span className="text-gray-500">Package note:</span> {parcelInfo.parcelNote}</p>
+                            ) : null}
                             {r.etr407 === "Yes" && <p><span className="text-gray-500">407 ETR:</span> <span className="text-[#C9A063] font-semibold">Yes</span></p>}
                             {r.distance && <p><span className="text-gray-500">Distance:</span> {r.distance}</p>}
                             {r.duration && <p><span className="text-gray-500">Duration:</span> {r.duration}</p>}

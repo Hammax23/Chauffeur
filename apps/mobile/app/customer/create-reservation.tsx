@@ -18,6 +18,7 @@ import DateTimePicker, {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import * as Location from "expo-location";
 import { useAuth } from "../../contexts/AuthContext";
 import { GooglePlacesAddressField } from "../../components/GooglePlacesAddressField";
 import { fetchDirectionsSummary } from "../../services/places";
@@ -37,6 +38,11 @@ import {
   type AppDistancePricing,
 } from "../../utils/app-fare";
 import { saveBookingDraft } from "../../services/booking-draft";
+import {
+  PARCEL_SERVICE_TYPE,
+  formatParcelWeight,
+  isParcelServiceType,
+} from "../../utils/parcel";
 
 /** Silent default — create UI no longer asks for service type (distance bookings). */
 const DEFAULT_SERVICE_TYPE = "Point-to-Point transportation";
@@ -71,7 +77,31 @@ type CurrentPickupResult = {
   lng: number;
 };
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(label)), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
 async function resolveCurrentPickup(): Promise<CurrentPickupResult | null> {
+  // Optional on some runtimes — only call when present.
+  if (typeof Location.hasServicesEnabledAsync === "function") {
+    const servicesOn = await Location.hasServicesEnabledAsync();
+    if (!servicesOn) {
+      throw new Error("Location services are turned off on this device");
+    }
+  }
+
   const current = await Location.getForegroundPermissionsAsync();
   let status = current.status;
   if (status !== "granted") {
@@ -82,18 +112,49 @@ async function resolveCurrentPickup(): Promise<CurrentPickupResult | null> {
     return null;
   }
 
-  const position = await Location.getCurrentPositionAsync({
-    accuracy: Location.Accuracy.High,
-  });
-  const lat = position.coords.latitude;
-  const lng = position.coords.longitude;
+  let lat: number | null = null;
+  let lng: number | null = null;
 
-  const results = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
-  const formatted = formatReverseGeocodeAddress(results[0]);
-  // Always keep GPS — even if reverse geocode is weak, Directions uses lat,lng.
-  const address =
-    formatted ||
-    `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  // Prefer a fresh fix, but don't hang forever on High GPS indoors.
+  try {
+    const position = await withTimeout(
+      Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      }),
+      12_000,
+      "Location timeout"
+    );
+    lat = position.coords.latitude;
+    lng = position.coords.longitude;
+  } catch {
+    if (typeof Location.getLastKnownPositionAsync === "function") {
+      const last = await Location.getLastKnownPositionAsync({
+        maxAge: 5 * 60_000,
+        requiredAccuracy: 500,
+      });
+      if (last) {
+        lat = last.coords.latitude;
+        lng = last.coords.longitude;
+      }
+    }
+  }
+
+  if (lat == null || lng == null) {
+    throw new Error("Couldn’t get a GPS fix — try again outdoors or check permissions");
+  }
+
+  let address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  try {
+    const results = await withTimeout(
+      Location.reverseGeocodeAsync({ latitude: lat, longitude: lng }),
+      8_000,
+      "Geocode timeout"
+    );
+    const formatted = formatReverseGeocodeAddress(results[0]);
+    if (formatted) address = formatted;
+  } catch {
+    // Keep coordinate fallback — Directions still uses lat/lng.
+  }
 
   return { address, lat, lng };
 }
@@ -105,6 +166,7 @@ const SERVICE_PREFILL_MAP: Record<string, string> = {
   point: "Point-to-Point transportation",
   corporate: "Point-to-Point transportation",
   events: "Hourly ride",
+  parcel: PARCEL_SERVICE_TYPE,
 };
 
 export default function CreateReservationScreen() {
@@ -112,6 +174,9 @@ export default function CreateReservationScreen() {
   const params = useLocalSearchParams<{
     prefill?: string | string[];
     vehicleId?: string | string[];
+    pickup?: string | string[];
+    pickupLat?: string | string[];
+    pickupLng?: string | string[];
   }>();
   // Ensures we only honour a `vehicleId` param once — after the user has
   // possibly changed the selection, navigating back here shouldn't yank it
@@ -130,6 +195,10 @@ export default function CreateReservationScreen() {
   const [pickupAt, setPickupAt] = useState<Date>(defaultPickupDate);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [passengersCount, setPassengersCount] = useState(1);
+  const [recipientName, setRecipientName] = useState("");
+  const [recipientPhone, setRecipientPhone] = useState("");
+  const [parcelWeight, setParcelWeight] = useState("");
+  const [parcelNote, setParcelNote] = useState("");
   const [fleetVehicles, setFleetVehicles] = useState<AppFleetVehicleDto[]>([]);
   const [distancePricing, setDistancePricing] = useState<AppDistancePricing>({
     baseDistanceKm: BASE_DISTANCE_KM,
@@ -149,6 +218,7 @@ export default function CreateReservationScreen() {
     () => (selectedTierId ? findTierById(vehicleTiers, selectedTierId) : null),
     [vehicleTiers, selectedTierId]
   );
+  const isParcel = isParcelServiceType(serviceType);
   /** Silent default — 407 allowed on routed trips (UI toggle removed). */
   const tollRoute = true;
   const [routeSummary, setRouteSummary] = useState<{
@@ -225,22 +295,58 @@ export default function CreateReservationScreen() {
     try {
       const result = await resolveCurrentPickup();
       if (!result) {
-        setPickupLocationHint("Location permission needed — tap to use current location");
+        setPickupLocationHint("Location permission needed — tap My location again to allow access");
+        if (opts?.force) {
+          Alert.alert(
+            "Location permission",
+            "Allow location access in Settings so we can fill your pickup address."
+          );
+        }
         return;
       }
       pickupAutoFilledRef.current = true;
       setPickupCoords({ lat: result.lat, lng: result.lng });
       setPickupAddress(result.address);
       setPickupLocationHint("Using GPS location — route uses exact coordinates");
-    } catch {
+    } catch (e) {
       setPickupCoords(null);
-      setPickupLocationHint("Couldn’t detect location — enter pickup manually");
+      const msg =
+        e instanceof Error && e.message
+          ? e.message
+          : "Couldn’t detect location — enter pickup manually";
+      setPickupLocationHint(msg);
+      if (opts?.force) {
+        Alert.alert("My location", msg);
+      }
     } finally {
       setPickupLocating(false);
     }
   }, [pickupAddress]);
 
-  // Auto-detect pickup once when the screen opens
+  // Prefill pickup from Home map chip (address + optional GPS)
+  useEffect(() => {
+    const rawPickup = params.pickup;
+    const pickup =
+      typeof rawPickup === "string" ? rawPickup : Array.isArray(rawPickup) ? rawPickup[0] : undefined;
+    if (!pickup?.trim()) return;
+
+    pickupAutoFilledRef.current = true;
+    setPickupAddress(pickup.trim());
+    setPickupLocationHint("Pickup from Home map");
+
+    const rawLat = params.pickupLat;
+    const rawLng = params.pickupLng;
+    const latStr = typeof rawLat === "string" ? rawLat : Array.isArray(rawLat) ? rawLat[0] : undefined;
+    const lngStr = typeof rawLng === "string" ? rawLng : Array.isArray(rawLng) ? rawLng[0] : undefined;
+    const lat = latStr ? parseFloat(latStr) : NaN;
+    const lng = lngStr ? parseFloat(lngStr) : NaN;
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      setPickupCoords({ lat, lng });
+      setPickupLocationHint("Using Home pickup — route uses exact coordinates");
+    }
+  }, [params.pickup, params.pickupLat, params.pickupLng]);
+
+  // Auto-detect pickup once when the screen opens (skipped if Home already set pickup)
   useEffect(() => {
     void fillCurrentPickup();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
@@ -424,16 +530,23 @@ export default function CreateReservationScreen() {
       );
       return;
     }
-    if (passengersCount > maxPassengers) {
-      Alert.alert(
-        "Too many passengers",
-        `This vehicle seats up to ${maxPassengers} passengers.`
-      );
-      return;
-    }
-    if (childSeatCount > passengersCount) {
-      Alert.alert("Child seats", "Child seats cannot exceed the passenger count.");
-      return;
+    if (!isParcel) {
+      if (passengersCount > maxPassengers) {
+        Alert.alert(
+          "Too many passengers",
+          `This vehicle seats up to ${maxPassengers} passengers.`
+        );
+        return;
+      }
+      if (childSeatCount > passengersCount) {
+        Alert.alert("Child seats", "Child seats cannot exceed the passenger count.");
+        return;
+      }
+    } else {
+      if (!recipientName.trim() || !recipientPhone.trim()) {
+        Alert.alert("Missing info", "Please enter the recipient name and phone number.");
+        return;
+      }
     }
 
     await saveBookingDraft({
@@ -444,7 +557,7 @@ export default function CreateReservationScreen() {
       serviceDate: serviceDateStr,
       serviceTime: serviceTimeStr,
       pickupTimeDisplay,
-      passengers: String(passengersCount),
+      passengers: isParcel ? "1" : String(passengersCount),
       vehicle: selectedTier.title,
       vehicleId: selectedTier.id,
       vehicleSubtitle: selectedTier.subtitle,
@@ -462,12 +575,16 @@ export default function CreateReservationScreen() {
       distanceMeters: String(routeSummary?.distanceMeters ?? ""),
       durationSeconds: String(routeSummary?.durationSeconds ?? ""),
       tollRoute: tollRoute ? "Yes" : "No",
-      childSeatCount: String(childSeatCount),
+      childSeatCount: isParcel ? "0" : String(childSeatCount),
       firstName,
       lastName,
       phoneNumber,
       email,
       seating: selectedTier.seating || "",
+      recipientName: isParcel ? recipientName.trim() : undefined,
+      recipientPhone: isParcel ? recipientPhone.trim() : undefined,
+      parcelWeight: isParcel ? formatParcelWeight(parcelWeight) || undefined : undefined,
+      parcelNote: isParcel ? parcelNote.trim() : undefined,
     });
 
     router.push("/customer/reservation-confirm");
@@ -488,7 +605,9 @@ export default function CreateReservationScreen() {
             <Ionicons name="chevron-back" size={20} color="#1a1a1a" />
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Create Reservation</Text>
+          <Text style={styles.headerTitle}>
+            {isParcel ? "Send a Parcel" : "Create Reservation"}
+          </Text>
           <View style={{ width: 60 }} />
         </View>
 
@@ -505,8 +624,14 @@ export default function CreateReservationScreen() {
 
         {/* Ride Details Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Ride Details</Text>
+          <Text style={styles.sectionTitle}>{isParcel ? "Parcel Details" : "Ride Details"}</Text>
           <Text style={[styles.sectionSubtitle, styles.sectionSubtitleWhenWhere]}>When & Where</Text>
+          {isParcel ? (
+            <View style={styles.parcelBanner}>
+              <Ionicons name="cube-outline" size={16} color="#D4A04A" />
+              <Text style={styles.parcelBannerText}>Parcel Delivery · same-day chauffeur</Text>
+            </View>
+          ) : null}
 
           {/* Pickup Address */}
           <View style={styles.pickupLabelRow}>
@@ -764,7 +889,8 @@ export default function CreateReservationScreen() {
             <Text style={styles.fleetErrorText}>No vehicles available.</Text>
           )}
 
-          {/* Passengers + Child Seat — single professional row */}
+          {/* Passengers + Child Seat — rides only */}
+          {!isParcel ? (
           <View style={styles.dualCounterRow}>
             <View style={styles.dualCounterCard}>
               <Text style={styles.dualCounterTitle}>Passengers</Text>
@@ -814,6 +940,59 @@ export default function CreateReservationScreen() {
               </View>
             </View>
           </View>
+          ) : (
+            <View style={styles.parcelFields}>
+              <Text style={styles.inputLabel}>Recipient Name</Text>
+              <View style={styles.inputBox}>
+                <TextInput
+                  style={styles.textInput}
+                  value={recipientName}
+                  onChangeText={setRecipientName}
+                  placeholder="Who receives the parcel?"
+                  placeholderTextColor="#999"
+                />
+              </View>
+              <Text style={styles.inputLabel}>Recipient Phone</Text>
+              <View style={styles.inputBox}>
+                <TextInput
+                  style={styles.textInput}
+                  value={recipientPhone}
+                  onChangeText={setRecipientPhone}
+                  placeholder="Recipient phone number"
+                  placeholderTextColor="#999"
+                  keyboardType="phone-pad"
+                />
+              </View>
+              <Text style={styles.inputLabel}>Parcel Weight</Text>
+              <View style={styles.weightRow}>
+                <View style={[styles.inputBox, styles.weightInputBox]}>
+                  <TextInput
+                    style={styles.textInput}
+                    value={parcelWeight}
+                    onChangeText={setParcelWeight}
+                    placeholder="e.g. 2.5"
+                    placeholderTextColor="#999"
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+                <View style={styles.weightUnit}>
+                  <Text style={styles.weightUnitText}>kg</Text>
+                </View>
+              </View>
+              <Text style={styles.weightHint}>Approximate weight helps the chauffeur prepare</Text>
+              <Text style={styles.inputLabel}>Package Note</Text>
+              <View style={[styles.inputBox, styles.parcelNoteBox]}>
+                <TextInput
+                  style={[styles.textInput, styles.parcelNoteInput]}
+                  value={parcelNote}
+                  onChangeText={setParcelNote}
+                  placeholder="e.g. Small box, fragile"
+                  placeholderTextColor="#999"
+                  multiline
+                />
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Map Preview — static Google Map image of the booked route with labelled markers */}
@@ -1691,6 +1870,64 @@ const styles = StyleSheet.create({
   textInput: {
     fontSize: 14,
     color: "#1a1a1a",
+  },
+  parcelBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: "rgba(212,160,74,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(212,160,74,0.28)",
+  },
+  parcelBannerText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#8B6914",
+  },
+  parcelFields: {
+    marginTop: 4,
+  },
+  weightRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 8,
+  },
+  weightInputBox: {
+    flex: 1,
+  },
+  weightUnit: {
+    minWidth: 52,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#e8e8e8",
+    backgroundColor: "#f3f3f3",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  weightUnitText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#64748b",
+    letterSpacing: 0.3,
+  },
+  weightHint: {
+    fontSize: 11,
+    color: "#94a3b8",
+    marginTop: 6,
+    lineHeight: 15,
+  },
+  parcelNoteBox: {
+    minHeight: 72,
+    alignItems: "flex-start",
+  },
+  parcelNoteInput: {
+    minHeight: 56,
+    textAlignVertical: "top",
   },
   phoneInput: {
     flexDirection: "row",

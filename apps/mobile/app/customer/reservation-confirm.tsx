@@ -20,6 +20,10 @@ import {
   APP_GRATUITY_PERCENTS,
   calculateAppDistanceFare,
 } from "../../utils/app-fare";
+import {
+  encodeParcelRequirements,
+  isParcelServiceType,
+} from "../../utils/parcel";
 
 const SITE = "https://sarjworldwide.ca";
 
@@ -79,6 +83,7 @@ export default function ReservationConfirmScreen() {
     `${draft?.serviceDate || ""} · ${draft?.serviceTime || ""}`;
 
   const guestName = [draft?.firstName, draft?.lastName].filter(Boolean).join(" ").trim();
+  const isParcel = isParcelServiceType(draft?.serviceType);
 
   const handleSubmit = async () => {
     if (!draft || !fare) return;
@@ -88,6 +93,15 @@ export default function ReservationConfirmScreen() {
     }
     setIsSubmitting(true);
     try {
+      const specialRequirements = isParcel
+        ? encodeParcelRequirements({
+            recipientName: draft.recipientName || "",
+            recipientPhone: draft.recipientPhone || "",
+            parcelWeight: draft.parcelWeight,
+            parcelNote: draft.parcelNote,
+          })
+        : undefined;
+
       const result = await createReservation({
         serviceType: draft.serviceType || "Point-to-Point transportation",
         vehicle: draft.vehicle,
@@ -105,6 +119,7 @@ export default function ReservationConfirmScreen() {
         distanceMeters,
         pricePerKm,
         gratuityPercent: fare.gratuityPercent,
+        specialRequirements,
         firstName: draft.firstName,
         lastName: draft.lastName,
         phone: draft.phoneNumber,
@@ -220,13 +235,46 @@ export default function ReservationConfirmScreen() {
               </View>
             </View>
             <View style={styles.metaItem}>
-              <Ionicons name="people-outline" size={15} color="#64748b" />
+              <Ionicons name={isParcel ? "cube-outline" : "people-outline"} size={15} color="#64748b" />
               <View style={styles.metaTextWrap}>
-                <Text style={styles.metaLabel}>Passengers</Text>
-                <Text style={styles.metaValue}>{draft.passengers || "1"}</Text>
+                <Text style={styles.metaLabel}>{isParcel ? "Service" : "Passengers"}</Text>
+                <Text style={styles.metaValue}>
+                  {isParcel ? "Parcel Delivery" : draft.passengers || "1"}
+                </Text>
               </View>
             </View>
-            {childSeats > 0 ? (
+            {isParcel && (draft.recipientName || draft.recipientPhone) ? (
+              <View style={styles.metaItem}>
+                <Ionicons name="person-outline" size={15} color="#64748b" />
+                <View style={styles.metaTextWrap}>
+                  <Text style={styles.metaLabel}>Recipient</Text>
+                  <Text style={styles.metaValue} numberOfLines={2}>
+                    {[draft.recipientName, draft.recipientPhone].filter(Boolean).join(" · ")}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+            {isParcel && draft.parcelWeight?.trim() ? (
+              <View style={styles.metaItem}>
+                <Ionicons name="scale-outline" size={15} color="#64748b" />
+                <View style={styles.metaTextWrap}>
+                  <Text style={styles.metaLabel}>Weight</Text>
+                  <Text style={styles.metaValue}>{draft.parcelWeight}</Text>
+                </View>
+              </View>
+            ) : null}
+            {isParcel && draft.parcelNote?.trim() ? (
+              <View style={styles.metaItem}>
+                <Ionicons name="document-text-outline" size={15} color="#64748b" />
+                <View style={styles.metaTextWrap}>
+                  <Text style={styles.metaLabel}>Package note</Text>
+                  <Text style={styles.metaValue} numberOfLines={3}>
+                    {draft.parcelNote}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+            {!isParcel && childSeats > 0 ? (
               <View style={styles.metaItem}>
                 <Ionicons name="happy-outline" size={15} color="#64748b" />
                 <View style={styles.metaTextWrap}>

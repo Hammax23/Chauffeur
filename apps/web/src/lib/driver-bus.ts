@@ -34,6 +34,7 @@ export interface DriverOfferRidePayload {
   duration: string;
   total: number;
   createdAt: string;
+  specialRequirements?: string;
   /** true when this card came from Live Auto broadcast (not manual assign). */
   liveOffer: boolean;
 }

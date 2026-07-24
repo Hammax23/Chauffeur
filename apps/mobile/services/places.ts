@@ -37,7 +37,11 @@ export async function fetchPlaceFormattedAddress(
   placeId: string,
   sessionToken: string,
   signal?: AbortSignal
-): Promise<{ formattedAddress: string; name?: string }> {
+): Promise<{
+  formattedAddress: string;
+  name?: string;
+  location?: { lat: number; lng: number } | null;
+}> {
   const params = new URLSearchParams({ placeId, session: sessionToken });
   const res = await fetch(`${API_BASE_URL}/places/details?${params}`, {
     method: "GET",
@@ -48,12 +52,17 @@ export async function fetchPlaceFormattedAddress(
     success?: boolean;
     formattedAddress?: string;
     name?: string;
+    location?: { lat: number; lng: number } | null;
     error?: string;
   };
   if (!res.ok || !data.success || !data.formattedAddress) {
     throw new Error(data.error || "Could not resolve address");
   }
-  return { formattedAddress: data.formattedAddress, name: data.name };
+  return {
+    formattedAddress: data.formattedAddress,
+    name: data.name,
+    location: data.location ?? null,
+  };
 }
 
 export interface DirectionsLatLng {

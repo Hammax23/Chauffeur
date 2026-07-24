@@ -26,6 +26,7 @@ export interface DriverOfferRide {
   distance: string;
   duration: string;
   total: number;
+  specialRequirements?: string;
   createdAt: string;
   liveOffer: boolean;
 }

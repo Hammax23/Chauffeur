@@ -1,8 +1,11 @@
 import { Stack, router } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { View } from "react-native";
 import { useAuth } from "../../contexts/AuthContext";
+import { CustomerThemeProvider } from "../../contexts/CustomerThemeContext";
 import { getCustomerToken } from "../../services/api";
+import { SlimSpinner } from "../../components/SlimSpinner";
+import { GOLD } from "../../theme/driver-theme";
 
 /**
  * Stack wraps the main tabs so booking screens (create → confirm → pending)
@@ -24,8 +27,8 @@ export default function CustomerLayout() {
 
   if (isLoading || tokenOk === null) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#fff" }}>
-        <ActivityIndicator size="large" color="#C9A227" />
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#070707" }}>
+        <SlimSpinner size={32} stroke={2} color={GOLD} />
       </View>
     );
   }
@@ -33,14 +36,16 @@ export default function CustomerLayout() {
   if (!tokenOk) return null;
 
   return (
-    <Stack screenOptions={{ headerShown: false, animation: "slide_from_right" }}>
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="create-reservation" />
-      <Stack.Screen name="reservation-confirm" />
-      <Stack.Screen name="reservation-pending" />
-      <Stack.Screen name="edit-profile" />
-      <Stack.Screen name="track-ride" />
-      <Stack.Screen name="chat" />
-    </Stack>
+    <CustomerThemeProvider>
+      <Stack screenOptions={{ headerShown: false, animation: "slide_from_right" }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="create-reservation" />
+        <Stack.Screen name="reservation-confirm" />
+        <Stack.Screen name="reservation-pending" />
+        <Stack.Screen name="edit-profile" />
+        <Stack.Screen name="track-ride" />
+        <Stack.Screen name="chat" />
+      </Stack>
+    </CustomerThemeProvider>
   );
 }

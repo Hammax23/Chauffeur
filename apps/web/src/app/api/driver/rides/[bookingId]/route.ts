@@ -92,6 +92,7 @@ export async function GET(
         distance: reservation.distance || "",
         duration: reservation.duration || "",
         total: reservation.total,
+        specialRequirements: reservation.specialRequirements || "",
         createdAt: reservation.createdAt.toISOString(),
         driverOnTheWayAt: reservation.driverOnTheWayAt?.toISOString() ?? null,
         driverStopPeriodsJson: reservation.driverStopPeriodsJson ?? null,

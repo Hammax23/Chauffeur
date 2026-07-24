@@ -2,24 +2,34 @@ import { useState } from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   ScrollView,
   TextInput,
   Image,
   Platform,
   Alert,
-  ActivityIndicator,
+  Pressable,
+  StatusBar,
+  KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useAuth } from "../../contexts/AuthContext";
 import * as ImagePicker from "expo-image-picker";
+import { useAuth } from "../../contexts/AuthContext";
+import { useCustomerTheme } from "../../contexts/CustomerThemeContext";
 import { API_BASE_URL, getCustomerToken } from "../../services/api";
+import { SlimSpinner } from "../../components/SlimSpinner";
+import { GOLD } from "../../theme/driver-theme";
 
 export default function EditProfileScreen() {
   const { user, updateProfile } = useAuth();
+  const { palette } = useCustomerTheme();
+  const blurIntensity = Platform.OS === "ios" ? 48 : 28;
+  const cardBlur = Platform.OS === "ios" ? 36 : 22;
+
   const [firstName, setFirstName] = useState(user?.firstName || "");
   const [lastName, setLastName] = useState(user?.lastName || "");
   const [phoneNumber, setPhoneNumber] = useState(user?.phone || "");
@@ -107,200 +117,328 @@ export default function EditProfileScreen() {
     }
   };
 
+  const fieldShell = {
+    borderColor: palette.border,
+    backgroundColor: Platform.OS === "android" ? palette.cardAndroid : "transparent",
+  };
+
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={20} color="#1a1a1a" />
-            <Text style={styles.backText}>Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Edit Profile</Text>
-          <View style={{ width: 60 }} />
-        </View>
-
-        {/* Profile Photo */}
-        <View style={styles.photoContainer}>
-          <View style={styles.photoWrapper}>
-            {photoUrl ? (
-              <Image source={{ uri: photoUrl }} style={styles.profilePhoto} />
-            ) : (
-              <View style={[styles.profilePhoto, styles.avatarFallback]}>
-                <Text style={styles.avatarText}>{initials}</Text>
-              </View>
-            )}
-            <TouchableOpacity
-              style={[styles.cameraBtn, uploadingPhoto && { opacity: 0.7 }]}
-              onPress={handlePickPhoto}
-              disabled={uploadingPhoto}
-            >
-              {uploadingPhoto ? (
-                <ActivityIndicator size="small" color="#D4A04A" />
-              ) : (
-                <Ionicons name="camera" size={14} color="#D4A04A" />
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Name Row */}
-        <View style={styles.nameRow}>
-          <View style={styles.nameField}>
-            <Text style={styles.inputLabel}>First Name</Text>
-            <View style={styles.inputBox}>
-              <TextInput
-                style={styles.textInput}
-                value={firstName}
-                onChangeText={setFirstName}
-              />
-            </View>
-          </View>
-          <View style={styles.nameField}>
-            <Text style={styles.inputLabel}>Last Name</Text>
-            <View style={styles.inputBox}>
-              <TextInput
-                style={styles.textInput}
-                value={lastName}
-                onChangeText={setLastName}
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* Phone Number */}
-        <Text style={styles.inputLabel}>Phone Number</Text>
-        <View style={styles.phoneInput}>
-          <TouchableOpacity style={styles.countryCode}>
-            <View style={styles.flagIcon}>
-              <Text>🇨🇦</Text>
-            </View>
-            <Ionicons name="chevron-down" size={14} color="#999" />
-          </TouchableOpacity>
-          <TextInput
-            style={styles.phoneField}
-            value={phoneNumber}
-            onChangeText={setPhoneNumber}
-            keyboardType="phone-pad"
-          />
-        </View>
-
-        {/* Email */}
-        <Text style={styles.inputLabel}>Email</Text>
-        <View style={[styles.inputBox, { backgroundColor: '#f0f0f0' }]}>
-          <TextInput
-            style={[styles.textInput, { color: '#999' }]}
-            value={email}
-            editable={false}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-        </View>
-
-        {/* City */}
-        <Text style={styles.inputLabel}>City</Text>
-        <View style={styles.inputBox}>
-          <TextInput
-            style={styles.textInput}
-            value={city}
-            onChangeText={setCity}
-            placeholder="Enter your city"
-            placeholderTextColor="#999"
-          />
-        </View>
-
-        <View style={{ height: 100 }} />
-      </ScrollView>
-
-      {/* Save Button */}
-      <View style={styles.bottomContainer}>
-        <TouchableOpacity 
-          style={[styles.saveBtn, isLoading && { opacity: 0.7 }]} 
-          activeOpacity={0.9}
-          disabled={isLoading}
-          onPress={handleSave}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <Text style={styles.saveBtnText}>Save Changes</Text>
-          )}
-        </TouchableOpacity>
+    <View style={[styles.root, { backgroundColor: palette.root }]}>
+      <StatusBar barStyle={palette.statusBar} backgroundColor={palette.root} />
+      <LinearGradient colors={[...palette.bg]} style={StyleSheet.absoluteFill} />
+      <View style={styles.ambientGlow} pointerEvents="none">
+        <LinearGradient
+          colors={[...palette.glow]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.2, y: 0 }}
+          end={{ x: 0.85, y: 0.5 }}
+        />
       </View>
-    </SafeAreaView>
+
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <Pressable
+              onPress={() => router.back()}
+              style={({ pressed }) => [styles.glassCircleWrap, pressed && styles.pressed]}
+              accessibilityLabel="Go back"
+            >
+              <BlurView
+                intensity={blurIntensity}
+                tint={palette.blurTint}
+                style={[styles.glassCircle, { borderColor: palette.glassBorder }]}
+              >
+                <Ionicons name="chevron-back" size={22} color={palette.icon} />
+              </BlurView>
+            </Pressable>
+            <Text style={[styles.headerTitle, { color: palette.text }]}>Edit Profile</Text>
+            <View style={styles.headerSpacer} />
+          </View>
+
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Photo */}
+            <View style={styles.photoContainer}>
+              <View style={styles.avatarRing}>
+                {photoUrl ? (
+                  <Image source={{ uri: photoUrl }} style={styles.profilePhoto} />
+                ) : (
+                  <LinearGradient colors={[GOLD, "#A87830"]} style={styles.profilePhoto}>
+                    <Text style={styles.avatarText}>{initials}</Text>
+                  </LinearGradient>
+                )}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.cameraBtn,
+                    uploadingPhoto && { opacity: 0.7 },
+                    pressed && styles.pressed,
+                  ]}
+                  onPress={handlePickPhoto}
+                  disabled={uploadingPhoto}
+                >
+                  {uploadingPhoto ? (
+                    <SlimSpinner size={14} stroke={2} color={GOLD} />
+                  ) : (
+                    <Ionicons name="camera" size={14} color="#1A1208" />
+                  )}
+                </Pressable>
+              </View>
+              <Text style={[styles.photoHint, { color: palette.muted }]}>Tap camera to change photo</Text>
+            </View>
+
+            {/* Form card */}
+            <BlurView
+              intensity={cardBlur}
+              tint={palette.blurTint}
+              style={[
+                styles.formCard,
+                {
+                  borderColor: palette.border,
+                  backgroundColor: Platform.OS === "android" ? palette.cardAndroid : "transparent",
+                },
+              ]}
+            >
+              <View style={styles.nameRow}>
+                <View style={styles.nameField}>
+                  <Text style={[styles.inputLabel, { color: palette.muted }]}>First Name</Text>
+                  <BlurView
+                    intensity={Platform.OS === "ios" ? 20 : 10}
+                    tint={palette.blurTint}
+                    style={[styles.inputBox, fieldShell]}
+                  >
+                    <TextInput
+                      style={[styles.textInput, { color: palette.text }]}
+                      value={firstName}
+                      onChangeText={setFirstName}
+                      placeholderTextColor={palette.muted}
+                      placeholder="First name"
+                    />
+                  </BlurView>
+                </View>
+                <View style={styles.nameField}>
+                  <Text style={[styles.inputLabel, { color: palette.muted }]}>Last Name</Text>
+                  <BlurView
+                    intensity={Platform.OS === "ios" ? 20 : 10}
+                    tint={palette.blurTint}
+                    style={[styles.inputBox, fieldShell]}
+                  >
+                    <TextInput
+                      style={[styles.textInput, { color: palette.text }]}
+                      value={lastName}
+                      onChangeText={setLastName}
+                      placeholderTextColor={palette.muted}
+                      placeholder="Last name"
+                    />
+                  </BlurView>
+                </View>
+              </View>
+
+              <Text style={[styles.inputLabel, { color: palette.muted }]}>Phone Number</Text>
+              <BlurView
+                intensity={Platform.OS === "ios" ? 20 : 10}
+                tint={palette.blurTint}
+                style={[styles.phoneInput, fieldShell]}
+              >
+                <View style={[styles.countryCode, { borderRightColor: palette.border }]}>
+                  <Text style={styles.flagText}>🇨🇦</Text>
+                  <Ionicons name="chevron-down" size={14} color={palette.muted} />
+                </View>
+                <TextInput
+                  style={[styles.phoneField, { color: palette.text }]}
+                  value={phoneNumber}
+                  onChangeText={setPhoneNumber}
+                  keyboardType="phone-pad"
+                  placeholderTextColor={palette.muted}
+                  placeholder="Phone number"
+                />
+              </BlurView>
+
+              <Text style={[styles.inputLabel, { color: palette.muted }]}>Email</Text>
+              <BlurView
+                intensity={Platform.OS === "ios" ? 20 : 10}
+                tint={palette.blurTint}
+                style={[
+                  styles.inputBox,
+                  fieldShell,
+                  { opacity: 0.72 },
+                ]}
+              >
+                <TextInput
+                  style={[styles.textInput, { color: palette.muted }]}
+                  value={email}
+                  editable={false}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </BlurView>
+              <Text style={[styles.lockedHint, { color: palette.muted }]}>Email cannot be changed</Text>
+
+              <Text style={[styles.inputLabel, { color: palette.muted }]}>City</Text>
+              <BlurView
+                intensity={Platform.OS === "ios" ? 20 : 10}
+                tint={palette.blurTint}
+                style={[styles.inputBox, fieldShell]}
+              >
+                <TextInput
+                  style={[styles.textInput, { color: palette.text }]}
+                  value={city}
+                  onChangeText={setCity}
+                  placeholder="Enter your city"
+                  placeholderTextColor={palette.muted}
+                />
+              </BlurView>
+            </BlurView>
+
+            <View style={{ height: 120 }} />
+          </ScrollView>
+
+          {/* Save */}
+          <BlurView
+            intensity={blurIntensity}
+            tint={palette.blurTint}
+            style={[styles.bottomBar, { borderTopColor: palette.border }]}
+          >
+            <Pressable
+              style={({ pressed }) => [
+                styles.saveBtn,
+                (isLoading || pressed) && styles.pressed,
+              ]}
+              disabled={isLoading}
+              onPress={handleSave}
+            >
+              <LinearGradient
+                colors={["#E8C078", GOLD, "#B8862E"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.saveGradient}
+              >
+                {isLoading ? (
+                  <SlimSpinner size={18} stroke={2} color="#1A1208" />
+                ) : (
+                  <Text style={styles.saveBtnText}>Save Changes</Text>
+                )}
+              </LinearGradient>
+            </Pressable>
+          </BlurView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
+  root: { flex: 1 },
+  flex: { flex: 1 },
+  ambientGlow: {
+    position: "absolute",
+    top: -40,
+    left: -20,
+    right: -20,
+    height: 240,
   },
-  scrollView: {
+  safeArea: {
     flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
+    backgroundColor: "transparent",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 16,
+    paddingHorizontal: 18,
+    paddingTop: 8,
+    paddingBottom: 12,
   },
-  backBtn: {
-    flexDirection: "row",
+  glassCircleWrap: {
+    borderRadius: 22,
+  },
+  glassCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    overflow: "hidden",
     alignItems: "center",
-  },
-  backText: {
-    fontSize: 15,
-    color: "#1a1a1a",
-    marginLeft: 2,
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
   },
   headerTitle: {
     fontSize: 17,
-    fontWeight: "600",
-    color: "#1a1a1a",
+    fontWeight: "700",
+    letterSpacing: -0.2,
+  },
+  headerSpacer: {
+    width: 44,
+    height: 44,
+  },
+  scrollView: { flex: 1 },
+  scrollContent: {
+    paddingHorizontal: 18,
   },
   photoContainer: {
     alignItems: "center",
-    marginVertical: 24,
+    marginTop: 8,
+    marginBottom: 22,
   },
-  photoWrapper: {
+  avatarRing: {
+    width: 108,
+    height: 108,
+    borderRadius: 54,
+    padding: 3,
+    borderWidth: 2,
+    borderColor: GOLD,
     position: "relative",
   },
   profilePhoto: {
-    width: 100,
-    height: 100,
+    width: "100%",
+    height: "100%",
     borderRadius: 50,
-  },
-  avatarFallback: {
-    backgroundColor: "#D4A04A",
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
   },
   avatarText: {
     color: "#fff",
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: "800",
-    letterSpacing: 0.5,
   },
   cameraBtn: {
     position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#fff",
+    bottom: 2,
+    right: 2,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: GOLD,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#D4A04A",
+    borderColor: "#1A1208",
+  },
+  photoHint: {
+    marginTop: 12,
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  formCard: {
+    borderRadius: 22,
+    overflow: "hidden",
+    padding: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.25,
+        shadowRadius: 18,
+      },
+      android: { elevation: 5 },
+    }),
   },
   nameRow: {
     flexDirection: "row",
@@ -310,93 +448,77 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   inputLabel: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: "#1a1a1a",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.3,
     marginBottom: 8,
-    marginTop: 16,
+    marginTop: 14,
   },
   inputBox: {
-    borderWidth: 1,
-    borderColor: "#e8e8e8",
-    borderRadius: 10,
+    borderRadius: 14,
+    overflow: "hidden",
     paddingHorizontal: 14,
-    paddingVertical: 14,
-    backgroundColor: "#fff",
+    paddingVertical: Platform.OS === "ios" ? 14 : 4,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   textInput: {
-    fontSize: 14,
-    color: "#1a1a1a",
+    fontSize: 15,
+    fontWeight: "500",
+    paddingVertical: Platform.OS === "android" ? 10 : 0,
   },
   phoneInput: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#e8e8e8",
-    borderRadius: 10,
-    backgroundColor: "#fff",
+    borderRadius: 14,
     overflow: "hidden",
+    borderWidth: StyleSheet.hairlineWidth,
   },
   countryCode: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
     paddingVertical: 14,
-    borderRightWidth: 1,
-    borderRightColor: "#e8e8e8",
+    borderRightWidth: StyleSheet.hairlineWidth,
     gap: 4,
   },
-  flagIcon: {
-    width: 22,
-    height: 16,
-    justifyContent: "center",
-    alignItems: "center",
+  flagText: {
+    fontSize: 16,
   },
   phoneField: {
     flex: 1,
     paddingHorizontal: 14,
     paddingVertical: 14,
-    fontSize: 14,
-    color: "#1a1a1a",
+    fontSize: 15,
+    fontWeight: "500",
   },
-  dropdown: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderWidth: 1,
-    borderColor: "#e8e8e8",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    backgroundColor: "#fff",
+  lockedHint: {
+    fontSize: 11,
+    marginTop: 6,
   },
-  dropdownText: {
-    fontSize: 14,
-    color: "#1a1a1a",
-  },
-  bottomContainer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: "#fff",
-    ...Platform.select({
-      ios: {
-        paddingBottom: 30,
-      },
-    }),
+  bottomBar: {
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === "ios" ? 28 : 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
   },
   saveBtn: {
-    backgroundColor: "#1a1a1a",
-    borderRadius: 12,
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  saveGradient: {
     paddingVertical: 16,
     alignItems: "center",
+    justifyContent: "center",
+    minHeight: 54,
   },
   saveBtnText: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#fff",
+    fontWeight: "800",
+    color: "#1A1208",
+  },
+  pressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.985 }],
   },
 });
