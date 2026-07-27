@@ -48,6 +48,9 @@ export async function POST(request: NextRequest) {
     void notifyDriverReservationAssigned(bookingId, driverId).catch((err) =>
       console.error("[ops-assign] driver push", err)
     );
+    void import("@/lib/driver-sms")
+      .then(({ notifyDriverAssignmentSms }) => notifyDriverAssignmentSms(bookingId, driverId))
+      .catch((err) => console.error("[ops-assign] driver sms", err));
 
     void import("@/lib/customer-push")
       .then(({ notifyCustomerDriverAssigned }) => notifyCustomerDriverAssigned(bookingId))

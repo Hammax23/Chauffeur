@@ -2,10 +2,10 @@ import DOMPurify from "isomorphic-dompurify";
 
 const ALLOWED_TAGS = [
   "p", "br", "strong", "em", "u", "s", "h2", "h3", "h4",
-  "ul", "ol", "li", "blockquote", "a", "hr",
+  "ul", "ol", "li", "blockquote", "a", "hr", "img",
 ];
 
-const ALLOWED_ATTR = ["href", "target", "rel"];
+const ALLOWED_ATTR = ["href", "target", "rel", "src", "alt", "title"];
 
 export function sanitizeBlogHtml(html: string): string {
   return DOMPurify.sanitize(html, {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
@@ -8,12 +8,44 @@ import {
   Bold, Italic, List, ListOrdered, Heading2, Heading3,
   Quote, Undo, Redo, Minus, Link as LinkIcon, Image as ImageIcon,
 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 interface RichTextEditorProps {
   value: string;
   onChange: (html: string) => void;
   placeholder?: string;
+}
+
+/**
+ * Apply H2/H3 only to the textblock under the caret/selection head.
+ * TipTap's default toggleHeading() uses setBlockType(from, to) which rewrites
+ * every block in a multi-block selection — SEO editors hit that often.
+ */
+function toggleHeadingAtCursor(editor: Editor, level: 2 | 3) {
+  return editor
+    .chain()
+    .focus()
+    .command(({ tr, state, dispatch }) => {
+      const { $from } = state.selection;
+      let depth = $from.depth;
+      while (depth > 0 && !$from.node(depth).isTextblock) depth -= 1;
+      if (depth === 0) return false;
+
+      const block = $from.node(depth);
+      const from = $from.start(depth);
+      const to = $from.end(depth);
+      const heading = state.schema.nodes.heading;
+      const paragraph = state.schema.nodes.paragraph;
+      if (!heading || !paragraph) return false;
+
+      const already = block.type === heading && block.attrs.level === level;
+      if (dispatch) {
+        tr.setBlockType(from, to, already ? paragraph : heading, already ? undefined : { level });
+        dispatch(tr.scrollIntoView());
+      }
+      return true;
+    })
+    .run();
 }
 
 function ToolbarButton({
@@ -31,6 +63,8 @@ function ToolbarButton({
     <button
       type="button"
       title={title}
+      // Keep editor selection when clicking the toolbar (TipTap requirement)
+      onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       className={`p-2 rounded-lg transition-colors ${
         active ? "bg-emerald-100 text-emerald-700" : "text-gray-600 hover:bg-gray-100"
@@ -42,6 +76,8 @@ function ToolbarButton({
 }
 
 export default function RichTextEditor({ value, onChange, placeholder }: RichTextEditorProps) {
+  const lastEmittedHtml = useRef<string>(value || "<p></p>");
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -51,6 +87,7 @@ export default function RichTextEditor({ value, onChange, placeholder }: RichTex
         linkOnPaste: true,
         HTMLAttributes: {
           rel: "noopener noreferrer",
+          class: "text-[#C9A063] font-medium no-underline hover:underline",
         },
       }),
       Image.configure({
@@ -61,20 +98,30 @@ export default function RichTextEditor({ value, onChange, placeholder }: RichTex
     immediatelyRender: false,
     editorProps: {
       attributes: {
-        class: "prose prose-sm sm:prose max-w-none min-h-[280px] px-4 py-3 focus:outline-none",
+        class:
+          "prose prose-sm sm:prose max-w-none min-h-[280px] px-4 py-3 focus:outline-none prose-a:text-[#C9A063] prose-a:font-medium prose-a:no-underline hover:prose-a:underline",
       },
     },
     onUpdate: ({ editor: ed }) => {
-      onChange(ed.getHTML());
+      const html = ed.getHTML();
+      lastEmittedHtml.current = html;
+      onChange(html);
     },
   });
 
+  // Sync only when parent replaces content externally (load article / reset).
+  // Avoid setContent on every keystroke — TipTap HTML string can differ from parent
+  // and full-doc resets break selection / make heading edits feel global.
   useEffect(() => {
     if (!editor) return;
+    if (value === lastEmittedHtml.current) return;
     const current = editor.getHTML();
-    if (value !== current) {
-      editor.commands.setContent(value || "<p></p>", { emitUpdate: false });
+    if (value === current) {
+      lastEmittedHtml.current = value;
+      return;
     }
+    editor.commands.setContent(value || "<p></p>", { emitUpdate: false });
+    lastEmittedHtml.current = value || "<p></p>";
   }, [value, editor]);
 
   if (!editor) {
@@ -92,10 +139,18 @@ export default function RichTextEditor({ value, onChange, placeholder }: RichTex
         <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive("italic")} title="Italic">
           <Italic className="w-4 h-4" />
         </ToolbarButton>
-        <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive("heading", { level: 2 })} title="Heading 2">
+        <ToolbarButton
+          onClick={() => toggleHeadingAtCursor(editor, 2)}
+          active={editor.isActive("heading", { level: 2 })}
+          title="Heading 2"
+        >
           <Heading2 className="w-4 h-4" />
         </ToolbarButton>
-        <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive("heading", { level: 3 })} title="Heading 3">
+        <ToolbarButton
+          onClick={() => toggleHeadingAtCursor(editor, 3)}
+          active={editor.isActive("heading", { level: 3 })}
+          title="Heading 3"
+        >
           <Heading3 className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive("bulletList")} title="Bullet list">

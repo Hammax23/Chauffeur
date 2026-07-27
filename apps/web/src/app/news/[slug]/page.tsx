@@ -9,7 +9,7 @@ import {
   type BlogCategory,
 } from "@/lib/blog";
 import { getSeoSettings } from "@/lib/seo-config";
-import { ArrowLeft, ArrowRight, Calendar, Clock, Tag, Facebook, Twitter, Linkedin, Instagram } from "lucide-react";
+import { ArrowLeft, ArrowRight, Calendar, Clock, Tag, Facebook, Linkedin, Instagram } from "lucide-react";
 import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -71,7 +71,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   const relatedArticles = await getRelatedBlogPosts(slug, 3);
   const settings = await getSeoSettings();
   const blogSchema = buildBlogPostingSchema(article, settings.siteUrl);
-  const rendered = renderBlogContent(article.content);
+  const rendered = renderBlogContent(article.content, article.contentFormat);
 
   return (
     <main className="min-h-screen bg-[#fafafa]">
@@ -88,7 +88,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
       <TopNav />
       <Navbar />
 
-      <section className="relative pt-[108px] md:pt-[120px] pb-16 md:pb-24">
+      <section className="relative min-h-[320px] sm:min-h-[380px] md:min-h-[440px] pt-[108px] md:pt-[120px] pb-16 md:pb-24 flex flex-col justify-end">
         <div className="absolute inset-0 z-0">
           <Image
             src={article.image}
@@ -99,10 +99,10 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             className="object-cover"
             priority
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/80 to-gray-900/40" />
+          <div className="absolute inset-0 bg-gradient-to-t from-gray-900/95 via-gray-900/55 to-gray-900/25" />
         </div>
 
-        <div className="relative z-10 max-w-4xl mx-auto px-6 sm:px-8 md:px-12 pt-8 sm:pt-12 md:pt-16 pb-8 md:pb-12">
+        <div className="relative z-10 max-w-4xl mx-auto w-full px-6 sm:px-8 md:px-12 pt-8 sm:pt-12 md:pt-16 pb-8 md:pb-12">
           <nav className="flex flex-wrap items-center gap-2 text-[13px] text-gray-300 mb-6">
             <Link href="/" className="hover:text-white transition-colors">Home</Link>
             <span className="text-gray-500">/</span>
@@ -124,20 +124,22 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             <span className="flex items-center gap-1.5"><Clock className="w-4 h-4" />{article.readTime}</span>
             <span className="flex items-center gap-1.5"><Tag className="w-4 h-4" />{article.author}</span>
           </div>
+
+          {article.imageCaption?.trim() && (
+            <p className="mt-4 text-sm text-gray-300/90 italic">
+              {article.imageCaption.trim()}
+            </p>
+          )}
         </div>
       </section>
 
       <section className="pb-12 sm:pb-16 relative z-20">
         <div className="max-w-4xl mx-auto px-6 sm:px-8 md:px-12">
           <div className="rounded-3xl bg-white border border-gray-100 shadow-xl p-8 sm:p-10 md:p-12 -mt-16 md:-mt-20">
-            <p className="text-lg sm:text-xl text-gray-700 leading-relaxed font-light border-l-4 border-[#C9A063] pl-5 sm:pl-6 mb-8">
-              {article.excerpt}
-            </p>
-
-            <div className="prose prose-gray max-w-none">
+            <div className="prose prose-gray max-w-none prose-a:text-[#C9A063] prose-a:font-medium prose-a:no-underline hover:prose-a:underline">
               {rendered.type === "html" ? (
                 <div
-                  className="text-gray-700 text-[16px] sm:text-[17px] leading-[1.8] [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:mt-8 [&_h2]:mb-4 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:mt-6 [&_h3]:mb-3 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-2 [&_blockquote]:border-l-4 [&_blockquote]:border-[#C9A063] [&_blockquote]:pl-4 [&_blockquote]:italic"
+                  className="text-gray-700 text-[16px] sm:text-[17px] leading-[1.8] [&>*:first-child]:mt-0 [&_p]:mb-5 [&_p:last-child]:mb-0 [&_a]:text-[#C9A063] [&_a]:font-medium [&_a]:no-underline hover:[&_a]:underline [&_a]:transition-colors [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:mt-8 [&_h2]:mb-4 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:mt-6 [&_h3]:mb-3 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-5 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:mb-5 [&_li]:mb-2 [&_blockquote]:border-l-4 [&_blockquote]:border-[#C9A063] [&_blockquote]:pl-4 [&_blockquote]:italic [&_img]:rounded-xl [&_img]:my-6 [&_img]:w-full [&_img]:h-auto"
                   dangerouslySetInnerHTML={{ __html: rendered.html ?? "" }}
                 />
               ) : (
@@ -148,12 +150,6 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                 ))
               )}
             </div>
-
-            {article.imageCaption?.trim() && (
-              <p className="mt-6 text-sm text-gray-500 italic">
-                {article.imageCaption.trim()}
-              </p>
-            )}
 
             {/* Share Section */}
             <div className="mt-12 flex items-center gap-4 pt-8 border-t border-gray-100">

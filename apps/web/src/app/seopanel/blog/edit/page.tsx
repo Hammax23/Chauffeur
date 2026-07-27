@@ -94,6 +94,17 @@ function BlogEditorForm() {
     setError("");
     setSuccess("");
 
+    let parsedSchema: unknown = null;
+    if (extraSchemaText.trim()) {
+      try {
+        parsedSchema = JSON.parse(extraSchemaText);
+      } catch {
+        setError("Extra Schema JSON is invalid. Fix the JSON (red error in the field) before saving — incomplete schema will not appear on the live site.");
+        setSaving(false);
+        return;
+      }
+    }
+
     const payload = {
       title,
       slug,
@@ -117,15 +128,7 @@ function BlogEditorForm() {
       focusKeyword,
       robotsIndex,
       robotsFollow,
-      extraSchemaJson: extraSchemaText.trim()
-        ? (() => {
-            try {
-              return JSON.parse(extraSchemaText);
-            } catch {
-              return null;
-            }
-          })()
-        : null,
+      extraSchemaJson: parsedSchema,
     };
 
     const res = await fetch(isNew ? "/api/seopanel/blog" : `/api/seopanel/blog/${postId}`, {
@@ -293,12 +296,43 @@ function BlogEditorForm() {
                 <div>
                   <label className={labelCls}>Extra Schema JSON (optional)</label>
                   <textarea
-                    className={`${inputCls} min-h-[140px] font-mono`}
+                    className={`${inputCls} min-h-[140px] font-mono ${
+                      extraSchemaText.trim() && (() => {
+                        try {
+                          JSON.parse(extraSchemaText);
+                          return "";
+                        } catch {
+                          return "border-red-400 focus:border-red-500 focus:ring-red-500/30";
+                        }
+                      })()
+                    }`}
                     value={extraSchemaText}
                     onChange={(e) => setExtraSchemaText(e.target.value)}
                     placeholder='{\n  \"@context\": \"https://schema.org\",\n  \"@type\": \"FAQPage\",\n  \"mainEntity\": []\n}'
                   />
-                  <p className="text-xs text-gray-400 mt-1">Paste valid JSON. This will be injected on the article page.</p>
+                  {(() => {
+                    if (!extraSchemaText.trim()) {
+                      return (
+                        <p className="text-xs text-gray-400 mt-1">
+                          Paste valid JSON. This will be injected on the article page.
+                        </p>
+                      );
+                    }
+                    try {
+                      JSON.parse(extraSchemaText);
+                      return (
+                        <p className="text-xs text-emerald-600 mt-1">
+                          Valid JSON — will be injected on the live article page after save.
+                        </p>
+                      );
+                    } catch {
+                      return (
+                        <p className="text-xs text-red-600 mt-1">
+                          Invalid JSON (incomplete braces/brackets). Fix before saving or schema will not show live.
+                        </p>
+                      );
+                    }
+                  })()}
                 </div>
               </div>
             </div>
@@ -434,7 +468,7 @@ function BlogEditorForm() {
                   className={inputCls}
                   value={imageCaption}
                   onChange={(e) => setImageCaption(e.target.value)}
-                  placeholder="Optional caption shown under the image"
+                  placeholder="Optional caption shown on the featured image hero"
                 />
               </div>
               <div>
