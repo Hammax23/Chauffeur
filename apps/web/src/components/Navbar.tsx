@@ -122,7 +122,7 @@ const Navbar = () => {
             <div className="pt-3 mt-3 pb-2 border-t border-gray-800">
               <div className="flex items-center gap-2 text-white px-4">
                 <Phone className="w-4 h-4" />
-                <span className="text-sm">+1 416-893-5779</span>
+                <span className="text-sm">+1 (416) 893-5779</span>
               </div>
             </div>
           </div>
