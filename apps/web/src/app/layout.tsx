@@ -3,7 +3,6 @@ import { Inter } from "next/font/google";
 import "react-datepicker/dist/react-datepicker.css";
 import "./globals.css";
 import FloatingContact from "@/components/FloatingContact";
-import CtaPopup from "@/components/CtaPopup";
 import SeoSchemaScripts from "@/components/SeoSchemaScripts";
 import SeoTrackingScripts from "@/components/SeoTrackingScripts";
 import SeoPageServerHead from "@/components/SeoPageServerHead";
@@ -71,7 +70,6 @@ export default async function RootLayout({
           </noscript>
         ) : null}
         {children}
-        <CtaPopup />
         <FloatingContact />
       </body>
     </html>
