@@ -56,10 +56,6 @@ const Navbar = () => {
               <ServicesNavDropdown variant="desktop" />
               <AirportsNavDropdown variant="desktop" />
               
-              <Link href="/news" className="text-white/90 px-3 xl:px-4 py-2.5 text-[14px] xl:text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
-                BLOG
-              </Link>
-              
               <Link href="/quote" className="text-white/90 px-3 xl:px-4 py-2.5 text-[14px] xl:text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">
                 ONLINE QUOTE
               </Link>
@@ -106,10 +102,6 @@ const Navbar = () => {
             
             <ServicesNavDropdown variant="mobile" onNavigate={() => setIsMenuOpen(false)} />
             <AirportsNavDropdown variant="mobile" onNavigate={() => setIsMenuOpen(false)} />
-            
-            <Link href="/news" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-base font-medium text-left">
-              BLOG
-            </Link>
             
             <Link href="/quote" onClick={() => setIsMenuOpen(false)} className="block w-full text-white px-4 py-2.5 text-base font-medium text-left">
               ONLINE QUOTE
