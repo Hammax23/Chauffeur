@@ -125,6 +125,7 @@ export interface StripePaymentProps {
   meetGreet: boolean;
   bouquetFlowers: boolean;
   gratuityPercent: number;
+  pickupLocation?: string;
   email: string;
   disabled?: boolean;
   onSuccess: (paymentIntentId: string) => void;
@@ -144,6 +145,7 @@ export default function StripePayment({
   meetGreet,
   bouquetFlowers,
   gratuityPercent,
+  pickupLocation,
   email,
   disabled,
   onSuccess,
@@ -178,6 +180,7 @@ export default function StripePayment({
         meetGreet,
         bouquetFlowers,
         gratuityPercent,
+        pickupLocation,
         currency: "cad",
         email,
         metadata,
@@ -208,6 +211,7 @@ export default function StripePayment({
     meetGreet,
     bouquetFlowers,
     gratuityPercent,
+    pickupLocation,
     email,
     metadata,
   ]);

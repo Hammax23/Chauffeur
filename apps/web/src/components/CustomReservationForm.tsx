@@ -545,10 +545,10 @@ export default function CustomReservationForm() {
             <div className="px-4 py-3">
               <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">Gratuity</label>
               <select value={gratuityPercent} onChange={(e) => setGratuityPercent(parseInt(e.target.value))} className="w-full py-1.5 bg-transparent text-[15px] text-gray-900 focus:outline-none">
-                <option value={15}>15%</option>
                 <option value={18}>18%</option>
                 <option value={20}>20%</option>
                 <option value={25}>25%</option>
+                <option value={30}>30%</option>
               </select>
             </div>
           </div>

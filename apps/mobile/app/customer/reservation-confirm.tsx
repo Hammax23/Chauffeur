@@ -66,6 +66,7 @@ export default function ReservationConfirmScreen() {
       hasStop: !!draft.stopAddress.trim(),
       childSeatCount: childSeats,
       gratuityPercent,
+      pickupLocation: draft.pickupAddress,
     });
   }, [
     draft,
@@ -339,6 +340,12 @@ export default function ReservationConfirmScreen() {
             <View style={styles.fareRow}>
               <Text style={styles.fareLabel}>Child seats</Text>
               <Text style={styles.fareValue}>${fare.childSeatCharge.toFixed(2)}</Text>
+            </View>
+          ) : null}
+          {fare.airportPickupFee > 0 ? (
+            <View style={styles.fareRow}>
+              <Text style={styles.fareLabel}>Airport pickup fee</Text>
+              <Text style={styles.fareValue}>${fare.airportPickupFee.toFixed(2)}</Text>
             </View>
           ) : null}
           <View style={styles.fareRow}>

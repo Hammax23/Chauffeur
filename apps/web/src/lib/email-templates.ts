@@ -355,6 +355,7 @@ export interface ReservationEmailData {
   childSeatCharge: number;
   meetGreetCharge?: number;
   bouquetCharge?: number;
+  airportPickupFee?: number;
   activeStops: number;
   subtotal: number;
   hst: number;
@@ -431,6 +432,9 @@ function reservationBillingTable(d: ReservationEmailData): string {
   }
   if (d.bouquetCharge && d.bouquetCharge > 0) {
     t += emailBillingRow("Bouquet of Flowers", `$${d.bouquetCharge.toFixed(2)}`);
+  }
+  if (d.airportPickupFee && d.airportPickupFee > 0) {
+    t += emailBillingRow("Airport pickup fee (GTAA)", `$${d.airportPickupFee.toFixed(2)}`);
   }
   t += emailBillingRow("Subtotal", `$${d.subtotal.toFixed(2)}`, true);
   t += emailBillingRow(`HST (13%)`, `$${d.hst.toFixed(2)}`);

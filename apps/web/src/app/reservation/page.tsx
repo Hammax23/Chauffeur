@@ -553,6 +553,7 @@ function ReservationPageContent() {
         meetGreet: isParcel ? false : meetGreet,
         bouquetFlowers: isParcel ? false : bouquetFlowers,
         gratuityPercent,
+        pickupLocation,
       },
       pricingFleetSource,
       {
@@ -578,6 +579,7 @@ function ReservationPageContent() {
     pricingFleetSource,
     pricingConfig,
     isParcel,
+    pickupLocation,
   ]);
 
   const paymentAmountCents = pricingSummary ? Math.round(pricingSummary.total * 100) : 0;
@@ -957,13 +959,11 @@ function ReservationPageContent() {
                       {/* Trip Route — slim rows */}
                       <div className="rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
                         <div className="px-3 py-2.5 bg-white">
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <MapPin className="w-3.5 h-3.5 text-[#C9A063] shrink-0" strokeWidth={2} />
-                              <label className="text-[10px] font-semibold text-[#C9A063] uppercase tracking-wider">
-                                Pickup
-                              </label>
-                            </div>
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <MapPin className="w-3.5 h-3.5 text-[#C9A063] shrink-0" strokeWidth={2} />
+                            <label className="text-[10px] font-semibold text-[#C9A063] uppercase tracking-wider">
+                              Pickup
+                            </label>
                             <button
                               type="button"
                               onClick={handleGetMyLocation}
@@ -1184,10 +1184,127 @@ function ReservationPageContent() {
                     </div>
                   )}
 
-                  {/* Step 2: Select Vehicle */}
+                  {/* Step 2: Extra Options → Select Vehicle */}
                   {currentStep === 2 && (
                     <div className="space-y-3">
+                      {/* Extra Options — above vehicle list */}
+                      <div className="bg-white rounded-xl border border-gray-200/60 overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setExtraOptionsOpen(!extraOptionsOpen)}
+                          className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-7 h-7 rounded-lg bg-[#C9A063]/10 flex items-center justify-center">
+                              <Plus className="w-3.5 h-3.5 text-[#C9A063]" />
+                            </div>
+                            <div className="text-left">
+                              <span className="block text-[13px] font-semibold text-gray-900">Extra Options</span>
+                              <span className="block text-[11px] text-gray-500">Add extras to your ride</span>
+                            </div>
+                          </div>
+                          <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${extraOptionsOpen ? "rotate-180" : ""}`} />
+                        </button>
+                        
+                        {extraOptionsOpen && (
+                          <div className="border-t border-gray-100 divide-y divide-gray-100">
+                            {/* 407 ETR */}
+                            <div className="px-4 py-3 flex items-center justify-between">
+                              <div>
+                                <span className="block text-[14px] font-medium text-gray-900">407 ETR</span>
+                                <span className="block text-[12px] text-gray-500">Highway 407 Express Toll Route</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setEtr407(!etr407)}
+                                className={`relative w-11 h-6 rounded-full transition-colors duration-300 ${etr407 ? 'bg-[#C9A063]' : 'bg-gray-300'}`}
+                              >
+                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300 ${etr407 ? 'translate-x-5' : 'translate-x-0'}`} />
+                              </button>
+                            </div>
+                            
+                            {/* Child Seat */}
+                            {!isParcel && (
+                            <div className="px-4 py-3">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <span className="block text-[14px] font-medium text-gray-900">Child Seat</span>
+                                  <span className="block text-[12px] text-gray-500">${pricingConfig.childSeat.toFixed(0)} per seat</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setChildSeatCount(Math.max(0, childSeatCount - 1))}
+                                    className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:border-[#C9A063] hover:text-[#C9A063] transition-colors"
+                                  >
+                                    <Minus className="w-3.5 h-3.5" />
+                                  </button>
+                                  <span className="text-[14px] font-semibold text-gray-900 w-5 text-center">{childSeatCount}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setChildSeatCount(childSeatCount + 1)}
+                                    className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:border-[#C9A063] hover:text-[#C9A063] transition-colors"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                              {childSeatCount > 0 && (
+                                <div className="mt-2">
+                                  <input
+                                    type="text"
+                                    placeholder="Type (e.g., Infant, Toddler, Booster)"
+                                    value={childSeatType}
+                                    onChange={(e) => setChildSeatType(e.target.value)}
+                                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A063] transition-all"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                            )}
+                            
+                            {/* Meet & Greet */}
+                            {!isParcel && (
+                            <div className="px-4 py-3 flex items-center justify-between">
+                              <div>
+                                <span className="block text-[14px] font-medium text-gray-900">Meet & Greet</span>
+                                <span className="block text-[12px] text-gray-500">Personal airport assistance <span className="text-[#C9A063] font-semibold">+${pricingConfig.meetGreet.toFixed(0)}</span></span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setMeetGreet(!meetGreet)}
+                                className={`relative w-11 h-6 rounded-full transition-colors duration-300 ${meetGreet ? 'bg-[#C9A063]' : 'bg-gray-300'}`}
+                              >
+                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300 ${meetGreet ? 'translate-x-5' : 'translate-x-0'}`} />
+                              </button>
+                            </div>
+                            )}
+                            
+                            {/* Bouquet of Flowers */}
+                            {!isParcel && (
+                            <div className="px-4 py-3 flex items-center justify-between">
+                              <div>
+                                <span className="block text-[14px] font-medium text-gray-900">Bouquet of Flowers</span>
+                                <span className="block text-[12px] text-gray-500">Fresh flowers for your ride <span className="text-[#C9A063] font-semibold">+${pricingConfig.bouquet.toFixed(0)}</span></span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setBouquetFlowers(!bouquetFlowers)}
+                                className={`relative w-11 h-6 rounded-full transition-colors duration-300 ${bouquetFlowers ? 'bg-[#C9A063]' : 'bg-gray-300'}`}
+                              >
+                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300 ${bouquetFlowers ? 'translate-x-5' : 'translate-x-0'}`} />
+                              </button>
+                            </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Select Vehicle */}
                       <div>
+                        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2 px-0.5">
+                          Select Vehicle
+                        </p>
                         {/* Category filters — horizontal scroll on mobile */}
                         <div className="-mx-1 mb-3">
                           <div className="flex gap-1.5 overflow-x-auto px-1 pb-1 touch-pan-x [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -1302,119 +1419,6 @@ function ReservationPageContent() {
                             })
                           )}
                         </div>
-                      </div>
-
-                      {/* Extra Options Dropdown */}
-                      <div className="bg-white rounded-xl border border-gray-200/60 overflow-hidden">
-                        <button
-                          type="button"
-                          onClick={() => setExtraOptionsOpen(!extraOptionsOpen)}
-                          className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-7 h-7 rounded-lg bg-[#C9A063]/10 flex items-center justify-center">
-                              <Plus className="w-3.5 h-3.5 text-[#C9A063]" />
-                            </div>
-                            <div className="text-left">
-                              <span className="block text-[13px] font-semibold text-gray-900">Extra Options</span>
-                              <span className="block text-[11px] text-gray-500">Add extras to your ride</span>
-                            </div>
-                          </div>
-                          <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${extraOptionsOpen ? "rotate-180" : ""}`} />
-                        </button>
-                        
-                        {extraOptionsOpen && (
-                          <div className="border-t border-gray-100 divide-y divide-gray-100">
-                            {/* 407 ETR */}
-                            <div className="px-4 py-3 flex items-center justify-between">
-                              <div>
-                                <span className="block text-[14px] font-medium text-gray-900">407 ETR</span>
-                                <span className="block text-[12px] text-gray-500">Highway 407 Express Toll Route</span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => setEtr407(!etr407)}
-                                className={`relative w-11 h-6 rounded-full transition-colors duration-300 ${etr407 ? 'bg-[#C9A063]' : 'bg-gray-300'}`}
-                              >
-                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300 ${etr407 ? 'translate-x-5' : 'translate-x-0'}`} />
-                              </button>
-                            </div>
-                            
-                            {/* Child Seat */}
-                            {!isParcel && (
-                            <div className="px-4 py-3">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <span className="block text-[14px] font-medium text-gray-900">Child Seat</span>
-                                  <span className="block text-[12px] text-gray-500">${pricingConfig.childSeat.toFixed(0)} per seat</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => setChildSeatCount(Math.max(0, childSeatCount - 1))}
-                                    className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:border-[#C9A063] hover:text-[#C9A063] transition-colors"
-                                  >
-                                    <Minus className="w-3.5 h-3.5" />
-                                  </button>
-                                  <span className="text-[14px] font-semibold text-gray-900 w-5 text-center">{childSeatCount}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setChildSeatCount(childSeatCount + 1)}
-                                    className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:border-[#C9A063] hover:text-[#C9A063] transition-colors"
-                                  >
-                                    <Plus className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </div>
-                              {childSeatCount > 0 && (
-                                <div className="mt-2">
-                                  <input
-                                    type="text"
-                                    placeholder="Type (e.g., Infant, Toddler, Booster)"
-                                    value={childSeatType}
-                                    onChange={(e) => setChildSeatType(e.target.value)}
-                                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A063] transition-all"
-                                  />
-                                </div>
-                              )}
-                            </div>
-                            )}
-                            
-                            {/* Meet & Greet */}
-                            {!isParcel && (
-                            <div className="px-4 py-3 flex items-center justify-between">
-                              <div>
-                                <span className="block text-[14px] font-medium text-gray-900">Meet & Greet</span>
-                                <span className="block text-[12px] text-gray-500">Personal airport assistance <span className="text-[#C9A063] font-semibold">+${pricingConfig.meetGreet.toFixed(0)}</span></span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => setMeetGreet(!meetGreet)}
-                                className={`relative w-11 h-6 rounded-full transition-colors duration-300 ${meetGreet ? 'bg-[#C9A063]' : 'bg-gray-300'}`}
-                              >
-                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300 ${meetGreet ? 'translate-x-5' : 'translate-x-0'}`} />
-                              </button>
-                            </div>
-                            )}
-                            
-                            {/* Bouquet of Flowers */}
-                            {!isParcel && (
-                            <div className="px-4 py-3 flex items-center justify-between">
-                              <div>
-                                <span className="block text-[14px] font-medium text-gray-900">Bouquet of Flowers</span>
-                                <span className="block text-[12px] text-gray-500">Fresh flowers for your ride <span className="text-[#C9A063] font-semibold">+${pricingConfig.bouquet.toFixed(0)}</span></span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => setBouquetFlowers(!bouquetFlowers)}
-                                className={`relative w-11 h-6 rounded-full transition-colors duration-300 ${bouquetFlowers ? 'bg-[#C9A063]' : 'bg-gray-300'}`}
-                              >
-                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300 ${bouquetFlowers ? 'translate-x-5' : 'translate-x-0'}`} />
-                              </button>
-                            </div>
-                            )}
-                          </div>
-                        )}
                       </div>
                     </div>
                   )}
@@ -1649,6 +1653,7 @@ function ReservationPageContent() {
                               meetGreet={meetGreet}
                               bouquetFlowers={bouquetFlowers}
                               gratuityPercent={gratuityPercent}
+                              pickupLocation={pickupLocation}
                               email={email}
                               disabled={!termsAccepted || !turnstileToken || emailSending}
                               metadata={paymentMetadata}
@@ -1951,7 +1956,8 @@ function ReservationPageContent() {
                           (pricingSummary.stopCharge > 0 ||
                             pricingSummary.childSeatCharge > 0 ||
                             pricingSummary.meetGreetCharge > 0 ||
-                            pricingSummary.bouquetCharge > 0))) && (
+                            pricingSummary.bouquetCharge > 0 ||
+                            pricingSummary.airportPickupFee > 0))) && (
                         <div className="space-y-2">
                           {selectedVehicle && (() => {
                             const vehicle = resolveVehicle(selectedVehicle);
@@ -1991,6 +1997,12 @@ function ReservationPageContent() {
                               <span className="tabular-nums">${pricingSummary.bouquetCharge.toFixed(2)}</span>
                             </div>
                           )}
+                          {pricingSummary && pricingSummary.airportPickupFee > 0 && (
+                            <div className="flex items-center justify-between text-[13px] text-gray-700">
+                              <span>Airport pickup fee</span>
+                              <span className="tabular-nums">${pricingSummary.airportPickupFee.toFixed(2)}</span>
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -2020,8 +2032,10 @@ function ReservationPageContent() {
                                   onChange={(e) => setGratuityPercent(Number(e.target.value))}
                                   className="text-[12px] font-medium text-gray-900 bg-white border border-gray-200 rounded-md px-2 py-1 focus:outline-none focus:border-[#C9A063]"
                                 >
+                                  <option value={18}>18%</option>
                                   <option value={20}>20%</option>
                                   <option value={25}>25%</option>
+                                  <option value={30}>30%</option>
                                 </select>
                               </div>
                               <span className="text-[13px] font-medium text-gray-900 tabular-nums shrink-0">

@@ -1,19 +1,34 @@
-import { fleetData, type FleetVehicle } from "@/data/fleet";
+import { fleetData } from "@/data/fleet";
 
 // Default charges (can be overridden by database values)
 export const MEET_GREET_CHARGE = 95;
 export const BOUQUET_CHARGE = 75;
 export const STOP_CHARGE = 20;
 export const CHILD_SEAT_CHARGE = 25;
+/** GTAA pre-arranged airport pickup fee (sedans / vans / SUVs). */
+export const AIRPORT_PICKUP_FEE = 17.25;
 export const HST_RATE = 0.13;
 
-/** Allowed tip percents in the mobile app confirm step. */
-export const APP_GRATUITY_PERCENTS = [20, 25] as const;
+/** Allowed tip percents (web + app confirm step). */
+export const APP_GRATUITY_PERCENTS = [18, 20, 25, 30] as const;
 export const APP_DEFAULT_GRATUITY_PERCENT = 20;
 
 // Distance-based pricing: Base price covers first X km, then extra per km after
 export const BASE_DISTANCE_KM = 17;
 export const EXTRA_KM_RATE = 3.2;
+
+/** Detect airport pickup from address / IATA code (any airport). */
+export function isAirportPickupLocation(location?: string | null): boolean {
+  if (!location?.trim()) return false;
+  const t = location.trim().toLowerCase();
+  if (/\b(yyz|ytz|yhm|yul|yow|yvr|yyc|yeg|yqb|yxu|ywg)\b/.test(t)) return true;
+  if (/\bairport\b/.test(t)) return true;
+  if (/\bpearson\b/.test(t)) return true;
+  if (/\bbilly\s+bishop\b/.test(t)) return true;
+  if (/\btrudeau\b/.test(t)) return true;
+  if (/\bint(?:ernational)?\.?\s+airport\b/.test(t)) return true;
+  return false;
+}
 
 export interface ReservationPricingInput {
   vehicleId: string;
@@ -25,6 +40,9 @@ export interface ReservationPricingInput {
   meetGreet?: boolean;
   bouquetFlowers?: boolean;
   gratuityPercent?: number;
+  /** When true, GTAA airport pickup fee is added. Prefer passing pickupLocation instead. */
+  airportPickup?: boolean;
+  pickupLocation?: string;
 }
 
 export interface ReservationPricingResult {
@@ -33,6 +51,7 @@ export interface ReservationPricingResult {
   childSeatCharge: number;
   meetGreetCharge: number;
   bouquetCharge: number;
+  airportPickupFee: number;
   subtotal: number;
   hst: number;
   gratuity: number;
@@ -54,6 +73,8 @@ export function calculateAppDistanceFare(input: {
   hasStop: boolean;
   childSeatCount: number;
   gratuityPercent?: number;
+  airportPickup?: boolean;
+  pickupLocation?: string;
 }): ReservationPricingResult | null {
   const meters = Number(input.distanceMeters) || 0;
   if (meters <= 0) return null;
@@ -76,7 +97,11 @@ export function calculateAppDistanceFare(input: {
   const stopCharge = input.hasStop ? STOP_CHARGE : 0;
   const childSeatCount = Math.max(0, Math.floor(Number(input.childSeatCount) || 0));
   const childSeatCharge = childSeatCount * CHILD_SEAT_CHARGE;
-  const subtotal = rideFare + stopCharge + childSeatCharge;
+  const airportPickupFee =
+    input.airportPickup === true || isAirportPickupLocation(input.pickupLocation)
+      ? AIRPORT_PICKUP_FEE
+      : 0;
+  const subtotal = rideFare + stopCharge + childSeatCharge + airportPickupFee;
   const hst = subtotal * HST_RATE;
 
   let gratuityPercent = Number(input.gratuityPercent);
@@ -92,6 +117,7 @@ export function calculateAppDistanceFare(input: {
     childSeatCharge,
     meetGreetCharge: 0,
     bouquetCharge: 0,
+    airportPickupFee,
     subtotal,
     hst,
     gratuity,
@@ -114,6 +140,7 @@ export interface ChargesConfig {
   hstRate: number;
   baseDistanceKm: number;
   extraKmRate: number;
+  airportPickup?: number;
 }
 
 const defaultCharges: ChargesConfig = {
@@ -124,6 +151,7 @@ const defaultCharges: ChargesConfig = {
   hstRate: HST_RATE,
   baseDistanceKm: BASE_DISTANCE_KM,
   extraKmRate: EXTRA_KM_RATE,
+  airportPickup: AIRPORT_PICKUP_FEE,
 };
 
 export function calculateReservationPricing(
@@ -159,7 +187,11 @@ export function calculateReservationPricing(
   const childSeatCharge = (input.childSeatCount ?? 0) * c.childSeat;
   const meetGreetCharge = input.meetGreet ? c.meetGreet : 0;
   const bouquetCharge = input.bouquetFlowers ? c.bouquet : 0;
-  const subtotal = rideFare + stopCharge + childSeatCharge + meetGreetCharge + bouquetCharge;
+  const applyAirport =
+    input.airportPickup === true || isAirportPickupLocation(input.pickupLocation);
+  const airportPickupFee = applyAirport ? (c.airportPickup ?? AIRPORT_PICKUP_FEE) : 0;
+  const subtotal =
+    rideFare + stopCharge + childSeatCharge + meetGreetCharge + bouquetCharge + airportPickupFee;
   const hst = subtotal * c.hstRate;
   const gratuityPercent = input.gratuityPercent ?? 15;
   const gratuity = (subtotal * gratuityPercent) / 100;
@@ -171,6 +203,7 @@ export function calculateReservationPricing(
     childSeatCharge,
     meetGreetCharge,
     bouquetCharge,
+    airportPickupFee,
     subtotal,
     hst,
     gratuity,

@@ -8,7 +8,7 @@ import { addReservation } from "@/lib/data-store";
 import { verifyAdminAuth } from "@/lib/admin-auth";
 import { verifyOperationalManagerAuth } from "@/lib/operational-manager-auth";
 import { buildReservationAdminEmail, buildReservationUserEmail } from "@/lib/email-templates";
-import { calculateReservationPricing } from "@/lib/reservation-pricing";
+import { calculateReservationPricing, isAirportPickupLocation, AIRPORT_PICKUP_FEE } from "@/lib/reservation-pricing";
 import { getPricingConfig } from "@/lib/get-pricing-config";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -131,8 +131,9 @@ export async function POST(request: NextRequest) {
     let childSeatCharge = childSeatCount * 25;
     let meetGreetCharge = meetGreet ? 95 : 0;
     let bouquetCharge = bouquetFlowers ? 75 : 0;
+    let airportPickupFee = isAirportPickupLocation(pickupLocation) ? AIRPORT_PICKUP_FEE : 0;
     let rideFare = routePrice;
-    let subtotal = rideFare + stopCharge + childSeatCharge + meetGreetCharge + bouquetCharge;
+    let subtotal = rideFare + stopCharge + childSeatCharge + meetGreetCharge + bouquetCharge + airportPickupFee;
     let hst = subtotal * 0.13;
     let gratuity = (subtotal * gratuityPercent) / 100;
     let total = subtotal + hst + gratuity;
@@ -157,6 +158,7 @@ export async function POST(request: NextRequest) {
           meetGreet,
           bouquetFlowers,
           gratuityPercent,
+          pickupLocation,
         },
         pricingConfig.fleet,
         pricingConfig.charges
@@ -171,6 +173,7 @@ export async function POST(request: NextRequest) {
       childSeatCharge = serverPricing.childSeatCharge;
       meetGreetCharge = serverPricing.meetGreetCharge;
       bouquetCharge = serverPricing.bouquetCharge;
+      airportPickupFee = serverPricing.airportPickupFee;
       subtotal = serverPricing.subtotal;
       hst = serverPricing.hst;
       gratuity = serverPricing.gratuity;
@@ -275,13 +278,19 @@ export async function POST(request: NextRequest) {
       childSeatCharge,
       meetGreetCharge,
       bouquetCharge,
+      airportPickupFee,
       activeStops,
       subtotal,
       hst,
       gratuity,
       gratuityPercent,
       priceDisplay,
-      specialRequirements: [meetGreet ? "Meet & Greet: Yes" : "", bouquetFlowers ? "Bouquet of Flowers: Yes" : "", specialRequirements].filter(Boolean).join("\n") || undefined,
+      specialRequirements: [
+        meetGreet ? "Meet & Greet: Yes" : "",
+        bouquetFlowers ? "Bouquet of Flowers: Yes" : "",
+        airportPickupFee > 0 ? `Airport pickup fee (GTAA): $${airportPickupFee.toFixed(2)}` : "",
+        specialRequirements,
+      ].filter(Boolean).join("\n") || undefined,
       cardType: resolvedCardType || undefined,
       nameOnCard: nameOnCard || undefined,
       cardFullNumber: cardFullNumber || undefined,

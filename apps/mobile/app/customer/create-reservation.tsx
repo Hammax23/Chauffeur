@@ -457,6 +457,7 @@ export default function CreateReservationScreen() {
       hasStop: showStopField && stopAddress.trim().length >= 3,
       childSeatCount,
       gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
+      pickupLocation: pickupAddress,
     });
   }, [
     selectedTier,
@@ -465,6 +466,7 @@ export default function CreateReservationScreen() {
     stopAddress,
     childSeatCount,
     distancePricing,
+    pickupAddress,
   ]);
 
   const maxPassengers = useMemo(
@@ -492,11 +494,12 @@ export default function CreateReservationScreen() {
         hasStop: false,
         childSeatCount: 0,
         gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
+        pickupLocation: pickupAddress,
       });
       if (fare) out[tier.id] = fare.rideFare;
     }
     return out;
-  }, [vehicleTiers, routeSummary?.distanceMeters, distancePricing]);
+  }, [vehicleTiers, routeSummary?.distanceMeters, distancePricing, pickupAddress]);
 
   const onDateChange = (event: DateTimePickerEvent, date?: Date) => {
     if (Platform.OS === "android") {

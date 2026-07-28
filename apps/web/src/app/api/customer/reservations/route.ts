@@ -182,6 +182,7 @@ export async function POST(req: NextRequest) {
       hasStop,
       childSeatCount: Number(childSeats) || 0,
       gratuityPercent: Number(clientGratuityPercent) || APP_DEFAULT_GRATUITY_PERCENT,
+      pickupLocation,
     });
 
     if (!pricing) {

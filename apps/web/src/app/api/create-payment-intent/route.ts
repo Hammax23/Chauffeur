@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
     const meetGreet = body.meetGreet === true;
     const bouquetFlowers = body.bouquetFlowers === true;
     const gratuityPercent = typeof body.gratuityPercent === "number" ? body.gratuityPercent : 15;
+    const pickupLocation = sanitizeInput(body.pickupLocation || "");
     const currency = sanitizeInput(body.currency) || "cad";
     const email = sanitizeInput(body.email);
 
@@ -60,6 +61,7 @@ export async function POST(request: NextRequest) {
         meetGreet,
         bouquetFlowers,
         gratuityPercent,
+        pickupLocation,
       },
       pricingConfig.fleet,
       pricingConfig.charges
