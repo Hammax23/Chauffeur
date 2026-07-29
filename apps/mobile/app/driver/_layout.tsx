@@ -120,6 +120,7 @@ export default function DriverLayout() {
           <Stack.Screen name="ride-details" />
           <Stack.Screen name="chat" />
           <Stack.Screen name="profile" />
+          <Stack.Screen name="concierge" />
         </Stack>
       </DriverRideAlertProvider>
     </DriverThemeProvider>

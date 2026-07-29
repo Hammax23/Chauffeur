@@ -528,6 +528,20 @@ export default function DriverDashboard() {
 
             <View style={styles.headerRight}>
               <Pressable
+                onPress={() => router.push("/driver/concierge")}
+                accessibilityLabel="Hotel Concierge"
+                style={({ pressed }) => [styles.glassCircleWrap, pressed && styles.pressed]}
+              >
+                <BlurView
+                  intensity={blurIntensity}
+                  tint={palette.blurTint}
+                  style={[styles.glassCircle, { borderColor: palette.glassBorder }]}
+                >
+                  <Ionicons name="business-outline" size={18} color={GOLD} />
+                </BlurView>
+              </Pressable>
+
+              <Pressable
                 onPress={toggleTheme}
                 accessibilityLabel={isDark ? "Switch to light mode" : "Switch to dark mode"}
                 style={({ pressed }) => [styles.glassCircleWrap, pressed && styles.pressed]}
@@ -567,6 +581,18 @@ export default function DriverDashboard() {
             <Text style={[styles.greetingSubtitle, { color: palette.textSecondary }]}>
               {greetingLine(firstName, isActive)}
             </Text>
+            <Pressable
+              onPress={() => router.push("/driver/concierge")}
+              style={({ pressed }) => [
+                styles.conciergeEntry,
+                { borderColor: palette.border, backgroundColor: isDark ? "rgba(212,160,74,0.12)" : "rgba(212,160,74,0.15)" },
+                pressed && styles.pressed,
+              ]}
+            >
+              <Ionicons name="business-outline" size={16} color={GOLD} />
+              <Text style={styles.conciergeEntryText}>Hotel Concierge</Text>
+              <Ionicons name="chevron-forward" size={16} color={GOLD} />
+            </Pressable>
           </View>
 
           {/* Tabs */}
@@ -974,6 +1000,22 @@ const styles = StyleSheet.create({
   greetingSubtitle: {
     fontSize: 15,
     lineHeight: 21,
+  },
+  conciergeEntry: {
+    marginTop: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  conciergeEntryText: {
+    color: GOLD,
+    fontSize: 13,
+    fontWeight: "800",
   },
   tabShell: {
     flexDirection: "row",

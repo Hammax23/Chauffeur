@@ -18,8 +18,9 @@ import {
   UserCog,
   DollarSign,
   Smartphone,
-  Globe,
+  Building2,
   Radio,
+  Globe,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -32,6 +33,7 @@ const NAV_ITEMS = [
   { href: "/admin/app-fleets", label: "App Fleets", icon: Smartphone },
   { href: "/admin/drivers", label: "Drivers", icon: Car },
   { href: "/admin/track-drivers", label: "Track Drivers", icon: MapPin },
+  { href: "/admin/concierge", label: "Hotel Concierge", icon: Building2 },
   { href: "/admin/operational-managers", label: "Operational Managers", icon: UserCog },
   { href: "/admin/customers", label: "Customers", icon: Users },
   { href: "/admin/app-customers", label: "App Customers", icon: Users },

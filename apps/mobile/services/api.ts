@@ -66,7 +66,7 @@ if (__DEV__) {
   console.log("[API] Using base URL:", API_BASE_URL);
 }
 
-type UnauthorizedRole = "customer" | "driver";
+type UnauthorizedRole = "customer" | "driver" | "concierge";
 type UnauthorizedListener = (role: UnauthorizedRole) => void;
 const unauthorizedListeners = new Set<UnauthorizedListener>();
 
@@ -114,14 +114,26 @@ export interface DriverProfile {
   totalTrips: number;
 }
 
-export type AuthRole = "customer" | "driver";
+export interface ConciergeProfile {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  hotelId: string;
+  hotelName: string;
+  hotelCommissionPercent: number;
+}
+
+export type AuthRole = "customer" | "driver" | "concierge";
 
 const LEGACY_TOKEN_KEY = "sarj_auth_token";
 const LEGACY_USER_KEY = "sarj_user_data";
 const CUSTOMER_TOKEN_KEY = "sarj_customer_token";
 const DRIVER_TOKEN_KEY = "sarj_driver_token";
+const CONCIERGE_TOKEN_KEY = "sarj_concierge_token";
 const CUSTOMER_USER_KEY = "sarj_customer_user";
 const DRIVER_USER_KEY = "sarj_driver_user";
+const CONCIERGE_USER_KEY = "sarj_concierge_user";
 const ACTIVE_ROLE_KEY = "sarj_active_auth_role";
 
 async function safeGet(key: string): Promise<string | null> {
@@ -151,7 +163,7 @@ async function clearLegacyAuthKeys(): Promise<void> {
 
 export async function getActiveAuthRole(): Promise<AuthRole | null> {
   const role = await safeGet(ACTIVE_ROLE_KEY);
-  if (role === "customer" || role === "driver") return role;
+  if (role === "customer" || role === "driver" || role === "concierge") return role;
   return null;
 }
 
@@ -167,13 +179,19 @@ export async function getDriverToken(): Promise<string | null> {
   return safeGet(DRIVER_TOKEN_KEY);
 }
 
+export async function getConciergeToken(): Promise<string | null> {
+  return safeGet(CONCIERGE_TOKEN_KEY);
+}
+
 /** Resolves Bearer token for an API call (prefers endpoint role, else active role). */
 export async function getToken(endpoint?: string): Promise<string | null> {
   if (endpoint?.startsWith("/driver")) return getDriverToken();
+  if (endpoint?.startsWith("/concierge")) return getConciergeToken();
   if (endpoint?.startsWith("/customer")) return getCustomerToken();
 
   const role = await getActiveAuthRole();
   if (role === "driver") return getDriverToken();
+  if (role === "concierge") return getConciergeToken();
   if (role === "customer") return getCustomerToken();
 
   // Migration fallback: legacy single key
@@ -198,12 +216,25 @@ export async function getStoredDriver(): Promise<DriverProfile | null> {
   }
 }
 
+export async function getStoredConcierge(): Promise<ConciergeProfile | null> {
+  try {
+    const data = await safeGet(CONCIERGE_USER_KEY);
+    return data ? (JSON.parse(data) as ConciergeProfile) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** @deprecated Prefer getStoredCustomer / getStoredDriver */
 export async function getStoredUser(): Promise<CustomerProfile | null> {
   const role = await getActiveAuthRole();
   if (role === "driver") {
     const d = await getStoredDriver();
     return d as unknown as CustomerProfile | null;
+  }
+  if (role === "concierge") {
+    const c = await getStoredConcierge();
+    return c as unknown as CustomerProfile | null;
   }
   const customer = await getStoredCustomer();
   if (customer) return customer;
@@ -217,6 +248,7 @@ export async function getStoredUser(): Promise<CustomerProfile | null> {
 
 export async function setCustomerSession(token: string, user: CustomerProfile): Promise<void> {
   await clearDriverSession();
+  await clearConciergeSession();
   await safeSet(CUSTOMER_TOKEN_KEY, token);
   await safeSet(CUSTOMER_USER_KEY, JSON.stringify(user));
   await setActiveAuthRole("customer");
@@ -225,9 +257,19 @@ export async function setCustomerSession(token: string, user: CustomerProfile): 
 
 export async function setDriverSession(token: string, driver: DriverProfile): Promise<void> {
   await clearCustomerSession();
+  await clearConciergeSession();
   await safeSet(DRIVER_TOKEN_KEY, token);
   await safeSet(DRIVER_USER_KEY, JSON.stringify(driver));
   await setActiveAuthRole("driver");
+  await clearLegacyAuthKeys();
+}
+
+export async function setConciergeSession(token: string, concierge: ConciergeProfile): Promise<void> {
+  await clearCustomerSession();
+  await clearDriverSession();
+  await safeSet(CONCIERGE_TOKEN_KEY, token);
+  await safeSet(CONCIERGE_USER_KEY, JSON.stringify(concierge));
+  await setActiveAuthRole("concierge");
   await clearLegacyAuthKeys();
 }
 
@@ -245,6 +287,13 @@ export async function clearDriverSession(): Promise<void> {
   if (role === "driver") await safeDel(ACTIVE_ROLE_KEY);
 }
 
+export async function clearConciergeSession(): Promise<void> {
+  await safeDel(CONCIERGE_TOKEN_KEY);
+  await safeDel(CONCIERGE_USER_KEY);
+  const role = await getActiveAuthRole();
+  if (role === "concierge") await safeDel(ACTIVE_ROLE_KEY);
+}
+
 /** Update cached profile without touching the other role's session. */
 export async function persistCustomerProfile(user: CustomerProfile): Promise<void> {
   await safeSet(CUSTOMER_USER_KEY, JSON.stringify(user));
@@ -254,10 +303,15 @@ export async function persistDriverProfile(driver: DriverProfile): Promise<void>
   await safeSet(DRIVER_USER_KEY, JSON.stringify(driver));
 }
 
+export async function persistConciergeProfile(concierge: ConciergeProfile): Promise<void> {
+  await safeSet(CONCIERGE_USER_KEY, JSON.stringify(concierge));
+}
+
 /** @deprecated Prefer setCustomerSession / setDriverSession */
 export async function setToken(token: string): Promise<void> {
   const role = (await getActiveAuthRole()) || "customer";
   if (role === "driver") await safeSet(DRIVER_TOKEN_KEY, token);
+  else if (role === "concierge") await safeSet(CONCIERGE_TOKEN_KEY, token);
   else await safeSet(CUSTOMER_TOKEN_KEY, token);
 }
 
@@ -265,6 +319,7 @@ export async function setToken(token: string): Promise<void> {
 export async function removeToken(): Promise<void> {
   await clearCustomerSession();
   await clearDriverSession();
+  await clearConciergeSession();
   await clearLegacyAuthKeys();
   await safeDel(ACTIVE_ROLE_KEY);
 }
@@ -274,6 +329,8 @@ export async function setStoredUser(user: CustomerProfile): Promise<void> {
   const role = await getActiveAuthRole();
   if (role === "driver") {
     await safeSet(DRIVER_USER_KEY, JSON.stringify(user));
+  } else if (role === "concierge") {
+    await safeSet(CONCIERGE_USER_KEY, JSON.stringify(user));
   } else {
     await safeSet(CUSTOMER_USER_KEY, JSON.stringify(user));
   }
@@ -283,16 +340,18 @@ export async function setStoredUser(user: CustomerProfile): Promise<void> {
 export async function removeStoredUser(): Promise<void> {
   await clearCustomerSession();
   await clearDriverSession();
+  await clearConciergeSession();
   await clearLegacyAuthKeys();
 }
 
 /** Which home to open after splash (validates tokens exist). */
 export async function resolveBootDestination(): Promise<
-  "/customer" | "/driver" | "/login"
+  "/customer" | "/driver" | "/concierge" | "/login"
 > {
   const role = await getActiveAuthRole();
   if (role === "customer" && (await getCustomerToken())) return "/customer";
   if (role === "driver" && (await getDriverToken())) return "/driver";
+  if (role === "concierge" && (await getConciergeToken())) return "/concierge";
   if (await getCustomerToken()) {
     await setActiveAuthRole("customer");
     return "/customer";
@@ -300,6 +359,10 @@ export async function resolveBootDestination(): Promise<
   if (await getDriverToken()) {
     await setActiveAuthRole("driver");
     return "/driver";
+  }
+  if (await getConciergeToken()) {
+    await setActiveAuthRole("concierge");
+    return "/concierge";
   }
   // Legacy migration: if old token exists, force re-login for clean split
   if (await safeGet(LEGACY_TOKEN_KEY)) {
@@ -422,6 +485,9 @@ async function apiRequest<T>(
     if (endpoint.startsWith("/driver")) {
       await clearDriverSession();
       emitUnauthorized("driver");
+    } else if (endpoint.startsWith("/concierge")) {
+      await clearConciergeSession();
+      emitUnauthorized("concierge");
     } else if (endpoint.startsWith("/customer")) {
       await clearCustomerSession();
       emitUnauthorized("customer");
@@ -470,6 +536,9 @@ async function apiRequestWithResponse<T>(
     if (endpoint.startsWith("/driver")) {
       await clearDriverSession();
       emitUnauthorized("driver");
+    } else if (endpoint.startsWith("/concierge")) {
+      await clearConciergeSession();
+      emitUnauthorized("concierge");
     } else if (endpoint.startsWith("/customer")) {
       await clearCustomerSession();
       emitUnauthorized("customer");
@@ -996,4 +1065,258 @@ export async function updateDriverLocation(params: {
     "/driver/location",
     { method: "POST", body: JSON.stringify(params) }
   );
+}
+
+// ==================== CONCIERGE TYPES ====================
+
+export type ConciergeVehicleRequestRule = "SEDAN" | "SEDAN_ONLY" | "SUV" | "CADILLAC_ONLY";
+export type ConciergeGuestPaymentMethod = "CASH" | "APP" | "UNSET";
+export type ConciergeRideStatus =
+  | "OPEN"
+  | "ASSIGNED"
+  | "ON_THE_WAY"
+  | "ARRIVED"
+  | "IN_TRIP"
+  | "COMPLETED"
+  | "CANCELLED";
+
+export interface ConciergeCommission {
+  id?: string;
+  rideId?: string;
+  conciergeClaim: string;
+  driverClaim: string;
+  matched: boolean;
+  disputeOpen: boolean;
+}
+
+export interface ConciergeRideDriver {
+  name: string;
+  phone: string;
+  vehicle?: string;
+  vehiclePlate?: string;
+  rating?: number;
+  lastLatitude?: number | null;
+  lastLongitude?: number | null;
+  lastLocationUpdatedAt?: string | null;
+}
+
+export interface ConciergeRide {
+  id: string;
+  requestCode: string;
+  status: ConciergeRideStatus | string;
+  guestName: string;
+  guestPhone: string;
+  pickupLocation: string;
+  dropoffLocation: string;
+  notes?: string | null;
+  vehicleRequestRule: ConciergeVehicleRequestRule | string;
+  guestPaymentMethod: ConciergeGuestPaymentMethod | string;
+  fare: number;
+  platformFee: number;
+  hotelCommission: number;
+  completedAt?: string | null;
+  createdAt: string;
+  hotel?: { name: string; commissionPercent?: number; city?: string };
+  concierge?: { name: string; phone: string };
+  assignedDriverProfile?: {
+    id: string;
+    driver?: ConciergeRideDriver | null;
+  } | null;
+  commission?: ConciergeCommission | null;
+  ratings?: Array<{
+    id: string;
+    fromRole: string;
+    toRole: string;
+    stars: number;
+    note?: string | null;
+  }>;
+}
+
+export interface ConciergeDashboard {
+  activeRequests: number;
+  completedTrips: number;
+  pendingCommissions: number;
+  commissionHistory?: unknown[];
+  driverRatings?: unknown[];
+}
+
+export interface ConciergeDriverProfile {
+  id: string;
+  driverId: string;
+  availability: "ONLINE" | "OFFLINE" | "BUSY" | string;
+  membershipStatus: string;
+  membershipExpiresAt?: string | null;
+  vehicleClass?: string;
+  vehicleLabel?: string | null;
+  referralEarnings?: number;
+  driver?: { name: string; phone: string; rating: number };
+}
+
+export interface DriverConciergeEarnings {
+  completedTrips: number;
+  grossFare: number;
+  platformFees: number;
+  netEarnings: number;
+  hotelCommissions: number;
+  referralEarnings: number;
+}
+
+// ==================== CONCIERGE AUTH API ====================
+
+export async function loginConcierge(email: string, password: string) {
+  const data = await apiRequest<{
+    success: boolean;
+    token: string;
+    concierge: ConciergeProfile;
+    error?: string;
+  }>("/concierge/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (data.success && data.token) {
+    await setConciergeSession(data.token, data.concierge);
+  }
+
+  return data;
+}
+
+export async function logoutConcierge() {
+  await clearConciergeSession();
+  await clearLegacyAuthKeys();
+}
+
+export async function getConciergeMe() {
+  return apiRequest<{ success: boolean; concierge: ConciergeProfile }>(
+    "/concierge/auth/me"
+  );
+}
+
+export async function getConciergeDashboard() {
+  return apiRequest<{ success: boolean; dashboard: ConciergeDashboard }>(
+    "/concierge/dashboard"
+  );
+}
+
+export async function getConciergeRides(status?: "active" | "completed" | string) {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  return apiRequest<{ success: boolean; rides: ConciergeRide[] }>(
+    `/concierge/rides${qs}`
+  );
+}
+
+export async function createConciergeRide(body: {
+  guestName?: string;
+  guestPhone?: string;
+  pickupLocation: string;
+  dropoffLocation?: string;
+  notes?: string;
+  vehicleRequestRule: ConciergeVehicleRequestRule;
+  guestPaymentMethod?: ConciergeGuestPaymentMethod;
+  fare?: number;
+}) {
+  return apiRequest<{ success: boolean; ride: ConciergeRide; error?: string }>(
+    "/concierge/rides",
+    { method: "POST", body: JSON.stringify(body) }
+  );
+}
+
+export async function getConciergeRide(id: string) {
+  return apiRequest<{ success: boolean; ride: ConciergeRide }>(
+    `/concierge/rides/${id}`
+  );
+}
+
+export async function patchConciergeRide(
+  id: string,
+  body:
+    | { action: "cancel" }
+    | { action: "set_payment"; guestPaymentMethod: "CASH" | "APP" }
+    | { action: "commission"; conciergeClaim: "RECEIVED" | "NOT_RECEIVED" }
+    | { action: "rate"; stars: number; note?: string }
+) {
+  return apiRequest<{
+    success: boolean;
+    ride?: ConciergeRide;
+    commission?: ConciergeCommission;
+    rating?: unknown;
+    error?: string;
+  }>(`/concierge/rides/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function createConciergePaymentIntent(rideId: string) {
+  return apiRequest<{
+    success: boolean;
+    clientSecret: string | null;
+    platformFee: number;
+    amount: number;
+  }>("/concierge/rides/payment-intent", {
+    method: "POST",
+    body: JSON.stringify({ rideId }),
+  });
+}
+
+export async function confirmConciergePayment(rideId: string, paymentIntentId: string) {
+  return apiRequest<{ success: boolean; ride: ConciergeRide }>(
+    "/concierge/rides/confirm-payment",
+    {
+      method: "POST",
+      body: JSON.stringify({ rideId, paymentIntentId }),
+    }
+  );
+}
+
+// ==================== DRIVER CONCIERGE API ====================
+
+export async function getDriverConciergeRides(tab: "open" | "mine" = "open") {
+  return apiRequest<{
+    success: boolean;
+    enrolled: boolean;
+    profile: ConciergeDriverProfile | null;
+    openRequests?: ConciergeRide[];
+    myRides?: ConciergeRide[];
+  }>(`/driver/concierge/rides?tab=${tab}`);
+}
+
+export async function patchDriverConcierge(
+  body:
+    | { action: "set_availability"; availability: "ONLINE" | "OFFLINE" }
+    | { action: "accept"; rideId: string }
+    | {
+        action: "status";
+        rideId: string;
+        status: "ON_THE_WAY" | "ARRIVED" | "IN_TRIP" | "COMPLETED" | "CANCELLED";
+      }
+    | { action: "commission"; rideId: string; driverClaim: "PAID" | "NOT_PAID" }
+    | { action: "rate"; rideId: string; stars: number; note?: string }
+) {
+  return apiRequest<{
+    success: boolean;
+    profile?: ConciergeDriverProfile;
+    ride?: ConciergeRide;
+    commission?: ConciergeCommission;
+    rating?: unknown;
+    error?: string;
+  }>("/driver/concierge/rides", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function getDriverConciergeEarnings() {
+  return apiRequest<{
+    success: boolean;
+    enrolled: boolean;
+    profile?: {
+      membershipStatus: string;
+      membershipExpiresAt?: string | null;
+      availability: string;
+      vehicleClass: string;
+      referralEarnings: number;
+    };
+    earnings: DriverConciergeEarnings;
+  }>("/driver/concierge/earnings");
 }

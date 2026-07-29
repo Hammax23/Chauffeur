@@ -123,6 +123,7 @@ model Driver {
   
   reservations  Reservation[]
   rideOffers    RideOffer[]
+  conciergeProfile ConciergeDriverProfile?
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -580,4 +581,136 @@ model ChatMessage {
   readAt     DateTime?
 
   @@index([threadId, createdAt])
+}
+
+// ─── Hotel Concierge Platform ───────────────────────────────────────────────
+
+model Hotel {
+  id                 String   @id @default(cuid())
+  name               String
+  address            String   @default("")
+  city               String   @default("")
+  phone              String   @default("")
+  email              String   @default("")
+  /// Hotel commission % of ride fare (driver pays hotel)
+  commissionPercent  Float    @default(10)
+  isActive           Boolean  @default(true)
+  concierges         Concierge[]
+  rideRequests       ConciergeRideRequest[]
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Concierge {
+  id           String   @id @default(cuid())
+  hotelId      String
+  hotel        Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  name         String
+  email        String   @unique
+  phone        String   @default("")
+  password     String
+  isActive     Boolean  @default(true)
+  rideRequests ConciergeRideRequest[]
+  ratingsGiven ConciergeRating[] @relation("ConciergeRatingsGiven")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([hotelId])
+}
+
+/// Concierge-network eligibility for an existing Driver
+model ConciergeDriverProfile {
+  id                   String   @id @default(cuid())
+  driverId             String   @unique
+  driver               Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  /// ACTIVE | EXPIRED
+  membershipStatus     String   @default("ACTIVE")
+  membershipExpiresAt  DateTime?
+  /// SEDAN | SUV | CADILLAC
+  vehicleClass         String   @default("SEDAN")
+  /// Free-text labels e.g. "GMC Yukon", "Cadillac Escalade"
+  vehicleLabel         String   @default("")
+  /// ONLINE | OFFLINE | BUSY
+  availability         String   @default("OFFLINE")
+  referralEarnings     Float    @default(0)
+  rideRequests         ConciergeRideRequest[]
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([availability, membershipStatus])
+  @@index([vehicleClass])
+}
+
+model ConciergeRideRequest {
+  id                   String   @id @default(cuid())
+  requestCode          String   @unique
+  hotelId              String
+  hotel                Hotel    @relation(fields: [hotelId], references: [id])
+  conciergeId          String
+  concierge            Concierge @relation(fields: [conciergeId], references: [id])
+  assignedDriverId     String?
+  assignedDriverProfile ConciergeDriverProfile? @relation(fields: [assignedDriverId], references: [id])
+
+  guestName            String   @default("")
+  guestPhone           String   @default("")
+  pickupLocation       String
+  dropoffLocation      String   @default("")
+  notes                String?  @db.Text
+
+  /// SEDAN | SEDAN_ONLY | SUV | CADILLAC_ONLY
+  vehicleRequestRule   String
+  /// Preferred / recorded: CASH | APP | UNSET
+  guestPaymentMethod   String   @default("UNSET")
+  fare                 Float    @default(0)
+  platformFee          Float    @default(0)
+  hotelCommission      Float    @default(0)
+  /// OPEN | ASSIGNED | ON_THE_WAY | ARRIVED | IN_TRIP | COMPLETED | CANCELLED
+  status               String   @default("OPEN")
+
+  commission           CommissionConfirmation?
+  ratings              ConciergeRating[]
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  completedAt          DateTime?
+
+  @@index([status, createdAt])
+  @@index([conciergeId])
+  @@index([hotelId])
+  @@index([assignedDriverId])
+}
+
+model CommissionConfirmation {
+  id              String   @id @default(cuid())
+  rideId          String   @unique
+  ride            ConciergeRideRequest @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  /// PAID | NOT_PAID | UNSET
+  driverClaim     String   @default("UNSET")
+  /// RECEIVED | NOT_RECEIVED | UNSET
+  conciergeClaim  String   @default("UNSET")
+  matched         Boolean  @default(false)
+  disputeOpen     Boolean  @default(false)
+  resolvedAt      DateTime?
+  resolvedNote    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ConciergeRating {
+  id           String   @id @default(cuid())
+  rideId       String
+  ride         ConciergeRideRequest @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  /// DRIVER | CONCIERGE
+  fromRole     String
+  fromId       String
+  toRole       String
+  toId         String
+  stars        Int
+  note         String?
+  conciergeId  String?
+  concierge    Concierge? @relation("ConciergeRatingsGiven", fields: [conciergeId], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@unique([rideId, fromRole, fromId])
+  @@index([rideId])
 }

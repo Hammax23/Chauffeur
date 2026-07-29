@@ -17,6 +17,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
 import { useDriverAuth } from "../contexts/DriverAuthContext";
+import { useConciergeAuth } from "../contexts/ConciergeAuthContext";
 import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
 import * as AppleAuthentication from "expo-apple-authentication";
@@ -24,11 +25,12 @@ import Constants from "expo-constants";
 
 WebBrowser.maybeCompleteAuthSession();
 
-type UserType = "customer" | "driver";
+type UserType = "customer" | "driver" | "concierge";
 
 export default function LoginScreen() {
   const { login, loginWithGoogle, loginWithApple } = useAuth();
   const { login: driverLogin } = useDriverAuth();
+  const { login: conciergeLogin } = useConciergeAuth();
   const [userType, setUserType] = useState<UserType>("customer");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -138,7 +140,7 @@ export default function LoginScreen() {
       <Text style={styles.title}>Login</Text>
       <Text style={styles.subtitle}>Log into your account.</Text>
 
-      {/* Customer/Driver Toggle */}
+      {/* Customer / Driver / Concierge Toggle */}
       <View style={styles.toggleContainer}>
         <TouchableOpacity
           style={[
@@ -170,6 +172,22 @@ export default function LoginScreen() {
             ]}
           >
             Driver
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.toggleButton,
+            userType === "concierge" && styles.toggleButtonActive,
+          ]}
+          onPress={() => setUserType("concierge")}
+        >
+          <Text
+            style={[
+              styles.toggleText,
+              userType === "concierge" && styles.toggleTextActive,
+            ]}
+          >
+            Concierge
           </Text>
         </TouchableOpacity>
       </View>
@@ -252,6 +270,13 @@ export default function LoginScreen() {
               const result = await driverLogin(email.trim(), password);
               if (result.success) {
                 router.replace("/driver");
+              } else {
+                Alert.alert("Login Failed", result.error || "Invalid credentials");
+              }
+            } else if (userType === "concierge") {
+              const result = await conciergeLogin(email.trim(), password);
+              if (result.success) {
+                router.replace("/concierge");
               } else {
                 Alert.alert("Login Failed", result.error || "Invalid credentials");
               }
@@ -343,11 +368,12 @@ const styles = StyleSheet.create({
   toggleContainer: {
     flexDirection: "row",
     marginBottom: 32,
-    gap: 60,
+    gap: 8,
+    flexWrap: "wrap",
   },
   toggleButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 42,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     borderRadius: 30,
   },
   toggleButtonActive: {
