@@ -9,9 +9,11 @@ export interface FleetVehicle {
   category: FleetCategory;
   seating: string;
   luggage: string;
-  /** Hourly rate (used for reservation pricing). */
+  /** Hourly booking: $/hour. */
   price: number;
-  /** Public per-kilometre rate shown in mobile fleet preview cards. */
+  /** Distance booking: flat fare for the first baseDistanceKm. Falls back to `price` if omitted. */
+  basePrice?: number;
+  /** Public per-kilometre rate (display / legacy). */
   pricePerKm: number;
 }
 

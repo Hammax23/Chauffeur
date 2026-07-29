@@ -291,8 +291,12 @@ model FleetVehicle {
   luggage       String             // e.g. "2 large, 2 medium"
   
   // Pricing
-  hourlyRate    Float              // Hourly rate for reservation
-  pricePerKm    Float              // Per-kilometer rate
+  /// Distance booking: flat fare for the first `baseDistanceKm` kilometres
+  basePrice      Float    @default(0)
+  /// Hourly booking only: dollars per hour
+  hourlyRate    Float
+  /// Legacy / display; web distance extras use global `extraKmRate` charge
+  pricePerKm    Float
   
   // Settings
   isActive      Boolean  @default(true)

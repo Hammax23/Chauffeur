@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
       category,
       seating,
       luggage,
+      basePrice,
       hourlyRate,
       pricePerKm,
       isActive = true,
@@ -66,6 +67,7 @@ export async function POST(request: NextRequest) {
         category,
         seating: seating || "",
         luggage: luggage || "",
+        basePrice: parseFloat(basePrice) || 0,
         hourlyRate: parseFloat(hourlyRate) || 0,
         pricePerKm: parseFloat(pricePerKm) || 0,
         isActive,
@@ -96,6 +98,9 @@ export async function PUT(request: NextRequest) {
     }
 
     // Parse numeric fields
+    if (updateData.basePrice !== undefined) {
+      updateData.basePrice = parseFloat(updateData.basePrice);
+    }
     if (updateData.hourlyRate !== undefined) {
       updateData.hourlyRate = parseFloat(updateData.hourlyRate);
     }

@@ -500,13 +500,13 @@ function ReservationPageContent() {
       const calculatedPrice = vehicle.price * hourlyDuration;
       setRoutePrice(calculatedPrice);
     } else {
-      // Distance mode: Base price covers first X km, then extra $/km after
+      // Distance mode: basePrice covers first X km, then extra $/km after
       if (routeDistanceValue <= 0) {
         setRoutePrice(0);
         return;
       }
       const distanceKm = routeDistanceValue / 1000;
-      const basePrice = vehicle.price;
+      const basePrice = vehicle.basePrice && vehicle.basePrice > 0 ? vehicle.basePrice : vehicle.price;
       const extraKm = Math.max(0, distanceKm - pricingConfig.baseDistanceKm);
       const extraCharge = extraKm * pricingConfig.extraKmRate;
       const calculatedPrice = basePrice + extraCharge;
@@ -518,14 +518,15 @@ function ReservationPageContent() {
 
   /** Ride fare for a vehicle from trip distance/hours (not the static base list price). */
   const getVehicleRideFare = useCallback(
-    (vehicle: { price: number }) => {
+    (vehicle: { price: number; basePrice?: number }) => {
       if (bookingMode === "hourly") {
         return vehicle.price * hourlyDuration;
       }
       if (routeDistanceValue <= 0) return null;
       const distanceKm = routeDistanceValue / 1000;
+      const basePrice = vehicle.basePrice && vehicle.basePrice > 0 ? vehicle.basePrice : vehicle.price;
       const extraKm = Math.max(0, distanceKm - pricingConfig.baseDistanceKm);
-      return vehicle.price + extraKm * pricingConfig.extraKmRate;
+      return basePrice + extraKm * pricingConfig.extraKmRate;
     },
     [bookingMode, hourlyDuration, routeDistanceValue, pricingConfig]
   );
@@ -534,7 +535,8 @@ function ReservationPageContent() {
     () =>
       reservationFleet.map((vehicle) => ({
         id: vehicle.id,
-        price: vehicle.price,
+        hourlyRate: vehicle.price,
+        basePrice: vehicle.basePrice && vehicle.basePrice > 0 ? vehicle.basePrice : vehicle.price,
         pricePerKm: vehicle.pricePerKm,
       })),
     [reservationFleet]

@@ -18,6 +18,7 @@ interface FleetVehicle {
   category: string;
   seating: string;
   luggage: string;
+  basePrice: number;
   hourlyRate: number;
   pricePerKm: number;
   isActive: boolean;
@@ -53,6 +54,7 @@ export default function FleetManagementPage() {
     category: "Sedan",
     seating: "",
     luggage: "",
+    basePrice: 0,
     hourlyRate: 0,
     pricePerKm: 0,
     isActive: true,
@@ -144,6 +146,7 @@ export default function FleetManagementPage() {
       category: vehicle.category,
       seating: vehicle.seating,
       luggage: vehicle.luggage,
+      basePrice: vehicle.basePrice ?? 0,
       hourlyRate: vehicle.hourlyRate,
       pricePerKm: vehicle.pricePerKm,
       isActive: vehicle.isActive,
@@ -387,7 +390,22 @@ export default function FleetManagementPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Hourly Rate ($)*</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Base Price ($) — first {pricingSettings.baseDistanceKm} km*
+              </label>
+              <input
+                type="number"
+                value={formData.basePrice}
+                onChange={(e) => setFormData({ ...formData, basePrice: parseFloat(e.target.value) || 0 })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-gray-900 bg-white"
+                min="0"
+                step="0.01"
+              />
+              <p className="text-xs text-gray-500 mt-1">Distance bookings: flat fare covering the first {pricingSettings.baseDistanceKm} km</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Hourly Rate ($ / hour)*</label>
               <input
                 type="number"
                 value={formData.hourlyRate}
@@ -396,18 +414,7 @@ export default function FleetManagementPage() {
                 min="0"
                 step="0.01"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Price Per KM ($)*</label>
-              <input
-                type="number"
-                value={formData.pricePerKm}
-                onChange={(e) => setFormData({ ...formData, pricePerKm: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-gray-900 bg-white"
-                min="0"
-                step="0.01"
-              />
+              <p className="text-xs text-gray-500 mt-1">Hourly bookings only (min 3 hours)</p>
             </div>
 
             <div>
@@ -528,8 +535,8 @@ export default function FleetManagementPage() {
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Vehicle</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Hourly Rate</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Per KM</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Base Price</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Hourly</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
               </tr>
@@ -575,15 +582,17 @@ export default function FleetManagementPage() {
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <DollarSign className="w-4 h-4 text-green-600" />
-                        <span className="font-semibold text-gray-900">{vehicle.hourlyRate.toFixed(2)}</span>
-                        <span className="text-xs text-gray-500">/hr</span>
+                        <span className="font-semibold text-gray-900">
+                          {(vehicle.basePrice > 0 ? vehicle.basePrice : vehicle.hourlyRate).toFixed(2)}
+                        </span>
+                        <span className="text-xs text-gray-500">base</span>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <DollarSign className="w-4 h-4 text-blue-600" />
-                        <span className="font-semibold text-gray-900">{vehicle.pricePerKm.toFixed(2)}</span>
-                        <span className="text-xs text-gray-500">/km</span>
+                        <span className="font-semibold text-gray-900">{vehicle.hourlyRate.toFixed(2)}</span>
+                        <span className="text-xs text-gray-500">/hr</span>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -679,9 +688,9 @@ export default function FleetManagementPage() {
       <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <h3 className="font-semibold text-blue-900 mb-2">How Fleet Pricing Works</h3>
         <ul className="text-sm text-blue-800 space-y-1">
-          <li>• <strong>Base Price:</strong> Each vehicle&apos;s hourly rate is also its base price for distance bookings (covers first {pricingSettings.baseDistanceKm}km)</li>
-          <li>• <strong>Extra KM:</strong> After {pricingSettings.baseDistanceKm}km, ${pricingSettings.extraKmRate.toFixed(2)} is charged per additional KM</li>
-          <li>• <strong>Hourly Rate:</strong> Used for hourly bookings (minimum 3 hours)</li>
+          <li>• <strong>Base Price:</strong> Flat fare for distance bookings covering the first {pricingSettings.baseDistanceKm} km</li>
+          <li>• <strong>Extra KM:</strong> After {pricingSettings.baseDistanceKm} km, ${pricingSettings.extraKmRate.toFixed(2)} is charged per additional km (global setting below)</li>
+          <li>• <strong>Hourly Rate:</strong> Separate — used only for hourly bookings (minimum 3 hours)</li>
           <li>• <strong>Active:</strong> Only active vehicles appear in the reservation form</li>
         </ul>
       </div>

@@ -28,13 +28,14 @@ export async function getPricingConfig(): Promise<PricingConfig> {
     // Fetch fleet from database
     const dbVehicles = await prisma.fleetVehicle.findMany({
       where: { isActive: true },
-      select: { vehicleId: true, hourlyRate: true, pricePerKm: true },
+      select: { vehicleId: true, hourlyRate: true, basePrice: true, pricePerKm: true },
     });
 
     if (dbVehicles.length > 0) {
       fleet = dbVehicles.map((v) => ({
         id: v.vehicleId,
-        price: v.hourlyRate,
+        hourlyRate: v.hourlyRate,
+        basePrice: v.basePrice > 0 ? v.basePrice : v.hourlyRate,
         pricePerKm: v.pricePerKm,
       }));
     }
@@ -78,7 +79,8 @@ export async function getPricingConfig(): Promise<PricingConfig> {
   if (fleet.length === 0) {
     fleet = fleetData.map((v) => ({
       id: v.id,
-      price: v.price,
+      hourlyRate: v.price,
+      basePrice: v.basePrice ?? v.price,
       pricePerKm: v.pricePerKm,
     }));
   }

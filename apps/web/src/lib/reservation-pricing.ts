@@ -61,8 +61,9 @@ export interface ReservationPricingResult {
 
 /**
  * App distance booking fare — same model as website Fleet Pricing:
- * vehicle hourlyRate = base price for first `baseDistanceKm`, then `extraKmRate` per extra km.
- * Falls back to legacy `km × pricePerKm` when hourlyRate is missing.
+ * `hourlyRate` input here is treated as distance base price for first `baseDistanceKm`,
+ * then `extraKmRate` per extra km. (Mobile app fleet still maps rates this way.)
+ * Falls back to legacy `km × pricePerKm` when base is missing.
  */
 export function calculateAppDistanceFare(input: {
   distanceMeters: number;
@@ -128,7 +129,10 @@ export function calculateAppDistanceFare(input: {
 
 export interface VehiclePricing {
   id: string;
-  price: number;      // hourlyRate
+  /** Hourly booking: $/hour */
+  hourlyRate: number;
+  /** Distance booking: flat fare covering first baseDistanceKm */
+  basePrice: number;
   pricePerKm: number;
 }
 
@@ -159,28 +163,34 @@ export function calculateReservationPricing(
   fleetSource?: VehiclePricing[],
   charges?: Partial<ChargesConfig>
 ): ReservationPricingResult | null {
-  // Use provided fleet source or fall back to static data
-  const fleet = fleetSource ?? fleetData.map(v => ({ id: v.id, price: v.price, pricePerKm: v.pricePerKm }));
+  const fleet =
+    fleetSource ??
+    fleetData.map((v) => ({
+      id: v.id,
+      hourlyRate: v.price,
+      basePrice: v.basePrice ?? v.price,
+      pricePerKm: v.pricePerKm,
+    }));
   const vehicle = fleet.find((v) => v.id === input.vehicleId);
   if (!vehicle) return null;
 
-  // Merge charges with defaults
   const c = { ...defaultCharges, ...charges };
+  const hourlyRate = Number(vehicle.hourlyRate) || 0;
+  const basePrice = Number(vehicle.basePrice) > 0 ? Number(vehicle.basePrice) : hourlyRate;
 
   let rideFare = 0;
   if (input.bookingMode === "hourly") {
     const hours = input.hourlyDuration ?? 3;
     if (hours < 3) return null;
-    rideFare = vehicle.price * hours;
+    if (hourlyRate <= 0) return null;
+    rideFare = hourlyRate * hours;
   } else {
-    // Distance-based pricing: Base price covers first X km, then extra $/km after
     const meters = input.distanceMeters ?? 0;
     if (meters <= 0) return null;
+    if (basePrice <= 0) return null;
     const distanceKm = meters / 1000;
-    const basePrice = vehicle.price; // Base price covers first c.baseDistanceKm
     const extraKm = Math.max(0, distanceKm - c.baseDistanceKm);
-    const extraCharge = extraKm * c.extraKmRate;
-    rideFare = basePrice + extraCharge;
+    rideFare = basePrice + extraKm * c.extraKmRate;
   }
 
   const stopCharge = (input.stopCount ?? 0) * c.stop;

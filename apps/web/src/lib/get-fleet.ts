@@ -32,6 +32,7 @@ async function loadFleetFromDatabase(): Promise<FleetVehicle[] | null> {
       seating: row.seating,
       luggage: row.luggage,
       price: row.hourlyRate,
+      basePrice: row.basePrice > 0 ? row.basePrice : row.hourlyRate,
       pricePerKm: row.pricePerKm,
     }));
   } catch {
