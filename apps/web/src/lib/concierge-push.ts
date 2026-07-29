@@ -60,22 +60,42 @@ export async function notifyConciergeOffer(rideId: string): Promise<void> {
   }
 }
 
-/** Notify concierge when driver is assigned (optional — uses no push token on Concierge yet). */
+/** Log + surface for admin; openDisputes count already on admin dashboard. */
 export async function notifyCommissionDispute(rideId: string): Promise<void> {
   try {
     const ride = await prisma.conciergeRideRequest.findUnique({
       where: { id: rideId },
       select: {
+        id: true,
         requestCode: true,
-        hotel: { select: { name: true } },
         hotelCommission: true,
+        hotel: { select: { name: true } },
+        assignedDriverProfile: {
+          include: { driver: { select: { pushToken: true, name: true } } },
+        },
       },
     });
     if (!ride) return;
-    // Admin surface is primary for V1; log for ops visibility
+
     console.warn(
       `[concierge-dispute] ${ride.requestCode} at ${ride.hotel.name} · $${ride.hotelCommission}`
     );
+
+    const token = ride.assignedDriverProfile?.driver?.pushToken;
+    if (token) {
+      const { sendPushNotification } = await import("@/lib/push-notifications");
+      await sendPushNotification(
+        token,
+        "Commission dispute",
+        `${ride.requestCode}: hotel commission claims do not match. Admin will review.`,
+        {
+          type: "concierge_dispute",
+          channelId: "default",
+          rideId: ride.id,
+          requestCode: ride.requestCode,
+        }
+      );
+    }
   } catch (e) {
     console.error("[concierge-push] dispute", e);
   }

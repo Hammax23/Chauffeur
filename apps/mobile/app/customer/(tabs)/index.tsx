@@ -214,7 +214,10 @@ export default function CustomerHomeScreen() {
     try {
       const { vehicles } = await getAppFleetVehicles({ homeOnly: true });
       setFleetPreview(vehicles.slice(0, 8));
-    } catch {
+    } catch (e) {
+      if (__DEV__) {
+        console.warn("[home] fleet preview failed:", e instanceof Error ? e.message : e);
+      }
       setFleetPreview([]);
     } finally {
       setFleetLoading(false);

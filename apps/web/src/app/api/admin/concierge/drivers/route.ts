@@ -123,3 +123,31 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Failed to update" }, { status: 500 });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  const auth = await verifyAdminAuth(request);
+  if (!auth.authenticated) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id) {
+    return NextResponse.json({ success: false, error: "Id required" }, { status: 400 });
+  }
+
+  const activeTrip = await prisma.conciergeRideRequest.findFirst({
+    where: {
+      assignedDriverId: id,
+      status: { in: ["ASSIGNED", "ON_THE_WAY", "ARRIVED", "IN_TRIP"] },
+    },
+  });
+  if (activeTrip) {
+    return NextResponse.json(
+      { success: false, error: "Driver has an active hotel trip — finish or cancel it first" },
+      { status: 409 }
+    );
+  }
+
+  await prisma.conciergeDriverProfile.delete({ where: { id } });
+  return NextResponse.json({ success: true });
+}

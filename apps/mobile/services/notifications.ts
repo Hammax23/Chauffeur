@@ -7,8 +7,8 @@ import Constants from "expo-constants";
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
     const type = notification.request.content.data?.type;
-    const isRideAlert =
-      type === "new_assignment" || type === "live_offer" || type === "concierge_offer";
+    // Custom in-app banner handles SARJ assignment/live offers; concierge uses system banner
+    const isRideAlert = type === "new_assignment" || type === "live_offer";
     return {
       shouldShowAlert: !isRideAlert,
       shouldShowBanner: !isRideAlert,

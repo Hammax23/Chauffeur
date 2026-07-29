@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Plus, Pencil, X } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Pencil, X, Trash2 } from "lucide-react";
 
 type Profile = {
   id: string;
@@ -128,6 +128,19 @@ export default function ConciergeDriversPage() {
     }
   }
 
+  async function unenroll(id: string, name: string) {
+    if (!confirm(`Unenroll ${name} from Hotel Concierge?`)) return;
+    const res = await fetch(`/api/admin/concierge/drivers?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    const data = await res.json();
+    if (!data.success) {
+      alert(data.error || "Unenroll failed");
+      return;
+    }
+    load();
+  }
+
   const enrolledIds = new Set(profiles.map((p) => p.driverId));
   const availableDrivers = drivers.filter((d) => !enrolledIds.has(d.id));
 
@@ -193,9 +206,17 @@ export default function ConciergeDriversPage() {
                 </td>
                 <td className="px-4 py-3">{p.availability}</td>
                 <td className="px-4 py-3">${p.referralEarnings.toFixed(2)}</td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-3 text-right space-x-1">
                   <button type="button" onClick={() => openEdit(p)} className="p-1.5 hover:bg-gray-100 rounded-lg">
                     <Pencil className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => unenroll(p.id, p.driver.name)}
+                    className="p-1.5 hover:bg-red-50 rounded-lg"
+                    title="Unenroll"
+                  >
+                    <Trash2 className="w-4 h-4 text-red-500" />
                   </button>
                 </td>
               </tr>

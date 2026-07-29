@@ -4,6 +4,7 @@ import { verifyConciergeToken } from "@/lib/concierge-auth";
 import {
   VEHICLE_REQUEST_RULES,
   computeHotelCommission,
+  computePlatformFee,
   makeRequestCode,
   type VehicleRequestRule,
 } from "@/lib/concierge-rules";
@@ -96,7 +97,7 @@ export async function POST(req: NextRequest) {
         vehicleRequestRule,
         guestPaymentMethod: paymentPref,
         fare,
-        platformFee: 0,
+        platformFee: computePlatformFee(fare, paymentPref),
         hotelCommission,
         status: "OPEN",
         commission: { create: {} },

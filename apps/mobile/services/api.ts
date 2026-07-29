@@ -8,8 +8,9 @@ function normalizeApiBaseUrl(raw: string): string {
 }
 
 /**
- * Production + dev-safe API origin. Hard-coded LAN IPs break when Wi‑Fi / PC IP changes.
- * Override anytime with EXPO_PUBLIC_API_BASE_URL (e.g. http://192.168.x.x:3000 or .../api).
+ * Production + dev-safe API origin.
+ * In Expo Go (__DEV__), prefer Metro's debugger host so a stale .env LAN IP
+ * does not hang the app when Wi‑Fi / PC IP changes.
  */
 function resolveApiBaseUrl(): string {
   const defaultProd = "https://sarjworldwide.ca/api";
@@ -18,10 +19,6 @@ function resolveApiBaseUrl(): string {
   // Release builds: allow EAS env (preview/staging/prod) to override the API host.
   if (!__DEV__) {
     return normalizeApiBaseUrl(fromEnv || defaultProd);
-  }
-
-  if (fromEnv) {
-    return normalizeApiBaseUrl(fromEnv);
   }
 
   const dbg =
@@ -33,7 +30,16 @@ function resolveApiBaseUrl(): string {
   if (dbg) {
     const hostOnly = dbg.split(":")[0]?.trim();
     if (hostOnly) {
-      return `http://${hostOnly}:3000/api`;
+      const metroUrl = `http://${hostOnly}:3000/api`;
+      if (fromEnv) {
+        const envNorm = normalizeApiBaseUrl(fromEnv);
+        if (envNorm !== metroUrl) {
+          console.warn(
+            `[API] Ignoring stale EXPO_PUBLIC_API_BASE_URL (${envNorm}); using Metro host ${metroUrl}`
+          );
+        }
+      }
+      return metroUrl;
     }
   }
 
@@ -46,16 +52,17 @@ function resolveApiBaseUrl(): string {
     }
   }
 
+  if (fromEnv) {
+    return normalizeApiBaseUrl(fromEnv);
+  }
+
   if (Platform.OS === "android") {
     return "http://10.0.2.2:3000/api";
   }
 
-  // Physical iPhone cannot use 127.0.0.1 — set EXPO_PUBLIC_API_BASE_URL in apps/mobile/.env
-  if (__DEV__) {
-    console.warn(
-      "[API] iPhone/Expo Go: create apps/mobile/.env with EXPO_PUBLIC_API_BASE_URL=http://YOUR_PC_IP:3000/api"
-    );
-  }
+  console.warn(
+    "[API] iPhone/Expo Go: create apps/mobile/.env with EXPO_PUBLIC_API_BASE_URL=http://YOUR_PC_IP:3000/api"
+  );
 
   return "http://127.0.0.1:3000/api";
 }
@@ -64,6 +71,29 @@ export const API_BASE_URL = resolveApiBaseUrl();
 
 if (__DEV__) {
   console.log("[API] Using base URL:", API_BASE_URL);
+}
+
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit = {},
+  timeoutMs = 12_000
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") {
+      throw new Error(
+        __DEV__
+          ? `Request timed out (${timeoutMs}ms). Is apps/web running on ${API_BASE_URL}?`
+          : "Request timed out. Check your connection."
+      );
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 type UnauthorizedRole = "customer" | "driver" | "concierge";
@@ -467,7 +497,7 @@ async function apiRequest<T>(
 
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers,
     });
@@ -518,7 +548,7 @@ async function apiRequestWithResponse<T>(
 
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers: { ...headers, Accept: "application/json" },
     });
@@ -757,14 +787,16 @@ export type AppFleetPricingDto = {
 export async function getFleetVehicles(): Promise<{ success: boolean; vehicles: FleetVehicleDto[] }> {
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}/fleet`, {
+    response = await fetchWithTimeout(`${API_BASE_URL}/fleet`, {
       headers: { Accept: "application/json" },
     });
-  } catch {
+  } catch (e) {
     throw new Error(
-      __DEV__
-        ? `Network error. Confirm EXPO_PUBLIC_API_BASE_URL (${API_BASE_URL}).`
-        : "Network error. Check your connection and try again."
+      e instanceof Error
+        ? e.message
+        : __DEV__
+          ? `Network error. Confirm EXPO_PUBLIC_API_BASE_URL (${API_BASE_URL}).`
+          : "Network error. Check your connection and try again."
     );
   }
 
@@ -792,14 +824,16 @@ export async function getAppFleetVehicles(options?: {
   const qs = options?.homeOnly ? "?home=1" : "";
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}/app-fleet${qs}`, {
+    response = await fetchWithTimeout(`${API_BASE_URL}/app-fleet${qs}`, {
       headers: { Accept: "application/json" },
     });
-  } catch {
+  } catch (e) {
     throw new Error(
-      __DEV__
-        ? `Network error. Confirm EXPO_PUBLIC_API_BASE_URL (${API_BASE_URL}).`
-        : "Network error. Check your connection and try again."
+      e instanceof Error
+        ? e.message
+        : __DEV__
+          ? `Network error. Confirm EXPO_PUBLIC_API_BASE_URL (${API_BASE_URL}).`
+          : "Network error. Check your connection and try again."
     );
   }
 
@@ -1259,6 +1293,20 @@ export async function createConciergePaymentIntent(rideId: string) {
   });
 }
 
+export async function createConciergeCheckout(rideId: string, returnBaseUrl: string) {
+  return apiRequest<{
+    success: boolean;
+    url: string | null;
+    sessionId: string;
+    platformFee: number;
+    amount: number;
+    demoHint?: string;
+  }>("/concierge/rides/checkout", {
+    method: "POST",
+    body: JSON.stringify({ rideId, returnBaseUrl }),
+  });
+}
+
 export async function confirmConciergePayment(rideId: string, paymentIntentId: string) {
   return apiRequest<{ success: boolean; ride: ConciergeRide }>(
     "/concierge/rides/confirm-payment",
@@ -1267,6 +1315,11 @@ export async function confirmConciergePayment(rideId: string, paymentIntentId: s
       body: JSON.stringify({ rideId, paymentIntentId }),
     }
   );
+}
+
+/** Web origin for Stripe success/cancel pages (API base without /api). */
+export function getConciergePayWebOrigin(): string {
+  return API_BASE_URL.replace(/\/api\/?$/, "");
 }
 
 // ==================== DRIVER CONCIERGE API ====================
@@ -1285,6 +1338,7 @@ export async function patchDriverConcierge(
   body:
     | { action: "set_availability"; availability: "ONLINE" | "OFFLINE" }
     | { action: "accept"; rideId: string }
+    | { action: "reject"; rideId: string }
     | {
         action: "status";
         rideId: string;

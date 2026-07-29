@@ -81,7 +81,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const token = await getCustomerToken();
         if (token) {
           const stored = await getStoredCustomer();
-          if (stored) setUser(stored);
+          if (stored) {
+            setUser(stored);
+            // Unblock home immediately — refresh profile in background
+            setIsLoading(false);
+          }
           try {
             const data = await getProfile();
             if (data.success && data.customer) {
@@ -89,7 +93,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               scheduleCustomerPush(token);
             }
           } catch (error: unknown) {
-            // Only wipe session on true auth failure; keep offline sessions.
             const message = error instanceof Error ? error.message : "";
             const stillHasToken = await getCustomerToken();
             if (!stillHasToken) {
@@ -98,14 +101,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               await clearCustomerSession();
               setUser(null);
             }
-            // else: network/5xx — keep stored user + token
+          } finally {
+            setIsLoading(false);
           }
         } else {
           setUser(null);
+          setIsLoading(false);
         }
       } catch {
         setUser(null);
-      } finally {
         setIsLoading(false);
       }
     })();

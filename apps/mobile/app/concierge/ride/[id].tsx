@@ -16,9 +16,12 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   getConciergeRide,
   patchConciergeRide,
+  createConciergeCheckout,
+  getConciergePayWebOrigin,
   type ConciergeRide,
 } from "../../../services/api";
 import { SlimSpinner } from "../../../components/SlimSpinner";
+import * as WebBrowser from "expo-web-browser";
 
 const GOLD = "#D4A04A";
 
@@ -93,6 +96,38 @@ export default function ConciergeRideDetailScreen() {
     ]);
   };
 
+  const payWithStripeDemo = () => {
+    if (!id) return;
+    Alert.alert(
+      "Stripe demo pay",
+      "Browser mein Stripe Checkout khulega. Test keys ke sath card 4242… use karo. Live keys real charge karti hain.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Open Stripe",
+          onPress: () => {
+            void (async () => {
+              setBusy(true);
+              try {
+                const res = await createConciergeCheckout(id, getConciergePayWebOrigin());
+                if (!res.url) {
+                  Alert.alert("Error", "No checkout URL returned");
+                  return;
+                }
+                await WebBrowser.openBrowserAsync(res.url);
+                await load();
+              } catch (e: unknown) {
+                Alert.alert("Stripe error", e instanceof Error ? e.message : "Checkout failed");
+              } finally {
+                setBusy(false);
+              }
+            })();
+          },
+        },
+      ]
+    );
+  };
+
   if (loading && !ride) {
     return (
       <View style={styles.loader}>
@@ -154,6 +189,10 @@ export default function ConciergeRideDetailScreen() {
           <Row label="Vehicle" value={String(ride.vehicleRequestRule || "").replace(/_/g, " ")} />
           <Row label="Payment" value={String(ride.guestPaymentMethod || "UNSET")} />
           <Row label="Fare" value={`$${Number(ride.fare || 0).toFixed(2)}`} />
+          <Row
+            label="Platform fee (5% App)"
+            value={`$${Number(ride.platformFee || 0).toFixed(2)}`}
+          />
           <Row label="Hotel commission" value={`$${Number(ride.hotelCommission || 0).toFixed(2)}`} />
           {ride.notes ? <Row label="Notes" value={ride.notes} /> : null}
         </View>
@@ -199,29 +238,47 @@ export default function ConciergeRideDetailScreen() {
           <ActivityIndicator color={GOLD} style={{ marginVertical: 16 }} />
         ) : (
           <View style={styles.actions}>
-            {ride.guestPaymentMethod === "UNSET" || !ride.guestPaymentMethod ? (
-              <>
-                <Pressable
-                  style={styles.actionBtn}
-                  onPress={() =>
-                    void runAction({ action: "set_payment", guestPaymentMethod: "CASH" })
-                  }
-                >
-                  <Text style={styles.actionText}>Set payment: Cash</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.actionBtn}
-                  onPress={() =>
-                    void runAction({ action: "set_payment", guestPaymentMethod: "APP" })
-                  }
-                >
-                  <Text style={styles.actionText}>Set payment: App</Text>
-                </Pressable>
-              </>
-            ) : null}
+            <Text style={styles.actionsLabel}>Guest payment</Text>
+            <Pressable
+              style={[
+                styles.actionBtn,
+                ride.guestPaymentMethod === "CASH" && styles.actionSelected,
+              ]}
+              onPress={() =>
+                void runAction({ action: "set_payment", guestPaymentMethod: "CASH" })
+              }
+            >
+              <Text style={styles.actionText}>
+                Cash (no platform fee)
+                {ride.guestPaymentMethod === "CASH" ? " ✓" : ""}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.actionBtn, styles.stripeBtn]}
+              onPress={payWithStripeDemo}
+            >
+              <Text style={styles.actionText}>Pay with Stripe (demo) · +5%</Text>
+            </Pressable>
+            {ride.guestPaymentMethod === "APP" ? (
+              <Text style={styles.paidHint}>
+                App payment recorded · fee ${Number(ride.platformFee || 0).toFixed(2)}
+              </Text>
+            ) : (
+              <Pressable
+                style={[styles.actionBtn, styles.actionAlt]}
+                onPress={() =>
+                  void runAction({ action: "set_payment", guestPaymentMethod: "APP" })
+                }
+              >
+                <Text style={[styles.actionText, styles.actionAltText]}>
+                  Mark App paid (manual, no Stripe)
+                </Text>
+              </Pressable>
+            )}
 
             {isDone ? (
               <>
+                <Text style={[styles.actionsLabel, { marginTop: 8 }]}>Hotel commission</Text>
                 <Pressable
                   style={styles.actionBtn}
                   onPress={() =>
@@ -304,11 +361,21 @@ const styles = StyleSheet.create({
   rowLabel: { fontSize: 12, color: "#94a3b8", fontWeight: "600", marginBottom: 2 },
   rowValue: { fontSize: 15, color: "#0f172a", fontWeight: "500" },
   actions: { gap: 10, marginTop: 8 },
+  actionsLabel: { fontSize: 13, fontWeight: "700", color: "#64748b", marginBottom: 2 },
   actionBtn: {
     backgroundColor: "#1a1a1a",
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: "center",
+  },
+  actionSelected: { backgroundColor: "#2E7D4F" },
+  stripeBtn: { backgroundColor: "#635BFF" },
+  paidHint: {
+    textAlign: "center",
+    color: "#059669",
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: -2,
   },
   actionAlt: { backgroundColor: "#f8fafc", borderWidth: 1, borderColor: "#e2e8f0" },
   actionAltText: { color: "#0f172a" },

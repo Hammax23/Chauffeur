@@ -56,6 +56,7 @@ export default function DriverConciergeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [dismissedOpenIds, setDismissedOpenIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     try {
@@ -127,7 +128,44 @@ export default function DriverConciergeScreen() {
     ]);
   };
 
-  const updateStatus = (rideId: string, status: "ON_THE_WAY" | "ARRIVED" | "IN_TRIP" | "COMPLETED") => {
+  const rejectRide = (rideId: string) => {
+    Alert.alert("Decline this request?", "It will stay available for other drivers.", [
+      { text: "Keep", style: "cancel" },
+      {
+        text: "Decline",
+        style: "destructive",
+        onPress: () => {
+          void (async () => {
+            setBusyId(rideId);
+            try {
+              await patchDriverConcierge({ action: "reject", rideId });
+              setDismissedOpenIds((prev) => new Set(prev).add(rideId));
+            } catch (e: unknown) {
+              Alert.alert("Error", e instanceof Error ? e.message : "Decline failed");
+            } finally {
+              setBusyId(null);
+            }
+          })();
+        },
+      },
+    ]);
+  };
+
+  const cancelTrip = (rideId: string) => {
+    Alert.alert("Cancel hotel trip?", "You will go back Online for new hotel requests.", [
+      { text: "Keep", style: "cancel" },
+      {
+        text: "Cancel trip",
+        style: "destructive",
+        onPress: () => updateStatus(rideId, "CANCELLED"),
+      },
+    ]);
+  };
+
+  const updateStatus = (
+    rideId: string,
+    status: "ON_THE_WAY" | "ARRIVED" | "IN_TRIP" | "COMPLETED" | "CANCELLED"
+  ) => {
     void (async () => {
       setBusyId(rideId);
       try {
@@ -256,10 +294,12 @@ export default function DriverConciergeScreen() {
                 </View>
 
                 <Text style={styles.sectionTitle}>Open requests</Text>
-                {openRequests.length === 0 ? (
+                {openRequests.filter((r) => !dismissedOpenIds.has(r.id)).length === 0 ? (
                   <Text style={styles.empty}>No open hotel requests matching your vehicle.</Text>
                 ) : (
-                  openRequests.map((ride) => (
+                  openRequests
+                    .filter((r) => !dismissedOpenIds.has(r.id))
+                    .map((ride) => (
                     <View key={ride.id} style={styles.rideCard}>
                       <Text style={styles.code}>{ride.requestCode}</Text>
                       <Text style={styles.hotel}>{ride.hotel?.name || "Hotel"}</Text>
@@ -269,17 +309,26 @@ export default function DriverConciergeScreen() {
                       <Text style={styles.meta}>
                         ${Number(ride.fare || 0).toFixed(2)} · {String(ride.vehicleRequestRule).replace(/_/g, " ")}
                       </Text>
-                      <Pressable
-                        style={styles.acceptBtn}
-                        disabled={busyId === ride.id}
-                        onPress={() => acceptRide(ride.id)}
-                      >
-                        {busyId === ride.id ? (
-                          <ActivityIndicator color="#111" />
-                        ) : (
-                          <Text style={styles.acceptText}>Accept</Text>
-                        )}
-                      </Pressable>
+                      <View style={styles.openActions}>
+                        <Pressable
+                          style={styles.acceptBtn}
+                          disabled={busyId === ride.id}
+                          onPress={() => acceptRide(ride.id)}
+                        >
+                          {busyId === ride.id ? (
+                            <ActivityIndicator color="#111" />
+                          ) : (
+                            <Text style={styles.acceptText}>Accept</Text>
+                          )}
+                        </Pressable>
+                        <Pressable
+                          style={styles.declineBtn}
+                          disabled={busyId === ride.id}
+                          onPress={() => rejectRide(ride.id)}
+                        >
+                          <Text style={styles.declineText}>Decline</Text>
+                        </Pressable>
+                      </View>
                     </View>
                   ))
                 )}
@@ -290,6 +339,9 @@ export default function DriverConciergeScreen() {
                 ) : (
                   myRides.map((ride) => {
                     const next = NEXT_STATUS[ride.status] || [];
+                    const canCancelTrip = ["ASSIGNED", "ON_THE_WAY", "ARRIVED", "IN_TRIP"].includes(
+                      ride.status
+                    );
                     return (
                       <View key={ride.id} style={styles.rideCard}>
                         <View style={styles.rideTop}>
@@ -303,6 +355,11 @@ export default function DriverConciergeScreen() {
                         <Text style={styles.meta}>
                           Guest: {ride.guestName || "—"} · Concierge: {ride.concierge?.name || "—"}
                         </Text>
+                        <Text style={styles.meta}>
+                          Pay: {ride.guestPaymentMethod || "UNSET"} · Fee $
+                          {Number(ride.platformFee || 0).toFixed(2)} · Net $
+                          {(Number(ride.fare || 0) - Number(ride.platformFee || 0)).toFixed(2)}
+                        </Text>
 
                         {next.map((n) => (
                           <Pressable
@@ -314,6 +371,16 @@ export default function DriverConciergeScreen() {
                             <Text style={styles.statusBtnText}>{n.label}</Text>
                           </Pressable>
                         ))}
+
+                        {canCancelTrip ? (
+                          <Pressable
+                            style={styles.cancelTripBtn}
+                            disabled={busyId === ride.id}
+                            onPress={() => cancelTrip(ride.id)}
+                          >
+                            <Text style={styles.cancelTripText}>Cancel trip</Text>
+                          </Pressable>
+                        ) : null}
 
                         {ride.status === "COMPLETED" ? (
                           <View style={styles.completedActions}>
@@ -434,13 +501,32 @@ const styles = StyleSheet.create({
   route: { color: "rgba(255,255,255,0.65)", fontSize: 13, marginTop: 4 },
   meta: { color: "rgba(255,255,255,0.45)", fontSize: 12, marginTop: 6 },
   acceptBtn: {
-    marginTop: 12,
+    flex: 1,
     backgroundColor: GOLD,
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: "center",
   },
   acceptText: { color: "#111", fontWeight: "800", fontSize: 14 },
+  openActions: { flexDirection: "row", gap: 8, marginTop: 12 },
+  declineBtn: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+  },
+  declineText: { color: "rgba(255,255,255,0.75)", fontWeight: "700", fontSize: 14 },
+  cancelTripBtn: {
+    marginTop: 10,
+    borderRadius: 12,
+    paddingVertical: 11,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#dc2626",
+  },
+  cancelTripText: { color: "#f87171", fontWeight: "800", fontSize: 14 },
   statusBtn: {
     marginTop: 10,
     backgroundColor: "#1a1a1a",

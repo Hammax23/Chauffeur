@@ -33,8 +33,8 @@ const VEHICLE_OPTIONS: { value: ConciergeVehicleRequestRule; label: string }[] =
 
 const PAYMENT_OPTIONS: { value: ConciergeGuestPaymentMethod; label: string }[] = [
   { value: "UNSET", label: "Unset" },
-  { value: "CASH", label: "Cash" },
-  { value: "APP", label: "App" },
+  { value: "CASH", label: "Cash (no fee)" },
+  { value: "APP", label: "App (+5% fee)" },
 ];
 
 export default function CreateConciergeRideScreen() {

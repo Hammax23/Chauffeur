@@ -45,22 +45,62 @@ function statusColor(status: string) {
   }
 }
 
+type ListTab = "active" | "completed";
+
+function RideCard({ ride }: { ride: ConciergeRide }) {
+  return (
+    <Pressable
+      onPress={() => router.push(`/concierge/ride/${ride.id}`)}
+      style={({ pressed }) => [styles.rideCard, pressed && { opacity: 0.92 }]}
+    >
+      <View style={styles.rideTop}>
+        <Text style={styles.rideCode}>{ride.requestCode}</Text>
+        <View style={[styles.badge, { backgroundColor: statusColor(ride.status) + "18" }]}>
+          <Text style={[styles.badgeText, { color: statusColor(ride.status) }]}>
+            {ride.status.replace(/_/g, " ")}
+          </Text>
+        </View>
+      </View>
+      <Text style={styles.guestName}>{ride.guestName || "Guest"}</Text>
+      <Text style={styles.route}>
+        {shortLoc(ride.pickupLocation)} → {shortLoc(ride.dropoffLocation)}
+      </Text>
+      <View style={styles.rideMeta}>
+        <Text style={styles.metaText}>${Number(ride.fare || 0).toFixed(2)}</Text>
+        <Text style={styles.metaText}>
+          {ride.guestPaymentMethod && ride.guestPaymentMethod !== "UNSET"
+            ? ride.guestPaymentMethod
+            : "Pay unset"}
+          {Number(ride.platformFee || 0) > 0 ? ` · fee $${Number(ride.platformFee).toFixed(2)}` : ""}
+        </Text>
+      </View>
+      {ride.status === "COMPLETED" && ride.commission?.conciergeClaim === "UNSET" ? (
+        <Text style={styles.pendingHint}>Commission confirmation pending</Text>
+      ) : null}
+    </Pressable>
+  );
+}
+
 export default function ConciergeDashboardScreen() {
   const { concierge } = useConciergeAuth();
   const [dashboard, setDashboard] = useState<ConciergeDashboard | null>(null);
-  const [rides, setRides] = useState<ConciergeRide[]>([]);
+  const [activeRides, setActiveRides] = useState<ConciergeRide[]>([]);
+  const [completedRides, setCompletedRides] = useState<ConciergeRide[]>([]);
+  const [tab, setTab] = useState<ListTab>("active");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true);
-      const [dashRes, ridesRes] = await Promise.all([
+      const [dashRes, activeRes, completedRes] = await Promise.all([
         getConciergeDashboard(),
         getConciergeRides("active"),
+        getConciergeRides("completed"),
       ]);
       if (dashRes.success) setDashboard(dashRes.dashboard);
-      if (ridesRes.success) setRides(ridesRes.rides);
+      if (activeRes.success) setActiveRides(activeRes.rides);
+      if (completedRes.success) setCompletedRides(completedRes.rides);
     } catch {
       // keep last good state
     } finally {
@@ -76,6 +116,7 @@ export default function ConciergeDashboardScreen() {
   );
 
   const firstName = concierge?.name?.split(" ")[0] || "Concierge";
+  const list = tab === "active" ? activeRides : completedRides;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -115,18 +156,21 @@ export default function ConciergeDashboardScreen() {
         ) : (
           <>
             <View style={styles.statsRow}>
-              <View style={styles.statCard}>
+              <Pressable style={styles.statCard} onPress={() => setTab("active")}>
                 <Text style={styles.statValue}>{dashboard?.activeRequests ?? 0}</Text>
                 <Text style={styles.statLabel}>Active</Text>
-              </View>
-              <View style={styles.statCard}>
+              </Pressable>
+              <Pressable style={styles.statCard} onPress={() => setTab("completed")}>
                 <Text style={styles.statValue}>{dashboard?.completedTrips ?? 0}</Text>
                 <Text style={styles.statLabel}>Completed</Text>
-              </View>
-              <View style={styles.statCard}>
+              </Pressable>
+              <Pressable
+                style={styles.statCard}
+                onPress={() => setTab("completed")}
+              >
                 <Text style={styles.statValue}>{dashboard?.pendingCommissions ?? 0}</Text>
                 <Text style={styles.statLabel}>Pending $</Text>
-              </View>
+              </Pressable>
             </View>
 
             <Pressable
@@ -137,37 +181,37 @@ export default function ConciergeDashboardScreen() {
               <Text style={styles.createBtnText}>New Guest Ride</Text>
             </Pressable>
 
-            <Text style={styles.sectionTitle}>Active rides</Text>
-            {rides.length === 0 ? (
+            <View style={styles.tabRow}>
+              <Pressable
+                style={[styles.tabBtn, tab === "active" && styles.tabBtnActive]}
+                onPress={() => setTab("active")}
+              >
+                <Text style={[styles.tabText, tab === "active" && styles.tabTextActive]}>
+                  Active
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.tabBtn, tab === "completed" && styles.tabBtnActive]}
+                onPress={() => setTab("completed")}
+              >
+                <Text style={[styles.tabText, tab === "completed" && styles.tabTextActive]}>
+                  Completed
+                </Text>
+              </Pressable>
+            </View>
+
+            <Text style={styles.sectionTitle}>
+              {tab === "active" ? "Active rides" : "Completed rides"}
+            </Text>
+            {list.length === 0 ? (
               <View style={styles.empty}>
                 <Ionicons name="car-outline" size={36} color="#cbd5e1" />
-                <Text style={styles.emptyText}>No active rides right now</Text>
+                <Text style={styles.emptyText}>
+                  {tab === "active" ? "No active rides right now" : "No completed rides yet"}
+                </Text>
               </View>
             ) : (
-              rides.map((ride) => (
-                <Pressable
-                  key={ride.id}
-                  onPress={() => router.push(`/concierge/ride/${ride.id}`)}
-                  style={({ pressed }) => [styles.rideCard, pressed && { opacity: 0.92 }]}
-                >
-                  <View style={styles.rideTop}>
-                    <Text style={styles.rideCode}>{ride.requestCode}</Text>
-                    <View style={[styles.badge, { backgroundColor: statusColor(ride.status) + "18" }]}>
-                      <Text style={[styles.badgeText, { color: statusColor(ride.status) }]}>
-                        {ride.status.replace(/_/g, " ")}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.guestName}>{ride.guestName || "Guest"}</Text>
-                  <Text style={styles.route}>
-                    {shortLoc(ride.pickupLocation)} → {shortLoc(ride.dropoffLocation)}
-                  </Text>
-                  <View style={styles.rideMeta}>
-                    <Text style={styles.metaText}>${Number(ride.fare || 0).toFixed(2)}</Text>
-                    <Text style={styles.metaText}>{ride.vehicleRequestRule?.replace(/_/g, " ")}</Text>
-                  </View>
-                </Pressable>
-              ))
+              list.map((ride) => <RideCard key={ride.id} ride={ride} />)
             )}
           </>
         )}
@@ -214,9 +258,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#1a1a1a",
     borderRadius: 30,
     paddingVertical: 15,
-    marginBottom: 28,
+    marginBottom: 16,
   },
   createBtnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  tabRow: {
+    flexDirection: "row",
+    backgroundColor: "#f1f5f9",
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+  },
+  tabBtn: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 10 },
+  tabBtnActive: { backgroundColor: "#fff" },
+  tabText: { fontSize: 14, fontWeight: "600", color: "#64748b" },
+  tabTextActive: { color: "#0f172a" },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
@@ -248,4 +303,5 @@ const styles = StyleSheet.create({
   route: { fontSize: 13, color: "#64748b", marginTop: 4 },
   rideMeta: { flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
   metaText: { fontSize: 12, color: "#94a3b8", fontWeight: "600" },
+  pendingHint: { marginTop: 8, fontSize: 12, fontWeight: "600", color: "#b45309" },
 });

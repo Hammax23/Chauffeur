@@ -38,7 +38,10 @@ export function ConciergeAuthProvider({ children }: { children: React.ReactNode 
         const token = await getConciergeToken();
         if (token) {
           const stored = await getStoredConcierge();
-          if (stored) setConcierge(stored);
+          if (stored) {
+            setConcierge(stored);
+            setIsLoading(false);
+          }
           try {
             const data = await getConciergeMe();
             if (data.success && data.concierge) {
@@ -48,13 +51,15 @@ export function ConciergeAuthProvider({ children }: { children: React.ReactNode 
           } catch {
             const stillHasToken = await getConciergeToken();
             if (!stillHasToken) setConcierge(null);
+          } finally {
+            setIsLoading(false);
           }
         } else {
           setConcierge(null);
+          setIsLoading(false);
         }
       } catch {
         setConcierge(null);
-      } finally {
         setIsLoading(false);
       }
     })();

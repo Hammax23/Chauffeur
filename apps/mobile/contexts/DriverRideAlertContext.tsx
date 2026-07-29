@@ -124,6 +124,12 @@ export function DriverRideAlertProvider({ children }: { children: React.ReactNod
 
     const received = Notifications.addNotificationReceivedListener((notification) => {
       const data = notification.request.content.data as Record<string, unknown>;
+      if (data?.type === "concierge_offer") {
+        // System banner already shown; optional light vibration to draw attention
+        if (Platform.OS === "android") Vibration.vibrate([0, 60, 40, 60]);
+        else Vibration.vibrate(60);
+        return;
+      }
       if (!isRideNotificationType(data?.type)) return;
       showRideAlert({
         bookingId: String(data.bookingId || ""),
@@ -135,6 +141,10 @@ export function DriverRideAlertProvider({ children }: { children: React.ReactNod
 
     const response = Notifications.addNotificationResponseReceivedListener((res) => {
       const data = res.notification.request.content.data as Record<string, unknown>;
+      if (data?.type === "concierge_offer") {
+        router.push("/driver/concierge");
+        return;
+      }
       if (!isRideNotificationType(data?.type)) return;
       const bookingId = String(data.bookingId || "");
       if (bookingId) {
@@ -150,6 +160,10 @@ export function DriverRideAlertProvider({ children }: { children: React.ReactNod
     void Notifications.getLastNotificationResponseAsync().then((last) => {
       if (!last) return;
       const data = last.notification.request.content.data as Record<string, unknown>;
+      if (data?.type === "concierge_offer") {
+        router.push("/driver/concierge");
+        return;
+      }
       if (!isRideNotificationType(data?.type)) return;
       const bookingId = String(data.bookingId || "");
       if (bookingId) {

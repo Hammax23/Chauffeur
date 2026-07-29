@@ -56,7 +56,10 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
         const token = await getDriverToken();
         if (token) {
           const stored = await getStoredDriver();
-          if (stored) setDriver(stored);
+          if (stored) {
+            setDriver(stored);
+            setIsLoading(false);
+          }
           try {
             const data = await getDriverProfile();
             if (data.success && data.driver) {
@@ -67,15 +70,16 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
           } catch {
             const stillHasToken = await getDriverToken();
             if (!stillHasToken) setDriver(null);
-            // keep session on transient network errors — still try push register
             if (stillHasToken) scheduleDriverPush(token);
+          } finally {
+            setIsLoading(false);
           }
         } else {
           setDriver(null);
+          setIsLoading(false);
         }
       } catch {
         setDriver(null);
-      } finally {
         setIsLoading(false);
       }
     })();

@@ -103,6 +103,16 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ success: true, profile: updated });
   }
 
+  // Soft reject — open request stays for other drivers; this driver can hide client-side
+  if (body.action === "reject") {
+    const rideId = String(body.rideId || "");
+    const ride = await prisma.conciergeRideRequest.findUnique({ where: { id: rideId } });
+    if (!ride || ride.status !== "OPEN") {
+      return NextResponse.json({ success: false, error: "Request no longer available" }, { status: 409 });
+    }
+    return NextResponse.json({ success: true });
+  }
+
   // Accept ride
   if (body.action === "accept") {
     const rideId = String(body.rideId || "");
