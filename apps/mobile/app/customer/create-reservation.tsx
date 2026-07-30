@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   ScrollView,
   TextInput,
@@ -177,6 +178,9 @@ export default function CreateReservationScreen() {
     pickup?: string | string[];
     pickupLat?: string | string[];
     pickupLng?: string | string[];
+    dropoff?: string | string[];
+    dropoffLat?: string | string[];
+    dropoffLng?: string | string[];
   }>();
   // Ensures we only honour a `vehicleId` param once — after the user has
   // possibly changed the selection, navigating back here shouldn't yank it
@@ -232,18 +236,47 @@ export default function CreateReservationScreen() {
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [childSeatCount, setChildSeatCount] = useState(0);
+  const [rideFor, setRideFor] = useState<"me" | "someone">("me");
   const [firstName, setFirstName] = useState(user?.firstName || "");
   const [lastName, setLastName] = useState(user?.lastName || "");
   const [phoneNumber, setPhoneNumber] = useState(user?.phone || "");
   const [email, setEmail] = useState(user?.email || "");
 
+  const applyAccountContact = useCallback(() => {
+    setFirstName(user?.firstName || "");
+    setLastName(user?.lastName || "");
+    setPhoneNumber(user?.phone || "");
+    setEmail(user?.email || "");
+  }, [user]);
+
   useEffect(() => {
     if (!user) return;
-    setFirstName((prev) => prev || user.firstName || "");
-    setLastName((prev) => prev || user.lastName || "");
-    setPhoneNumber((prev) => prev || user.phone || "");
-    setEmail((prev) => prev || user.email || "");
-  }, [user]);
+    if (rideFor === "me") {
+      setFirstName((prev) => prev || user.firstName || "");
+      setLastName((prev) => prev || user.lastName || "");
+      setPhoneNumber((prev) => prev || user.phone || "");
+      setEmail((prev) => prev || user.email || "");
+    } else {
+      // Keep booker email for receipts when riding for someone else
+      setEmail((prev) => prev || user.email || "");
+    }
+  }, [user, rideFor]);
+
+  const selectRideFor = useCallback(
+    (next: "me" | "someone") => {
+      if (next === rideFor) return;
+      setRideFor(next);
+      if (next === "me") {
+        applyAccountContact();
+      } else {
+        setFirstName("");
+        setLastName("");
+        setPhoneNumber("");
+        setEmail(user?.email || "");
+      }
+    },
+    [rideFor, applyAccountContact, user?.email]
+  );
 
   const loadFleet = useCallback(async () => {
     setFleetLoading(true);
@@ -345,6 +378,14 @@ export default function CreateReservationScreen() {
       setPickupLocationHint("Using Home pickup — route uses exact coordinates");
     }
   }, [params.pickup, params.pickupLat, params.pickupLng]);
+
+  // Prefill drop-off from Home trip editor
+  useEffect(() => {
+    const raw = params.dropoff;
+    const dropoff = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : "";
+    if (!dropoff?.trim()) return;
+    setDropoffAddress(dropoff.trim());
+  }, [params.dropoff]);
 
   // Auto-detect pickup once when the screen opens (skipped if Home already set pickup)
   useEffect(() => {
@@ -516,8 +557,21 @@ export default function CreateReservationScreen() {
       Alert.alert("Missing info", "Please enter pickup and drop-off addresses.");
       return;
     }
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !phoneNumber.trim()) {
-      Alert.alert("Missing info", "Please fill in your name, email, and phone.");
+    if (!firstName.trim() || !lastName.trim() || !phoneNumber.trim()) {
+      Alert.alert(
+        "Missing info",
+        rideFor === "me"
+          ? "Please confirm your name and phone number."
+          : "Please enter the passenger’s name and phone number."
+      );
+      return;
+    }
+    if (rideFor === "me" && !email.trim()) {
+      Alert.alert("Missing info", "Please add an email on your account for booking confirmation.");
+      return;
+    }
+    if (rideFor === "someone" && !(user?.email || email).trim()) {
+      Alert.alert("Missing info", "Your account needs an email so we can send the booking confirmation.");
       return;
     }
     if (!selectedTier) {
@@ -582,7 +636,14 @@ export default function CreateReservationScreen() {
       firstName,
       lastName,
       phoneNumber,
-      email,
+      email: rideFor === "someone" ? (user?.email || email).trim() : email.trim(),
+      rideFor,
+      bookerName:
+        rideFor === "someone"
+          ? [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || undefined
+          : undefined,
+      bookerEmail: rideFor === "someone" ? (user?.email || email).trim() || undefined : undefined,
+      bookerPhone: rideFor === "someone" ? user?.phone || undefined : undefined,
       seating: selectedTier.seating || "",
       recipientName: isParcel ? recipientName.trim() : undefined,
       recipientPhone: isParcel ? recipientPhone.trim() : undefined,
@@ -1088,64 +1149,296 @@ export default function CreateReservationScreen() {
           )}
         </View>
 
-        {/* Contact Info Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Contact Info</Text>
-          <Text style={styles.sectionSubtitle}>Your Details</Text>
+        {/* Who is riding */}
+        {!isParcel ? (
+          <View style={styles.section}>
+            <View style={styles.rideForHeader}>
+              <View style={styles.rideForTitleRow}>
+                <View style={styles.rideForAccent} />
+                <Text style={styles.rideForTitle}>Who is riding?</Text>
+              </View>
+              <Text style={styles.rideForSub}>
+                Tell us who the chauffeur should meet at pickup.
+              </Text>
+            </View>
 
-          {/* Name Row */}
-          <View style={styles.nameRow}>
-            <View style={styles.nameField}>
-              <Text style={styles.inputLabel}>First Name*</Text>
-              <View style={styles.inputBox}>
-                <TextInput
-                  style={styles.textInput}
-                  value={firstName}
-                  onChangeText={setFirstName}
-                />
+            <View style={styles.rideForTrack}>
+              <Pressable
+                onPress={() => selectRideFor("me")}
+                style={({ pressed }) => [
+                  styles.rideForSeg,
+                  rideFor === "me" && styles.rideForSegOn,
+                  pressed && { opacity: 0.92 },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.rideForSegIcon,
+                    rideFor === "me" && styles.rideForSegIconOn,
+                  ]}
+                >
+                  <Ionicons
+                    name="person"
+                    size={15}
+                    color={rideFor === "me" ? "#8B6914" : "#94a3b8"}
+                  />
+                </View>
+                <Text
+                  style={[styles.rideForSegText, rideFor === "me" && styles.rideForSegTextOn]}
+                >
+                  For me
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => selectRideFor("someone")}
+                style={({ pressed }) => [
+                  styles.rideForSeg,
+                  rideFor === "someone" && styles.rideForSegOn,
+                  pressed && { opacity: 0.92 },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.rideForSegIcon,
+                    rideFor === "someone" && styles.rideForSegIconOn,
+                  ]}
+                >
+                  <Ionicons
+                    name="people"
+                    size={15}
+                    color={rideFor === "someone" ? "#8B6914" : "#94a3b8"}
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.rideForSegText,
+                    rideFor === "someone" && styles.rideForSegTextOn,
+                  ]}
+                >
+                  Someone else
+                </Text>
+              </Pressable>
+            </View>
+
+            {rideFor === "me" ? (
+              <View style={styles.riderCard}>
+                <View style={styles.riderCardRail} />
+                <View style={styles.riderCardBody}>
+                  <View style={styles.riderCardTop}>
+                    <View style={styles.riderAvatarRing}>
+                      <View style={styles.riderAvatar}>
+                        <Text style={styles.riderInitials}>
+                          {`${(user?.firstName?.[0] || firstName?.[0] || "Y").toUpperCase()}${(user?.lastName?.[0] || lastName?.[0] || "").toUpperCase()}`}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.riderCopy}>
+                      <Text style={styles.riderEyebrow}>RIDING AS YOU</Text>
+                      <Text style={styles.riderName} numberOfLines={1}>
+                        {[firstName, lastName].filter(Boolean).join(" ") || "Your profile"}
+                      </Text>
+                      {email ? (
+                        <Text style={styles.riderMeta} numberOfLines={1}>
+                          {email}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </View>
+                  <View style={styles.riderChipRow}>
+                    <View style={styles.riderChip}>
+                      <Ionicons name="shield-checkmark" size={12} color="#8B6914" />
+                      <Text style={styles.riderChipText}>Account rider</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.guestPanel}>
+                <View style={styles.guestPanelTop}>
+                  <View style={styles.guestPanelIcon}>
+                    <Ionicons name="car-sport-outline" size={18} color="#8B6914" />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.guestPanelTitle}>Passenger ride</Text>
+                    <Text style={styles.guestPanelCopy}>
+                      Chauffeur meets them at pickup. Booking stays on your account —
+                      confirmation to {user?.email || "your email"}.
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.bookerStrip}>
+                  <Text style={styles.bookerStripLabel}>BOOKED BY</Text>
+                  <Text style={styles.bookerStripName} numberOfLines={1}>
+                    {[user?.firstName, user?.lastName].filter(Boolean).join(" ") || "You"}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {rideFor === "me" ? (
+              <>
+                {!(user?.firstName && user?.lastName) ? (
+                  <View style={styles.nameRow}>
+                    <View style={styles.nameField}>
+                      <Text style={styles.inputLabel}>First Name*</Text>
+                      <View style={styles.inputBox}>
+                        <TextInput
+                          style={styles.textInput}
+                          value={firstName}
+                          onChangeText={setFirstName}
+                          placeholder="First name"
+                          placeholderTextColor="#999"
+                          autoCapitalize="words"
+                        />
+                      </View>
+                    </View>
+                    <View style={styles.nameField}>
+                      <Text style={styles.inputLabel}>Last Name*</Text>
+                      <View style={styles.inputBox}>
+                        <TextInput
+                          style={styles.textInput}
+                          value={lastName}
+                          onChangeText={setLastName}
+                          placeholder="Last name"
+                          placeholderTextColor="#999"
+                          autoCapitalize="words"
+                        />
+                      </View>
+                    </View>
+                  </View>
+                ) : null}
+                <Text style={[styles.inputLabel, { marginTop: 14 }]}>Mobile for trip updates*</Text>
+                <View style={styles.phoneInput}>
+                  <View style={styles.countryCode}>
+                    <View style={styles.flagIcon}>
+                      <Text>🇨🇦</Text>
+                    </View>
+                    <Ionicons name="chevron-down" size={14} color="#999" />
+                  </View>
+                  <TextInput
+                    style={styles.phoneField}
+                    value={phoneNumber}
+                    onChangeText={setPhoneNumber}
+                    keyboardType="phone-pad"
+                    placeholder="Your mobile number"
+                    placeholderTextColor="#999"
+                  />
+                </View>
+                <Text style={styles.contactHelper}>
+                  Dispatch and your chauffeur use this for pickup coordination.
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.passengerDetailsLabel}>Passenger details</Text>
+                <View style={styles.nameRow}>
+                  <View style={styles.nameField}>
+                    <Text style={styles.inputLabel}>First Name*</Text>
+                    <View style={styles.inputBox}>
+                      <TextInput
+                        style={styles.textInput}
+                        value={firstName}
+                        onChangeText={setFirstName}
+                        placeholder="Passenger"
+                        placeholderTextColor="#999"
+                        autoCapitalize="words"
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.nameField}>
+                    <Text style={styles.inputLabel}>Last Name*</Text>
+                    <View style={styles.inputBox}>
+                      <TextInput
+                        style={styles.textInput}
+                        value={lastName}
+                        onChangeText={setLastName}
+                        placeholder="Name"
+                        placeholderTextColor="#999"
+                        autoCapitalize="words"
+                      />
+                    </View>
+                  </View>
+                </View>
+
+                <Text style={styles.inputLabel}>Passenger mobile*</Text>
+                <View style={styles.phoneInput}>
+                  <View style={styles.countryCode}>
+                    <View style={styles.flagIcon}>
+                      <Text>🇨🇦</Text>
+                    </View>
+                    <Ionicons name="chevron-down" size={14} color="#999" />
+                  </View>
+                  <TextInput
+                    style={styles.phoneField}
+                    value={phoneNumber}
+                    onChangeText={setPhoneNumber}
+                    keyboardType="phone-pad"
+                    placeholder="Passenger mobile number"
+                    placeholderTextColor="#999"
+                  />
+                </View>
+                <Text style={styles.contactHelper}>
+                  You’ll still get booking confirmation on your account.
+                </Text>
+              </>
+            )}
+          </View>
+        ) : (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Contact Info</Text>
+            <Text style={styles.sectionSubtitle}>Your Details</Text>
+
+            <View style={styles.nameRow}>
+              <View style={styles.nameField}>
+                <Text style={styles.inputLabel}>First Name*</Text>
+                <View style={styles.inputBox}>
+                  <TextInput
+                    style={styles.textInput}
+                    value={firstName}
+                    onChangeText={setFirstName}
+                  />
+                </View>
+              </View>
+              <View style={styles.nameField}>
+                <Text style={styles.inputLabel}>Last Name*</Text>
+                <View style={styles.inputBox}>
+                  <TextInput
+                    style={styles.textInput}
+                    value={lastName}
+                    onChangeText={setLastName}
+                  />
+                </View>
               </View>
             </View>
-            <View style={styles.nameField}>
-              <Text style={styles.inputLabel}>Last Name*</Text>
-              <View style={styles.inputBox}>
-                <TextInput
-                  style={styles.textInput}
-                  value={lastName}
-                  onChangeText={setLastName}
-                />
+
+            <Text style={styles.inputLabel}>Phone Number*</Text>
+            <View style={styles.phoneInput}>
+              <View style={styles.countryCode}>
+                <View style={styles.flagIcon}>
+                  <Text>🇨🇦</Text>
+                </View>
+                <Ionicons name="chevron-down" size={14} color="#999" />
               </View>
+              <TextInput
+                style={styles.phoneField}
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                keyboardType="phone-pad"
+              />
+            </View>
+
+            <Text style={styles.inputLabel}>Email*</Text>
+            <View style={styles.inputBox}>
+              <TextInput
+                style={styles.textInput}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
             </View>
           </View>
-
-          {/* Phone Number */}
-          <Text style={styles.inputLabel}>Phone Number*</Text>
-          <View style={styles.phoneInput}>
-            <View style={styles.countryCode}>
-              <View style={styles.flagIcon}>
-                <Text>🇨🇦</Text>
-              </View>
-              <Ionicons name="chevron-down" size={14} color="#999" />
-            </View>
-            <TextInput
-              style={styles.phoneField}
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-              keyboardType="phone-pad"
-            />
-          </View>
-
-          {/* Email */}
-          <Text style={styles.inputLabel}>Email*</Text>
-          <View style={styles.inputBox}>
-            <TextInput
-              style={styles.textInput}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-        </View>
+        )}
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -1247,6 +1540,241 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#D4A04A",
     marginBottom: 16,
+  },
+  rideForHeader: {
+    marginBottom: 16,
+  },
+  rideForTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 6,
+  },
+  rideForAccent: {
+    width: 3,
+    height: 16,
+    borderRadius: 2,
+    backgroundColor: "rgba(212,160,74,0.7)",
+  },
+  rideForTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1a1a1a",
+    letterSpacing: -0.3,
+  },
+  rideForSub: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#64748b",
+    paddingLeft: 13,
+  },
+  rideForTrack: {
+    flexDirection: "row",
+    gap: 4,
+    padding: 4,
+    borderRadius: 14,
+    backgroundColor: "#F3F1ED",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(0,0,0,0.06)",
+    marginBottom: 14,
+  },
+  rideForSeg: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 11,
+    borderRadius: 11,
+  },
+  rideForSegOn: {
+    backgroundColor: "#fff",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(0,0,0,0.06)",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.06,
+        shadowRadius: 3,
+      },
+      android: { elevation: 1 },
+    }),
+  },
+  rideForSegIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+  },
+  rideForSegIconOn: {
+    backgroundColor: "rgba(212,160,74,0.14)",
+  },
+  rideForSegText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#94a3b8",
+    letterSpacing: 0.1,
+  },
+  rideForSegTextOn: {
+    color: "#1a1a1a",
+    fontWeight: "700",
+  },
+  riderCard: {
+    flexDirection: "row",
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: "#FAFAF8",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(0,0,0,0.07)",
+    marginBottom: 4,
+  },
+  riderCardRail: {
+    width: 3,
+    backgroundColor: "rgba(212,160,74,0.65)",
+  },
+  riderCardBody: {
+    flex: 1,
+    paddingVertical: 13,
+    paddingHorizontal: 13,
+  },
+  riderCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  riderAvatarRing: {
+    padding: 0,
+    borderRadius: 999,
+    borderWidth: 0,
+  },
+  riderAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(212,160,74,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  riderInitials: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#8B6914",
+    letterSpacing: 0.4,
+  },
+  riderCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  riderEyebrow: {
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 1.1,
+    color: "#A78B5A",
+    marginBottom: 3,
+  },
+  riderName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1a1a1a",
+    letterSpacing: -0.2,
+  },
+  riderMeta: {
+    marginTop: 2,
+    fontSize: 12,
+    color: "#64748b",
+  },
+  riderChipRow: {
+    flexDirection: "row",
+    marginTop: 10,
+  },
+  riderChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: "rgba(212,160,74,0.1)",
+  },
+  riderChipText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#8B6914",
+  },
+  guestPanel: {
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: "#FAFAF8",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(0,0,0,0.07)",
+    marginBottom: 4,
+  },
+  guestPanelTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 11,
+    padding: 13,
+  },
+  guestPanelIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: "rgba(212,160,74,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  guestPanelTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1a1a1a",
+    marginBottom: 4,
+  },
+  guestPanelCopy: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: "#64748b",
+  },
+  bookerStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    backgroundColor: "#F3F1ED",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(0,0,0,0.05)",
+  },
+  bookerStripLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 1.1,
+    color: "#A78B5A",
+  },
+  bookerStripName: {
+    flex: 1,
+    textAlign: "right",
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  passengerDetailsLabel: {
+    marginTop: 18,
+    marginBottom: 4,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1.1,
+    color: "#94a3b8",
+    textTransform: "uppercase",
+  },
+  contactHelper: {
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 16,
+    color: "#64748b",
   },
   sectionSubtitleWhenWhere: {
     marginBottom: 4,

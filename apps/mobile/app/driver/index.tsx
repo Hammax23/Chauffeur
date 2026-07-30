@@ -26,6 +26,7 @@ import { useDriverTheme } from "../../contexts/DriverThemeContext";
 import { GOLD } from "../../theme/driver-theme";
 import { SlimSpinner } from "../../components/SlimSpinner";
 import { getDriverRides, acceptRide, rejectRide, DriverRide } from "../../services/api";
+import { dismissPresentedForEntity } from "../../services/notification-deep-link";
 import { syncDriverLiveTracking, syncLiveTrackingFromRideList } from "../../services/driver-live-session";
 import { openDriverStream, type DriverOfferEvent } from "../../services/driver-stream";
 import { isParcelServiceType } from "../../utils/parcel";
@@ -377,6 +378,7 @@ export default function DriverDashboard() {
     try {
       const result = await acceptRide(bookingId);
       if (result.success) {
+        void dismissPresentedForEntity({ bookingId });
         // Optimistic remove from requests (SSE also revokes for others)
         setRides((prev) => prev.filter((r) => r.bookingId !== bookingId));
         setRequestCount((c) => Math.max(0, c - 1));
@@ -447,6 +449,7 @@ export default function DriverDashboard() {
                 fetchRides(activeTab, true);
                 return;
               }
+              void dismissPresentedForEntity({ bookingId });
               syncDriverLiveTracking().catch(() => {});
             } catch (error: unknown) {
               if (removed) {
@@ -666,7 +669,7 @@ export default function DriverDashboard() {
               <Text style={[styles.emptyText, { color: palette.muted }]}>
                 {activeTab === "requests"
                   ? isActive
-                    ? "Stay online — new offers will appear here instantly."
+                    ? "Stay online. New offers will appear here instantly."
                     : "Go online to receive live reservation offers."
                   : "Accepted rides show up here until you complete them."}
               </Text>

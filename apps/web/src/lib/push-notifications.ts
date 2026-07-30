@@ -53,19 +53,58 @@ function buildMessage(
       ? data.channelId
       : "reservations";
 
+  const bookingId =
+    typeof data?.bookingId === "string" ? data.bookingId.trim() : "";
+  const rideId = typeof data?.rideId === "string" ? data.rideId.trim() : "";
+  const type = typeof data?.type === "string" ? data.type : "";
+
+  // Collapse updates for the same entity so the tray doesn't stack duplicates
+  const collapseId =
+    (typeof data?.collapseId === "string" && data.collapseId) ||
+    (bookingId ? `booking:${bookingId}` : "") ||
+    (rideId ? `ride:${rideId}` : "") ||
+    undefined;
+
+  const eventId =
+    (typeof data?.eventId === "string" && data.eventId) ||
+    `${type || "push"}:${collapseId || "general"}:${Date.now()}`;
+
+  // Live marketplace offers go stale fast; assignments stay longer for offline drivers
+  const ttl =
+    typeof data?.ttlSeconds === "number" && Number.isFinite(data.ttlSeconds)
+      ? Math.max(60, Number(data.ttlSeconds))
+      : type === "live_offer" || type === "concierge_offer"
+        ? 60 * 60 * 2
+        : 60 * 60 * 24;
+
+  const { ttlSeconds: _ttlSeconds, collapseId: _collapseId, ...restData } =
+    (data || {}) as Record<string, unknown>;
+
   return {
     to: pushToken,
     sound: "default",
     title,
     body,
-    data: data || {},
+    data: {
+      ...restData,
+      type,
+      ...(bookingId ? { bookingId } : {}),
+      ...(rideId ? { rideId } : {}),
+      channelId,
+      eventId,
+      ...(collapseId ? { collapseId } : {}),
+    },
     priority: "high",
     channelId,
-    // Keep delivery attempts alive long enough for offline/closed devices
-    ttl: 60 * 60 * 24,
-    // iOS: wake device and show as a real alert (not silent)
+    ttl,
+    ...(collapseId
+      ? {
+          collapseId,
+          // Android: replace previous notification for same tag
+          tag: collapseId,
+        }
+      : {}),
     interruptionLevel: "time-sensitive",
-    // Android / Expo: ensure heads-up style delivery when possible
     _contentAvailable: true,
   };
 }

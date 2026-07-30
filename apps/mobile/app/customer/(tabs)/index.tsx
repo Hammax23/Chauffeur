@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Modal,
   KeyboardAvoidingView,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
@@ -114,8 +115,11 @@ export default function CustomerHomeScreen() {
   const [pickupLabel, setPickupLabel] = useState("Finding your location…");
   const [pickupAddress, setPickupAddress] = useState("");
   const [pickupManual, setPickupManual] = useState(false);
-  const [pickupEditorOpen, setPickupEditorOpen] = useState(false);
+  const [tripEditorOpen, setTripEditorOpen] = useState(false);
+  const [tripEditorFocus, setTripEditorFocus] = useState<"pickup" | "dropoff">("pickup");
   const [pickupDraft, setPickupDraft] = useState("");
+  const [dropoffDraft, setDropoffDraft] = useState("");
+  const [dropoffFocusKey, setDropoffFocusKey] = useState(0);
   const [locating, setLocating] = useState(true);
   const [locationDenied, setLocationDenied] = useState(false);
   const [activeRide, setActiveRide] = useState<Reservation | null>(null);
@@ -156,9 +160,10 @@ export default function CustomerHomeScreen() {
     if (opts?.manual) setPickupManual(true);
     mapRef.current?.animateToRegion(regionForVisibleMap(lat, lng), 650);
     if (opts?.label?.trim()) {
-      setPickupLabel(opts.label.trim());
-      setPickupAddress(opts.label.trim());
-      return;
+      const label = opts.label.trim();
+      setPickupLabel(label);
+      setPickupAddress(label);
+      return label;
     }
     try {
       const results = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
@@ -166,10 +171,12 @@ export default function CustomerHomeScreen() {
       const resolved = label || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
       setPickupLabel(resolved);
       setPickupAddress(resolved);
+      return resolved;
     } catch {
       const fallback = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
       setPickupLabel(fallback);
       setPickupAddress(fallback);
+      return fallback;
     }
   }, []);
 
@@ -187,17 +194,19 @@ export default function CustomerHomeScreen() {
         setLocationDenied(true);
         if (!pickupManual) setPickupLabel("Enable location for pickup");
         setLocating(false);
-        return;
+        return null;
       }
       const position = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
-      await applyLocation(position.coords.latitude, position.coords.longitude, {
+      const label = await applyLocation(position.coords.latitude, position.coords.longitude, {
         manual: false,
       });
       setPickupManual(false);
+      return label;
     } catch {
       if (!pickupManual) setPickupLabel("Couldn’t detect location");
+      return null;
     } finally {
       setLocating(false);
     }
@@ -259,16 +268,34 @@ export default function CustomerHomeScreen() {
   const friendlyStatus = (s: string) =>
     s === "ACCEPTED" ? "Driver assigned" : s === "CIC" ? "In car" : s;
 
-  const openPickupEditor = useCallback(() => {
-    setPickupDraft(pickupAddress || pickupLabel);
-    setPickupEditorOpen(true);
-  }, [pickupAddress, pickupLabel]);
+  const openTripEditor = useCallback(
+    (focus: "pickup" | "dropoff" = "pickup") => {
+      setPickupDraft(
+        pickupAddress ||
+          (pickupLabel !== "Finding your location…" &&
+          pickupLabel !== "Enable location for pickup" &&
+          pickupLabel !== "Couldn’t detect location"
+            ? pickupLabel
+            : "")
+      );
+      setDropoffDraft("");
+      setTripEditorFocus(focus);
+      if (focus === "dropoff") setDropoffFocusKey((k) => k + 1);
+      setTripEditorOpen(true);
+    },
+    [pickupAddress, pickupLabel]
+  );
 
   const bookingParams = useCallback(
     (extra?: Record<string, string>) => {
       const params: Record<string, string> = { ...(extra || {}) };
       const address = (pickupAddress || pickupLabel).trim();
-      if (address && address !== "Finding your location…" && address !== "Enable location for pickup") {
+      if (
+        address &&
+        address !== "Finding your location…" &&
+        address !== "Enable location for pickup" &&
+        address !== "Couldn’t detect location"
+      ) {
         params.pickup = address;
       }
       if (coords) {
@@ -280,10 +307,20 @@ export default function CustomerHomeScreen() {
     [pickupAddress, pickupLabel, coords]
   );
 
-  const openRide = useCallback(
-    () => router.push({ pathname: "/customer/create-reservation", params: bookingParams() }),
+  const continueToBooking = useCallback(
+    (dropoff: string, dropCoords?: { lat?: number; lng?: number }) => {
+      const params = bookingParams({ dropoff: dropoff.trim() });
+      if (dropCoords?.lat != null && dropCoords?.lng != null) {
+        params.dropoffLat = String(dropCoords.lat);
+        params.dropoffLng = String(dropCoords.lng);
+      }
+      setTripEditorOpen(false);
+      router.push({ pathname: "/customer/create-reservation", params });
+    },
     [bookingParams]
   );
+
+  const openRide = useCallback(() => openTripEditor("dropoff"), [openTripEditor]);
   const openParcel = useCallback(
     () =>
       router.push({
@@ -306,6 +343,14 @@ export default function CustomerHomeScreen() {
   }, [coords, myCoords, pickupManual, resolveLocation]);
 
   const sheetPadBottom = (Platform.OS === "ios" ? 88 : 72) + insets.bottom;
+  const { height: windowHeight } = useWindowDimensions();
+  const tripSheetMaxHeight = Math.min(windowHeight * 0.9, windowHeight - insets.top - 12);
+  const tripSheetHeaderBlock = 118; // handle + title + subtitle
+  const tripScrollMaxHeight = Math.max(
+    220,
+    tripSheetMaxHeight - tripSheetHeaderBlock - Math.max(insets.bottom, 12)
+  );
+  const placesPanelMaxHeight = Math.max(120, Math.min(180, windowHeight * 0.24));
 
   return (
     <View style={styles.root}>
@@ -389,7 +434,7 @@ export default function CustomerHomeScreen() {
           </Pressable>
 
           <Pressable
-            onPress={openPickupEditor}
+            onPress={() => openTripEditor("pickup")}
             style={({ pressed }) => [styles.pickupChip, pressed && styles.pressed]}
           >
             <View style={styles.pickupDot} />
@@ -624,61 +669,147 @@ export default function CustomerHomeScreen() {
         </ScrollView>
       </Animated.View>
 
-      {/* Change pickup location */}
+      {/* Pickup + Where to — responsive trip editor */}
       <Modal
-        visible={pickupEditorOpen}
+        visible={tripEditorOpen}
         animationType="slide"
         transparent
-        onRequestClose={() => setPickupEditorOpen(false)}
+        onRequestClose={() => setTripEditorOpen(false)}
+        statusBarTranslucent
       >
-        <KeyboardAvoidingView
-          style={styles.modalRoot}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
-          <Pressable style={styles.modalBackdrop} onPress={() => setPickupEditorOpen(false)} />
-          <View style={[styles.modalSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Set pickup point</Text>
-              <Pressable onPress={() => setPickupEditorOpen(false)} hitSlop={10}>
-                <Ionicons name="close" size={22} color="#64748b" />
-              </Pressable>
-            </View>
-            <Text style={styles.modalSub}>Search an address or use your current location.</Text>
-
-            <GooglePlacesAddressField
-              value={pickupDraft}
-              onChangeText={setPickupDraft}
-              placeholder="Search street, place, or airport"
-              iconName="search-outline"
-              autoFocus
-              onPlaceResolved={(place) => {
-                if (place.lat != null && place.lng != null) {
-                  void applyLocation(place.lat, place.lng, {
-                    manual: true,
-                    label: place.address,
-                  });
-                } else {
-                  setPickupManual(true);
-                  setPickupLabel(place.address);
-                  setPickupAddress(place.address);
-                }
-                setPickupEditorOpen(false);
-              }}
-            />
-
-            <Pressable
-              onPress={async () => {
-                setPickupEditorOpen(false);
-                await resolveLocation();
-              }}
-              style={({ pressed }) => [styles.useGpsBtn, pressed && styles.pressed]}
+        <View style={styles.modalRoot}>
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={() => setTripEditorOpen(false)}
+            accessibilityLabel="Close"
+          />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+            style={styles.modalAvoid}
+          >
+            <View
+              style={[
+                styles.modalSheet,
+                {
+                  maxHeight: tripSheetMaxHeight,
+                  paddingBottom: Math.max(insets.bottom, 12),
+                },
+              ]}
             >
-              <Ionicons name="locate" size={18} color={ACCENT} />
-              <Text style={styles.useGpsText}>Use my current location</Text>
-            </Pressable>
-          </View>
-        </KeyboardAvoidingView>
+              <View style={styles.modalHandle} />
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle} numberOfLines={1}>
+                  Plan your ride
+                </Text>
+                <Pressable
+                  onPress={() => setTripEditorOpen(false)}
+                  hitSlop={12}
+                  style={styles.modalCloseBtn}
+                >
+                  <Ionicons name="close" size={20} color="#64748b" />
+                </Pressable>
+              </View>
+              <Text style={styles.modalSub} numberOfLines={2}>
+                Set pickup and where you’re going.
+              </Text>
+
+              <ScrollView
+                style={[styles.modalScroll, { maxHeight: tripScrollMaxHeight }]}
+                contentContainerStyle={styles.modalScrollContent}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+                nestedScrollEnabled
+              >
+                <View style={styles.routeCard}>
+                  <View style={styles.routeRail} pointerEvents="none">
+                    <View style={styles.routePickupDot} />
+                    <View style={styles.routeLine} />
+                    <View style={styles.routeDropDot} />
+                  </View>
+                  <View style={styles.routeFields}>
+                    <View
+                      style={[
+                        styles.routeFieldBlock,
+                        tripEditorFocus === "pickup" && styles.routeFieldBlockActive,
+                      ]}
+                    >
+                      <Text style={styles.routeFieldLabel}>Pickup</Text>
+                      <GooglePlacesAddressField
+                        value={pickupDraft}
+                        onChangeText={setPickupDraft}
+                        placeholder="Pickup address"
+                        iconName="locate-outline"
+                        autoFocus={tripEditorFocus === "pickup"}
+                        compact
+                        maxPanelHeight={placesPanelMaxHeight}
+                        onPlaceResolved={(place) => {
+                          if (place.lat != null && place.lng != null) {
+                            void applyLocation(place.lat, place.lng, {
+                              manual: true,
+                              label: place.address,
+                            });
+                          } else {
+                            setPickupManual(true);
+                            setPickupLabel(place.address);
+                            setPickupAddress(place.address);
+                          }
+                          setPickupDraft(place.address);
+                          setTripEditorFocus("dropoff");
+                          setDropoffFocusKey((k) => k + 1);
+                        }}
+                      />
+                    </View>
+
+                    <View
+                      style={[
+                        styles.routeFieldBlock,
+                        tripEditorFocus === "dropoff" && styles.routeFieldBlockActive,
+                        { marginTop: 10 },
+                      ]}
+                    >
+                      <Text style={styles.routeFieldLabel}>Where to?</Text>
+                      <GooglePlacesAddressField
+                        key={`dropoff-${dropoffFocusKey}`}
+                        value={dropoffDraft}
+                        onChangeText={setDropoffDraft}
+                        placeholder="Drop-off address"
+                        iconName="flag-outline"
+                        autoFocus={tripEditorFocus === "dropoff"}
+                        compact
+                        maxPanelHeight={placesPanelMaxHeight}
+                        onPlaceResolved={(place) => {
+                          setDropoffDraft(place.address);
+                          continueToBooking(place.address, {
+                            lat: place.lat,
+                            lng: place.lng,
+                          });
+                        }}
+                      />
+                    </View>
+                  </View>
+                </View>
+
+                <Pressable
+                  onPress={async () => {
+                    const label = await resolveLocation();
+                    if (label) setPickupDraft(label);
+                    setTripEditorFocus("dropoff");
+                    setDropoffFocusKey((k) => k + 1);
+                  }}
+                  style={({ pressed }) => [styles.useGpsBtn, pressed && styles.pressed]}
+                >
+                  <Ionicons name="locate" size={18} color={ACCENT} />
+                  <Text style={styles.useGpsText} numberOfLines={2}>
+                    Use my current location for pickup
+                  </Text>
+                </Pressable>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
     </View>
   );
@@ -1171,9 +1302,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
   },
+  modalAvoid: {
+    width: "100%",
+    maxWidth: 560,
+    alignSelf: "center",
+  },
   modalBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.35)",
+    backgroundColor: "rgba(0,0,0,0.4)",
   },
   modalSheet: {
     backgroundColor: "#F8F6F2",
@@ -1181,6 +1317,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     paddingHorizontal: 16,
     paddingTop: 10,
+    width: "100%",
     zIndex: 2,
     ...Platform.select({
       ios: {
@@ -1191,6 +1328,13 @@ const styles = StyleSheet.create({
       },
       android: { elevation: 16 },
     }),
+  },
+  modalScroll: {
+    flexGrow: 0,
+  },
+  modalScrollContent: {
+    paddingBottom: 8,
+    flexGrow: 1,
   },
   modalHandle: {
     alignSelf: "center",
@@ -1205,8 +1349,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 6,
+    gap: 12,
+  },
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.05)",
   },
   modalTitle: {
+    flex: 1,
     fontSize: 18,
     fontWeight: "800",
     color: "#1C1C1E",
@@ -1215,23 +1369,78 @@ const styles = StyleSheet.create({
   modalSub: {
     fontSize: 13,
     color: "#64748b",
-    marginBottom: 14,
+    marginBottom: 12,
     lineHeight: 18,
   },
+  routeCard: {
+    flexDirection: "row",
+    gap: 12,
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(0,0,0,0.06)",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  routeRail: {
+    width: 14,
+    alignItems: "center",
+    paddingTop: 26,
+    paddingBottom: 10,
+  },
+  routePickupDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: ACCENT,
+  },
+  routeLine: {
+    flex: 1,
+    width: 2,
+    backgroundColor: "rgba(212,160,74,0.35)",
+    marginVertical: 6,
+    minHeight: 28,
+  },
+  routeDropDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 2,
+    backgroundColor: "#1C1C1E",
+  },
+  routeFields: {
+    flex: 1,
+    minWidth: 0,
+  },
+  routeFieldBlock: {
+    zIndex: 1,
+  },
+  routeFieldBlockActive: {
+    zIndex: 50,
+  },
+  routeFieldLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    color: "#94a3b8",
+    marginBottom: 6,
+    textTransform: "uppercase",
+  },
   useGpsBtn: {
-    marginTop: 14,
+    marginTop: 4,
     marginBottom: 4,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
+    gap: 10,
     paddingVertical: 14,
+    paddingHorizontal: 14,
     borderRadius: 14,
     backgroundColor: "#FFF",
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(0,0,0,0.08)",
   },
   useGpsText: {
+    flex: 1,
     fontSize: 14,
     fontWeight: "700",
     color: "#1C1C1E",

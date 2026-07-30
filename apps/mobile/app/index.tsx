@@ -49,17 +49,31 @@ export default function SplashScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#1a1a1a" />
-      
+
       <View style={styles.content}>
-        <Animated.View style={[styles.logoContainer, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}>
-          <View style={styles.logoCircle}>
-            <Text style={styles.logoS}>S</Text>
-          </View>
-          <Text style={styles.brandName}>SARJ WORLDWIDE</Text>
-          <Text style={styles.subtitle}>CHAUFFEURED SERVICES</Text>
+        <Animated.View
+          style={[
+            styles.logoContainer,
+            { opacity: logoOpacity, transform: [{ scale: logoScale }] },
+          ]}
+        >
+          <Animated.Image
+            source={require("../assets/logo.png")}
+            style={styles.logo}
+            resizeMode="contain"
+            accessibilityLabel="SARJ Worldwide"
+          />
         </Animated.View>
 
-        <Animated.View style={[styles.taglineContainer, { opacity: taglineOpacity, transform: [{ translateY: taglineTranslateY }] }]}>
+        <Animated.View
+          style={[
+            styles.taglineContainer,
+            {
+              opacity: taglineOpacity,
+              transform: [{ translateY: taglineTranslateY }],
+            },
+          ]}
+        >
           <Text style={styles.tagline}>Where Every Ride Feels First Class.</Text>
         </Animated.View>
       </View>
@@ -81,39 +95,10 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: "center",
   },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#C9A227",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-    shadowColor: "#C9A227",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  logoS: {
-    fontSize: 42,
-    fontWeight: "700",
-    color: "#1a1a1a",
-  },
-  brandName: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    letterSpacing: 4,
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: "#C9A227",
-    letterSpacing: 3,
-    marginTop: 8,
-    textAlign: "center",
+  // Matches previous demo mark footprint (~80px tall circle + brand text)
+  logo: {
+    width: 230,
+    height: 126,
   },
   taglineContainer: {
     position: "absolute",

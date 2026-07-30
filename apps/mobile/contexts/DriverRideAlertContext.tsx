@@ -21,6 +21,13 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Notifications from "expo-notifications";
 import { useDriverAuth } from "./DriverAuthContext";
+import {
+  parseNotificationData,
+  openDriverBookingFromNotification,
+  routeDriverLastNotificationResponse,
+  routeDriverNotificationResponse,
+  setNotificationBookingOpenedListener,
+} from "../services/notification-deep-link";
 
 export type DriverRideAlert = {
   bookingId: string;
@@ -108,31 +115,35 @@ export function DriverRideAlertProvider({ children }: { children: React.ReactNod
 
   const openFromAlert = useCallback(() => {
     const bookingId = alert?.bookingId;
+    const type = alert?.type;
     dismissRideAlert();
     if (bookingId) {
-      router.push({
-        pathname: "/driver/ride-details",
-        params: { bookingId },
-      });
+      void openDriverBookingFromNotification(bookingId, { type });
     } else {
       focusRequestsTab();
     }
-  }, [alert?.bookingId, dismissRideAlert, focusRequestsTab]);
+  }, [alert?.bookingId, alert?.type, dismissRideAlert, focusRequestsTab]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
 
+    setNotificationBookingOpenedListener(() => {
+      // Clear in-app banner so it doesn't sit on top of opened ride details
+      dismissRideAlert();
+    });
+
     const received = Notifications.addNotificationReceivedListener((notification) => {
-      const data = notification.request.content.data as Record<string, unknown>;
+      const data = parseNotificationData(notification.request.content.data);
       if (data?.type === "concierge_offer") {
-        // System banner already shown; optional light vibration to draw attention
         if (Platform.OS === "android") Vibration.vibrate([0, 60, 40, 60]);
         else Vibration.vibrate(60);
         return;
       }
       if (!isRideNotificationType(data?.type)) return;
+      const bookingId = String(data.bookingId || "");
+      if (!bookingId) return;
       showRideAlert({
-        bookingId: String(data.bookingId || ""),
+        bookingId,
         title: notification.request.content.title || "New Reservation",
         body: notification.request.content.body || "A new reservation is waiting for you.",
         type: data.type,
@@ -140,46 +151,18 @@ export function DriverRideAlertProvider({ children }: { children: React.ReactNod
     });
 
     const response = Notifications.addNotificationResponseReceivedListener((res) => {
-      const data = res.notification.request.content.data as Record<string, unknown>;
-      if (data?.type === "concierge_offer") {
-        router.push("/driver/concierge");
-        return;
-      }
-      if (!isRideNotificationType(data?.type)) return;
-      const bookingId = String(data.bookingId || "");
-      if (bookingId) {
-        router.push({
-          pathname: "/driver/ride-details",
-          params: { bookingId },
-        });
-      } else {
-        focusRequestsTab();
-      }
+      void routeDriverNotificationResponse(res);
     });
 
-    void Notifications.getLastNotificationResponseAsync().then((last) => {
-      if (!last) return;
-      const data = last.notification.request.content.data as Record<string, unknown>;
-      if (data?.type === "concierge_offer") {
-        router.push("/driver/concierge");
-        return;
-      }
-      if (!isRideNotificationType(data?.type)) return;
-      const bookingId = String(data.bookingId || "");
-      if (bookingId) {
-        router.push({
-          pathname: "/driver/ride-details",
-          params: { bookingId },
-        });
-      }
-    });
+    void routeDriverLastNotificationResponse();
 
     return () => {
+      setNotificationBookingOpenedListener(null);
       received.remove();
       response.remove();
       clearTimer();
     };
-  }, [isAuthenticated, showRideAlert, focusRequestsTab]);
+  }, [isAuthenticated, showRideAlert, dismissRideAlert]);
 
   const value = useMemo(
     () => ({ showRideAlert, dismissRideAlert, focusRequestsTab }),

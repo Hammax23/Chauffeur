@@ -1,0 +1,40 @@
+# Keep EAS iOS/Android archives small (monorepo uploads the whole git root).
+
+# Dependencies & caches
+**/node_modules/
+**/.expo/
+**/.next/
+**/dist/
+**/build/
+**/.turbo/
+**/.git/
+
+# Web app (not needed for mobile native builds)
+apps/web/
+
+# Docs / deploy / docker
+*.md
+deploy.sh
+docker-compose.yml
+Dockerfile*
+nginx-*.conf
+ecosystem.config.js
+.dockerignore
+
+# Secrets & local keys (EAS uses remote credentials)
+**/.env
+**/.env.*
+!**/.env.example
+**/.eas-keys/
+**/*.p8
+**/*.p12
+**/*.jks
+**/credentials.json
+
+# Large / unused assets
+apps/mobile/assets/logo.tif
+
+# Misc
+**/*.tsbuildinfo
+**/coverage/
+**/.DS_Store

@@ -19,6 +19,7 @@ import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { getDriverRideDetail, updateRideStatus, DriverRide } from "../../services/api";
 import { syncDriverLiveTracking } from "../../services/driver-live-session";
+import { dismissPresentedForEntity } from "../../services/notification-deep-link";
 import { SlimSpinner } from "../../components/SlimSpinner";
 import { isParcelServiceType, parseParcelRequirements } from "../../utils/parcel";
 
@@ -126,8 +127,11 @@ function nextActionForStatus(status: RideStatus): { id: string; label: string; i
 }
 
 export default function RideDetailsScreen() {
-  const { bookingId } = useLocalSearchParams();
+  const { bookingId, fromNotification } = useLocalSearchParams();
   const id = typeof bookingId === "string" ? bookingId : Array.isArray(bookingId) ? bookingId[0] : "";
+  const openedFromStaleNotification =
+    fromNotification === "stale" ||
+    (Array.isArray(fromNotification) && fromNotification[0] === "stale");
 
   const [ride, setRide] = useState<DriverRide | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -401,6 +405,7 @@ export default function RideDetailsScreen() {
         await refreshRide();
         syncDriverLiveTracking().catch(() => {});
         if (apiStatus === "DONE") {
+          void dismissPresentedForEntity({ bookingId: ride.bookingId });
           Alert.alert("Ride complete", "This ride has been marked as done.", [
             { text: "OK", onPress: () => router.back() },
           ]);
@@ -550,6 +555,14 @@ export default function RideDetailsScreen() {
             <Text style={styles.heroEyebrow}>OPEN RIDE</Text>
             <Text style={styles.heroStatus}>{statusMeta.label}</Text>
             <Text style={styles.heroSub}>{statusMeta.subtitle}</Text>
+            {openedFromStaleNotification ? (
+              <View style={styles.staleNotice}>
+                <Ionicons name="information-circle-outline" size={14} color={GOLD} />
+                <Text style={styles.staleNoticeText}>
+                  This notification is from an earlier update. Showing the current trip status.
+                </Text>
+              </View>
+            ) : null}
             <View style={styles.bookingChip}>
               <Ionicons name="ticket-outline" size={12} color="rgba(255,255,255,0.55)" />
               <Text style={styles.bookingId} numberOfLines={1}>
@@ -1038,6 +1051,25 @@ const styles = StyleSheet.create({
   heroEyebrow: { color: GOLD, fontSize: 10, fontWeight: "800", letterSpacing: 1.6, marginBottom: 8 },
   heroStatus: { color: "#fff", fontSize: 32, fontWeight: "800", letterSpacing: -0.8 },
   heroSub: { color: "rgba(255,255,255,0.55)", fontSize: 14, marginTop: 5, marginBottom: 14, fontWeight: "500" },
+  staleNotice: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "rgba(212,160,74,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(212,160,74,0.28)",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  staleNoticeText: {
+    flex: 1,
+    color: "rgba(255,255,255,0.78)",
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "500",
+  },
   bookingChip: {
     alignSelf: "flex-start",
     flexDirection: "row",

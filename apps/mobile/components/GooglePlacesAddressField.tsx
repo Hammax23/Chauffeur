@@ -43,6 +43,10 @@ export interface GooglePlacesAddressFieldProps {
     lng?: number;
   }) => void;
   autoFocus?: boolean;
+  /** Cap suggestion list height (modals / small screens). Default 260. */
+  maxPanelHeight?: number;
+  /** Tighter input padding for dense layouts. */
+  compact?: boolean;
 }
 
 export function GooglePlacesAddressField({
@@ -53,6 +57,8 @@ export function GooglePlacesAddressField({
   containerStyle,
   onPlaceResolved,
   autoFocus,
+  maxPanelHeight = 260,
+  compact = false,
 }: GooglePlacesAddressFieldProps) {
   const sessionRef = useRef<string>(randomUUID());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -201,10 +207,10 @@ export function GooglePlacesAddressField({
 
   return (
     <View style={[styles.wrap, (focused || panelOpen) && styles.wrapRaised, containerStyle]}>
-      <View style={[styles.inputRow, focused && styles.inputRowFocused]}>
-        <Ionicons name={iconName} size={18} color={focused ? ACCENT : SLATE_400} />
+      <View style={[styles.inputRow, compact && styles.inputRowCompact, focused && styles.inputRowFocused]}>
+        <Ionicons name={iconName} size={compact ? 16 : 18} color={focused ? ACCENT : SLATE_400} />
         <TextInput
-          style={styles.input}
+          style={[styles.input, compact && styles.inputCompact]}
           placeholder={placeholder}
           placeholderTextColor="#999"
           value={value}
@@ -246,24 +252,17 @@ export function GooglePlacesAddressField({
               <Text style={styles.loadingText}>Searching addresses…</Text>
             </View>
           ) : null}
-          {/*
-            Predictions sit inside a NESTED ScrollView so that:
-              • the drag gesture stays inside the panel and never bubbles up to
-                the parent ScrollView (which has keyboardDismissMode="on-drag").
-              • `keyboardShouldPersistTaps="always"` lets the user tap a row
-                without the keyboard interfering.
-          */}
           {!banner && predictions.length > 0 ? (
             <ScrollView
-              style={styles.panelScroll}
+              style={[styles.panelScroll, { maxHeight: maxPanelHeight }]}
               keyboardShouldPersistTaps="always"
               nestedScrollEnabled
-              showsVerticalScrollIndicator={false}
+              showsVerticalScrollIndicator={predictions.length > 4}
             >
               {predictions.map((item) => (
                 <TouchableOpacity
                   key={item.placeId}
-                  style={styles.row}
+                  style={[styles.row, compact && styles.rowCompact]}
                   activeOpacity={0.7}
                   onPress={() => onPick(item)}
                 >
@@ -316,6 +315,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#fafafa",
     gap: 10,
   },
+  inputRowCompact: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+  },
   inputRowFocused: {
     borderColor: "rgba(212, 160, 74, 0.55)",
     backgroundColor: "#fff",
@@ -325,6 +329,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: SLATE_900,
     paddingVertical: 0,
+  },
+  inputCompact: {
+    fontSize: 13.5,
   },
   spinner: { marginLeft: 4 },
   panel: {
@@ -378,6 +385,9 @@ const styles = StyleSheet.create({
     gap: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: SLATE_100,
+  },
+  rowCompact: {
+    paddingVertical: 10,
   },
   rowIcon: {
     width: 40,

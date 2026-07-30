@@ -7,14 +7,15 @@ import Constants from "expo-constants";
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
     const type = notification.request.content.data?.type;
-    // Custom in-app banner handles SARJ assignment/live offers; concierge uses system banner
+    // Custom in-app banner handles SARJ assignment/live offers while foregrounded —
+    // don't also dump a duplicate into the notification tray.
     const isRideAlert = type === "new_assignment" || type === "live_offer";
     return {
       shouldShowAlert: !isRideAlert,
       shouldShowBanner: !isRideAlert,
-      shouldShowList: true,
+      shouldShowList: !isRideAlert,
       shouldPlaySound: true,
-      shouldSetBadge: true,
+      shouldSetBadge: !isRideAlert,
     };
   },
 });

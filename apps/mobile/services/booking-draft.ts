@@ -34,6 +34,12 @@ export type BookingDraft = {
   lastName: string;
   phoneNumber: string;
   email: string;
+  /** Uber-style: ride for logged-in user vs another passenger */
+  rideFor?: "me" | "someone";
+  /** Account holder when rideFor === "someone" (receipts / booker) */
+  bookerName?: string;
+  bookerEmail?: string;
+  bookerPhone?: string;
   seating?: string;
   /** Parcel Delivery fields */
   recipientName?: string;

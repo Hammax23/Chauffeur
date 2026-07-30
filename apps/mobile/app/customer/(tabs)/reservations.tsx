@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   ScrollView,
   StatusBar,
   Image,
-  Animated,
   Alert,
   RefreshControl,
   Linking,
@@ -201,32 +200,6 @@ export default function ReservationsScreen() {
   const isInProgress = (status: string) => IN_PROGRESS_STATUSES.has(status);
   const friendlyStatus = (status: string) => (status === "ACCEPTED" ? "DRIVER ASSIGNED" : status);
 
-  const livePulse = useRef(new Animated.Value(0.35)).current;
-  useEffect(() => {
-    if (live.status !== "open") {
-      livePulse.stopAnimation();
-      livePulse.setValue(0.35);
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(livePulse, { toValue: 1, duration: 900, useNativeDriver: true }),
-        Animated.timing(livePulse, { toValue: 0.35, duration: 900, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [live.status, livePulse]);
-
-  const liveLabel =
-    live.status === "open"
-      ? "LIVE"
-      : live.status === "reconnecting"
-        ? "RECONNECTING"
-        : live.status === "connecting"
-          ? "CONNECTING"
-          : "OFFLINE";
-
   return (
     <View style={[styles.root, { backgroundColor: palette.root }]}>
       <StatusBar barStyle={palette.statusBar} backgroundColor={palette.root} />
@@ -247,60 +220,6 @@ export default function ReservationsScreen() {
             <Text style={styles.headerEyebrow}>YOUR TRIPS</Text>
             <Text style={[styles.headerTitle, { color: palette.text }]}>Bookings</Text>
           </View>
-
-          <BlurView
-            intensity={blurIntensity}
-            tint={palette.blurTint}
-            style={[
-              styles.liveBadge,
-              {
-                borderColor:
-                  live.status === "open"
-                    ? "rgba(52,199,89,0.4)"
-                    : live.status === "connecting" || live.status === "reconnecting"
-                      ? "rgba(245,166,35,0.4)"
-                      : palette.border,
-                backgroundColor:
-                  live.status === "open"
-                    ? "rgba(52,199,89,0.12)"
-                    : live.status === "connecting" || live.status === "reconnecting"
-                      ? "rgba(245,166,35,0.12)"
-                      : Platform.OS === "android"
-                        ? palette.cardAndroid
-                        : "transparent",
-              },
-            ]}
-          >
-            <Animated.View
-              style={[
-                styles.liveDot,
-                {
-                  backgroundColor:
-                    live.status === "open"
-                      ? "#34C759"
-                      : live.status === "connecting" || live.status === "reconnecting"
-                        ? "#F5A623"
-                        : "#8E8E93",
-                  opacity: live.status === "open" ? livePulse : 1,
-                },
-              ]}
-            />
-            <Text
-              style={[
-                styles.liveBadgeText,
-                {
-                  color:
-                    live.status === "open"
-                      ? "#34C759"
-                      : live.status === "connecting" || live.status === "reconnecting"
-                        ? "#F5A623"
-                        : palette.muted,
-                },
-              ]}
-            >
-              {liveLabel}
-            </Text>
-          </BlurView>
         </View>
 
         {/* Tabs */}
@@ -648,26 +567,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "700",
     letterSpacing: -0.5,
-  },
-  liveBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 11,
-    paddingVertical: 7,
-    borderRadius: 14,
-    overflow: "hidden",
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  liveDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  liveBadgeText: {
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.7,
   },
   tabShell: {
     flexDirection: "row",

@@ -25,7 +25,7 @@ export default function ConciergeProfileScreen() {
         style: "destructive",
         onPress: async () => {
           await logout();
-          router.replace("/login");
+          router.replace("/partner/login");
         },
       },
     ]);

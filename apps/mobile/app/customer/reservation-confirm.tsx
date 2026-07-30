@@ -383,10 +383,25 @@ export default function ReservationConfirmScreen() {
 
         {(guestName || draft.email || draft.phoneNumber) && (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Guest</Text>
+            <Text style={styles.cardTitle}>
+              {draft.rideFor === "someone" ? "Passenger" : "Rider"}
+            </Text>
             {guestName ? <Text style={styles.guestName}>{guestName}</Text> : null}
-            {draft.email ? <Text style={styles.guestDetail}>{draft.email}</Text> : null}
             {draft.phoneNumber ? <Text style={styles.guestDetail}>{draft.phoneNumber}</Text> : null}
+            {draft.rideFor === "me" && draft.email ? (
+              <Text style={styles.guestDetail}>{draft.email}</Text>
+            ) : null}
+            {draft.rideFor === "someone" ? (
+              <View style={styles.bookerBox}>
+                <Text style={styles.bookerLabel}>Booked by you</Text>
+                {draft.bookerName ? (
+                  <Text style={styles.guestDetail}>{draft.bookerName}</Text>
+                ) : null}
+                {draft.bookerEmail || draft.email ? (
+                  <Text style={styles.guestDetail}>{draft.bookerEmail || draft.email}</Text>
+                ) : null}
+              </View>
+            ) : null}
           </View>
         )}
 
@@ -601,6 +616,20 @@ const styles = StyleSheet.create({
   tipChipTextActive: { color: "#fff" },
   guestName: { fontSize: 15, fontWeight: "600", color: "#0f172a", marginBottom: 4 },
   guestDetail: { fontSize: 13, color: "#64748b", marginBottom: 2 },
+  bookerBox: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(15,23,42,0.08)",
+  },
+  bookerLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    color: "#D4A04A",
+    marginBottom: 4,
+    textTransform: "uppercase",
+  },
   secureBadge: {
     flexDirection: "row",
     alignItems: "center",

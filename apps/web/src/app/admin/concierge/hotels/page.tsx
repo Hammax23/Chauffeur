@@ -140,14 +140,14 @@ export default function ConciergeHotelsPage() {
               <th className="px-4 py-3" />
             </tr>
           </thead>
-          <tbody>
+          <tbody className="text-gray-900">
             {hotels.map((h) => (
               <tr key={h.id} className="border-t border-gray-50">
-                <td className="px-4 py-3 font-medium">{h.name}</td>
-                <td className="px-4 py-3">{h.city || "—"}</td>
-                <td className="px-4 py-3">{h.commissionPercent}%</td>
-                <td className="px-4 py-3">{h._count?.concierges ?? 0}</td>
-                <td className="px-4 py-3">{h._count?.rideRequests ?? 0}</td>
+                <td className="px-4 py-3 font-medium text-gray-900">{h.name}</td>
+                <td className="px-4 py-3 text-gray-800">{h.city || "—"}</td>
+                <td className="px-4 py-3 text-gray-800">{h.commissionPercent}%</td>
+                <td className="px-4 py-3 text-gray-800">{h._count?.concierges ?? 0}</td>
+                <td className="px-4 py-3 text-gray-800">{h._count?.rideRequests ?? 0}</td>
                 <td className="px-4 py-3">
                   <span className={`text-xs px-2 py-1 rounded-full ${h.isActive ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                     {h.isActive ? "Active" : "Inactive"}
@@ -180,7 +180,7 @@ export default function ConciergeHotelsPage() {
               {(["name", "address", "city", "phone", "email"] as const).map((k) => (
                 <input
                   key={k}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 bg-white placeholder:text-gray-400"
                   placeholder={k.charAt(0).toUpperCase() + k.slice(1)}
                   value={form[k]}
                   onChange={(e) => setForm({ ...form, [k]: e.target.value })}
@@ -192,7 +192,7 @@ export default function ConciergeHotelsPage() {
                   type="number"
                   min={0}
                   step={0.1}
-                  className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
+                  className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 bg-white"
                   value={form.commissionPercent}
                   onChange={(e) => setForm({ ...form, commissionPercent: Number(e.target.value) })}
                 />
