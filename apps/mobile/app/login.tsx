@@ -12,6 +12,8 @@ import {
   Alert,
   ActivityIndicator,
   Pressable,
+  KeyboardAvoidingView,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -34,6 +36,8 @@ type MainRole = "customer" | "driver";
 export default function LoginScreen() {
   const { login, loginWithGoogle, loginWithApple } = useAuth();
   const { login: driverLogin } = useDriverAuth();
+  const { width } = useWindowDimensions();
+  const compact = width < 380;
   const [userType, setUserType] = useState<MainRole>("customer");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -184,168 +188,213 @@ export default function LoginScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.contentContainer}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
       >
-        <Text style={styles.title}>Login</Text>
-        <Text style={styles.subtitle}>Log into your account.</Text>
-
-        <View style={styles.segment}>
-          <TouchableOpacity
-            style={[styles.segmentBtn, userType === "customer" && styles.segmentBtnActive]}
-            onPress={() => setUserType("customer")}
-          >
-            <Text
-              style={[styles.segmentText, userType === "customer" && styles.segmentTextActive]}
-            >
-              Customer
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.segmentBtn, userType === "driver" && styles.segmentBtnActive]}
-            onPress={() => setUserType("driver")}
-          >
-            <Text style={[styles.segmentText, userType === "driver" && styles.segmentTextActive]}>
-              Driver
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>
-            Enter your Email<Text style={styles.required}>*</Text>
-          </Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your email here..."
-            placeholderTextColor="#999"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete="email"
-            textContentType="emailAddress"
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>
-            Enter your Password<Text style={styles.required}>*</Text>
-          </Text>
-          <View style={styles.passwordContainer}>
-            <TextInput
-              style={styles.passwordInput}
-              placeholder="********"
-              placeholderTextColor="#999"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-            />
-            <TouchableOpacity
-              style={styles.eyeButton}
-              onPress={() => setShowPassword(!showPassword)}
-            >
-              <Ionicons
-                name={showPassword ? "eye-outline" : "eye-off-outline"}
-                size={22}
-                color="#999"
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {userType === "customer" && (
-          <TouchableOpacity
-            style={styles.forgotContainer}
-            onPress={() => router.push("/forgot-password")}
-          >
-            <Text style={styles.forgotText}>Forgot Password?</Text>
-          </TouchableOpacity>
-        )}
-
-        {userType === "customer" && (
-          <View style={styles.registerContainer}>
-            <Text style={styles.registerText}>Don&apos;t have an account? </Text>
-            <TouchableOpacity onPress={() => router.push("/register")}>
-              <Text style={styles.registerLink}>Register Here</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <TouchableOpacity
-          style={[styles.signInButton, isLoading && { opacity: 0.7 }]}
-          disabled={isLoading}
-          onPress={() => void handleSignIn()}
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={[
+            styles.contentContainer,
+            compact && styles.contentContainerCompact,
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces
         >
-          {isLoading ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <Text style={styles.signInText}>Sign In</Text>
-          )}
-        </TouchableOpacity>
+          <Text style={styles.title} maxFontSizeMultiplier={1.3}>
+            Login
+          </Text>
+          <Text style={styles.subtitle} maxFontSizeMultiplier={1.3}>
+            Log into your account.
+          </Text>
 
-        {userType === "customer" && (
-          <>
-            <View style={styles.dividerContainer}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>Or sign in with</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
+          <View style={styles.segment}>
             <TouchableOpacity
-              style={[styles.socialButton, (!googleRequest || isLoading) && { opacity: 0.7 }]}
-              disabled={!googleRequest || isLoading}
-              onPress={handleGoogle}
+              style={[styles.segmentBtn, userType === "customer" && styles.segmentBtnActive]}
+              onPress={() => setUserType("customer")}
+              accessibilityRole="button"
+              accessibilityState={{ selected: userType === "customer" }}
             >
-              <Image
-                source={{ uri: "https://www.google.com/favicon.ico" }}
-                style={styles.socialIcon}
-              />
-              <Text style={styles.socialText}>Continue with Google</Text>
-            </TouchableOpacity>
-
-            {Platform.OS === "ios" && appleAvailable && (
-              <TouchableOpacity
-                style={[styles.socialButton, isLoading && { opacity: 0.7 }]}
-                disabled={isLoading}
-                onPress={handleApple}
+              <Text
+                style={[styles.segmentText, userType === "customer" && styles.segmentTextActive]}
+                maxFontSizeMultiplier={1.2}
               >
-                <Ionicons name="logo-apple" size={20} color="#000" />
-                <Text style={styles.socialText}>Continue with Apple</Text>
-              </TouchableOpacity>
-            )}
-          </>
-        )}
+                Customer
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.segmentBtn, userType === "driver" && styles.segmentBtnActive]}
+              onPress={() => setUserType("driver")}
+              accessibilityRole="button"
+              accessibilityState={{ selected: userType === "driver" }}
+            >
+              <Text
+                style={[styles.segmentText, userType === "driver" && styles.segmentTextActive]}
+                maxFontSizeMultiplier={1.2}
+              >
+                Driver
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-        {/* Discreet enterprise entry — not a third consumer role */}
-        <View style={styles.partnerFooter}>
-          <View style={styles.partnerDivider} />
-          <Pressable
-            onPress={() => router.push("/partner/login")}
-            style={({ pressed }) => [styles.partnerLink, pressed && { opacity: 0.7 }]}
-            hitSlop={8}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              Email<Text style={styles.required}>*</Text>
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your email"
+              placeholderTextColor="#999"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="email"
+              textContentType="emailAddress"
+              returnKeyType="next"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              Password<Text style={styles.required}>*</Text>
+            </Text>
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Enter your password"
+                placeholderTextColor="#999"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                autoComplete="password"
+                textContentType="password"
+                returnKeyType="done"
+                onSubmitEditing={() => void handleSignIn()}
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowPassword(!showPassword)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+              >
+                <Ionicons
+                  name={showPassword ? "eye-outline" : "eye-off-outline"}
+                  size={22}
+                  color="#999"
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {userType === "customer" && (
+            <TouchableOpacity
+              style={styles.forgotContainer}
+              onPress={() => router.push("/forgot-password")}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.forgotText}>Forgot Password?</Text>
+            </TouchableOpacity>
+          )}
+
+          {userType === "customer" && (
+            <View style={styles.registerContainer}>
+              <Text style={styles.registerText}>Don&apos;t have an account? </Text>
+              <TouchableOpacity onPress={() => router.push("/register")}>
+                <Text style={styles.registerLink}>Register Here</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={[styles.signInButton, isLoading && styles.disabled]}
+            disabled={isLoading}
+            onPress={() => void handleSignIn()}
+            activeOpacity={0.9}
           >
-            <Text style={styles.partnerLinkText}>Hotel partner access</Text>
-            <Ionicons name="open-outline" size={13} color="#94a3b8" />
-          </Pressable>
-        </View>
-      </ScrollView>
+            {isLoading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.signInText}>Sign In</Text>
+            )}
+          </TouchableOpacity>
+
+          {userType === "customer" && (
+            <>
+              <View style={styles.dividerContainer}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText} maxFontSizeMultiplier={1.2}>
+                  Or sign in with
+                </Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.socialButton, (!googleRequest || isLoading) && styles.disabled]}
+                disabled={!googleRequest || isLoading}
+                onPress={handleGoogle}
+                activeOpacity={0.9}
+              >
+                <Image
+                  source={{ uri: "https://www.google.com/favicon.ico" }}
+                  style={styles.socialIcon}
+                />
+                <Text style={styles.socialText} numberOfLines={1}>
+                  Continue with Google
+                </Text>
+              </TouchableOpacity>
+
+              {Platform.OS === "ios" && appleAvailable && (
+                <TouchableOpacity
+                  style={[styles.socialButton, isLoading && styles.disabled]}
+                  disabled={isLoading}
+                  onPress={handleApple}
+                  activeOpacity={0.9}
+                >
+                  <Ionicons name="logo-apple" size={20} color="#000" />
+                  <Text style={styles.socialText} numberOfLines={1}>
+                    Continue with Apple
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
+
+          <View style={styles.partnerFooter}>
+            <View style={styles.partnerDivider} />
+            <Pressable
+              onPress={() => router.push("/partner/login")}
+              style={({ pressed }) => [styles.partnerLink, pressed && { opacity: 0.7 }]}
+              hitSlop={8}
+            >
+              <Text style={styles.partnerLinkText}>Hotel partner access</Text>
+              <Ionicons name="open-outline" size={13} color="#94a3b8" />
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#fff" },
+  flex: { flex: 1 },
   container: { flex: 1, backgroundColor: "#fff" },
   contentContainer: {
+    flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 20,
-    paddingBottom: 40,
+    paddingBottom: 32,
+  },
+  contentContainerCompact: {
+    paddingHorizontal: 18,
+    paddingTop: 12,
   },
   title: {
     fontSize: 28,
@@ -364,12 +413,17 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 4,
     marginBottom: 28,
+    gap: 4,
   },
   segmentBtn: {
     flex: 1,
+    minWidth: 0,
+    minHeight: 44,
     paddingVertical: 12,
+    paddingHorizontal: 8,
     borderRadius: 11,
     alignItems: "center",
+    justifyContent: "center",
   },
   segmentBtnActive: { backgroundColor: "#1a1a1a" },
   segmentText: {
@@ -391,9 +445,10 @@ const styles = StyleSheet.create({
     borderColor: "#e0e0e0",
     borderRadius: 8,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: Platform.OS === "ios" ? 14 : 12,
     fontSize: 15,
     color: "#000",
+    minHeight: 48,
   },
   passwordContainer: {
     flexDirection: "row",
@@ -401,15 +456,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e0e0e0",
     borderRadius: 8,
+    minHeight: 48,
   },
   passwordInput: {
     flex: 1,
+    minWidth: 0,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: Platform.OS === "ios" ? 14 : 12,
     fontSize: 15,
     color: "#000",
   },
-  eyeButton: { paddingHorizontal: 16 },
+  eyeButton: {
+    paddingHorizontal: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   forgotContainer: {
     alignItems: "flex-end",
     marginBottom: 16,
@@ -421,6 +482,7 @@ const styles = StyleSheet.create({
   },
   registerContainer: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "center",
     marginBottom: 24,
   },
@@ -435,8 +497,11 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 30,
     alignItems: "center",
+    justifyContent: "center",
     marginBottom: 24,
+    minHeight: 52,
   },
+  disabled: { opacity: 0.7 },
   signInText: {
     color: "#fff",
     fontSize: 16,
@@ -449,13 +514,14 @@ const styles = StyleSheet.create({
   },
   dividerLine: {
     flex: 1,
-    height: 1,
+    height: StyleSheet.hairlineWidth,
     backgroundColor: "#e0e0e0",
   },
   dividerText: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     fontSize: 14,
     color: "#666",
+    flexShrink: 1,
   },
   socialButton: {
     flexDirection: "row",
@@ -465,14 +531,17 @@ const styles = StyleSheet.create({
     borderColor: "#e0e0e0",
     borderRadius: 30,
     paddingVertical: 14,
+    paddingHorizontal: 16,
     marginBottom: 12,
     gap: 10,
+    minHeight: 52,
   },
-  socialIcon: { width: 20, height: 20 },
+  socialIcon: { width: 20, height: 20, flexShrink: 0 },
   socialText: {
     fontSize: 15,
     fontWeight: "500",
     color: "#000",
+    flexShrink: 1,
   },
   partnerFooter: {
     marginTop: 36,
@@ -480,7 +549,7 @@ const styles = StyleSheet.create({
   },
   partnerDivider: {
     width: 48,
-    height: 1,
+    height: StyleSheet.hairlineWidth,
     backgroundColor: "#e2e8f0",
     marginBottom: 16,
   },

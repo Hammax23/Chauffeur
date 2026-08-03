@@ -7,9 +7,11 @@ import {
   StyleSheet,
   ScrollView,
   StatusBar,
-  Image,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -19,6 +21,8 @@ import { validatePassword } from "../utils/password-policy";
 
 export default function RegisterScreen() {
   const { register } = useAuth();
+  const { width } = useWindowDimensions();
+  const stackNames = width < 380;
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -29,189 +33,227 @@ export default function RegisterScreen() {
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  async function handleRegister() {
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !phoneNumber.trim() || !password.trim()) {
+      Alert.alert("Error", "Please fill in all required fields");
+      return;
+    }
+    if (!agreeTerms) {
+      Alert.alert("Error", "Please agree to the Terms of Service and Privacy Policy");
+      return;
+    }
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      Alert.alert("Error", passwordError);
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const result = await register({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim(),
+        phone: phoneNumber.trim(),
+        password,
+        city: city.trim() || undefined,
+      });
+      if (result.success) {
+        router.replace("/customer");
+      } else {
+        Alert.alert("Registration Failed", result.error || "Something went wrong");
+      }
+    } catch {
+      Alert.alert("Error", "Something went wrong. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-
-      {/* Title */}
-      <Text style={styles.title}>Create Your Account!</Text>
-      <Text style={styles.subtitle}>Set up your account today!</Text>
-
-      {/* First Name & Last Name Row */}
-      <View style={styles.row}>
-        <View style={styles.halfInput}>
-          <Text style={styles.label}>
-            First Name<Text style={styles.required}>*</Text>
-          </Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your first name"
-            placeholderTextColor="#999"
-            value={firstName}
-            onChangeText={setFirstName}
-          />
-        </View>
-        <View style={styles.halfInput}>
-          <Text style={styles.label}>
-            Last Name<Text style={styles.required}>*</Text>
-          </Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your last name"
-            placeholderTextColor="#999"
-            value={lastName}
-            onChangeText={setLastName}
-          />
-        </View>
-      </View>
-
-      {/* Phone Number */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>
-          Phone Number<Text style={styles.required}>*</Text>
-        </Text>
-        <View style={styles.phoneContainer}>
-          <TouchableOpacity style={styles.countryCode}>
-            <Text style={styles.flag}>🇨🇦</Text>
-            <Ionicons name="chevron-down" size={16} color="#666" />
-            <Text style={styles.countryCodeText}>+1</Text>
-          </TouchableOpacity>
-          <TextInput
-            style={styles.phoneInput}
-            placeholder=""
-            placeholderTextColor="#999"
-            value={phoneNumber}
-            onChangeText={setPhoneNumber}
-            keyboardType="phone-pad"
-          />
-        </View>
-      </View>
-
-      {/* Email */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>
-          Email<Text style={styles.required}>*</Text>
-        </Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter your email"
-          placeholderTextColor="#999"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-      </View>
-
-      {/* City */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>City</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter your city"
-          placeholderTextColor="#999"
-          value={city}
-          onChangeText={setCity}
-        />
-      </View>
-
-      {/* Password */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>
-          Password<Text style={styles.required}>*</Text>
-        </Text>
-        <View style={styles.phoneContainer}>
-          <TextInput
-            style={[styles.input, { flex: 1, borderWidth: 0 }]}
-            placeholder="Create a password"
-            placeholderTextColor="#999"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
-          />
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+      >
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.contentContainer}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces
+        >
           <TouchableOpacity
-            style={{ paddingHorizontal: 12, justifyContent: "center" }}
-            onPress={() => setShowPassword(!showPassword)}
+            style={styles.backBtn}
+            onPress={() => router.back()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Go back"
           >
-            <Ionicons
-              name={showPassword ? "eye-outline" : "eye-off-outline"}
-              size={22}
-              color="#999"
-            />
+            <Ionicons name="chevron-back" size={22} color="#1a1a1a" />
           </TouchableOpacity>
-        </View>
-      </View>
 
-      {/* Terms Checkbox */}
-      <TouchableOpacity
-        style={styles.checkboxContainer}
-        onPress={() => setAgreeTerms(!agreeTerms)}
-      >
-        <View style={[styles.checkbox, agreeTerms && styles.checkboxChecked]}>
-          {agreeTerms && <Ionicons name="checkmark" size={14} color="#fff" />}
-        </View>
-        <Text style={styles.checkboxText}>
-          I agree to the <Text style={styles.link}>Terms of Service</Text> and{" "}
-          <Text style={styles.link}>Privacy Policy</Text>
-        </Text>
-      </TouchableOpacity>
+          <Text style={styles.title} maxFontSizeMultiplier={1.3}>
+            Create Your Account!
+          </Text>
+          <Text style={styles.subtitle} maxFontSizeMultiplier={1.3}>
+            Set up your account today!
+          </Text>
 
-      {/* Register Button */}
-      <TouchableOpacity
-        style={[styles.registerButton, isLoading && { opacity: 0.7 }]}
-        disabled={isLoading}
-        onPress={async () => {
-          if (!firstName.trim() || !lastName.trim() || !email.trim() || !phoneNumber.trim() || !password.trim()) {
-            Alert.alert("Error", "Please fill in all required fields");
-            return;
-          }
-          if (!agreeTerms) {
-            Alert.alert("Error", "Please agree to the Terms of Service and Privacy Policy");
-            return;
-          }
-          const passwordError = validatePassword(password);
-          if (passwordError) {
-            Alert.alert("Error", passwordError);
-            return;
-          }
-          setIsLoading(true);
-          try {
-            const result = await register({
-              firstName: firstName.trim(),
-              lastName: lastName.trim(),
-              email: email.trim(),
-              phone: phoneNumber.trim(),
-              password,
-              city: city.trim() || undefined,
-            });
-            if (result.success) {
-              router.replace("/customer");
-            } else {
-              Alert.alert("Registration Failed", result.error || "Something went wrong");
-            }
-          } catch {
-            Alert.alert("Error", "Something went wrong. Please try again.");
-          } finally {
-            setIsLoading(false);
-          }
-        }}
-      >
-        {isLoading ? (
-          <ActivityIndicator color="#fff" size="small" />
-        ) : (
-          <Text style={styles.registerButtonText}>Register</Text>
-        )}
-      </TouchableOpacity>
+          <View style={[styles.row, stackNames && styles.rowStacked]}>
+            <View style={[styles.halfInput, stackNames && styles.fullInput]}>
+              <Text style={styles.label}>
+                First Name<Text style={styles.required}>*</Text>
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder={stackNames ? "Enter your first name" : "First name"}
+                placeholderTextColor="#999"
+                value={firstName}
+                onChangeText={setFirstName}
+                autoComplete="given-name"
+                textContentType="givenName"
+                returnKeyType="next"
+              />
+            </View>
+            <View style={[styles.halfInput, stackNames && styles.fullInput]}>
+              <Text style={styles.label}>
+                Last Name<Text style={styles.required}>*</Text>
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder={stackNames ? "Enter your last name" : "Last name"}
+                placeholderTextColor="#999"
+                value={lastName}
+                onChangeText={setLastName}
+                autoComplete="family-name"
+                textContentType="familyName"
+                returnKeyType="next"
+              />
+            </View>
+          </View>
 
-      {/* Sign In Link */}
-      <View style={styles.signInContainer}>
-        <Text style={styles.signInText}>Already have an account? </Text>
-        <TouchableOpacity onPress={() => router.push("/login")}>
-          <Text style={styles.signInLink}>Sign In</Text>
-        </TouchableOpacity>
-      </View>
-      </ScrollView>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              Phone Number<Text style={styles.required}>*</Text>
+            </Text>
+            <View style={styles.phoneContainer}>
+              <View style={styles.countryCode}>
+                <Text style={styles.flag}>🇨🇦</Text>
+                <Text style={styles.countryCodeText}>+1</Text>
+              </View>
+              <TextInput
+                style={styles.phoneInput}
+                placeholder="Phone number"
+                placeholderTextColor="#999"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                keyboardType="phone-pad"
+                autoComplete="tel"
+                textContentType="telephoneNumber"
+              />
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              Email<Text style={styles.required}>*</Text>
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your email"
+              placeholderTextColor="#999"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              textContentType="emailAddress"
+              returnKeyType="next"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>City</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your city"
+              placeholderTextColor="#999"
+              value={city}
+              onChangeText={setCity}
+              autoComplete="postal-address"
+              textContentType="addressCity"
+              returnKeyType="next"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              Password<Text style={styles.required}>*</Text>
+            </Text>
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Create a password"
+                placeholderTextColor="#999"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                autoComplete="new-password"
+                textContentType="newPassword"
+                returnKeyType="done"
+                onSubmitEditing={handleRegister}
+              />
+              <TouchableOpacity
+                style={styles.eyeBtn}
+                onPress={() => setShowPassword(!showPassword)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+              >
+                <Ionicons
+                  name={showPassword ? "eye-outline" : "eye-off-outline"}
+                  size={22}
+                  color="#999"
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.checkboxContainer}
+            onPress={() => setAgreeTerms(!agreeTerms)}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.checkbox, agreeTerms && styles.checkboxChecked]}>
+              {agreeTerms && <Ionicons name="checkmark" size={14} color="#fff" />}
+            </View>
+            <Text style={styles.checkboxText} maxFontSizeMultiplier={1.25}>
+              I agree to the <Text style={styles.link}>Terms of Service</Text> and{" "}
+              <Text style={styles.link}>Privacy Policy</Text>
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.registerButton, isLoading && styles.registerButtonDisabled]}
+            disabled={isLoading}
+            onPress={handleRegister}
+            activeOpacity={0.9}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.registerButtonText}>Register</Text>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.signInContainer}>
+            <Text style={styles.signInText}>Already have an account? </Text>
+            <TouchableOpacity onPress={() => router.push("/login")}>
+              <Text style={styles.signInLink}>Sign In</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -221,14 +263,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#fff",
   },
+  flex: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     backgroundColor: "#fff",
   },
   contentContainer: {
+    flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 40,
+    paddingTop: 8,
+    paddingBottom: 32,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: -8,
+    marginBottom: 8,
   },
   title: {
     fontSize: 24,
@@ -243,11 +298,20 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "row",
-    gap: 16,
+    gap: 12,
     marginBottom: 20,
+  },
+  rowStacked: {
+    flexDirection: "column",
+    gap: 20,
   },
   halfInput: {
     flex: 1,
+    minWidth: 0,
+  },
+  fullInput: {
+    flex: undefined,
+    width: "100%",
   },
   inputGroup: {
     marginBottom: 20,
@@ -266,15 +330,19 @@ const styles = StyleSheet.create({
     borderColor: "#e0e0e0",
     borderRadius: 8,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: Platform.OS === "ios" ? 14 : 12,
     fontSize: 15,
     color: "#000",
+    minHeight: 48,
   },
   phoneContainer: {
     flexDirection: "row",
+    alignItems: "stretch",
     borderWidth: 1,
     borderColor: "#e0e0e0",
     borderRadius: 8,
+    minHeight: 48,
+    overflow: "hidden",
   },
   countryCode: {
     flexDirection: "row",
@@ -283,6 +351,7 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: "#e0e0e0",
     gap: 6,
+    flexShrink: 0,
   },
   flag: {
     fontSize: 20,
@@ -293,43 +362,49 @@ const styles = StyleSheet.create({
   },
   phoneInput: {
     flex: 1,
+    minWidth: 0,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: Platform.OS === "ios" ? 14 : 12,
     fontSize: 15,
     color: "#000",
   },
-  selectContainer: {
+  passwordContainer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     borderWidth: 1,
     borderColor: "#e0e0e0",
     borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    minHeight: 48,
   },
-  selectText: {
+  passwordInput: {
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: 16,
+    paddingVertical: Platform.OS === "ios" ? 14 : 12,
     fontSize: 15,
     color: "#000",
   },
-  selectPlaceholder: {
-    fontSize: 15,
-    color: "#999",
+  eyeBtn: {
+    paddingHorizontal: 12,
+    justifyContent: "center",
+    alignItems: "center",
   },
   checkboxContainer: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: 24,
     gap: 12,
   },
   checkbox: {
     width: 20,
     height: 20,
+    marginTop: 1,
     borderWidth: 1,
     borderColor: "#ccc",
     borderRadius: 4,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
   checkboxChecked: {
     backgroundColor: "#1a1a1a",
@@ -339,6 +414,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#000",
     flex: 1,
+    flexShrink: 1,
+    lineHeight: 20,
   },
   link: {
     color: "#1a1a1a",
@@ -350,6 +427,11 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     alignItems: "center",
     marginBottom: 16,
+    minHeight: 52,
+    justifyContent: "center",
+  },
+  registerButtonDisabled: {
+    opacity: 0.7,
   },
   registerButtonText: {
     color: "#fff",
@@ -358,6 +440,7 @@ const styles = StyleSheet.create({
   },
   signInContainer: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "center",
     marginBottom: 24,
   },

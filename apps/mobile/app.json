@@ -15,8 +15,9 @@
     },
     "ios": {
       "supportsTablet": true,
+      "usesAppleSignIn": true,
       "bundleIdentifier": "com.sarjworldwide.chauffeur",
-      "buildNumber": "17",
+      "buildNumber": "22",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
@@ -45,7 +46,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "./plugins/strip-ios-capabilities.js",
+      "expo-apple-authentication",
       "@react-native-community/datetimepicker",
       "expo-router",
       "expo-secure-store",
