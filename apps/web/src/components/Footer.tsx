@@ -104,6 +104,12 @@ const Footer = () => {
                 </Link>
               </li>
               <li>
+                <Link href="/tiff-chauffeur" className={footerLinkClass}>
+                  <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
+                  TIFF 2026 Chauffeur
+                </Link>
+              </li>
+              <li>
                 <Link href="/quote" className={footerLinkClass}>
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
                   Online Quote

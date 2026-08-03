@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { User, Users, Phone, Mail, MapPin, ChevronDown, Plus, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
@@ -38,6 +39,23 @@ const COUNTRY_CODES = [
 const FLAG_CDN = "https://flagcdn.com";
 
 export default function QuotePage() {
+  return (
+    <GoogleMapsProvider>
+      <Suspense
+        fallback={
+          <main className="min-h-screen bg-white flex items-center justify-center">
+            <Loader2 className="w-8 h-8 text-[#C9A063] animate-spin" />
+          </main>
+        }
+      >
+        <QuotePageContent />
+      </Suspense>
+    </GoogleMapsProvider>
+  );
+}
+
+function QuotePageContent() {
+  const searchParams = useSearchParams();
   const [stops, setStops] = useState<string[]>([]);
   const [agree, setAgree] = useState(false);
   const [countryCode, setCountryCode] = useState(COUNTRY_CODES[0].code);
@@ -64,6 +82,24 @@ export default function QuotePage() {
   const [toastVisible, setToastVisible] = useState(false);
   const [toastExiting, setToastExiting] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
+
+  useEffect(() => {
+    const serviceParam = searchParams.get("service") || searchParams.get("serviceType");
+    const noteParam = searchParams.get("note") || searchParams.get("event");
+    if (serviceParam) {
+      const match = quoteServiceTypes.find(
+        (s) => s.value === serviceParam || s.label.toLowerCase() === serviceParam.toLowerCase()
+      );
+      if (match) setServiceType(match.value);
+    }
+    if (noteParam?.trim()) {
+      setAdditionalNotes((prev) => {
+        const tag = noteParam.trim();
+        if (prev.includes(tag)) return prev;
+        return prev.trim() ? `${prev.trim()}\n${tag}` : tag;
+      });
+    }
+  }, [searchParams]);
 
   const dismissToast = useCallback(() => {
     setToastExiting(true);
@@ -150,7 +186,6 @@ export default function QuotePage() {
   };
 
   return (
-    <GoogleMapsProvider>
     <main className="min-h-screen bg-[#fafafa]">
       <TopNav />
       <Navbar />
@@ -502,6 +537,5 @@ export default function QuotePage() {
         }
       `}</style>
     </main>
-    </GoogleMapsProvider>
   );
 }

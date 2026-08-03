@@ -143,6 +143,32 @@ export const newsArticles: NewsArticle[] = [
     image: "https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&auto=format&fit=crop",
     readTime: "3 min read",
   },
+  {
+    id: "11",
+    slug: "tiff-2026-getting-around-toronto",
+    title: "Getting Across Downtown During TIFF 2026",
+    excerpt:
+      "King West doesn’t move like a normal week in September. Here’s how we plan chauffeur pickups around Lightbox, Roy Thomson Hall, and the rest of the TIFF map.",
+    content:
+      "TIFF 2026 runs September 10–20. If you’ve been before, you already know the drill: half the festival sits on a few blocks of King West, and when a big screening ends, everyone wants a car at the same time.\n\nThe main spots we drive to every year are TIFF Bell Lightbox (King & John), Roy Thomson Hall, the Princess of Wales and Royal Alex, Scotiabank Theatre on Richmond, and — new this year for industry — the Metro Toronto Convention Centre for TIFF: The Market (Sept 10–16).\n\nWhat goes wrong without a booked car: Uber ETAs jump, drivers cancel because they can’t reach the curb, and you’re stuck in formal wear refreshing an app. What works better: one chauffeur who already has your hotel, knows which side street is still open, and can wait while you finish a Q&A.\n\nA few practical things we tell clients:\n\nIf you’re bouncing between two or three venues the same night, book hourly. Point-to-point is fine for hotel → one theatre → hotel.\n\nLeave 15–20 minutes between buildings that aren’t next door. Walking looks close on a map; festival fencing changes that.\n\nSend us your first address and hotel when you book. We’ll flag known closures once the city posts them closer to the date.\n\nWe’re not connected to TIFF as an organization — we just drive a lot of people who are in town for it. Details and booking: sarjworldwide.ca/tiff-chauffeur",
+    category: "Events",
+    date: "2026-08-04",
+    image: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&auto=format&fit=crop",
+    readTime: "5 min read",
+  },
+  {
+    id: "12",
+    slug: "yyz-to-downtown-tiff-arrivals",
+    title: "Flying into YYZ for TIFF? How We Handle the Airport Run",
+    excerpt:
+      "Most festival guests land at Pearson and head downtown the same day. Here’s how our airport transfers work when Toronto is in TIFF mode.",
+    content:
+      "If you’re coming for TIFF 2026, odds are you clear customs at Toronto Pearson (YYZ) and need to get to a hotel near King West, the Entertainment District, or somewhere along Front / University.\n\nNormal Tuesday traffic is one thing. Opening weekend of the festival is another — Gardiner and downtown exits clog when half the industry lands within the same six-hour window.\n\nHow our airport bookings work in practice: you put the flight number on the reservation. We track it. If the plane is late, we shift the chauffeur; you don’t pay for sitting on the curb at the old time. Meet & greet is optional — useful if you’re travelling with bags or haven’t been through Terminal 1 in a while and want someone at arrivals with your name.\n\nCommon drops for TIFF week: hotels on King, Wellington, and Front; straight to Roy Thomson Hall for opening night; Lightbox for daytime industry stuff. If you already know you’ll need evening cars later in the week, tell us when you book the arrival — it’s easier to hold capacity early than scramble on Sept 11.\n\nPut “TIFF 2026” in the booking notes so the desk plans buffer. Start here: airport transfer form, or the TIFF chauffeur page if you want hourly as well. SARJ Worldwide isn’t an official TIFF partner; we’re a chauffeur company covering the same week.",
+    category: "Travel Tips",
+    date: "2026-08-04",
+    image: "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=800&auto=format&fit=crop",
+    readTime: "4 min read",
+  },
 ];
 
 export function getArticleBySlug(slug: string): NewsArticle | undefined {

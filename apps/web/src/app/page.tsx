@@ -24,6 +24,7 @@ const PopularRoutes = dynamic(() => import("@/components/PopularRoutes"));
 const FaqSection = dynamic(() => import("@/components/FaqSection"));
 const Footer = dynamic(() => import("@/components/Footer"));
 const FloatingContact = dynamic(() => import("@/components/FloatingContact"));
+const TiffPromoStrip = dynamic(() => import("@/components/TiffPromoStrip"));
 
 export default function Home() {
   return (
@@ -32,6 +33,7 @@ export default function Home() {
       <TopNav />
       <Navbar />
       <HeroSection />
+      <TiffPromoStrip />
       <DiscoverFleet />
       <PremiumServices />
       <WhyChoose />

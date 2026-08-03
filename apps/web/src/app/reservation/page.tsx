@@ -298,6 +298,28 @@ function ReservationPageContent() {
     }
     if (airlineParam) setAirlineName(airlineParam);
     if (flightParam) setFlightNumber(flightParam);
+
+    const noteParam = searchParams.get("note") || searchParams.get("event");
+    if (noteParam?.trim()) {
+      setSpecialRequirements((prev) => {
+        const tag = noteParam.trim();
+        if (prev.includes(tag)) return prev;
+        return prev.trim() ? `${prev.trim()}\n${tag}` : tag;
+      });
+    }
+
+    // Prefer explicit serviceType when not already set by mode handlers above
+    if (
+      serviceTypeParam &&
+      !isParcelServiceType(serviceTypeParam) &&
+      modeParam !== "hourly" &&
+      modeParam !== "parcel"
+    ) {
+      setServiceType(serviceTypeParam);
+      if (/hourly/i.test(serviceTypeParam)) {
+        setBookingMode("hourly");
+      }
+    }
   }, [searchParams]);
   const [stepError, setStepError] = useState("");
 

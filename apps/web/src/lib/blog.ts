@@ -120,22 +120,27 @@ export function slugifyTitle(title: string): string {
 }
 
 export async function getPublishedBlogPosts(): Promise<BlogPostView[]> {
+  const staticPosts = staticFallbackPosts();
+
   if (!process.env.DATABASE_URL?.trim()) {
-    return staticFallbackPosts();
+    return staticPosts;
   }
 
   try {
     const hasPosts = await hasAnyBlogPostsInDb();
-    if (!hasPosts) return staticFallbackPosts();
+    if (!hasPosts) return staticPosts;
 
     const posts = await prisma.blogPost.findMany({
       where: { status: "published" },
       orderBy: [{ isFeatured: "desc" }, { publishedAt: "desc" }, { createdAt: "desc" }],
     });
 
-    return posts.map(toBlogPostView);
+    const fromDb = posts.map(toBlogPostView);
+    const dbSlugs = new Set(fromDb.map((p) => p.slug));
+    const extras = staticPosts.filter((p) => !dbSlugs.has(p.slug));
+    return [...fromDb, ...extras].sort((a, b) => b.date.localeCompare(a.date));
   } catch {
-    return staticFallbackPosts();
+    return staticPosts;
   }
 }
 
@@ -150,8 +155,10 @@ export async function getAllBlogPostsForPanel(): Promise<BlogPostView[]> {
 }
 
 export async function getBlogPostBySlug(slug: string): Promise<BlogPostView | null> {
+  const staticMatch = () => staticFallbackPosts().find((p) => p.slug === slug) ?? null;
+
   if (!process.env.DATABASE_URL?.trim()) {
-    return staticFallbackPosts().find((p) => p.slug === slug) ?? null;
+    return staticMatch();
   }
 
   try {
@@ -161,12 +168,9 @@ export async function getBlogPostBySlug(slug: string): Promise<BlogPostView | nu
       return toBlogPostView(post);
     }
 
-    const hasPosts = await hasAnyBlogPostsInDb();
-    if (hasPosts) return null;
-
-    return staticFallbackPosts().find((p) => p.slug === slug) ?? null;
+    return staticMatch();
   } catch {
-    return staticFallbackPosts().find((p) => p.slug === slug) ?? null;
+    return staticMatch();
   }
 }
 
@@ -402,13 +406,24 @@ export async function getDiscoveredBlogPages(): Promise<
       orderBy: { publishedAt: "desc" },
     });
 
-    return posts.map((post) => ({
+    const fromDb = posts.map((post) => ({
       path: `/news/${post.slug}`,
       pageType: "blog" as const,
       pageLabel: post.title,
       defaultTitle: `${post.title} | SARJ Worldwide Blog`,
       defaultDescription: post.excerpt,
     }));
+    const dbSlugs = new Set(posts.map((p) => p.slug));
+    const extras = newsArticles
+      .filter((a) => !dbSlugs.has(a.slug))
+      .map((article) => ({
+        path: `/news/${article.slug}`,
+        pageType: "blog" as const,
+        pageLabel: article.title,
+        defaultTitle: `${article.title} | SARJ Worldwide Blog`,
+        defaultDescription: article.excerpt,
+      }));
+    return [...fromDb, ...extras];
   } catch {
     return [];
   }
