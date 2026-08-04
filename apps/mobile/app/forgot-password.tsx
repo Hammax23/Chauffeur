@@ -128,7 +128,7 @@ export default function ForgotPasswordScreen() {
           </TouchableOpacity>
 
           <Text style={styles.hint}>
-            For your security, we never confirm whether an email is registered.
+            Use the same email you registered with. If no account is found, we will let you know.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>

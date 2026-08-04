@@ -7,8 +7,11 @@ import {
   sendCustomerPasswordResetOtpEmail,
 } from "@/lib/customer-otp";
 
-const GENERIC_MESSAGE =
-  "If an account exists for this email, we sent a verification code.";
+const SUCCESS_MESSAGE =
+  "We sent a 6-digit verification code to your email. Enter it to reset your password.";
+
+const ACCOUNT_NOT_FOUND_MESSAGE =
+  "No account is registered with this email address. Please check the email or create a new account.";
 
 export async function POST(req: NextRequest) {
   try {
@@ -58,36 +61,39 @@ export async function POST(req: NextRequest) {
       select: { id: true, email: true, firstName: true },
     });
 
-    const otp = generateCustomerOTP();
+    if (!customer) {
+      return NextResponse.json(
+        { success: false, error: ACCOUNT_NOT_FOUND_MESSAGE },
+        { status: 404 }
+      );
+    }
 
-    // Always issue a session so the client flow is identical (anti-enumeration).
+    const otp = generateCustomerOTP();
     const sessionId = createPasswordResetOtpSession({
       otp,
       email,
-      customerId: customer?.id ?? null,
+      customerId: customer.id,
     });
 
-    if (customer) {
-      const sent = await sendCustomerPasswordResetOtpEmail(customer.email, otp);
-      if (!sent) {
-        console.error("[forgot-password] Failed to send OTP email to", customer.email);
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Unable to send verification email right now. Please try again later.",
-          },
-          { status: 503 }
-        );
-      }
+    const sent = await sendCustomerPasswordResetOtpEmail(customer.email, otp);
+    if (!sent) {
+      console.error("[forgot-password] Failed to send OTP email to", customer.email);
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Unable to send verification email right now. Please try again later.",
+        },
+        { status: 503 }
+      );
+    }
 
-      if (process.env.NODE_ENV === "development") {
-        console.info(`[forgot-password] OTP for ${email}: ${otp}`);
-      }
+    if (process.env.NODE_ENV === "development") {
+      console.info(`[forgot-password] OTP for ${email}: ${otp}`);
     }
 
     return NextResponse.json({
       success: true,
-      message: GENERIC_MESSAGE,
+      message: SUCCESS_MESSAGE,
       sessionId,
       emailMasked: maskEmail(email),
     });
