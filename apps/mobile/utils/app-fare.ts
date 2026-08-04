@@ -4,8 +4,9 @@ export const CHILD_SEAT_CHARGE = 25;
 /** GTAA pre-arranged airport pickup fee (sedans / vans / SUVs). */
 export const AIRPORT_PICKUP_FEE = 17.25;
 export const HST_RATE = 0.13;
-export const APP_GRATUITY_PERCENTS = [18, 20, 25, 30] as const;
-export const APP_DEFAULT_GRATUITY_PERCENT = 20;
+export const APP_GRATUITY_PERCENTS = [15, 20, 25] as const;
+/** 0 = no tip selected (customer chooses on confirm). */
+export const APP_DEFAULT_GRATUITY_PERCENT = 0;
 export const BASE_DISTANCE_KM = 17;
 export const EXTRA_KM_RATE = 3.2;
 
@@ -85,11 +86,15 @@ export function calculateAppDistanceFare(input: {
   const hst = subtotal * HST_RATE;
 
   let gratuityPercent = Number(input.gratuityPercent);
-  if (
-    !Number.isFinite(gratuityPercent) ||
+  if (!Number.isFinite(gratuityPercent) || gratuityPercent < 0) {
+    gratuityPercent = 0;
+  } else if (
+    gratuityPercent > 0 &&
     !(APP_GRATUITY_PERCENTS as readonly number[]).includes(gratuityPercent)
   ) {
     gratuityPercent = APP_DEFAULT_GRATUITY_PERCENT;
+  } else {
+    gratuityPercent = Math.round(gratuityPercent);
   }
   const gratuity = (subtotal * gratuityPercent) / 100;
   const total = subtotal + hst + gratuity;

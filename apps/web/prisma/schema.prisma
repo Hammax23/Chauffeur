@@ -294,9 +294,13 @@ model FleetVehicle {
   // Pricing
   /// Distance booking: flat fare for the first `baseDistanceKm` kilometres
   basePrice      Float    @default(0)
+  /// How many km the base price covers (per vehicle)
+  baseDistanceKm Float    @default(17)
   /// Hourly booking only: dollars per hour
   hourlyRate    Float
-  /// Legacy / display; web distance extras use global `extraKmRate` charge
+  /// Charge per km after baseDistanceKm (per vehicle)
+  extraKmRate   Float    @default(3.2)
+  /// Legacy / display alias; prefer `extraKmRate` for distance extras
   pricePerKm    Float
   
   // Settings
@@ -325,6 +329,10 @@ model AppFleetVehicle {
   luggage       String   @default("")
   pricePerKm    Float    @default(0)
   hourlyRate    Float    @default(0)
+  /// How many km the base/hourly distance rate covers (per vehicle)
+  baseDistanceKm Float   @default(17)
+  /// Charge per km after baseDistanceKm (per vehicle)
+  extraKmRate   Float    @default(3.2)
   /// Show on customer home fleet preview
   showOnHome    Boolean  @default(true)
   isActive      Boolean  @default(true)

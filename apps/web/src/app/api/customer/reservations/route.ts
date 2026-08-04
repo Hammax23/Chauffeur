@@ -135,6 +135,8 @@ export async function POST(req: NextRequest) {
 
     let hourlyRate = 0;
     let pricePerKm = 0;
+    let vehicleBaseKm = 0;
+    let vehicleExtraRate = 0;
     const tierKey = typeof vehicleId === "string" ? vehicleId.trim() : "";
     if (tierKey) {
       const fleetRow = await prisma.appFleetVehicle.findFirst({
@@ -142,21 +144,46 @@ export async function POST(req: NextRequest) {
           OR: [{ tierId: tierKey }, { id: tierKey }],
           isActive: true,
         },
-        select: { pricePerKm: true, hourlyRate: true, title: true },
+        select: {
+          pricePerKm: true,
+          hourlyRate: true,
+          title: true,
+          baseDistanceKm: true,
+          extraKmRate: true,
+        },
       });
       if (fleetRow) {
         hourlyRate = fleetRow.hourlyRate || 0;
         pricePerKm = fleetRow.pricePerKm || 0;
+        vehicleBaseKm = fleetRow.baseDistanceKm > 0 ? fleetRow.baseDistanceKm : 17;
+        vehicleExtraRate =
+          fleetRow.extraKmRate > 0
+            ? fleetRow.extraKmRate
+            : fleetRow.pricePerKm > 0
+              ? fleetRow.pricePerKm
+              : 3.2;
       }
     }
     if (hourlyRate <= 0 && pricePerKm <= 0) {
       const byTitle = await prisma.appFleetVehicle.findFirst({
         where: { title: vehicle, isActive: true },
-        select: { pricePerKm: true, hourlyRate: true },
+        select: {
+          pricePerKm: true,
+          hourlyRate: true,
+          baseDistanceKm: true,
+          extraKmRate: true,
+        },
       });
       if (byTitle) {
         hourlyRate = byTitle.hourlyRate || 0;
         pricePerKm = byTitle.pricePerKm || 0;
+        vehicleBaseKm = byTitle.baseDistanceKm > 0 ? byTitle.baseDistanceKm : 17;
+        vehicleExtraRate =
+          byTitle.extraKmRate > 0
+            ? byTitle.extraKmRate
+            : byTitle.pricePerKm > 0
+              ? byTitle.pricePerKm
+              : 3.2;
       }
     }
     if (hourlyRate <= 0 && pricePerKm <= 0) {
@@ -177,11 +204,14 @@ export async function POST(req: NextRequest) {
       distanceMeters: meters,
       hourlyRate,
       pricePerKm,
-      baseDistanceKm: charges.baseDistanceKm,
-      extraKmRate: charges.extraKmRate,
+      baseDistanceKm: vehicleBaseKm || charges.baseDistanceKm,
+      extraKmRate: vehicleExtraRate || charges.extraKmRate,
       hasStop,
       childSeatCount: Number(childSeats) || 0,
-      gratuityPercent: Number(clientGratuityPercent) || APP_DEFAULT_GRATUITY_PERCENT,
+      gratuityPercent: (() => {
+        const n = Number(clientGratuityPercent);
+        return Number.isFinite(n) && n >= 0 ? n : APP_DEFAULT_GRATUITY_PERCENT;
+      })(),
       pickupLocation,
     });
 

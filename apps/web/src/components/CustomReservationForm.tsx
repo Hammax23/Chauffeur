@@ -25,6 +25,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import { fleetData } from "@/data/fleet";
 import PlacesAutocomplete from "@/components/PlacesAutocomplete";
 import RouteMap from "@/components/RouteMap";
+import { APP_GRATUITY_PERCENTS } from "@/lib/reservation-pricing";
 
 const COUNTRY_CODES = [
   { code: "+1", label: "CA", name: "Canada" },
@@ -76,7 +77,8 @@ export default function CustomReservationForm() {
 
   // Pricing
   const [rideFare, setRideFare] = useState("");
-  const [gratuityPercent, setGratuityPercent] = useState(15);
+  const [gratuityPercent, setGratuityPercent] = useState(0);
+  const [tipModalOpen, setTipModalOpen] = useState(false);
 
   // Route calculation (auto from Google Maps)
   const [routeDistance, setRouteDistance] = useState("--");
@@ -544,14 +546,78 @@ export default function CustomReservationForm() {
             </div>
             <div className="px-4 py-3">
               <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">Gratuity</label>
-              <select value={gratuityPercent} onChange={(e) => setGratuityPercent(parseInt(e.target.value))} className="w-full py-1.5 bg-transparent text-[15px] text-gray-900 focus:outline-none">
-                <option value={18}>18%</option>
-                <option value={20}>20%</option>
-                <option value={25}>25%</option>
-                <option value={30}>30%</option>
-              </select>
+              <button
+                type="button"
+                onClick={() => setTipModalOpen(true)}
+                className="w-full flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-[#f8fafc] px-3 py-3 text-left"
+              >
+                <div>
+                  <div className="text-[14px] font-semibold text-gray-900">Add tip</div>
+                  <div className="text-[12px] text-gray-500 mt-0.5">
+                    {gratuityPercent > 0 ? `${gratuityPercent}%` : "Optional"}
+                  </div>
+                </div>
+                <span className="text-gray-400 text-sm">›</span>
+              </button>
             </div>
           </div>
+
+          {tipModalOpen ? (
+            <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center">
+              <button
+                type="button"
+                className="absolute inset-0 bg-black/45"
+                aria-label="Close"
+                onClick={() => setTipModalOpen(false)}
+              />
+              <div className="relative z-[81] w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-2xl px-5 pt-3 pb-6 shadow-xl">
+                <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-300 sm:hidden" />
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="text-[22px] font-bold text-gray-900">Add a tip</h3>
+                  <button
+                    type="button"
+                    onClick={() => setTipModalOpen(false)}
+                    className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center"
+                    aria-label="Close"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-2.5">
+                  {APP_GRATUITY_PERCENTS.map((pct) => {
+                    const selected = gratuityPercent === pct;
+                    return (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => {
+                          setGratuityPercent(pct);
+                          setTipModalOpen(false);
+                        }}
+                        className={`min-h-[72px] rounded-2xl border-2 text-[22px] font-bold ${
+                          selected
+                            ? "bg-gray-900 border-gray-900 text-white"
+                            : "bg-[#f8fafc] border-gray-200 text-gray-900"
+                        }`}
+                      >
+                        {pct}%
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGratuityPercent(0);
+                    setTipModalOpen(false);
+                  }}
+                  className="mt-4 w-full py-3 text-[15px] font-semibold text-gray-500"
+                >
+                  No tip
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           {/* Price Summary */}
           <div className="bg-white rounded-xl border border-gray-200/60 p-4 space-y-2.5">
@@ -579,10 +645,12 @@ export default function CustomReservationForm() {
               <span className="text-gray-600">HST (13%)</span>
               <span className="font-medium text-gray-900">${hst.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-[14px]">
-              <span className="text-gray-600">Gratuity ({gratuityPercent}%)</span>
-              <span className="font-medium text-gray-900">${gratuity.toFixed(2)}</span>
-            </div>
+            {gratuityPercent > 0 ? (
+              <div className="flex justify-between text-[14px]">
+                <span className="text-gray-600">Tip ({gratuityPercent}%)</span>
+                <span className="font-medium text-gray-900">${gratuity.toFixed(2)}</span>
+              </div>
+            ) : null}
             <div className="flex justify-between text-[16px] border-t border-gray-100 pt-2.5">
               <span className="font-bold text-gray-900">Total</span>
               <span className="font-bold text-[#C9A063]">${total.toFixed(2)}</span>

@@ -15,6 +15,10 @@ export interface FleetVehicle {
   basePrice?: number;
   /** Public per-kilometre rate (display / legacy). */
   pricePerKm: number;
+  /** Per-vehicle: km covered by base price. */
+  baseDistanceKm?: number;
+  /** Per-vehicle: $/km after base distance. */
+  extraKmRate?: number;
 }
 
 export const fleetData: FleetVehicle[] = [

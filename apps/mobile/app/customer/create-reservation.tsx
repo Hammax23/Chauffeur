@@ -493,8 +493,8 @@ export default function CreateReservationScreen() {
       distanceMeters: meters,
       hourlyRate: selectedTier.hourlyRate,
       pricePerKm: selectedTier.pricePerKm,
-      baseDistanceKm: distancePricing.baseDistanceKm,
-      extraKmRate: distancePricing.extraKmRate,
+      baseDistanceKm: selectedTier.baseDistanceKm || distancePricing.baseDistanceKm,
+      extraKmRate: selectedTier.extraKmRate || distancePricing.extraKmRate,
       hasStop: showStopField && stopAddress.trim().length >= 3,
       childSeatCount,
       gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
@@ -530,8 +530,8 @@ export default function CreateReservationScreen() {
         distanceMeters: meters,
         hourlyRate: tier.hourlyRate,
         pricePerKm: tier.pricePerKm,
-        baseDistanceKm: distancePricing.baseDistanceKm,
-        extraKmRate: distancePricing.extraKmRate,
+        baseDistanceKm: tier.baseDistanceKm || distancePricing.baseDistanceKm,
+        extraKmRate: tier.extraKmRate || distancePricing.extraKmRate,
         hasStop: false,
         childSeatCount: 0,
         gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
@@ -625,8 +625,8 @@ export default function CreateReservationScreen() {
       rideFare: String(fareEstimate.rideFare ?? 0),
       pricePerKm: String(selectedTier.pricePerKm),
       hourlyRate: String(selectedTier.hourlyRate),
-      baseDistanceKm: String(distancePricing.baseDistanceKm),
-      extraKmRate: String(distancePricing.extraKmRate),
+      baseDistanceKm: String(selectedTier.baseDistanceKm || distancePricing.baseDistanceKm),
+      extraKmRate: String(selectedTier.extraKmRate || distancePricing.extraKmRate),
       distanceText: routeSummary?.distanceText ?? "",
       durationText: routeSummary?.durationText ?? "",
       distanceMeters: String(routeSummary?.distanceMeters ?? ""),
@@ -846,18 +846,30 @@ export default function CreateReservationScreen() {
                 disabled={vehicleTiers.length <= 1}
                 activeOpacity={0.85}
               >
-                <Image
-                  source={{ uri: selectedTier.imageUrl }}
-                  style={styles.carThumb}
-                  resizeMode="contain"
-                />
+                <View style={styles.carThumbWrap}>
+                  <Image
+                    source={{ uri: selectedTier.imageUrl }}
+                    style={styles.carThumb}
+                    resizeMode="contain"
+                  />
+                </View>
                 <View style={styles.carSelectorCopy}>
                   <Text style={styles.carName} numberOfLines={2}>
                     {selectedTier.title}
                   </Text>
-                  <Text style={styles.carCategory} numberOfLines={2}>
-                    {selectedTier.subtitle}
-                  </Text>
+                  {selectedTier.subtitle ? (
+                    <Text style={styles.carCategory} numberOfLines={2}>
+                      {selectedTier.subtitle}
+                    </Text>
+                  ) : null}
+                  {selectedTier.seating ? (
+                    <View style={styles.carMetaRow}>
+                      <Ionicons name="person-outline" size={13} color="#64748b" />
+                      <Text style={styles.carMetaText} numberOfLines={1}>
+                        {selectedTier.seating}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
                 <View style={styles.carSelectorTrailing}>
                   {tierFareById[selectedTier.id] != null ? (
@@ -872,11 +884,13 @@ export default function CreateReservationScreen() {
                     </Text>
                   )}
                   {vehicleTiers.length > 1 ? (
-                    <Ionicons
-                      name={showTierDropdown ? "chevron-up" : "chevron-down"}
-                      size={18}
-                      color="#D4A04A"
-                    />
+                    <View style={styles.carChevronWrap}>
+                      <Ionicons
+                        name={showTierDropdown ? "chevron-up" : "chevron-down"}
+                        size={18}
+                        color="#1a1a1a"
+                      />
+                    </View>
                   ) : null}
                 </View>
               </TouchableOpacity>
@@ -896,7 +910,7 @@ export default function CreateReservationScreen() {
                         <Text style={styles.tierDropdownGroupLabel}>
                           {group === "executive" ? "Executive" : "Standard"}
                         </Text>
-                        {groupTiers.map((tier, index) => {
+                        {groupTiers.map((tier) => {
                           const selected = selectedTierId === tier.id;
                           const tierFare = tierFareById[tier.id];
                           return (
@@ -905,18 +919,20 @@ export default function CreateReservationScreen() {
                               style={[
                                 styles.carDropdownItem,
                                 selected && styles.carDropdownItemActive,
-                                index < groupTiers.length - 1 && styles.carDropdownItemBorder,
                               ]}
                               onPress={() => {
                                 setSelectedTierId(tier.id);
                                 setShowTierDropdown(false);
                               }}
+                              activeOpacity={0.85}
                             >
-                              <Image
-                                source={{ uri: tier.imageUrl }}
-                                style={styles.carDropdownThumb}
-                                resizeMode="contain"
-                              />
+                              <View style={styles.carDropdownThumbWrap}>
+                                <Image
+                                  source={{ uri: tier.imageUrl }}
+                                  style={styles.carDropdownThumb}
+                                  resizeMode="contain"
+                                />
+                              </View>
                               <View style={styles.carDropdownCopy}>
                                 <Text
                                   style={[
@@ -927,9 +943,19 @@ export default function CreateReservationScreen() {
                                 >
                                   {tier.title}
                                 </Text>
-                                <Text style={styles.tierDropdownSubtitle} numberOfLines={3}>
-                                  {tier.subtitle}
-                                </Text>
+                                {tier.subtitle ? (
+                                  <Text style={styles.tierDropdownSubtitle} numberOfLines={2}>
+                                    {tier.subtitle}
+                                  </Text>
+                                ) : null}
+                                {tier.seating ? (
+                                  <View style={styles.carMetaRow}>
+                                    <Ionicons name="person-outline" size={13} color="#64748b" />
+                                    <Text style={styles.carMetaText} numberOfLines={1}>
+                                      {tier.seating}
+                                    </Text>
+                                  </View>
+                                ) : null}
                               </View>
                               <View style={styles.carDropdownPriceCol}>
                                 <Text style={styles.carDropdownPrice} numberOfLines={2}>
@@ -939,6 +965,16 @@ export default function CreateReservationScreen() {
                                       ? `From $${tier.hourlyRate.toFixed(0)}`
                                       : `$${tier.pricePerKm.toFixed(2)}/km`}
                                 </Text>
+                                <View
+                                  style={[
+                                    styles.carRadio,
+                                    selected && styles.carRadioSelected,
+                                  ]}
+                                >
+                                  {selected ? (
+                                    <Ionicons name="checkmark" size={12} color="#fff" />
+                                  ) : null}
+                                </View>
                               </View>
                             </TouchableOpacity>
                           );
@@ -1152,15 +1188,7 @@ export default function CreateReservationScreen() {
         {/* Who is riding */}
         {!isParcel ? (
           <View style={styles.section}>
-            <View style={styles.rideForHeader}>
-              <View style={styles.rideForTitleRow}>
-                <View style={styles.rideForAccent} />
-                <Text style={styles.rideForTitle}>Who is riding?</Text>
-              </View>
-              <Text style={styles.rideForSub}>
-                Tell us who the chauffeur should meet at pickup.
-              </Text>
-            </View>
+            <Text style={styles.sectionTitle}>Who is riding?</Text>
 
             <View style={styles.rideForTrack}>
               <Pressable
@@ -1171,18 +1199,6 @@ export default function CreateReservationScreen() {
                   pressed && { opacity: 0.92 },
                 ]}
               >
-                <View
-                  style={[
-                    styles.rideForSegIcon,
-                    rideFor === "me" && styles.rideForSegIconOn,
-                  ]}
-                >
-                  <Ionicons
-                    name="person"
-                    size={15}
-                    color={rideFor === "me" ? "#8B6914" : "#94a3b8"}
-                  />
-                </View>
                 <Text
                   style={[styles.rideForSegText, rideFor === "me" && styles.rideForSegTextOn]}
                 >
@@ -1197,18 +1213,6 @@ export default function CreateReservationScreen() {
                   pressed && { opacity: 0.92 },
                 ]}
               >
-                <View
-                  style={[
-                    styles.rideForSegIcon,
-                    rideFor === "someone" && styles.rideForSegIconOn,
-                  ]}
-                >
-                  <Ionicons
-                    name="people"
-                    size={15}
-                    color={rideFor === "someone" ? "#8B6914" : "#94a3b8"}
-                  />
-                </View>
                 <Text
                   style={[
                     styles.rideForSegText,
@@ -1221,63 +1225,19 @@ export default function CreateReservationScreen() {
             </View>
 
             {rideFor === "me" ? (
-              <View style={styles.riderCard}>
-                <View style={styles.riderCardRail} />
-                <View style={styles.riderCardBody}>
-                  <View style={styles.riderCardTop}>
-                    <View style={styles.riderAvatarRing}>
-                      <View style={styles.riderAvatar}>
-                        <Text style={styles.riderInitials}>
-                          {`${(user?.firstName?.[0] || firstName?.[0] || "Y").toUpperCase()}${(user?.lastName?.[0] || lastName?.[0] || "").toUpperCase()}`}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.riderCopy}>
-                      <Text style={styles.riderEyebrow}>RIDING AS YOU</Text>
-                      <Text style={styles.riderName} numberOfLines={1}>
-                        {[firstName, lastName].filter(Boolean).join(" ") || "Your profile"}
+              <>
+                {user?.firstName && user?.lastName ? (
+                  <View style={styles.riderSimpleRow}>
+                    <View style={styles.riderAvatar}>
+                      <Text style={styles.riderInitials}>
+                        {`${(user.firstName[0] || "Y").toUpperCase()}${(user.lastName[0] || "").toUpperCase()}`}
                       </Text>
-                      {email ? (
-                        <Text style={styles.riderMeta} numberOfLines={1}>
-                          {email}
-                        </Text>
-                      ) : null}
                     </View>
-                  </View>
-                  <View style={styles.riderChipRow}>
-                    <View style={styles.riderChip}>
-                      <Ionicons name="shield-checkmark" size={12} color="#8B6914" />
-                      <Text style={styles.riderChipText}>Account rider</Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            ) : (
-              <View style={styles.guestPanel}>
-                <View style={styles.guestPanelTop}>
-                  <View style={styles.guestPanelIcon}>
-                    <Ionicons name="car-sport-outline" size={18} color="#8B6914" />
-                  </View>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.guestPanelTitle}>Passenger ride</Text>
-                    <Text style={styles.guestPanelCopy}>
-                      Chauffeur meets them at pickup. Booking stays on your account —
-                      confirmation to {user?.email || "your email"}.
+                    <Text style={styles.riderName} numberOfLines={1}>
+                      {[firstName, lastName].filter(Boolean).join(" ") || "You"}
                     </Text>
                   </View>
-                </View>
-                <View style={styles.bookerStrip}>
-                  <Text style={styles.bookerStripLabel}>BOOKED BY</Text>
-                  <Text style={styles.bookerStripName} numberOfLines={1}>
-                    {[user?.firstName, user?.lastName].filter(Boolean).join(" ") || "You"}
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            {rideFor === "me" ? (
-              <>
-                {!(user?.firstName && user?.lastName) ? (
+                ) : (
                   <View style={styles.nameRow}>
                     <View style={styles.nameField}>
                       <Text style={styles.inputLabel}>First Name*</Text>
@@ -1306,8 +1266,8 @@ export default function CreateReservationScreen() {
                       </View>
                     </View>
                   </View>
-                ) : null}
-                <Text style={[styles.inputLabel, { marginTop: 14 }]}>Mobile for trip updates*</Text>
+                )}
+                <Text style={[styles.inputLabel, { marginTop: 12 }]}>Phone*</Text>
                 <View style={styles.phoneInput}>
                   <View style={styles.countryCode}>
                     <View style={styles.flagIcon}>
@@ -1320,17 +1280,13 @@ export default function CreateReservationScreen() {
                     value={phoneNumber}
                     onChangeText={setPhoneNumber}
                     keyboardType="phone-pad"
-                    placeholder="Your mobile number"
+                    placeholder="Mobile number"
                     placeholderTextColor="#999"
                   />
                 </View>
-                <Text style={styles.contactHelper}>
-                  Dispatch and your chauffeur use this for pickup coordination.
-                </Text>
               </>
             ) : (
               <>
-                <Text style={styles.passengerDetailsLabel}>Passenger details</Text>
                 <View style={styles.nameRow}>
                   <View style={styles.nameField}>
                     <Text style={styles.inputLabel}>First Name*</Text>
@@ -1360,7 +1316,7 @@ export default function CreateReservationScreen() {
                   </View>
                 </View>
 
-                <Text style={styles.inputLabel}>Passenger mobile*</Text>
+                <Text style={styles.inputLabel}>Phone*</Text>
                 <View style={styles.phoneInput}>
                   <View style={styles.countryCode}>
                     <View style={styles.flagIcon}>
@@ -1373,13 +1329,10 @@ export default function CreateReservationScreen() {
                     value={phoneNumber}
                     onChangeText={setPhoneNumber}
                     keyboardType="phone-pad"
-                    placeholder="Passenger mobile number"
+                    placeholder="Passenger mobile"
                     placeholderTextColor="#999"
                   />
                 </View>
-                <Text style={styles.contactHelper}>
-                  You’ll still get booking confirmation on your account.
-                </Text>
               </>
             )}
           </View>
@@ -1541,240 +1494,68 @@ const styles = StyleSheet.create({
     color: "#D4A04A",
     marginBottom: 16,
   },
-  rideForHeader: {
-    marginBottom: 16,
-  },
-  rideForTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 6,
-  },
-  rideForAccent: {
-    width: 3,
-    height: 16,
-    borderRadius: 2,
-    backgroundColor: "rgba(212,160,74,0.7)",
-  },
-  rideForTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1a1a1a",
-    letterSpacing: -0.3,
-  },
-  rideForSub: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: "#64748b",
-    paddingLeft: 13,
-  },
   rideForTrack: {
     flexDirection: "row",
     gap: 4,
     padding: 4,
-    borderRadius: 14,
-    backgroundColor: "#F3F1ED",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(0,0,0,0.06)",
+    borderRadius: 12,
+    backgroundColor: "#F3F4F6",
     marginBottom: 14,
+    marginTop: 4,
   },
   rideForSeg: {
     flex: 1,
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    paddingVertical: 11,
-    borderRadius: 11,
+    paddingVertical: 12,
+    borderRadius: 10,
   },
   rideForSegOn: {
     backgroundColor: "#fff",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(0,0,0,0.06)",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.06,
+        shadowOpacity: 0.08,
         shadowRadius: 3,
       },
       android: { elevation: 1 },
     }),
   },
-  rideForSegIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 7,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "transparent",
-  },
-  rideForSegIconOn: {
-    backgroundColor: "rgba(212,160,74,0.14)",
-  },
   rideForSegText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "600",
-    color: "#94a3b8",
-    letterSpacing: 0.1,
+    color: "#9CA3AF",
   },
   rideForSegTextOn: {
-    color: "#1a1a1a",
+    color: "#111827",
     fontWeight: "700",
   },
-  riderCard: {
-    flexDirection: "row",
-    borderRadius: 14,
-    overflow: "hidden",
-    backgroundColor: "#FAFAF8",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(0,0,0,0.07)",
-    marginBottom: 4,
-  },
-  riderCardRail: {
-    width: 3,
-    backgroundColor: "rgba(212,160,74,0.65)",
-  },
-  riderCardBody: {
-    flex: 1,
-    paddingVertical: 13,
-    paddingHorizontal: 13,
-  },
-  riderCardTop: {
+  riderSimpleRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-  },
-  riderAvatarRing: {
-    padding: 0,
-    borderRadius: 999,
-    borderWidth: 0,
+    marginBottom: 4,
   },
   riderAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(212,160,74,0.18)",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
   },
   riderInitials: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#8B6914",
-    letterSpacing: 0.4,
-  },
-  riderCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  riderEyebrow: {
-    fontSize: 9,
-    fontWeight: "700",
-    letterSpacing: 1.1,
-    color: "#A78B5A",
-    marginBottom: 3,
+    color: "#374151",
+    letterSpacing: 0.3,
   },
   riderName: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#1a1a1a",
-    letterSpacing: -0.2,
-  },
-  riderMeta: {
-    marginTop: 2,
-    fontSize: 12,
-    color: "#64748b",
-  },
-  riderChipRow: {
-    flexDirection: "row",
-    marginTop: 10,
-  },
-  riderChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: "rgba(212,160,74,0.1)",
-  },
-  riderChipText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#8B6914",
-  },
-  guestPanel: {
-    borderRadius: 14,
-    overflow: "hidden",
-    backgroundColor: "#FAFAF8",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(0,0,0,0.07)",
-    marginBottom: 4,
-  },
-  guestPanelTop: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 11,
-    padding: 13,
-  },
-  guestPanelIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: "rgba(212,160,74,0.14)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  guestPanelTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1a1a1a",
-    marginBottom: 4,
-  },
-  guestPanelCopy: {
-    fontSize: 12,
-    lineHeight: 17,
-    color: "#64748b",
-  },
-  bookerStrip: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
-    backgroundColor: "#F3F1ED",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(0,0,0,0.05)",
-  },
-  bookerStripLabel: {
-    fontSize: 9,
-    fontWeight: "700",
-    letterSpacing: 1.1,
-    color: "#A78B5A",
-  },
-  bookerStripName: {
     flex: 1,
-    textAlign: "right",
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: "600",
-    color: "#475569",
-  },
-  passengerDetailsLabel: {
-    marginTop: 18,
-    marginBottom: 4,
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1.1,
-    color: "#94a3b8",
-    textTransform: "uppercase",
-  },
-  contactHelper: {
-    marginTop: 8,
-    fontSize: 12,
-    lineHeight: 16,
-    color: "#64748b",
+    color: "#111827",
   },
   sectionSubtitleWhenWhere: {
     marginBottom: 4,
@@ -2129,46 +1910,75 @@ const styles = StyleSheet.create({
   },
   carSelector: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    borderWidth: 1,
-    borderColor: "#e8e8e8",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: "#fafafa",
-    gap: 10,
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: "#e5e7eb",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    backgroundColor: "#FFFFFF",
+    gap: 12,
+    minHeight: 96,
+  },
+  carThumbWrap: {
+    width: 108,
+    height: 72,
+    borderRadius: 12,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    overflow: "hidden",
   },
   carThumb: {
-    width: 56,
-    height: 36,
-    flexShrink: 0,
-    marginTop: 2,
+    width: 100,
+    height: 64,
   },
   carSelectorCopy: {
     flex: 1,
     minWidth: 0,
-    paddingRight: 4,
+    justifyContent: "center",
+    gap: 2,
   },
   carSelectorTrailing: {
     flexShrink: 0,
     alignItems: "flex-end",
     justifyContent: "center",
-    gap: 4,
-    minWidth: 72,
-    maxWidth: 88,
-    paddingTop: 2,
+    gap: 8,
+    minWidth: 78,
+  },
+  carChevronWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
   },
   carName: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#1a1a1a",
-    lineHeight: 17,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+    lineHeight: 21,
+    letterSpacing: -0.2,
   },
   carCategory: {
-    fontSize: 10,
-    color: "#888",
-    marginTop: 4,
-    lineHeight: 14,
+    fontSize: 13,
+    color: "#6B7280",
+    marginTop: 2,
+    lineHeight: 17,
+  },
+  carMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 6,
+  },
+  carMetaText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#64748b",
+    flexShrink: 1,
   },
   fleetLoadingBox: {
     flexDirection: "row",
@@ -2210,82 +2020,115 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   carPriceText: {
-    fontSize: 12,
+    fontSize: 16,
     fontWeight: "700",
-    color: "#D4A04A",
+    color: "#111827",
     textAlign: "right",
   },
   carDropdownList: {
     borderWidth: 1,
-    borderColor: "#e8e8e8",
-    borderRadius: 12,
-    marginTop: 6,
-    backgroundColor: "#2a2a2a",
-    maxHeight: 360,
+    borderColor: "#e5e7eb",
+    borderRadius: 16,
+    marginTop: 10,
+    backgroundColor: "#FFFFFF",
+    maxHeight: 440,
+    overflow: "hidden",
   },
   tierDropdownGroupLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
-    color: "rgba(255,255,255,0.45)",
-    letterSpacing: 0.8,
+    color: "#6B7280",
+    letterSpacing: 0.4,
     textTransform: "uppercase",
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 4,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 6,
   },
   tierDropdownSubtitle: {
-    marginTop: 4,
-    fontSize: 10,
+    marginTop: 3,
+    fontSize: 13,
     fontWeight: "500",
-    color: "rgba(255,255,255,0.55)",
-    lineHeight: 14,
+    color: "#6B7280",
+    lineHeight: 17,
   },
   carDropdownItem: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    paddingHorizontal: 12,
+    alignItems: "center",
+    paddingHorizontal: 14,
     paddingVertical: 14,
-    gap: 10,
+    gap: 12,
+    minHeight: 100,
+    marginHorizontal: 8,
+    marginBottom: 8,
+    borderRadius: 14,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1.5,
+    borderColor: "transparent",
   },
   carDropdownItemActive: {
-    backgroundColor: "#3a3a3a",
+    backgroundColor: "#FFFBF5",
+    borderColor: "#C9A063",
   },
   carDropdownItemBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.08)",
+    borderBottomWidth: 0,
+  },
+  carDropdownThumbWrap: {
+    width: 112,
+    height: 76,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    overflow: "hidden",
   },
   carDropdownThumb: {
-    width: 56,
-    height: 36,
-    flexShrink: 0,
+    width: 104,
+    height: 68,
   },
   carDropdownCopy: {
     flex: 1,
     minWidth: 0,
+    justifyContent: "center",
   },
   carDropdownName: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#fff",
-    lineHeight: 17,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+    lineHeight: 21,
+    letterSpacing: -0.2,
   },
   carDropdownNameActive: {
-    color: "#D4A04A",
+    color: "#111827",
     fontWeight: "700",
   },
   carDropdownPriceCol: {
     flexShrink: 0,
-    width: 76,
+    minWidth: 72,
     alignItems: "flex-end",
-    justifyContent: "flex-start",
-    paddingTop: 2,
+    justifyContent: "center",
+    gap: 10,
   },
   carDropdownPrice: {
-    fontSize: 12,
+    fontSize: 16,
     fontWeight: "700",
-    color: "#D4A04A",
+    color: "#111827",
     textAlign: "right",
-    lineHeight: 16,
+    lineHeight: 20,
+  },
+  carRadio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: "#D1D5DB",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  carRadioSelected: {
+    borderColor: "#111827",
+    backgroundColor: "#111827",
   },
   toggleRow: {
     flexDirection: "row",

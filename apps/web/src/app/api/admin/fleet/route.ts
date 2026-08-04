@@ -40,7 +40,9 @@ export async function POST(request: NextRequest) {
       seating,
       luggage,
       basePrice,
+      baseDistanceKm,
       hourlyRate,
+      extraKmRate,
       pricePerKm,
       isActive = true,
       sortOrder = 0,
@@ -57,6 +59,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Vehicle ID already exists" }, { status: 400 });
     }
 
+    const parsedExtra =
+      parseFloat(extraKmRate) || parseFloat(pricePerKm) || 3.2;
+
     const vehicle = await prisma.fleetVehicle.create({
       data: {
         vehicleId,
@@ -68,8 +73,10 @@ export async function POST(request: NextRequest) {
         seating: seating || "",
         luggage: luggage || "",
         basePrice: parseFloat(basePrice) || 0,
+        baseDistanceKm: parseFloat(baseDistanceKm) || 17,
         hourlyRate: parseFloat(hourlyRate) || 0,
-        pricePerKm: parseFloat(pricePerKm) || 0,
+        extraKmRate: parsedExtra,
+        pricePerKm: parseFloat(pricePerKm) || parsedExtra,
         isActive,
         sortOrder: parseInt(sortOrder) || 0,
       },
@@ -101,8 +108,17 @@ export async function PUT(request: NextRequest) {
     if (updateData.basePrice !== undefined) {
       updateData.basePrice = parseFloat(updateData.basePrice);
     }
+    if (updateData.baseDistanceKm !== undefined) {
+      updateData.baseDistanceKm = parseFloat(updateData.baseDistanceKm);
+    }
     if (updateData.hourlyRate !== undefined) {
       updateData.hourlyRate = parseFloat(updateData.hourlyRate);
+    }
+    if (updateData.extraKmRate !== undefined) {
+      updateData.extraKmRate = parseFloat(updateData.extraKmRate);
+      if (updateData.pricePerKm === undefined) {
+        updateData.pricePerKm = updateData.extraKmRate;
+      }
     }
     if (updateData.pricePerKm !== undefined) {
       updateData.pricePerKm = parseFloat(updateData.pricePerKm);

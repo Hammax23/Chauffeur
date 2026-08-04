@@ -34,6 +34,9 @@ async function loadFleetFromDatabase(): Promise<FleetVehicle[] | null> {
       price: row.hourlyRate,
       basePrice: row.basePrice > 0 ? row.basePrice : row.hourlyRate,
       pricePerKm: row.pricePerKm,
+      baseDistanceKm: row.baseDistanceKm > 0 ? row.baseDistanceKm : 17,
+      extraKmRate:
+        row.extraKmRate > 0 ? row.extraKmRate : row.pricePerKm > 0 ? row.pricePerKm : 3.2,
     }));
   } catch {
     // DB offline or table missing — use static fleet.ts on public pages

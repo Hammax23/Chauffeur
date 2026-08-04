@@ -36,6 +36,8 @@ export async function POST(request: NextRequest) {
           luggage: vehicle.luggage,
           hourlyRate: vehicle.price,
           basePrice: vehicle.basePrice ?? vehicle.price,
+          baseDistanceKm: vehicle.baseDistanceKm ?? 17,
+          extraKmRate: vehicle.extraKmRate ?? vehicle.pricePerKm ?? 3.2,
           pricePerKm: vehicle.pricePerKm,
           isActive: true,
           sortOrder: fleetData.indexOf(vehicle),

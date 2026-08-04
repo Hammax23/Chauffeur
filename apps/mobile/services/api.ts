@@ -775,6 +775,8 @@ export interface AppFleetVehicleDto {
   pricePerKm: number;
   hourlyRate: number;
   price: number;
+  baseDistanceKm?: number;
+  extraKmRate?: number;
   showOnHome?: boolean;
   sortOrder?: number;
 }

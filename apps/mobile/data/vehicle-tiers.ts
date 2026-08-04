@@ -80,6 +80,8 @@ export interface VehicleTierOption {
   imageUrl: string;
   pricePerKm: number;
   hourlyRate: number;
+  baseDistanceKm?: number;
+  extraKmRate?: number;
   description?: string;
   category?: string;
   seating?: string;
@@ -111,6 +113,8 @@ export function buildVehicleTiersFromAppFleet(appFleet: AppFleetVehicleDto[]): V
       imageUrl: v.imageUrl || v.image || "",
       pricePerKm: v.pricePerKm,
       hourlyRate: v.hourlyRate ?? v.price ?? 0,
+      baseDistanceKm: v.baseDistanceKm,
+      extraKmRate: v.extraKmRate,
       description: v.description,
       category: v.category,
       seating: v.seating,

@@ -112,6 +112,13 @@ export async function GET(request: NextRequest) {
         pricePerKm: v.pricePerKm,
         hourlyRate: v.hourlyRate,
         price: v.hourlyRate,
+        baseDistanceKm: v.baseDistanceKm > 0 ? v.baseDistanceKm : pricing.baseDistanceKm,
+        extraKmRate:
+          v.extraKmRate > 0
+            ? v.extraKmRate
+            : v.pricePerKm > 0
+              ? v.pricePerKm
+              : pricing.extraKmRate,
         showOnHome: v.showOnHome,
         sortOrder: v.sortOrder,
       }))

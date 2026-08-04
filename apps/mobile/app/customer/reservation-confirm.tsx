@@ -9,8 +9,10 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  Modal,
+  Pressable,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { createReservation } from "../../services/api";
@@ -28,9 +30,11 @@ import {
 const SITE = "https://sarjworldwide.ca";
 
 export default function ReservationConfirmScreen() {
+  const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<BookingDraft | null>(null);
   const [ready, setReady] = useState(false);
   const [gratuityPercent, setGratuityPercent] = useState<number>(APP_DEFAULT_GRATUITY_PERCENT);
+  const [tipModalOpen, setTipModalOpen] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -357,24 +361,33 @@ export default function ReservationConfirmScreen() {
             <Text style={styles.fareValue}>${fare.hst.toFixed(2)}</Text>
           </View>
 
-          <Text style={[styles.fareLabel, { marginTop: 12, marginBottom: 8 }]}>Gratuity</Text>
-          <View style={styles.tipRow}>
-            {APP_GRATUITY_PERCENTS.map((pct) => (
-              <TouchableOpacity
-                key={pct}
-                style={[styles.tipChip, gratuityPercent === pct && styles.tipChipActive]}
-                onPress={() => setGratuityPercent(pct)}
-              >
-                <Text style={[styles.tipChipText, gratuityPercent === pct && styles.tipChipTextActive]}>
-                  {pct}%
+          <TouchableOpacity
+            style={styles.tipEntryRow}
+            onPress={() => setTipModalOpen(true)}
+            activeOpacity={0.85}
+          >
+            <View style={styles.tipEntryLeft}>
+              <View style={styles.tipEntryIcon}>
+                <Ionicons name="heart-outline" size={18} color="#0f172a" />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.tipEntryTitle}>Add tip</Text>
+                <Text style={styles.tipEntrySub} numberOfLines={1}>
+                  {gratuityPercent > 0
+                    ? `${gratuityPercent}%`
+                    : "Choose a tip for your chauffeur"}
                 </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <View style={styles.fareRow}>
-            <Text style={styles.fareLabel}>Tip ({fare.gratuityPercent}%)</Text>
-            <Text style={styles.fareValue}>${fare.gratuity.toFixed(2)}</Text>
-          </View>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+          </TouchableOpacity>
+
+          {gratuityPercent > 0 ? (
+            <View style={styles.fareRow}>
+              <Text style={styles.fareLabel}>Tip ({gratuityPercent}%)</Text>
+              <Text style={styles.fareValue}>${fare.gratuity.toFixed(2)}</Text>
+            </View>
+          ) : null}
           <View style={[styles.fareRow, styles.fareTotalRow]}>
             <Text style={styles.fareTotalLabel}>Estimated total</Text>
             <Text style={styles.fareTotalValue}>${fare.total.toFixed(2)}</Text>
@@ -473,6 +486,64 @@ export default function ReservationConfirmScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      <Modal
+        visible={tipModalOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setTipModalOpen(false)}
+        statusBarTranslucent
+      >
+        <View style={styles.tipModalRoot}>
+          <Pressable style={styles.tipModalBackdrop} onPress={() => setTipModalOpen(false)} />
+          <View
+            style={[
+              styles.tipModalSheet,
+              { paddingBottom: Math.max(insets.bottom, 16) + 8 },
+            ]}
+          >
+            <View style={styles.tipModalHandle} />
+            <Text style={styles.tipModalTitle}>Add a tip</Text>
+
+            <View style={styles.tipModalOptions}>
+              {APP_GRATUITY_PERCENTS.map((pct) => {
+                const selected = gratuityPercent === pct;
+                return (
+                  <TouchableOpacity
+                    key={pct}
+                    style={[styles.tipModalOption, selected && styles.tipModalOptionActive]}
+                    onPress={() => {
+                      setGratuityPercent(pct);
+                      setTipModalOpen(false);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Text
+                      style={[
+                        styles.tipModalOptionPct,
+                        selected && styles.tipModalOptionPctActive,
+                      ]}
+                    >
+                      {pct}%
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <TouchableOpacity
+              style={styles.tipModalNoTip}
+              onPress={() => {
+                setGratuityPercent(0);
+                setTipModalOpen(false);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.tipModalNoTipText}>No tip</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -602,18 +673,115 @@ const styles = StyleSheet.create({
   },
   fareTotalLabel: { fontSize: 15, fontWeight: "700", color: "#0f172a" },
   fareTotalValue: { fontSize: 16, fontWeight: "700", color: "#0f172a" },
-  tipRow: { flexDirection: "row", gap: 8, marginBottom: 10 },
-  tipChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+  tipEntryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginTop: 10,
+    marginBottom: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: "#f8fafc",
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    backgroundColor: "#f8fafc",
   },
-  tipChipActive: { backgroundColor: "#0f172a", borderColor: "#0f172a" },
-  tipChipText: { fontSize: 13, fontWeight: "600", color: "#64748b" },
-  tipChipTextActive: { color: "#fff" },
+  tipEntryLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minWidth: 0,
+  },
+  tipEntryIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  tipEntryTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0f172a",
+  },
+  tipEntrySub: {
+    marginTop: 2,
+    fontSize: 12,
+    color: "#64748b",
+  },
+  tipModalRoot: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  tipModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  tipModalSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    zIndex: 2,
+  },
+  tipModalHandle: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#d1d5db",
+    marginBottom: 14,
+  },
+  tipModalTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#0f172a",
+    letterSpacing: -0.3,
+    marginBottom: 20,
+  },
+  tipModalOptions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  tipModalOption: {
+    flex: 1,
+    minHeight: 72,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "#e2e8f0",
+    backgroundColor: "#f8fafc",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+  },
+  tipModalOptionActive: {
+    borderColor: "#0f172a",
+    backgroundColor: "#0f172a",
+  },
+  tipModalOptionPct: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#0f172a",
+  },
+  tipModalOptionPctActive: {
+    color: "#fff",
+  },
+  tipModalNoTip: {
+    marginTop: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  tipModalNoTipText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#64748b",
+  },
   guestName: { fontSize: 15, fontWeight: "600", color: "#0f172a", marginBottom: 4 },
   guestDetail: { fontSize: 13, color: "#64748b", marginBottom: 2 },
   bookerBox: {

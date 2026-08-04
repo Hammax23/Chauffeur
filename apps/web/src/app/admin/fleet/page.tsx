@@ -1,12 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Car, Plus, Edit2, Trash2, DollarSign, Save, X, ImageIcon, Download, Settings, Upload, Loader2 } from "lucide-react";
-
-interface PricingSettings {
-  baseDistanceKm: number;
-  extraKmRate: number;
-}
+import {
+  Car,
+  Plus,
+  Edit2,
+  Trash2,
+  DollarSign,
+  Save,
+  X,
+  ImageIcon,
+  Download,
+  Upload,
+  Loader2,
+} from "lucide-react";
 
 interface FleetVehicle {
   id: string;
@@ -19,13 +26,46 @@ interface FleetVehicle {
   seating: string;
   luggage: string;
   basePrice: number;
+  baseDistanceKm: number;
+  extraKmRate: number;
   hourlyRate: number;
   pricePerKm: number;
   isActive: boolean;
   sortOrder: number;
 }
 
+type VehicleFormData = Omit<FleetVehicle, "id">;
+
 const CATEGORIES = ["Sedan", "SUV", "Van", "Executive", "Coach"];
+
+const DEFAULT_BASE_DISTANCE_KM = 17;
+const DEFAULT_EXTRA_KM_RATE = 3.2;
+
+const emptyVehicle: VehicleFormData = {
+  vehicleId: "",
+  name: "",
+  dropdownName: "",
+  description: "",
+  image: "",
+  category: "Sedan",
+  seating: "",
+  luggage: "",
+  basePrice: 0,
+  baseDistanceKm: DEFAULT_BASE_DISTANCE_KM,
+  extraKmRate: DEFAULT_EXTRA_KM_RATE,
+  hourlyRate: 0,
+  pricePerKm: DEFAULT_EXTRA_KM_RATE,
+  isActive: true,
+  sortOrder: 0,
+};
+
+function resolveBaseDistanceKm(vehicle: FleetVehicle): number {
+  return vehicle.baseDistanceKm || DEFAULT_BASE_DISTANCE_KM;
+}
+
+function resolveExtraKmRate(vehicle: FleetVehicle): number {
+  return vehicle.extraKmRate || vehicle.pricePerKm || DEFAULT_EXTRA_KM_RATE;
+}
 
 export default function FleetManagementPage() {
   const [vehicles, setVehicles] = useState<FleetVehicle[]>([]);
@@ -37,31 +77,7 @@ export default function FleetManagementPage() {
   const [seedMessage, setSeedMessage] = useState("");
   const [uploading, setUploading] = useState(false);
   const [seeding, setSeeding] = useState(false);
-
-  // Pricing settings
-  const [pricingSettings, setPricingSettings] = useState<PricingSettings>({
-    baseDistanceKm: 17,
-    extraKmRate: 3.2,
-  });
-  const [savingSettings, setSavingSettings] = useState(false);
-
-  const emptyVehicle: Omit<FleetVehicle, "id"> = {
-    vehicleId: "",
-    name: "",
-    dropdownName: "",
-    description: "",
-    image: "",
-    category: "Sedan",
-    seating: "",
-    luggage: "",
-    basePrice: 0,
-    hourlyRate: 0,
-    pricePerKm: 0,
-    isActive: true,
-    sortOrder: 0,
-  };
-
-  const [formData, setFormData] = useState<Omit<FleetVehicle, "id">>(emptyVehicle);
+  const [formData, setFormData] = useState<VehicleFormData>(emptyVehicle);
 
   const fetchVehicles = async () => {
     try {
@@ -73,69 +89,19 @@ export default function FleetManagementPage() {
       } else {
         setError(data.error || "Failed to fetch vehicles");
       }
-    } catch (err) {
+    } catch {
       setError("Failed to fetch vehicles");
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchPricingSettings = async () => {
-    try {
-      const res = await fetch("/api/admin/charges");
-      const data = await res.json();
-      if (data.success && data.charges) {
-        const baseKm = data.charges.find((c: any) => c.chargeKey === "baseDistanceKm");
-        const extraRate = data.charges.find((c: any) => c.chargeKey === "extraKmRate");
-        setPricingSettings({
-          baseDistanceKm: baseKm?.amount ?? 17,
-          extraKmRate: extraRate?.amount ?? 3.2,
-        });
-      }
-    } catch (err) {
-      console.error("Failed to fetch pricing settings");
-    }
-  };
-
-  const savePricingSettings = async () => {
-    setSavingSettings(true);
-    setError("");
-    try {
-      // Update baseDistanceKm
-      await fetch("/api/admin/charges", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chargeKey: "baseDistanceKm",
-          chargeName: "Base Distance (KM)",
-          amount: pricingSettings.baseDistanceKm,
-        }),
-      });
-      // Update extraKmRate
-      await fetch("/api/admin/charges", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chargeKey: "extraKmRate",
-          chargeName: "Extra KM Rate",
-          amount: pricingSettings.extraKmRate,
-        }),
-      });
-      setSeedMessage("Pricing settings saved!");
-      setTimeout(() => setSeedMessage(""), 3000);
-    } catch (err) {
-      setError("Failed to save pricing settings");
-    } finally {
-      setSavingSettings(false);
-    }
-  };
-
   useEffect(() => {
     fetchVehicles();
-    fetchPricingSettings();
   }, []);
 
   const handleEdit = (vehicle: FleetVehicle) => {
+    const extraKmRate = resolveExtraKmRate(vehicle);
     setEditingVehicle(vehicle);
     setFormData({
       vehicleId: vehicle.vehicleId,
@@ -147,8 +113,10 @@ export default function FleetManagementPage() {
       seating: vehicle.seating,
       luggage: vehicle.luggage,
       basePrice: vehicle.basePrice ?? 0,
+      baseDistanceKm: resolveBaseDistanceKm(vehicle),
+      extraKmRate,
       hourlyRate: vehicle.hourlyRate,
-      pricePerKm: vehicle.pricePerKm,
+      pricePerKm: extraKmRate,
       isActive: vehicle.isActive,
       sortOrder: vehicle.sortOrder,
     });
@@ -171,10 +139,16 @@ export default function FleetManagementPage() {
     setSaving(true);
     setError("");
 
+    const payload = {
+      ...formData,
+      extraKmRate: formData.extraKmRate,
+      pricePerKm: formData.extraKmRate,
+    };
+
     try {
       const url = "/api/admin/fleet";
       const method = isAddingNew ? "POST" : "PUT";
-      const body = isAddingNew ? formData : { id: editingVehicle?.id, ...formData };
+      const body = isAddingNew ? payload : { id: editingVehicle?.id, ...payload };
 
       const res = await fetch(url, {
         method,
@@ -189,7 +163,7 @@ export default function FleetManagementPage() {
       } else {
         setError(data.error || "Failed to save vehicle");
       }
-    } catch (err) {
+    } catch {
       setError("Failed to save vehicle");
     } finally {
       setSaving(false);
@@ -207,7 +181,7 @@ export default function FleetManagementPage() {
       } else {
         setError(data.error || "Failed to delete vehicle");
       }
-    } catch (err) {
+    } catch {
       setError("Failed to delete vehicle");
     }
   };
@@ -223,7 +197,7 @@ export default function FleetManagementPage() {
       if (data.success) {
         await fetchVehicles();
       }
-    } catch (err) {
+    } catch {
       setError("Failed to update vehicle");
     }
   };
@@ -244,7 +218,7 @@ export default function FleetManagementPage() {
         body: uploadData,
       });
       const data = await res.json();
-      
+
       if (data.success) {
         setFormData((prev) => ({ ...prev, image: data.imageUrl }));
         setSeedMessage("Image uploaded successfully!");
@@ -252,7 +226,7 @@ export default function FleetManagementPage() {
       } else {
         setError(data.error || "Failed to upload image");
       }
-    } catch (err) {
+    } catch {
       setError("Failed to upload image");
     } finally {
       setUploading(false);
@@ -260,8 +234,13 @@ export default function FleetManagementPage() {
   };
 
   const handleSeed = async () => {
-    if (!confirm("This will import all static fleet data into the database. Existing vehicles will be skipped. Continue?")) return;
-    
+    if (
+      !confirm(
+        "This will import all static fleet data into the database. Existing vehicles will be skipped. Continue?"
+      )
+    )
+      return;
+
     setSeeding(true);
     setSeedMessage("");
     setError("");
@@ -272,15 +251,22 @@ export default function FleetManagementPage() {
       if (data.success) {
         setSeedMessage(`Seeded ${data.vehiclesCreated} vehicles and ${data.chargesCreated} charges!`);
         await fetchVehicles();
-        await fetchPricingSettings();
       } else {
         setError(data.error || "Failed to seed data");
       }
-    } catch (err) {
+    } catch {
       setError("Failed to seed data");
     } finally {
       setSeeding(false);
     }
+  };
+
+  const updateExtraKmRate = (value: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      extraKmRate: value,
+      pricePerKm: value,
+    }));
   };
 
   if (loading) {
@@ -347,7 +333,12 @@ export default function FleetManagementPage() {
               <input
                 type="text"
                 value={formData.vehicleId}
-                onChange={(e) => setFormData({ ...formData, vehicleId: e.target.value.toLowerCase().replace(/\s+/g, "-") })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    vehicleId: e.target.value.toLowerCase().replace(/\s+/g, "-"),
+                  })
+                }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-gray-900 bg-white"
                 placeholder="e.g. cadillac-xts"
                 disabled={!!editingVehicle}
@@ -384,37 +375,11 @@ export default function FleetManagementPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-gray-900 bg-white"
               >
                 {CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
                 ))}
               </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Base Price ($) — first {pricingSettings.baseDistanceKm} km*
-              </label>
-              <input
-                type="number"
-                value={formData.basePrice}
-                onChange={(e) => setFormData({ ...formData, basePrice: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-gray-900 bg-white"
-                min="0"
-                step="0.01"
-              />
-              <p className="text-xs text-gray-500 mt-1">Distance bookings: flat fare covering the first {pricingSettings.baseDistanceKm} km</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Hourly Rate ($ / hour)*</label>
-              <input
-                type="number"
-                value={formData.hourlyRate}
-                onChange={(e) => setFormData({ ...formData, hourlyRate: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-gray-900 bg-white"
-                min="0"
-                step="0.01"
-              />
-              <p className="text-xs text-gray-500 mt-1">Hourly bookings only (min 3 hours)</p>
             </div>
 
             <div>
@@ -444,7 +409,9 @@ export default function FleetManagementPage() {
               <input
                 type="number"
                 value={formData.sortOrder}
-                onChange={(e) => setFormData({ ...formData, sortOrder: parseInt(e.target.value) || 0 })}
+                onChange={(e) =>
+                  setFormData({ ...formData, sortOrder: parseInt(e.target.value) || 0 })
+                }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-gray-900 bg-white"
                 min="0"
               />
@@ -478,7 +445,11 @@ export default function FleetManagementPage() {
               </div>
               {formData.image && (
                 <div className="mt-2 flex items-center gap-2">
-                  <img src={formData.image} alt="Preview" className="w-16 h-12 object-cover rounded border" />
+                  <img
+                    src={formData.image}
+                    alt="Preview"
+                    className="w-16 h-12 object-cover rounded border"
+                  />
                   <span className="text-xs text-gray-500">{formData.image}</span>
                 </div>
               )}
@@ -492,7 +463,9 @@ export default function FleetManagementPage() {
                 onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                 className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
               />
-              <label htmlFor="isActive" className="text-sm font-medium text-gray-700">Active</label>
+              <label htmlFor="isActive" className="text-sm font-medium text-gray-700">
+                Active
+              </label>
             </div>
 
             <div className="lg:col-span-3">
@@ -505,6 +478,92 @@ export default function FleetManagementPage() {
                 placeholder="Vehicle description..."
               />
             </div>
+          </div>
+
+          {/* Per-vehicle distance pricing */}
+          <div className="mt-6 p-4 bg-amber-50 border-2 border-amber-200 rounded-xl">
+            <h3 className="text-sm font-semibold text-amber-900 mb-3 flex items-center gap-2">
+              <DollarSign className="w-4 h-4" />
+              Distance pricing (this vehicle only)
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Base Price ($)*
+                </label>
+                <input
+                  type="number"
+                  value={formData.basePrice}
+                  onChange={(e) =>
+                    setFormData({ ...formData, basePrice: parseFloat(e.target.value) || 0 })
+                  }
+                  className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-gray-900 bg-white"
+                  min="0"
+                  step="0.01"
+                />
+                <p className="text-xs text-amber-800 mt-1">
+                  Flat fare for the first {formData.baseDistanceKm} km
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Base Distance (KM)*
+                </label>
+                <input
+                  type="number"
+                  value={formData.baseDistanceKm}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      baseDistanceKm: parseFloat(e.target.value) || DEFAULT_BASE_DISTANCE_KM,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-gray-900 bg-white"
+                  min="0"
+                  step="1"
+                />
+                <p className="text-xs text-amber-800 mt-1">Included distance in base price</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Extra KM Rate ($)*
+                </label>
+                <input
+                  type="number"
+                  value={formData.extraKmRate}
+                  onChange={(e) => updateExtraKmRate(parseFloat(e.target.value) || 0)}
+                  className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-gray-900 bg-white"
+                  min="0"
+                  step="0.1"
+                />
+                <p className="text-xs text-amber-800 mt-1">Per km after base distance</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Hourly Rate ($ / hour)*
+                </label>
+                <input
+                  type="number"
+                  value={formData.hourlyRate}
+                  onChange={(e) =>
+                    setFormData({ ...formData, hourlyRate: parseFloat(e.target.value) || 0 })
+                  }
+                  className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-gray-900 bg-white"
+                  min="0"
+                  step="0.01"
+                />
+                <p className="text-xs text-amber-800 mt-1">Hourly bookings only (min 3 hours)</p>
+              </div>
+            </div>
+            <p className="mt-3 text-sm text-amber-900">
+              Example: {formData.baseDistanceKm} km trip = ${formData.basePrice.toFixed(2)} base
+              price, {formData.baseDistanceKm + 10} km trip = $
+              {(formData.basePrice + 10 * formData.extraKmRate).toFixed(2)} (base + 10 × $
+              {formData.extraKmRate.toFixed(2)})
+            </p>
           </div>
 
           <div className="flex gap-3 mt-4">
@@ -533,154 +592,140 @@ export default function FleetManagementPage() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Vehicle</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Base Price</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Hourly</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  Vehicle
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  Category
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  Base Price
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  Base KM
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  Extra $/KM
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  Hourly
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {vehicles.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                     <Car className="w-12 h-12 mx-auto mb-2 text-gray-300" />
                     <p>No vehicles found. Add your first vehicle to get started.</p>
                   </td>
                 </tr>
               ) : (
-                vehicles.map((vehicle) => (
-                  <tr key={vehicle.id} className={`hover:bg-gray-50 ${!vehicle.isActive ? "opacity-50" : ""}`}>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        {vehicle.image ? (
-                          <img
-                            src={vehicle.image}
-                            alt={vehicle.name}
-                            className="w-16 h-10 object-cover rounded"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = "none";
-                            }}
-                          />
-                        ) : (
-                          <div className="w-16 h-10 bg-gray-200 rounded flex items-center justify-center">
-                            <ImageIcon className="w-5 h-5 text-gray-400" />
+                vehicles.map((vehicle) => {
+                  const baseKm = resolveBaseDistanceKm(vehicle);
+                  const extraRate = resolveExtraKmRate(vehicle);
+
+                  return (
+                    <tr
+                      key={vehicle.id}
+                      className={`hover:bg-gray-50 ${!vehicle.isActive ? "opacity-50" : ""}`}
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          {vehicle.image ? (
+                            <img
+                              src={vehicle.image}
+                              alt={vehicle.name}
+                              className="w-16 h-10 object-cover rounded"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = "none";
+                              }}
+                            />
+                          ) : (
+                            <div className="w-16 h-10 bg-gray-200 rounded flex items-center justify-center">
+                              <ImageIcon className="w-5 h-5 text-gray-400" />
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-medium text-gray-900">{vehicle.name}</div>
+                            <div className="text-xs text-gray-500">{vehicle.vehicleId}</div>
                           </div>
-                        )}
-                        <div>
-                          <div className="font-medium text-gray-900">{vehicle.name}</div>
-                          <div className="text-xs text-gray-500">{vehicle.vehicleId}</div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="px-2 py-1 text-xs font-medium bg-amber-100 text-amber-800 rounded">
-                        {vehicle.category}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <DollarSign className="w-4 h-4 text-green-600" />
-                        <span className="font-semibold text-gray-900">
-                          {(vehicle.basePrice > 0 ? vehicle.basePrice : vehicle.hourlyRate).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-1 text-xs font-medium bg-amber-100 text-amber-800 rounded">
+                          {vehicle.category}
                         </span>
-                        <span className="text-xs text-gray-500">base</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <DollarSign className="w-4 h-4 text-blue-600" />
-                        <span className="font-semibold text-gray-900">{vehicle.hourlyRate.toFixed(2)}</span>
-                        <span className="text-xs text-gray-500">/hr</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={() => handleToggleActive(vehicle)}
-                        className={`px-3 py-1 text-xs font-medium rounded-full ${
-                          vehicle.isActive
-                            ? "bg-green-100 text-green-800"
-                            : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {vehicle.isActive ? "Active" : "Inactive"}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-center gap-2">
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <DollarSign className="w-4 h-4 text-green-600" />
+                          <span className="font-semibold text-gray-900">
+                            {vehicle.basePrice.toFixed(2)}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className="font-semibold text-gray-900">{baseKm}</span>
+                        <span className="text-xs text-gray-500 ml-1">km</span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <DollarSign className="w-4 h-4 text-amber-600" />
+                          <span className="font-semibold text-gray-900">{extraRate.toFixed(2)}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <DollarSign className="w-4 h-4 text-blue-600" />
+                          <span className="font-semibold text-gray-900">
+                            {vehicle.hourlyRate.toFixed(2)}
+                          </span>
+                          <span className="text-xs text-gray-500">/hr</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center">
                         <button
-                          onClick={() => handleEdit(vehicle)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Edit"
+                          onClick={() => handleToggleActive(vehicle)}
+                          className={`px-3 py-1 text-xs font-medium rounded-full ${
+                            vehicle.isActive
+                              ? "bg-green-100 text-green-800"
+                              : "bg-red-100 text-red-800"
+                          }`}
                         >
-                          <Edit2 className="w-4 h-4" />
+                          {vehicle.isActive ? "Active" : "Inactive"}
                         </button>
-                        <button
-                          onClick={() => handleDelete(vehicle.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => handleEdit(vehicle)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(vehicle.id)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
-        </div>
-      </div>
-
-      {/* Pricing Settings */}
-      <div className="mt-6 bg-white rounded-xl shadow-lg border p-6">
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Settings className="w-5 h-5 text-amber-600" />
-          Distance Pricing Settings
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Base Distance (KM)
-            </label>
-            <input
-              type="number"
-              value={pricingSettings.baseDistanceKm}
-              onChange={(e) => setPricingSettings({ ...pricingSettings, baseDistanceKm: parseFloat(e.target.value) || 0 })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-gray-900 bg-white"
-              min="0"
-              step="1"
-            />
-            <p className="text-xs text-gray-500 mt-1">Vehicle base price covers up to this distance</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Extra KM Rate ($)
-            </label>
-            <input
-              type="number"
-              value={pricingSettings.extraKmRate}
-              onChange={(e) => setPricingSettings({ ...pricingSettings, extraKmRate: parseFloat(e.target.value) || 0 })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-gray-900 bg-white"
-              min="0"
-              step="0.1"
-            />
-            <p className="text-xs text-gray-500 mt-1">Charge per KM after base distance</p>
-          </div>
-        </div>
-        <div className="mt-4 flex items-center gap-4">
-          <button
-            onClick={savePricingSettings}
-            disabled={savingSettings}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
-          >
-            <Save className="w-4 h-4" />
-            {savingSettings ? "Saving..." : "Save Settings"}
-          </button>
-          <p className="text-sm text-gray-500">
-            Example: {pricingSettings.baseDistanceKm}km trip = Base Price, {pricingSettings.baseDistanceKm + 10}km trip = Base + ({10} × ${pricingSettings.extraKmRate.toFixed(2)})
-          </p>
         </div>
       </div>
 
@@ -688,10 +733,25 @@ export default function FleetManagementPage() {
       <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <h3 className="font-semibold text-blue-900 mb-2">How Fleet Pricing Works</h3>
         <ul className="text-sm text-blue-800 space-y-1">
-          <li>• <strong>Base Price:</strong> Flat fare for distance bookings covering the first {pricingSettings.baseDistanceKm} km</li>
-          <li>• <strong>Extra KM:</strong> After {pricingSettings.baseDistanceKm} km, ${pricingSettings.extraKmRate.toFixed(2)} is charged per additional km (global setting below)</li>
-          <li>• <strong>Hourly Rate:</strong> Separate — used only for hourly bookings (minimum 3 hours)</li>
-          <li>• <strong>Active:</strong> Only active vehicles appear in the reservation form</li>
+          <li>
+            • <strong>Per-vehicle pricing:</strong> Each vehicle has its own base price, base
+            distance, and extra km rate — there are no global distance pricing settings.
+          </li>
+          <li>
+            • <strong>Base Price:</strong> Flat fare for distance bookings covering the first X km
+            (set per vehicle)
+          </li>
+          <li>
+            • <strong>Extra KM:</strong> After the vehicle&apos;s base distance, the extra km rate
+            is charged per additional km
+          </li>
+          <li>
+            • <strong>Hourly Rate:</strong> Separate — used only for hourly bookings (minimum 3
+            hours)
+          </li>
+          <li>
+            • <strong>Active:</strong> Only active vehicles appear in the reservation form
+          </li>
         </ul>
       </div>
     </div>

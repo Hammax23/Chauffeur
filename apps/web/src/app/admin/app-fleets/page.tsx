@@ -16,7 +16,6 @@ import {
   ToggleLeft,
   ToggleRight,
   DollarSign,
-  Settings,
 } from "lucide-react";
 
 type AppFleetVehicle = {
@@ -32,17 +31,25 @@ type AppFleetVehicle = {
   luggage: string;
   pricePerKm: number;
   hourlyRate: number;
+  baseDistanceKm: number;
+  extraKmRate: number;
   showOnHome: boolean;
   isActive: boolean;
   sortOrder: number;
 };
 
-type PricingSettings = {
-  baseDistanceKm: number;
-  extraKmRate: number;
-};
-
 type FormState = Omit<AppFleetVehicle, "id">;
+
+const DEFAULT_BASE_DISTANCE_KM = 17;
+const DEFAULT_EXTRA_KM_RATE = 3.2;
+
+function resolveBaseDistanceKm(vehicle: AppFleetVehicle): number {
+  return vehicle.baseDistanceKm || DEFAULT_BASE_DISTANCE_KM;
+}
+
+function resolveExtraKmRate(vehicle: AppFleetVehicle): number {
+  return vehicle.extraKmRate || vehicle.pricePerKm || DEFAULT_EXTRA_KM_RATE;
+}
 
 const CATEGORIES = ["Sedan", "SUV", "Van", "Executive", "Coach"];
 const GROUPS = [
@@ -60,8 +67,10 @@ const emptyForm: FormState = {
   category: "Sedan",
   seating: "",
   luggage: "",
-  pricePerKm: 0,
+  pricePerKm: DEFAULT_EXTRA_KM_RATE,
   hourlyRate: 0,
+  baseDistanceKm: DEFAULT_BASE_DISTANCE_KM,
+  extraKmRate: DEFAULT_EXTRA_KM_RATE,
   showOnHome: true,
   isActive: true,
   sortOrder: 0,
@@ -82,11 +91,6 @@ export default function AppFleetsAdminPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [filterGroup, setFilterGroup] = useState<"all" | "standard" | "executive">("all");
-  const [pricingSettings, setPricingSettings] = useState<PricingSettings>({
-    baseDistanceKm: 17,
-    extraKmRate: 3.2,
-  });
-  const [savingSettings, setSavingSettings] = useState(false);
 
   const fetchVehicles = useCallback(async () => {
     setLoading(true);
@@ -106,60 +110,9 @@ export default function AppFleetsAdminPage() {
     }
   }, []);
 
-  const fetchPricingSettings = useCallback(async () => {
-    try {
-      const res = await fetch("/api/admin/charges");
-      const data = await res.json();
-      if (data.success && data.charges) {
-        const baseKm = data.charges.find((c: { chargeKey: string }) => c.chargeKey === "baseDistanceKm");
-        const extraRate = data.charges.find((c: { chargeKey: string }) => c.chargeKey === "extraKmRate");
-        setPricingSettings({
-          baseDistanceKm: baseKm?.amount ?? 17,
-          extraKmRate: extraRate?.amount ?? 3.2,
-        });
-      }
-    } catch {
-      /* keep defaults */
-    }
-  }, []);
-
-  const savePricingSettings = async () => {
-    setSavingSettings(true);
-    setError("");
-    try {
-      await Promise.all([
-        fetch("/api/admin/charges", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chargeKey: "baseDistanceKm",
-            chargeName: "Base Distance (KM)",
-            amount: pricingSettings.baseDistanceKm,
-          }),
-        }),
-        fetch("/api/admin/charges", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chargeKey: "extraKmRate",
-            chargeName: "Extra KM Rate",
-            amount: pricingSettings.extraKmRate,
-          }),
-        }),
-      ]);
-      setMessage("Distance pricing settings saved");
-      setTimeout(() => setMessage(""), 3000);
-    } catch {
-      setError("Failed to save pricing settings");
-    } finally {
-      setSavingSettings(false);
-    }
-  };
-
   useEffect(() => {
     fetchVehicles();
-    fetchPricingSettings();
-  }, [fetchVehicles, fetchPricingSettings]);
+  }, [fetchVehicles]);
 
   const filtered = useMemo(() => {
     if (filterGroup === "all") return vehicles;
@@ -176,6 +129,7 @@ export default function AppFleetsAdminPage() {
   };
 
   const openEdit = (v: AppFleetVehicle) => {
+    const extraKmRate = resolveExtraKmRate(v);
     setIsAdding(false);
     setEditingId(v.id);
     setForm({
@@ -188,12 +142,22 @@ export default function AppFleetsAdminPage() {
       category: v.category,
       seating: v.seating,
       luggage: v.luggage,
-      pricePerKm: v.pricePerKm,
+      pricePerKm: extraKmRate,
       hourlyRate: v.hourlyRate,
+      baseDistanceKm: resolveBaseDistanceKm(v),
+      extraKmRate,
       showOnHome: v.showOnHome,
       isActive: v.isActive,
       sortOrder: v.sortOrder,
     });
+  };
+
+  const updateExtraKmRate = (value: number) => {
+    setForm((prev) => ({
+      ...prev,
+      extraKmRate: value,
+      pricePerKm: value,
+    }));
   };
 
   const closeForm = () => {
@@ -231,11 +195,16 @@ export default function AppFleetsAdminPage() {
     }
     setSaving(true);
     setError("");
+    const payload = {
+      ...form,
+      extraKmRate: form.extraKmRate,
+      pricePerKm: form.extraKmRate,
+    };
     try {
       const res = await fetch("/api/admin/app-fleet", {
         method: editingId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editingId ? { id: editingId, ...form } : form),
+        body: JSON.stringify(editingId ? { id: editingId, ...payload } : payload),
       });
       const data = await res.json();
       if (data.success) {
@@ -318,8 +287,8 @@ export default function AppFleetsAdminPage() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900">App Fleets</h1>
           <p className="text-sm text-gray-500 mt-1 max-w-xl">
-            Set mobile app vehicle pricing the same way as Fleet Pricing — hourly base rate,
-            per-km, and shared distance settings (base km + extra km rate).
+            Set mobile app vehicle pricing per vehicle — hourly base rate, base distance (km),
+            and extra km rate for distance bookings.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -460,7 +429,43 @@ export default function AppFleetsAdminPage() {
                 className={fieldClass}
               />
               <span className="text-[11px] text-gray-400">
-                Base price for distance bookings (first {pricingSettings.baseDistanceKm} km) and hourly bookings
+                Base price for distance bookings (first {form.baseDistanceKm} km) and hourly bookings
+              </span>
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-xs font-semibold text-gray-500 uppercase">Base Distance (KM)</span>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                value={form.baseDistanceKm}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    baseDistanceKm: parseFloat(e.target.value) || DEFAULT_BASE_DISTANCE_KM,
+                  }))
+                }
+                className={fieldClass}
+              />
+              <span className="text-[11px] text-gray-400">
+                Included distance covered by the base rate
+              </span>
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-xs font-semibold text-gray-500 uppercase flex items-center gap-1">
+                <DollarSign className="w-3 h-3 text-blue-600" />
+                Extra KM Rate (CAD) *
+              </span>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                value={form.extraKmRate}
+                onChange={(e) => updateExtraKmRate(parseFloat(e.target.value) || 0)}
+                className={fieldClass}
+              />
+              <span className="text-[11px] text-gray-400">
+                Charged per km after base distance; synced to price/km shown in app
               </span>
             </label>
             <label className="space-y-1.5">
@@ -477,7 +482,7 @@ export default function AppFleetsAdminPage() {
                 className={fieldClass}
               />
               <span className="text-[11px] text-gray-400">
-                Shown in app; distance fare uses base rate + extra km settings below
+                Display value in app; saved as extra km rate on submit
               </span>
             </label>
             <label className="space-y-1.5">
@@ -622,6 +627,12 @@ export default function AppFleetsAdminPage() {
                     Hourly / Base
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Base KM
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Extra $/KM
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Per KM
                   </th>
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -633,7 +644,11 @@ export default function AppFleetsAdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map((v) => (
+                {filtered.map((v) => {
+                  const baseKm = resolveBaseDistanceKm(v);
+                  const extraRate = resolveExtraKmRate(v);
+
+                  return (
                   <tr
                     key={v.id}
                     className={`hover:bg-gray-50/80 ${!v.isActive ? "opacity-55" : ""}`}
@@ -672,6 +687,17 @@ export default function AppFleetsAdminPage() {
                         <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
                         <span className="font-semibold text-gray-900">{v.hourlyRate.toFixed(2)}</span>
                         <span className="text-xs text-gray-500">/hr</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <span className="font-semibold text-gray-900">{baseKm}</span>
+                      <span className="text-xs text-gray-500 ml-0.5">km</span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="inline-flex items-center gap-1 justify-end">
+                        <DollarSign className="w-3.5 h-3.5 text-blue-600" />
+                        <span className="font-semibold text-gray-900">{extraRate.toFixed(2)}</span>
+                        <span className="text-xs text-gray-500">/km</span>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -729,87 +755,27 @@ export default function AppFleetsAdminPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
 
-      {/* Distance Pricing Settings — same keys as Fleet Pricing */}
-      <div className="mt-6 bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-900">
-          <Settings className="w-5 h-5 text-[#C9A063]" />
-          Distance Pricing Settings
-        </h2>
-        <p className="text-sm text-gray-500 mb-4">
-          Shared with website Fleet Pricing. App distance fare = vehicle base rate for the first{" "}
-          {pricingSettings.baseDistanceKm} km, then ${pricingSettings.extraKmRate.toFixed(2)} per extra km.
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Base Distance (KM)</label>
-            <input
-              type="number"
-              value={pricingSettings.baseDistanceKm}
-              onChange={(e) =>
-                setPricingSettings({
-                  ...pricingSettings,
-                  baseDistanceKm: parseFloat(e.target.value) || 0,
-                })
-              }
-              className={fieldClass}
-              min={0}
-              step={1}
-            />
-            <p className="text-xs text-gray-500 mt-1">Vehicle base price covers up to this distance</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Extra KM Rate ($)</label>
-            <input
-              type="number"
-              value={pricingSettings.extraKmRate}
-              onChange={(e) =>
-                setPricingSettings({
-                  ...pricingSettings,
-                  extraKmRate: parseFloat(e.target.value) || 0,
-                })
-              }
-              className={fieldClass}
-              min={0}
-              step={0.1}
-            />
-            <p className="text-xs text-gray-500 mt-1">Charge per KM after base distance</p>
-          </div>
-        </div>
-        <div className="mt-4 flex flex-wrap items-center gap-4">
-          <button
-            type="button"
-            onClick={savePricingSettings}
-            disabled={savingSettings}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 text-sm font-semibold"
-          >
-            {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            {savingSettings ? "Saving..." : "Save Settings"}
-          </button>
-          <p className="text-sm text-gray-500">
-            Example: {pricingSettings.baseDistanceKm} km = Base Rate ·{" "}
-            {pricingSettings.baseDistanceKm + 10} km = Base + (10 × $
-            {pricingSettings.extraKmRate.toFixed(2)})
-          </p>
-        </div>
-      </div>
-
       <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
         <h3 className="font-semibold text-blue-900 mb-2">How App Fleet Pricing Works</h3>
         <ul className="text-sm text-blue-800 space-y-1">
           <li>
-            • <strong>Base Price:</strong> Each vehicle&apos;s hourly rate is the base for distance
-            bookings (covers first {pricingSettings.baseDistanceKm} km)
+            • <strong>Per vehicle:</strong> Each app vehicle has its own base distance and extra km rate
           </li>
           <li>
-            • <strong>Extra KM:</strong> After {pricingSettings.baseDistanceKm} km, $
-            {pricingSettings.extraKmRate.toFixed(2)} is charged per additional km
+            • <strong>Base Price:</strong> The hourly rate is the base for distance bookings (covers
+            the vehicle&apos;s base distance km)
+          </li>
+          <li>
+            • <strong>Extra KM:</strong> After the base distance, the vehicle&apos;s extra km rate is
+            charged per additional km
           </li>
           <li>
             • <strong>Hourly Rate:</strong> Also used if you add hourly bookings in the app later

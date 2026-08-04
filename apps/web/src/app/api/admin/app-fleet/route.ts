@@ -23,6 +23,13 @@ function parseVehicleBody(body: Record<string, unknown>) {
     luggage: typeof body.luggage === "string" ? body.luggage.trim() : "",
     pricePerKm: Number(body.pricePerKm) || 0,
     hourlyRate: Number(body.hourlyRate) || 0,
+    baseDistanceKm: Number(body.baseDistanceKm) > 0 ? Number(body.baseDistanceKm) : 17,
+    extraKmRate:
+      Number(body.extraKmRate) > 0
+        ? Number(body.extraKmRate)
+        : Number(body.pricePerKm) > 0
+          ? Number(body.pricePerKm)
+          : 3.2,
     showOnHome: body.showOnHome !== false,
     isActive: body.isActive !== false,
     sortOrder: Number.isFinite(Number(body.sortOrder)) ? Number(body.sortOrder) : 0,

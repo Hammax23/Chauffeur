@@ -36,7 +36,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import StripePayment from "@/components/StripePayment";
 import Turnstile from "@/components/Turnstile";
 import { fleetData, RESERVATION_HIDE_HOURLY_RATE_IDS, RESERVATION_EXCLUDED_VEHICLE_IDS, getFleetForReservation, type FleetVehicle, type FleetCategory } from "@/data/fleet";
-import { calculateReservationPricing } from "@/lib/reservation-pricing";
+import { calculateReservationPricing, APP_GRATUITY_PERCENTS } from "@/lib/reservation-pricing";
 import { GoogleMapsProvider, useGoogleMaps } from "@/components/GoogleMapsProvider";
 import {
   PARCEL_SERVICE_TYPE,
@@ -229,7 +229,8 @@ function ReservationPageContent() {
   const [flightNote, setFlightNote] = useState("");
 
   // Gratuity
-  const [gratuityPercent, setGratuityPercent] = useState(20);
+  const [gratuityPercent, setGratuityPercent] = useState(0);
+  const [tipModalOpen, setTipModalOpen] = useState(false);
 
   // Payment states (card info)
   const [cardType, setCardType] = useState("");
@@ -529,8 +530,15 @@ function ReservationPageContent() {
       }
       const distanceKm = routeDistanceValue / 1000;
       const basePrice = vehicle.basePrice && vehicle.basePrice > 0 ? vehicle.basePrice : vehicle.price;
-      const extraKm = Math.max(0, distanceKm - pricingConfig.baseDistanceKm);
-      const extraCharge = extraKm * pricingConfig.extraKmRate;
+      const baseKm = vehicle.baseDistanceKm && vehicle.baseDistanceKm > 0 ? vehicle.baseDistanceKm : 17;
+      const extraRate =
+        vehicle.extraKmRate && vehicle.extraKmRate > 0
+          ? vehicle.extraKmRate
+          : vehicle.pricePerKm > 0
+            ? vehicle.pricePerKm
+            : pricingConfig.extraKmRate;
+      const extraKm = Math.max(0, distanceKm - baseKm);
+      const extraCharge = extraKm * extraRate;
       const calculatedPrice = basePrice + extraCharge;
       setRoutePrice(calculatedPrice);
     }
@@ -540,15 +548,28 @@ function ReservationPageContent() {
 
   /** Ride fare for a vehicle from trip distance/hours (not the static base list price). */
   const getVehicleRideFare = useCallback(
-    (vehicle: { price: number; basePrice?: number }) => {
+    (vehicle: {
+      price: number;
+      basePrice?: number;
+      baseDistanceKm?: number;
+      extraKmRate?: number;
+      pricePerKm?: number;
+    }) => {
       if (bookingMode === "hourly") {
         return vehicle.price * hourlyDuration;
       }
       if (routeDistanceValue <= 0) return null;
       const distanceKm = routeDistanceValue / 1000;
       const basePrice = vehicle.basePrice && vehicle.basePrice > 0 ? vehicle.basePrice : vehicle.price;
-      const extraKm = Math.max(0, distanceKm - pricingConfig.baseDistanceKm);
-      return basePrice + extraKm * pricingConfig.extraKmRate;
+      const baseKm = vehicle.baseDistanceKm && vehicle.baseDistanceKm > 0 ? vehicle.baseDistanceKm : 17;
+      const extraRate =
+        vehicle.extraKmRate && vehicle.extraKmRate > 0
+          ? vehicle.extraKmRate
+          : vehicle.pricePerKm && vehicle.pricePerKm > 0
+            ? vehicle.pricePerKm
+            : pricingConfig.extraKmRate;
+      const extraKm = Math.max(0, distanceKm - baseKm);
+      return basePrice + extraKm * extraRate;
     },
     [bookingMode, hourlyDuration, routeDistanceValue, pricingConfig]
   );
@@ -560,6 +581,8 @@ function ReservationPageContent() {
         hourlyRate: vehicle.price,
         basePrice: vehicle.basePrice && vehicle.basePrice > 0 ? vehicle.basePrice : vehicle.price,
         pricePerKm: vehicle.pricePerKm,
+        baseDistanceKm: vehicle.baseDistanceKm,
+        extraKmRate: vehicle.extraKmRate ?? vehicle.pricePerKm,
       })),
     [reservationFleet]
   );
@@ -581,8 +604,6 @@ function ReservationPageContent() {
       },
       pricingFleetSource,
       {
-        baseDistanceKm: pricingConfig.baseDistanceKm,
-        extraKmRate: pricingConfig.extraKmRate,
         stop: pricingConfig.stop,
         childSeat: pricingConfig.childSeat,
         meetGreet: pricingConfig.meetGreet,
@@ -2048,23 +2069,30 @@ function ReservationPageContent() {
                                 ${(pricingSummary?.hst ?? 0).toFixed(2)}
                               </span>
                             </div>
-                            <div className="flex items-center justify-between gap-3 px-3 py-2.5">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-[13px] text-gray-500">Gratuity</span>
-                                <select
-                                  value={gratuityPercent}
-                                  onChange={(e) => setGratuityPercent(Number(e.target.value))}
-                                  className="text-[12px] font-medium text-gray-900 bg-white border border-gray-200 rounded-md px-2 py-1 focus:outline-none focus:border-[#C9A063]"
-                                >
-                                  <option value={18}>18%</option>
-                                  <option value={20}>20%</option>
-                                  <option value={25}>25%</option>
-                                  <option value={30}>30%</option>
-                                </select>
-                              </div>
-                              <span className="text-[13px] font-medium text-gray-900 tabular-nums shrink-0">
-                                ${(pricingSummary?.gratuity ?? 0).toFixed(2)}
-                              </span>
+                            <div className="px-3 py-2.5">
+                              <button
+                                type="button"
+                                onClick={() => setTipModalOpen(true)}
+                                className="w-full flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-[#f8fafc] px-3 py-3 text-left hover:border-gray-300 transition-colors"
+                              >
+                                <div className="min-w-0">
+                                  <div className="text-[14px] font-semibold text-gray-900">Add tip</div>
+                                  <div className="text-[12px] text-gray-500 mt-0.5 truncate">
+                                    {gratuityPercent > 0
+                                      ? `${gratuityPercent}%`
+                                      : "Choose a tip for your chauffeur"}
+                                  </div>
+                                </div>
+                                <ArrowRight className="w-4 h-4 text-gray-400 shrink-0" />
+                              </button>
+                              {gratuityPercent > 0 ? (
+                                <div className="flex items-center justify-between gap-3 mt-2.5 px-0.5">
+                                  <span className="text-[13px] text-gray-500">Tip ({gratuityPercent}%)</span>
+                                  <span className="text-[13px] font-medium text-gray-900 tabular-nums">
+                                    ${(pricingSummary?.gratuity ?? 0).toFixed(2)}
+                                  </span>
+                                </div>
+                              ) : null}
                             </div>
                             <div className="flex items-center justify-between gap-3 px-3 py-2.5 border-t border-gray-200">
                               <span className="text-[14px] font-semibold text-gray-900">Total</span>
@@ -2076,6 +2104,70 @@ function ReservationPageContent() {
                           </div>
                         </div>
                       </div>
+
+                      {tipModalOpen ? (
+                        <div
+                          className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center"
+                          role="dialog"
+                          aria-modal="true"
+                          aria-labelledby="tip-modal-title"
+                        >
+                          <button
+                            type="button"
+                            className="absolute inset-0 bg-black/45"
+                            aria-label="Close tip options"
+                            onClick={() => setTipModalOpen(false)}
+                          />
+                          <div className="relative z-[81] w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-2xl px-5 pt-3 pb-6 sm:pb-5 shadow-xl">
+                            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-300 sm:hidden" />
+                            <div className="flex items-center justify-between gap-3 mb-5">
+                              <h3 id="tip-modal-title" className="text-[22px] font-bold text-gray-900 tracking-tight">
+                                Add a tip
+                              </h3>
+                              <button
+                                type="button"
+                                onClick={() => setTipModalOpen(false)}
+                                className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200"
+                                aria-label="Close"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2.5">
+                              {APP_GRATUITY_PERCENTS.map((pct) => {
+                                const selected = gratuityPercent === pct;
+                                return (
+                                  <button
+                                    key={pct}
+                                    type="button"
+                                    onClick={() => {
+                                      setGratuityPercent(pct);
+                                      setTipModalOpen(false);
+                                    }}
+                                    className={`min-h-[72px] rounded-2xl border-2 text-[22px] font-bold transition-colors ${
+                                      selected
+                                        ? "bg-gray-900 border-gray-900 text-white"
+                                        : "bg-[#f8fafc] border-gray-200 text-gray-900 hover:border-gray-400"
+                                    }`}
+                                  >
+                                    {pct}%
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setGratuityPercent(0);
+                                setTipModalOpen(false);
+                              }}
+                              className="mt-4 w-full py-3 text-[15px] font-semibold text-gray-500 hover:text-gray-800"
+                            >
+                              No tip
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
 
                       {currentStep === 4 && !paymentSuccess && (
                         <div className="space-y-3">
