@@ -1435,6 +1435,8 @@ function ReservationPageContent() {
                                       onClick={() => {
                                         setSelectedVehicle(vehicle.id);
                                         setStepError("");
+                                        setCurrentStep(3);
+                                        scrollToFormTop();
                                       }}
                                       className={`px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-[12px] font-semibold uppercase tracking-wide transition-colors ${
                                         isSelected
