@@ -317,7 +317,7 @@ const HeroSection = () => {
                   onClick={handleNext}
                   className="w-full md:w-auto bg-gradient-to-r from-black via-gray-900 to-black text-white px-6 py-3 sm:px-7 sm:py-3.5 rounded-full text-[13px] sm:text-[14px] font-semibold hover:from-gray-900 hover:via-black hover:to-gray-900 hover:scale-105 hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-all duration-300 backdrop-blur-sm border border-white/10 whitespace-nowrap"
                 >
-                  NEXT
+                  Reserve
                 </button>
               </div>
             </div>

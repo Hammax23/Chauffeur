@@ -9,10 +9,9 @@ import {
   Platform,
   Animated,
   Pressable,
-  Dimensions,
   ActivityIndicator,
   Modal,
-  KeyboardAvoidingView,
+  Keyboard,
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -35,7 +34,6 @@ import { GooglePlacesAddressField } from "../../../components/GooglePlacesAddres
 import { GOLD } from "../../../theme/driver-theme";
 import { isParcelServiceType } from "../../../utils/parcel";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const ACCENT = GOLD;
 const ACCENT_DARK = "#A87830";
 const DEFAULT_REGION: Region = {
@@ -44,16 +42,14 @@ const DEFAULT_REGION: Region = {
   latitudeDelta: 0.035,
   longitudeDelta: 0.025,
 };
-const MAP_TOP_RATIO = 0.38;
-const SHEET_TOP = SCREEN_HEIGHT * MAP_TOP_RATIO;
 const MAP_LAT_DELTA = 0.028;
 const MAP_LNG_DELTA = 0.02;
 
 /** Center pin in the visible map band above the bottom sheet (not mid full-screen). */
-function regionForVisibleMap(lat: number, lng: number): Region {
-  // Visible band is top MAP_TOP_RATIO of the screen; its visual mid ≈ MAP_TOP_RATIO/2.
+function regionForVisibleMap(lat: number, lng: number, mapTopRatio: number): Region {
+  // Visible band is top mapTopRatio of the screen; its visual mid ≈ mapTopRatio/2.
   // Full MapView mid is 0.5 — shift center south so the pin sits in that visible mid.
-  const visibleMidY = MAP_TOP_RATIO / 2;
+  const visibleMidY = mapTopRatio / 2;
   const offsetRatio = 0.5 - visibleMidY;
   return {
     latitude: lat - MAP_LAT_DELTA * offsetRatio,
@@ -105,10 +101,41 @@ export default function CustomerHomeScreen() {
   const { user } = useAuth();
   const { isDark, toggleTheme } = useCustomerTheme();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const mapRef = useRef<MapView | null>(null);
   const fadeAnim = useMemo(() => new Animated.Value(0), []);
   const slideAnim = useMemo(() => new Animated.Value(24), []);
   const livePulse = useRef(new Animated.Value(0.45)).current;
+
+  const layout = useMemo(() => {
+    const isCompact = windowWidth < 375;
+    const isShort = windowHeight < 700;
+    const isTablet = windowWidth >= 768;
+    const mapTopRatio = isShort ? 0.3 : isTablet ? 0.42 : 0.38;
+    const sheetTop = windowHeight * mapTopRatio;
+    const padH = isCompact ? 12 : isTablet ? 24 : 16;
+    const fabSize = isCompact ? 40 : 44;
+    const pickupMinH = isCompact ? 50 : 56;
+    const titleSize = isCompact ? 20 : 22;
+    const fleetCardW = Math.min(windowWidth * (isTablet ? 0.28 : 0.42), isTablet ? 220 : 180);
+    return {
+      isCompact,
+      isShort,
+      isTablet,
+      mapTopRatio,
+      sheetTop,
+      padH,
+      fabSize,
+      pickupMinH,
+      titleSize,
+      fleetCardW,
+      topGap: isCompact ? 8 : 10,
+      sheetContentPad: padH,
+    };
+  }, [windowWidth, windowHeight]);
+
+  const mapTopRatioRef = useRef(layout.mapTopRatio);
+  mapTopRatioRef.current = layout.mapTopRatio;
 
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [myCoords, setMyCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -118,6 +145,7 @@ export default function CustomerHomeScreen() {
   const [tripEditorOpen, setTripEditorOpen] = useState(false);
   const [tripEditorFocus, setTripEditorFocus] = useState<"pickup" | "dropoff">("pickup");
   const [pickupDraft, setPickupDraft] = useState("");
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [dropoffDraft, setDropoffDraft] = useState("");
   const [dropoffFocusKey, setDropoffFocusKey] = useState(0);
   const [locating, setLocating] = useState(true);
@@ -135,6 +163,25 @@ export default function CustomerHomeScreen() {
       Animated.timing(slideAnim, { toValue: 0, duration: 480, useNativeDriver: true }),
     ]).start();
   }, [fadeAnim, slideAnim]);
+
+  useEffect(() => {
+    if (!tripEditorOpen) {
+      setKeyboardHeight(0);
+      return;
+    }
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const onShow = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    const onHide = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      onShow.remove();
+      onHide.remove();
+    };
+  }, [tripEditorOpen]);
 
   useEffect(() => {
     if (!activeRide) {
@@ -158,7 +205,7 @@ export default function CustomerHomeScreen() {
       setMyCoords({ lat, lng });
     }
     if (opts?.manual) setPickupManual(true);
-    mapRef.current?.animateToRegion(regionForVisibleMap(lat, lng), 650);
+    mapRef.current?.animateToRegion(regionForVisibleMap(lat, lng, mapTopRatioRef.current), 650);
     if (opts?.label?.trim()) {
       const label = opts.label.trim();
       setPickupLabel(label);
@@ -331,26 +378,37 @@ export default function CustomerHomeScreen() {
   );
 
   const recenter = useCallback(() => {
+    const ratio = mapTopRatioRef.current;
     if (pickupManual && coords) {
-      mapRef.current?.animateToRegion(regionForVisibleMap(coords.lat, coords.lng), 500);
+      mapRef.current?.animateToRegion(regionForVisibleMap(coords.lat, coords.lng, ratio), 500);
       return;
     }
     if (myCoords) {
-      mapRef.current?.animateToRegion(regionForVisibleMap(myCoords.lat, myCoords.lng), 500);
+      mapRef.current?.animateToRegion(regionForVisibleMap(myCoords.lat, myCoords.lng, ratio), 500);
       return;
     }
     void resolveLocation();
   }, [coords, myCoords, pickupManual, resolveLocation]);
 
   const sheetPadBottom = (Platform.OS === "ios" ? 88 : 72) + insets.bottom;
-  const { height: windowHeight } = useWindowDimensions();
-  const tripSheetMaxHeight = Math.min(windowHeight * 0.9, windowHeight - insets.top - 12);
-  const tripSheetHeaderBlock = 118; // handle + title + subtitle
-  const tripScrollMaxHeight = Math.max(
-    220,
-    tripSheetMaxHeight - tripSheetHeaderBlock - Math.max(insets.bottom, 12)
+  // Cap sheet so title/close never slide under the status bar when keyboard opens.
+  const tripSheetTopGap = Math.max(insets.top, 12) + 8;
+  const tripSheetMaxHeight = Math.max(
+    280,
+    windowHeight - tripSheetTopGap - keyboardHeight
   );
-  const placesPanelMaxHeight = Math.max(120, Math.min(180, windowHeight * 0.24));
+  const tripSheetHeaderBlock = layout.isCompact ? 78 : 88;
+  const tripScrollMaxHeight = Math.max(
+    160,
+    tripSheetMaxHeight - tripSheetHeaderBlock - (keyboardHeight > 0 ? 12 : Math.max(insets.bottom, 12))
+  );
+  const placesPanelMaxHeight = Math.max(
+    100,
+    Math.min(
+      layout.isShort || keyboardHeight > 0 ? 140 : 220,
+      windowHeight * (keyboardHeight > 0 ? 0.18 : layout.isShort ? 0.22 : 0.28)
+    )
+  );
 
   return (
     <View style={styles.root}>
@@ -410,22 +468,51 @@ export default function CustomerHomeScreen() {
       <LinearGradient
         colors={["transparent", "rgba(255,255,255,0.35)", "rgba(248,246,242,0.95)"]}
         locations={[0, 0.55, 1]}
-        style={[styles.mapFade, { top: SHEET_TOP - 70, height: 90 }]}
+        style={[styles.mapFade, { top: layout.sheetTop - 70, height: 90 }]}
         pointerEvents="none"
       />
 
       {/* Top floating chrome */}
       <SafeAreaView style={styles.topSafe} edges={["top"]} pointerEvents="box-none">
-        <View style={styles.topRow} pointerEvents="box-none">
+        <View
+          style={[
+            styles.topRow,
+            {
+              paddingHorizontal: layout.padH,
+              gap: layout.topGap,
+            },
+          ]}
+          pointerEvents="box-none"
+        >
           <Pressable
             onPress={() => router.push("/customer/profile")}
-            style={({ pressed }) => [styles.fab, pressed && styles.pressed]}
+            style={({ pressed }) => [
+              styles.fab,
+              { width: layout.fabSize, height: layout.fabSize, borderRadius: layout.fabSize / 2 },
+              pressed && styles.pressed,
+            ]}
           >
             {user?.photo ? (
-              <Image source={{ uri: user.photo }} style={styles.fabAvatar} />
+              <Image
+                source={{ uri: user.photo }}
+                style={{
+                  width: layout.fabSize,
+                  height: layout.fabSize,
+                  borderRadius: layout.fabSize / 2,
+                }}
+              />
             ) : (
-              <LinearGradient colors={[ACCENT, ACCENT_DARK]} style={styles.fabAvatar}>
-                <Text style={styles.fabInitials}>
+              <LinearGradient
+                colors={[ACCENT, ACCENT_DARK]}
+                style={{
+                  width: layout.fabSize,
+                  height: layout.fabSize,
+                  borderRadius: layout.fabSize / 2,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text style={[styles.fabInitials, layout.isCompact && { fontSize: 13 }]}>
                   {(user?.firstName?.[0] || "S")}
                   {(user?.lastName?.[0] || "")}
                 </Text>
@@ -435,37 +522,64 @@ export default function CustomerHomeScreen() {
 
           <Pressable
             onPress={() => openTripEditor("pickup")}
-            style={({ pressed }) => [styles.pickupChip, pressed && styles.pressed]}
+            style={({ pressed }) => [
+              styles.pickupChip,
+              {
+                minHeight: layout.pickupMinH,
+                paddingVertical: layout.isCompact ? 10 : 12,
+                paddingHorizontal: layout.isCompact ? 10 : 14,
+              },
+              pressed && styles.pressed,
+            ]}
           >
-            <View style={styles.pickupDot} />
+            <View style={styles.pickupDotWrap}>
+              <View style={styles.pickupDot} />
+            </View>
             <View style={styles.pickupCopy}>
-              <Text style={styles.pickupEyebrow}>
-                {pickupManual ? "PICKUP POINT · EDIT" : "PICKUP POINT"}
-              </Text>
-              <Text style={styles.pickupLabel} numberOfLines={1}>
+              <Text style={styles.pickupEyebrow}>Pickup</Text>
+              <Text
+                style={[styles.pickupLabel, layout.isCompact && { fontSize: 14 }]}
+                numberOfLines={1}
+              >
                 {pickupLabel}
               </Text>
             </View>
             {locating ? (
               <ActivityIndicator size="small" color={ACCENT} />
             ) : (
-              <Ionicons name="chevron-down" size={16} color="#94a3b8" />
+              <Ionicons name="chevron-down" size={18} color="#64748b" />
             )}
           </Pressable>
 
           <Pressable
             onPress={toggleTheme}
-            style={({ pressed }) => [styles.fab, pressed && styles.pressed]}
+            style={({ pressed }) => [
+              styles.fab,
+              { width: layout.fabSize, height: layout.fabSize, borderRadius: layout.fabSize / 2 },
+              pressed && styles.pressed,
+            ]}
             accessibilityLabel={isDark ? "Switch to light mode" : "Switch to dark mode"}
           >
-            <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={20} color="#1C1C1E" />
+            <Ionicons
+              name={isDark ? "sunny-outline" : "moon-outline"}
+              size={layout.isCompact ? 18 : 20}
+              color="#1C1C1E"
+            />
           </Pressable>
         </View>
 
         {locationDenied ? (
-          <Pressable onPress={resolveLocation} style={styles.locationBanner}>
+          <Pressable
+            onPress={resolveLocation}
+            style={[
+              styles.locationBanner,
+              { maxWidth: windowWidth - layout.padH * 2, marginHorizontal: layout.padH },
+            ]}
+          >
             <Ionicons name="location-outline" size={16} color={ACCENT_DARK} />
-            <Text style={styles.locationBannerText}>Turn on location to set pickup</Text>
+            <Text style={styles.locationBannerText} numberOfLines={2}>
+              Turn on location to set pickup
+            </Text>
           </Pressable>
         ) : null}
       </SafeAreaView>
@@ -473,7 +587,13 @@ export default function CustomerHomeScreen() {
       {/* Recenter FAB — sits above sheet */}
       <Pressable
         onPress={recenter}
-        style={[styles.recenterFab, { bottom: SCREEN_HEIGHT - SHEET_TOP + 18 }]}
+        style={[
+          styles.recenterFab,
+          {
+            bottom: windowHeight - layout.sheetTop + 18,
+            right: layout.padH,
+          },
+        ]}
       >
         <Ionicons name="navigate" size={18} color="#1C1C1E" />
       </Pressable>
@@ -483,7 +603,9 @@ export default function CustomerHomeScreen() {
         style={[
           styles.sheet,
           {
-            top: SHEET_TOP,
+            top: layout.sheetTop,
+            left: layout.isTablet ? (windowWidth - Math.min(windowWidth, 560)) / 2 : 0,
+            right: layout.isTablet ? (windowWidth - Math.min(windowWidth, 560)) / 2 : 0,
             opacity: fadeAnim,
             transform: [{ translateY: slideAnim }],
             backgroundColor: isDark ? "#141210" : "#F8F6F2",
@@ -496,13 +618,25 @@ export default function CustomerHomeScreen() {
 
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.sheetContent, { paddingBottom: sheetPadBottom }]}
+          contentContainerStyle={[
+            styles.sheetContent,
+            {
+              paddingBottom: sheetPadBottom,
+              paddingHorizontal: layout.sheetContentPad,
+            },
+          ]}
           bounces
         >
           <View style={styles.greetingRow}>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.brandMark, { color: ACCENT }]}>SARJ WORLDWIDE</Text>
-              <Text style={[styles.greeting, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]} numberOfLines={1}>
+              <Text
+                style={[
+                  styles.greeting,
+                  { color: isDark ? "#F5F5F7" : "#1C1C1E", fontSize: layout.isCompact ? 16 : 18 },
+                ]}
+                numberOfLines={1}
+              >
                 {greetingLine(fullName)}
               </Text>
             </View>
@@ -558,10 +692,14 @@ export default function CustomerHomeScreen() {
           ) : null}
 
           {/* Service tiles — Ride primary, Parcel secondary */}
-          <View style={styles.serviceGrid}>
+          <View style={[styles.serviceGrid, layout.isCompact && { gap: 8 }]}>
             <Pressable
               onPress={openRide}
-              style={({ pressed }) => [styles.rideTile, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.rideTile,
+                layout.isCompact && { minHeight: 132, padding: 12 },
+                pressed && styles.pressed,
+              ]}
             >
               <LinearGradient
                 colors={["#1C1710", "#0E0C0A"]}
@@ -570,8 +708,12 @@ export default function CustomerHomeScreen() {
               <View style={styles.rideIcon}>
                 <Ionicons name="car-sport" size={22} color={ACCENT} />
               </View>
-              <Text style={styles.rideTitle}>Book a Ride</Text>
-              <Text style={styles.rideSub}>Airport · hourly · city</Text>
+              <Text style={[styles.rideTitle, layout.isCompact && { fontSize: 15 }]}>
+                Book a Ride
+              </Text>
+              <Text style={styles.rideSub} numberOfLines={1}>
+                Airport · hourly · city
+              </Text>
               <View style={styles.rideCta}>
                 <Text style={styles.rideCtaText}>Reserve</Text>
                 <Ionicons name="arrow-forward" size={14} color="#1A1208" />
@@ -586,16 +728,27 @@ export default function CustomerHomeScreen() {
                   backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "#FFF",
                   borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
                 },
+                layout.isCompact && { minHeight: 132, padding: 12 },
                 pressed && styles.pressed,
               ]}
             >
               <View style={styles.parcelIcon}>
                 <Ionicons name="cube-outline" size={20} color={ACCENT} />
               </View>
-              <Text style={[styles.parcelTitle, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]}>
+              <Text
+                style={[
+                  styles.parcelTitle,
+                  { color: isDark ? "#F5F5F7" : "#1C1C1E" },
+                  layout.isCompact && { fontSize: 14 },
+                ]}
+                numberOfLines={2}
+              >
                 Send a Parcel
               </Text>
-              <Text style={[styles.parcelSub, { color: isDark ? "#A1A1AA" : "#64748b" }]}>
+              <Text
+                style={[styles.parcelSub, { color: isDark ? "#A1A1AA" : "#64748b" }]}
+                numberOfLines={2}
+              >
                 Same-day chauffeur delivery
               </Text>
             </Pressable>
@@ -651,7 +804,11 @@ export default function CustomerHomeScreen() {
                       params: bookingParams({ vehicleId: v.id }),
                     })
                   }
-                  style={({ pressed }) => [styles.fleetCard, pressed && styles.pressed]}
+                  style={({ pressed }) => [
+                    styles.fleetCard,
+                    { width: layout.fleetCardW },
+                    pressed && styles.pressed,
+                  ]}
                 >
                   <Image source={{ uri: v.imageUrl }} style={styles.fleetImage} resizeMode="contain" />
                   <Text style={styles.fleetName} numberOfLines={1}>
@@ -680,39 +837,52 @@ export default function CustomerHomeScreen() {
         <View style={styles.modalRoot}>
           <Pressable
             style={styles.modalBackdrop}
-            onPress={() => setTripEditorOpen(false)}
+            onPress={() => {
+              Keyboard.dismiss();
+              setTripEditorOpen(false);
+            }}
             accessibilityLabel="Close"
           />
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
-            style={styles.modalAvoid}
+          <View
+            style={[
+              styles.modalAvoid,
+              layout.isTablet && { maxWidth: 560, alignSelf: "center", width: "100%" },
+              {
+                marginBottom: keyboardHeight,
+                maxHeight: tripSheetMaxHeight,
+              },
+            ]}
           >
             <View
               style={[
                 styles.modalSheet,
                 {
                   maxHeight: tripSheetMaxHeight,
-                  paddingBottom: Math.max(insets.bottom, 12),
+                  paddingBottom:
+                    keyboardHeight > 0 ? 12 : Math.max(insets.bottom, 16),
+                  paddingHorizontal: layout.isCompact ? 14 : 18,
                 },
               ]}
             >
               <View style={styles.modalHandle} />
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle} numberOfLines={1}>
+                <Text
+                  style={[styles.modalTitle, { fontSize: layout.titleSize }]}
+                  numberOfLines={1}
+                >
                   Plan your ride
                 </Text>
                 <Pressable
-                  onPress={() => setTripEditorOpen(false)}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setTripEditorOpen(false);
+                  }}
                   hitSlop={12}
                   style={styles.modalCloseBtn}
                 >
-                  <Ionicons name="close" size={20} color="#64748b" />
+                  <Ionicons name="close" size={22} color="#1C1C1E" />
                 </Pressable>
               </View>
-              <Text style={styles.modalSub} numberOfLines={2}>
-                Set pickup and where you’re going.
-              </Text>
 
               <ScrollView
                 style={[styles.modalScroll, { maxHeight: tripScrollMaxHeight }]}
@@ -723,7 +893,12 @@ export default function CustomerHomeScreen() {
                 bounces={false}
                 nestedScrollEnabled
               >
-                <View style={styles.routeCard}>
+                <View
+                  style={[
+                    styles.routeCard,
+                    layout.isCompact && { paddingHorizontal: 12, paddingVertical: 12, gap: 10 },
+                  ]}
+                >
                   <View style={styles.routeRail} pointerEvents="none">
                     <View style={styles.routePickupDot} />
                     <View style={styles.routeLine} />
@@ -740,10 +915,9 @@ export default function CustomerHomeScreen() {
                       <GooglePlacesAddressField
                         value={pickupDraft}
                         onChangeText={setPickupDraft}
-                        placeholder="Pickup address"
+                        placeholder="Current location"
                         iconName="locate-outline"
                         autoFocus={tripEditorFocus === "pickup"}
-                        compact
                         maxPanelHeight={placesPanelMaxHeight}
                         onPlaceResolved={(place) => {
                           if (place.lat != null && place.lng != null) {
@@ -763,22 +937,22 @@ export default function CustomerHomeScreen() {
                       />
                     </View>
 
+                    <View style={styles.routeDivider} />
+
                     <View
                       style={[
                         styles.routeFieldBlock,
                         tripEditorFocus === "dropoff" && styles.routeFieldBlockActive,
-                        { marginTop: 10 },
                       ]}
                     >
-                      <Text style={styles.routeFieldLabel}>Where to?</Text>
+                      <Text style={styles.routeFieldLabel}>Drop-off</Text>
                       <GooglePlacesAddressField
                         key={`dropoff-${dropoffFocusKey}`}
                         value={dropoffDraft}
                         onChangeText={setDropoffDraft}
-                        placeholder="Drop-off address"
-                        iconName="flag-outline"
+                        placeholder="Where to?"
+                        iconName="search-outline"
                         autoFocus={tripEditorFocus === "dropoff"}
-                        compact
                         maxPanelHeight={placesPanelMaxHeight}
                         onPlaceResolved={(place) => {
                           setDropoffDraft(place.address);
@@ -799,16 +973,26 @@ export default function CustomerHomeScreen() {
                     setTripEditorFocus("dropoff");
                     setDropoffFocusKey((k) => k + 1);
                   }}
-                  style={({ pressed }) => [styles.useGpsBtn, pressed && styles.pressed]}
+                  style={({ pressed }) => [
+                    styles.useGpsBtn,
+                    layout.isCompact && { paddingVertical: 12 },
+                    pressed && styles.pressed,
+                  ]}
                 >
-                  <Ionicons name="locate" size={18} color={ACCENT} />
-                  <Text style={styles.useGpsText} numberOfLines={2}>
-                    Use my current location for pickup
+                  <View style={styles.useGpsIcon}>
+                    <Ionicons name="navigate" size={18} color="#1C1C1E" />
+                  </View>
+                  <Text
+                    style={[styles.useGpsText, layout.isCompact && { fontSize: 15 }]}
+                    numberOfLines={1}
+                  >
+                    Use current location
                   </Text>
+                  <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
                 </Pressable>
               </ScrollView>
             </View>
-          </KeyboardAvoidingView>
+          </View>
         </View>
       </Modal>
     </View>
@@ -909,18 +1093,14 @@ const styles = StyleSheet.create({
   topRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
     paddingTop: 6,
-    gap: 10,
   },
   fab: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
     backgroundColor: "#FFF",
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
+    flexShrink: 0,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -932,9 +1112,6 @@ const styles = StyleSheet.create({
     }),
   },
   fabAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -948,42 +1125,49 @@ const styles = StyleSheet.create({
     minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
     backgroundColor: "#FFF",
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+    borderRadius: 28,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
       },
       android: { elevation: 3 },
     }),
   },
+  pickupDotWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(34,197,94,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
   pickupDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: "#22C55E",
   },
   pickupCopy: {
     flex: 1,
     minWidth: 0,
+    justifyContent: "center",
   },
   pickupEyebrow: {
-    fontSize: 9,
-    fontWeight: "800",
-    color: "#94a3b8",
-    letterSpacing: 0.8,
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#64748b",
+    marginBottom: 2,
   },
   pickupLabel: {
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: 15,
+    fontWeight: "600",
     color: "#1C1C1E",
-    marginTop: 1,
   },
   locationBanner: {
     alignSelf: "center",
@@ -997,13 +1181,13 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   locationBannerText: {
+    flexShrink: 1,
     fontSize: 12,
     fontWeight: "600",
     color: "#1C1C1E",
   },
   recenterFab: {
     position: "absolute",
-    right: 16,
     zIndex: 15,
     width: 44,
     height: 44,
@@ -1023,8 +1207,6 @@ const styles = StyleSheet.create({
   },
   sheet: {
     position: "absolute",
-    left: 0,
-    right: 0,
     bottom: 0,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
@@ -1050,7 +1232,6 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   sheetContent: {
-    paddingHorizontal: 16,
     paddingTop: 6,
   },
   greetingRow: {
@@ -1150,6 +1331,7 @@ const styles = StyleSheet.create({
   },
   rideTile: {
     flex: 1.15,
+    minWidth: 0,
     minHeight: 148,
     borderRadius: 20,
     overflow: "hidden",
@@ -1194,6 +1376,7 @@ const styles = StyleSheet.create({
   },
   parcelTile: {
     flex: 0.95,
+    minWidth: 0,
     minHeight: 148,
     borderRadius: 20,
     padding: 14,
@@ -1270,7 +1453,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   fleetCard: {
-    width: SCREEN_WIDTH * 0.42,
     backgroundColor: "#F4F0EA",
     borderRadius: 16,
     padding: 10,
@@ -1312,10 +1494,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.4)",
   },
   modalSheet: {
-    backgroundColor: "#F8F6F2",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 16,
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     paddingTop: 10,
     width: "100%",
     zIndex: 2,
@@ -1323,8 +1504,8 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: "#000",
         shadowOffset: { width: 0, height: -6 },
-        shadowOpacity: 0.15,
-        shadowRadius: 16,
+        shadowOpacity: 0.12,
+        shadowRadius: 18,
       },
       android: { elevation: 16 },
     }),
@@ -1333,79 +1514,72 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   modalScrollContent: {
-    paddingBottom: 8,
+    paddingBottom: 12,
     flexGrow: 1,
   },
   modalHandle: {
     alignSelf: "center",
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#D6D0C6",
-    marginBottom: 12,
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "#D1D5DB",
+    marginBottom: 14,
   },
   modalHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 6,
+    marginBottom: 16,
     gap: 12,
   },
   modalCloseBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.05)",
+    backgroundColor: "#F3F4F6",
   },
   modalTitle: {
     flex: 1,
-    fontSize: 18,
-    fontWeight: "800",
+    minWidth: 0,
+    fontSize: 22,
+    fontWeight: "700",
     color: "#1C1C1E",
-    letterSpacing: -0.3,
-  },
-  modalSub: {
-    fontSize: 13,
-    color: "#64748b",
-    marginBottom: 12,
-    lineHeight: 18,
+    letterSpacing: -0.4,
   },
   routeCard: {
     flexDirection: "row",
-    gap: 12,
-    backgroundColor: "#FFF",
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(0,0,0,0.06)",
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    marginBottom: 10,
+    gap: 14,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+    marginBottom: 12,
   },
   routeRail: {
-    width: 14,
+    width: 16,
     alignItems: "center",
-    paddingTop: 26,
-    paddingBottom: 10,
+    paddingTop: 30,
+    paddingBottom: 14,
   },
   routePickupDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: ACCENT,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#22C55E",
   },
   routeLine: {
     flex: 1,
     width: 2,
-    backgroundColor: "rgba(212,160,74,0.35)",
-    marginVertical: 6,
-    minHeight: 28,
+    backgroundColor: "#D1D5DB",
+    marginVertical: 8,
+    minHeight: 36,
   },
   routeDropDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 2,
+    width: 12,
+    height: 12,
+    borderRadius: 3,
     backgroundColor: "#1C1C1E",
   },
   routeFields: {
@@ -1419,30 +1593,39 @@ const styles = StyleSheet.create({
     zIndex: 50,
   },
   routeFieldLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.6,
-    color: "#94a3b8",
-    marginBottom: 6,
-    textTransform: "uppercase",
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6B7280",
+    marginBottom: 8,
+  },
+  routeDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#D1D5DB",
+    marginVertical: 14,
   },
   useGpsBtn: {
     marginTop: 4,
     marginBottom: 4,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
     paddingVertical: 14,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    backgroundColor: "#FFF",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(0,0,0,0.08)",
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: "#F9FAFB",
+  },
+  useGpsIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#E5E7EB",
+    alignItems: "center",
+    justifyContent: "center",
   },
   useGpsText: {
     flex: 1,
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "600",
     color: "#1C1C1E",
   },
 });
