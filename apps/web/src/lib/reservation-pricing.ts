@@ -175,13 +175,15 @@ export function calculateReservationPricing(
   fleetSource?: VehiclePricing[],
   charges?: Partial<ChargesConfig>
 ): ReservationPricingResult | null {
-  const fleet =
+  const fleet: VehiclePricing[] =
     fleetSource ??
     fleetData.map((v) => ({
       id: v.id,
       hourlyRate: v.price,
       basePrice: v.basePrice ?? v.price,
       pricePerKm: v.pricePerKm,
+      baseDistanceKm: v.baseDistanceKm,
+      extraKmRate: v.extraKmRate ?? v.pricePerKm,
     }));
   const vehicle = fleet.find((v) => v.id === input.vehicleId);
   if (!vehicle) return null;
