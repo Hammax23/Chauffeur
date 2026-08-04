@@ -1,18 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   PaymentElement,
   useStripe,
   useElements,
   Elements,
 } from "@stripe/react-stripe-js";
-import { loadStripe } from "@stripe/stripe-js";
+import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { Loader2, CheckCircle, AlertCircle, CreditCard } from "lucide-react";
 
-const stripePromise = loadStripe(
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
-);
+const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "";
 
 interface PaymentFormProps {
   amountLabel: string;
@@ -26,6 +24,8 @@ function PaymentForm({ amountLabel, disabled, onSuccess, onError }: PaymentFormP
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [elementReady, setElementReady] = useState(false);
+  const [elementError, setElementError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,11 +68,39 @@ function PaymentForm({ amountLabel, disabled, onSuccess, onError }: PaymentFormP
           </div>
           <span className="text-[15px] font-bold text-[#1C1C1E]">{amountLabel}</span>
         </div>
-        <PaymentElement
-          options={{
-            layout: "tabs",
-          }}
-        />
+
+        {!elementReady && !elementError ? (
+          <div className="flex items-center gap-2 py-6 text-gray-500 text-[13px]">
+            <Loader2 className="w-4 h-4 animate-spin text-[#C9A063]" />
+            Loading card form…
+          </div>
+        ) : null}
+
+        {elementError ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-[13px] text-red-700">
+            {elementError}
+          </div>
+        ) : null}
+
+        <div className={elementReady ? "min-h-[120px]" : "min-h-0"}>
+          <PaymentElement
+            options={{
+              layout: "tabs",
+            }}
+            onReady={() => {
+              setElementReady(true);
+              setElementError(null);
+            }}
+            onLoadError={(event) => {
+              const msg =
+                event?.error?.message ||
+                "Card form failed to load. Check that Stripe publishable and secret keys are from the same account, then restart the server.";
+              setElementError(msg);
+              setElementReady(false);
+              onError(msg);
+            }}
+          />
+        </div>
       </div>
 
       {message && (
@@ -94,7 +122,7 @@ function PaymentForm({ amountLabel, disabled, onSuccess, onError }: PaymentFormP
 
       <button
         type="submit"
-        disabled={!stripe || isProcessing || disabled}
+        disabled={!stripe || isProcessing || disabled || !elementReady || !!elementError}
         className="w-full flex items-center justify-center gap-2 bg-[#C9A063] text-white px-6 py-4 rounded-xl text-[16px] font-semibold hover:bg-[#B8935A] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-[#C9A063]/20"
       >
         {isProcessing ? (
@@ -155,10 +183,23 @@ export default function StripePayment({
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
+
+  useEffect(() => {
+    if (!publishableKey || !publishableKey.startsWith("pk_")) {
+      setError(
+        "Stripe publishable key is missing. Set NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY and restart the server."
+      );
+      return;
+    }
+    setStripePromise(loadStripe(publishableKey));
+  }, []);
 
   useEffect(() => {
     if (amountCents <= 0) {
-      setError("Invalid amount. Please complete your trip details and wait for the route/price to calculate.");
+      setError(
+        "Invalid amount. Please complete your trip details and wait for the route/price to calculate."
+      );
       setLoading(false);
       return;
     }
@@ -216,6 +257,27 @@ export default function StripePayment({
     metadata,
   ]);
 
+  const elementsOptions = useMemo(
+    () =>
+      clientSecret
+        ? {
+            clientSecret,
+            appearance: {
+              theme: "stripe" as const,
+              variables: {
+                colorPrimary: "#C9A063",
+                colorBackground: "#ffffff",
+                colorText: "#1f2937",
+                colorDanger: "#ef4444",
+                fontFamily: "Inter, system-ui, sans-serif",
+                borderRadius: "12px",
+              },
+            },
+          }
+        : undefined,
+    [clientSecret]
+  );
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
@@ -232,37 +294,20 @@ export default function StripePayment({
           <AlertCircle className="w-6 h-6 text-red-500" />
         </div>
         <p className="text-red-600 text-[14px] text-center mb-4">{error}</p>
-        {error.toLowerCase().includes("stripe") && (
-          <p className="text-gray-500 text-[13px] text-center">
-            Please check your Stripe API keys in .env.local
-          </p>
-        )}
+        <p className="text-gray-500 text-[13px] text-center">
+          Confirm Stripe publishable + secret keys are from the same live account, then restart
+          the app / rebuild the site.
+        </p>
       </div>
     );
   }
 
-  if (!clientSecret) {
+  if (!clientSecret || !stripePromise || !elementsOptions) {
     return null;
   }
 
   return (
-    <Elements
-      stripe={stripePromise}
-      options={{
-        clientSecret,
-        appearance: {
-          theme: "stripe",
-          variables: {
-            colorPrimary: "#C9A063",
-            colorBackground: "#ffffff",
-            colorText: "#1f2937",
-            colorDanger: "#ef4444",
-            fontFamily: "Inter, system-ui, sans-serif",
-            borderRadius: "12px",
-          },
-        },
-      }}
-    >
+    <Elements stripe={stripePromise} options={elementsOptions} key={clientSecret}>
       <PaymentForm
         amountLabel={amountLabel}
         disabled={disabled}
