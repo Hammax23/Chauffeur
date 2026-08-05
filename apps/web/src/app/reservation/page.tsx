@@ -1596,7 +1596,7 @@ function ReservationPageContent() {
                     </div>
                   )}
 
-                  {/* Step 4: Payment — fare, tip & Turnstile live in the right Summary */}
+                  {/* Step 4: Payment — fare & tip live in the right Summary */}
                   {currentStep === 4 && (
                     <div className="space-y-3">
                       {!paymentSuccess && (
@@ -1645,7 +1645,7 @@ function ReservationPageContent() {
                               type="button"
                               disabled
                               aria-disabled="true"
-                              title="Cash on Delivery is temporarily unavailable"
+                              title="On Delivery is temporarily unavailable"
                               className="relative text-left rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 opacity-55 cursor-not-allowed"
                             >
                               <div className="flex items-start gap-3">
@@ -1653,7 +1653,7 @@ function ReservationPageContent() {
                                   <Banknote className="w-4 h-4" strokeWidth={2} />
                                 </div>
                                 <div className="min-w-0">
-                                  <div className="text-[13px] font-semibold text-gray-500">Cash on Delivery</div>
+                                  <div className="text-[13px] font-semibold text-gray-500">On Delivery</div>
                                   <p className="text-[11px] text-gray-400 leading-snug mt-0.5">
                                     Temporarily unavailable
                                   </p>
@@ -1669,7 +1669,7 @@ function ReservationPageContent() {
                           )}
                           {termsAccepted && !turnstileToken && (
                             <p className="text-[12px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5 mb-3">
-                              Please complete the security check in the Summary.
+                              Please complete the security check below before continuing.
                             </p>
                           )}
 
@@ -1691,28 +1691,40 @@ function ReservationPageContent() {
                               disabled={!termsAccepted || !turnstileToken || emailSending}
                               metadata={paymentMetadata}
                               beforeSubmit={
-                                <label className="flex items-start gap-2.5 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={termsAccepted}
-                                    onChange={(e) => setTermsAccepted(e.target.checked)}
-                                    className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063] flex-shrink-0"
-                                  />
-                                  <span className="text-[12px] text-gray-600 leading-snug">
-                                    I agree to the{" "}
-                                    <a href="/terms-of-service" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">
-                                      Terms
-                                    </a>
-                                    ,{" "}
-                                    <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">
-                                      Privacy
-                                    </a>
-                                    {" "}&{" "}
-                                    <a href="/privacy-policy#cancellation" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">
-                                      Cancellation Policy
-                                    </a>
-                                  </span>
-                                </label>
+                                <div className="space-y-3">
+                                  <label className="flex items-start gap-2.5 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={termsAccepted}
+                                      onChange={(e) => setTermsAccepted(e.target.checked)}
+                                      className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063] flex-shrink-0"
+                                    />
+                                    <span className="text-[12px] text-gray-600 leading-snug">
+                                      I agree to the{" "}
+                                      <a href="/terms-of-service" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">
+                                        Terms
+                                      </a>
+                                      ,{" "}
+                                      <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">
+                                        Privacy
+                                      </a>
+                                      {" "}&{" "}
+                                      <a href="/privacy-policy#cancellation" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">
+                                        Cancellation Policy
+                                      </a>
+                                    </span>
+                                  </label>
+                                  <div>
+                                    <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5">
+                                      Security check
+                                    </div>
+                                    <Turnstile
+                                      onVerify={(token) => setTurnstileToken(token)}
+                                      onExpire={() => setTurnstileToken("")}
+                                      onError={() => setTurnstileToken("")}
+                                    />
+                                  </div>
+                                </div>
                               }
                               onSuccess={async (paymentIntentId) => {
                                 setPaymentSuccess(true);
@@ -1760,6 +1772,16 @@ function ReservationPageContent() {
                                   </a>
                                 </span>
                               </label>
+                              <div>
+                                <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5">
+                                  Security check
+                                </div>
+                                <Turnstile
+                                  onVerify={(token) => setTurnstileToken(token)}
+                                  onExpire={() => setTurnstileToken("")}
+                                  onError={() => setTurnstileToken("")}
+                                />
+                              </div>
                               <button
                                 type="button"
                                 onClick={confirmCashReservation}
@@ -1793,7 +1815,7 @@ function ReservationPageContent() {
                           </h3>
                           {checkoutPaymentMethod === "cash" && !emailSending && !emailError && (
                             <p className="text-[12px] text-gray-500 mt-1.5">
-                              Payment method: Cash on Delivery — pay {paymentAmountLabel} at trip time.
+                              Payment method: On Delivery — pay {paymentAmountLabel} at trip time.
                             </p>
                           )}
                           {emailSending && (
@@ -2202,19 +2224,6 @@ function ReservationPageContent() {
                           </div>
                         </div>
                       ) : null}
-
-                      {currentStep === 4 && !paymentSuccess && (
-                        <div>
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5">
-                            Security check
-                          </div>
-                          <Turnstile
-                            onVerify={(token) => setTurnstileToken(token)}
-                            onExpire={() => setTurnstileToken("")}
-                            onError={() => setTurnstileToken("")}
-                          />
-                        </div>
-                      )}
 
                       {currentStep >= 3 && currentStep < 4 && selectedVehicle && (
                         <button
