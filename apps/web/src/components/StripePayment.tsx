@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import {
   PaymentElement,
   useStripe,
@@ -13,13 +13,13 @@ import { Loader2, CheckCircle, AlertCircle, CreditCard } from "lucide-react";
 const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "";
 
 interface PaymentFormProps {
-  amountLabel: string;
   disabled?: boolean;
+  beforeSubmit?: ReactNode;
   onSuccess: (paymentIntentId: string) => void;
   onError: (error: string) => void;
 }
 
-function PaymentForm({ amountLabel, disabled, onSuccess, onError }: PaymentFormProps) {
+function PaymentForm({ disabled, beforeSubmit, onSuccess, onError }: PaymentFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -61,12 +61,9 @@ function PaymentForm({ amountLabel, disabled, onSuccess, onError }: PaymentFormP
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="bg-white rounded-xl border border-gray-200/60 p-4 sm:p-5">
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2">
-            <CreditCard className="w-5 h-5 text-[#C9A063]" />
-            <span className="text-[15px] font-semibold text-gray-900">Payment Details</span>
-          </div>
-          <span className="text-[15px] font-bold text-[#1C1C1E]">{amountLabel}</span>
+        <div className="flex items-center gap-2 mb-4">
+          <CreditCard className="w-5 h-5 text-[#C9A063]" />
+          <span className="text-[15px] font-semibold text-gray-900">Payment Details</span>
         </div>
 
         {!elementReady && !elementError ? (
@@ -120,6 +117,8 @@ function PaymentForm({ amountLabel, disabled, onSuccess, onError }: PaymentFormP
         </div>
       )}
 
+      {beforeSubmit}
+
       <button
         type="submit"
         disabled={!stripe || isProcessing || disabled || !elementReady || !!elementError}
@@ -143,7 +142,7 @@ function PaymentForm({ amountLabel, disabled, onSuccess, onError }: PaymentFormP
 
 export interface StripePaymentProps {
   amountCents: number;
-  amountLabel: string;
+  amountLabel?: string;
   vehicleId: string;
   bookingMode: "distance" | "hourly";
   distanceMeters: number;
@@ -156,6 +155,7 @@ export interface StripePaymentProps {
   pickupLocation?: string;
   email: string;
   disabled?: boolean;
+  beforeSubmit?: ReactNode;
   onSuccess: (paymentIntentId: string) => void;
   onError: (error: string) => void;
   metadata?: Record<string, string>;
@@ -163,7 +163,6 @@ export interface StripePaymentProps {
 
 export default function StripePayment({
   amountCents,
-  amountLabel,
   vehicleId,
   bookingMode,
   distanceMeters,
@@ -176,6 +175,7 @@ export default function StripePayment({
   pickupLocation,
   email,
   disabled,
+  beforeSubmit,
   onSuccess,
   onError,
   metadata,
@@ -309,8 +309,8 @@ export default function StripePayment({
   return (
     <Elements stripe={stripePromise} options={elementsOptions} key={clientSecret}>
       <PaymentForm
-        amountLabel={amountLabel}
         disabled={disabled}
+        beforeSubmit={beforeSubmit}
         onSuccess={onSuccess}
         onError={onError}
       />

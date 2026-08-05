@@ -16,7 +16,7 @@ export default function TiffPromoStrip() {
               TIFF week
             </span>
             <span className="text-white/50">·</span>
-            <span className="ml-2.5">Sept 10–20 · Cars for Pearson, King West hotels &amp; venues</span>
+            <span className="ml-2.5">Cars for Pearson, King West hotels &amp; venues</span>
           </p>
           <Link
             href="/tiff-chauffeur"

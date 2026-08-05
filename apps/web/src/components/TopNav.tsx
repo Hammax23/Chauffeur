@@ -18,7 +18,7 @@ const TopNav = () => {
             </span>
             <span className="text-white/25 text-[10px] shrink-0">|</span>
             <span className="text-white/85 text-[11px] sm:text-[12px] font-light tracking-wide truncate">
-              TIFF 2026 · Book a car for Pearson &amp; King West · Sept 10–20
+              TIFF 2026 · Book a car for Pearson &amp; King West
             </span>
           </Link>
 

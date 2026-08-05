@@ -1643,42 +1643,28 @@ function ReservationPageContent() {
 
                             <button
                               type="button"
-                              onClick={() => {
-                                setCheckoutPaymentMethod("cash");
-                                setPaymentError(null);
-                              }}
-                              className={`relative text-left rounded-xl border px-3.5 py-3 transition-all ${
-                                checkoutPaymentMethod === "cash"
-                                  ? "border-[#C9A063] bg-[#C9A063]/10 ring-1 ring-[#C9A063]/35"
-                                  : "border-gray-200 bg-white hover:border-gray-300"
-                              }`}
+                              disabled
+                              aria-disabled="true"
+                              title="Cash on Delivery is temporarily unavailable"
+                              className="relative text-left rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 opacity-55 cursor-not-allowed"
                             >
                               <div className="flex items-start gap-3">
-                                <div
-                                  className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                                    checkoutPaymentMethod === "cash"
-                                      ? "bg-[#C9A063]/15 text-[#C9A063]"
-                                      : "bg-gray-100 text-gray-500"
-                                  }`}
-                                >
+                                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-400">
                                   <Banknote className="w-4 h-4" strokeWidth={2} />
                                 </div>
                                 <div className="min-w-0">
-                                  <div className="text-[13px] font-semibold text-gray-900">Cash on Delivery</div>
-                                  <p className="text-[11px] text-gray-500 leading-snug mt-0.5">
-                                    Pay your chauffeur at trip time
+                                  <div className="text-[13px] font-semibold text-gray-500">Cash on Delivery</div>
+                                  <p className="text-[11px] text-gray-400 leading-snug mt-0.5">
+                                    Temporarily unavailable
                                   </p>
                                 </div>
                               </div>
-                              {checkoutPaymentMethod === "cash" && (
-                                <span className="absolute top-2.5 right-2.5 h-2 w-2 rounded-full bg-[#C9A063]" />
-                              )}
                             </button>
                           </div>
 
                           {!termsAccepted && (
                             <p className="text-[12px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5 mb-3">
-                              Please accept the terms in the Summary before continuing.
+                              Please accept the terms below before continuing.
                             </p>
                           )}
                           {termsAccepted && !turnstileToken && (
@@ -1704,6 +1690,30 @@ function ReservationPageContent() {
                               email={email}
                               disabled={!termsAccepted || !turnstileToken || emailSending}
                               metadata={paymentMetadata}
+                              beforeSubmit={
+                                <label className="flex items-start gap-2.5 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={termsAccepted}
+                                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                                    className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063] flex-shrink-0"
+                                  />
+                                  <span className="text-[12px] text-gray-600 leading-snug">
+                                    I agree to the{" "}
+                                    <a href="/terms-of-service" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">
+                                      Terms
+                                    </a>
+                                    ,{" "}
+                                    <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">
+                                      Privacy
+                                    </a>
+                                    {" "}&{" "}
+                                    <a href="/privacy-policy#cancellation" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">
+                                      Cancellation Policy
+                                    </a>
+                                  </span>
+                                </label>
+                              }
                               onSuccess={async (paymentIntentId) => {
                                 setPaymentSuccess(true);
                                 setPaymentError(null);
@@ -1728,6 +1738,28 @@ function ReservationPageContent() {
                                   Your booking will be confirmed now. Please have the exact amount ready for your chauffeur.
                                 </p>
                               </div>
+                              <label className="flex items-start gap-2.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={termsAccepted}
+                                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                                  className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063] flex-shrink-0"
+                                />
+                                <span className="text-[12px] text-gray-600 leading-snug">
+                                  I agree to the{" "}
+                                  <a href="/terms-of-service" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">
+                                    Terms
+                                  </a>
+                                  ,{" "}
+                                  <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">
+                                    Privacy
+                                  </a>
+                                  {" "}&{" "}
+                                  <a href="/privacy-policy#cancellation" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">
+                                    Cancellation Policy
+                                  </a>
+                                </span>
+                              </label>
                               <button
                                 type="button"
                                 onClick={confirmCashReservation}
@@ -2046,7 +2078,7 @@ function ReservationPageContent() {
                           )}
                           {pricingSummary && pricingSummary.airportPickupFee > 0 && (
                             <div className="flex items-center justify-between text-[13px] text-gray-700">
-                              <span>Airport pickup fee</span>
+                              <span>Airport pickup fee ( GTA )</span>
                               <span className="tabular-nums">${pricingSummary.airportPickupFee.toFixed(2)}</span>
                             </div>
                           )}
@@ -2172,40 +2204,15 @@ function ReservationPageContent() {
                       ) : null}
 
                       {currentStep === 4 && !paymentSuccess && (
-                        <div className="space-y-3">
-                          <label className="flex items-start gap-2.5 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={termsAccepted}
-                              onChange={(e) => setTermsAccepted(e.target.checked)}
-                              className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063] flex-shrink-0"
-                            />
-                            <span className="text-[12px] text-gray-600 leading-snug">
-                              I agree to the{" "}
-                              <a href="/terms-of-service" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">
-                                Terms
-                              </a>
-                              ,{" "}
-                              <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">
-                                Privacy
-                              </a>
-                              {" "}&{" "}
-                              <a href="/privacy-policy#cancellation" target="_blank" rel="noopener noreferrer" className="text-[#C9A063] underline">
-                                Cancellation Policy
-                              </a>
-                            </span>
-                          </label>
-
-                          <div>
-                            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5">
-                              Security check
-                            </div>
-                            <Turnstile
-                              onVerify={(token) => setTurnstileToken(token)}
-                              onExpire={() => setTurnstileToken("")}
-                              onError={() => setTurnstileToken("")}
-                            />
+                        <div>
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5">
+                            Security check
                           </div>
+                          <Turnstile
+                            onVerify={(token) => setTurnstileToken(token)}
+                            onExpire={() => setTurnstileToken("")}
+                            onError={() => setTurnstileToken("")}
+                          />
                         </div>
                       )}
 

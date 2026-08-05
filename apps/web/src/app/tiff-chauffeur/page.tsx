@@ -17,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return buildPageMetadata("/tiff-chauffeur", {
     title: "TIFF 2026 Chauffeur Service in Toronto | SARJ Worldwide",
     description:
-      "Book a private chauffeur for TIFF 2026 in Toronto (Sept 10–20). YYZ airport pickups, King West hotel runs, and hourly cars between Lightbox, Roy Thomson Hall, and other venues.",
+      "Book a private chauffeur for TIFF 2026 in Toronto. YYZ airport pickups, King West hotel runs, and hourly cars between Lightbox, Roy Thomson Hall, and other venues.",
     keywords: [
       "TIFF chauffeur Toronto",
       "TIFF 2026 private driver",
@@ -76,7 +76,7 @@ const faqs = [
   {
     question: "When do cars actually fill up for TIFF?",
     answer:
-      "Opening weekend and evening premieres go first. If you need a sedan or SUV for Sept 10–13 nights, book as soon as your flights and hotel are locked — waiting until the week of is a gamble.",
+      "Opening weekend and evening premieres go first. If you need a sedan or SUV for opening nights, book as soon as your flights and hotel are locked — waiting until the week of is a gamble.",
   },
   {
     question: "Can you pick us up at Pearson after we land?",
@@ -175,7 +175,7 @@ export default function TiffChauffeurPage() {
             A private car for TIFF week in Toronto
           </h1>
           <p className="text-white/75 text-[15px] sm:text-[17px] max-w-xl leading-relaxed font-light mb-8">
-            Festival dates are Sept 10–20, 2026. We handle Pearson arrivals, hotel runs on King West,
+            We handle Pearson arrivals, hotel runs on King West,
             and hourly cars when your night jumps between theatres.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">

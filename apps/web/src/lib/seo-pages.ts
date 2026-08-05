@@ -26,7 +26,7 @@ const STATIC_PAGES: DiscoveredPage[] = [
     pageLabel: "TIFF 2026 Chauffeur",
     defaultTitle: "TIFF 2026 Chauffeur Service in Toronto | SARJ Worldwide",
     defaultDescription:
-      "Private chauffeur for TIFF 2026 (Sept 10–20). Airport transfers, King West venues, hourly as-directed. Book early.",
+      "Private chauffeur for TIFF 2026. Airport transfers, King West venues, hourly as-directed. Book early.",
   },
   { path: "/privacy-policy", pageType: "legal", pageLabel: "Privacy Policy" },
   { path: "/terms-of-service", pageType: "legal", pageLabel: "Terms of Service" },
