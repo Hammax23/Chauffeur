@@ -45,6 +45,7 @@ interface AuthContextType {
     phone: string;
     password: string;
     city?: string;
+    phoneVerificationToken: string;
   }) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -181,6 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     phone: string;
     password: string;
     city?: string;
+    phoneVerificationToken: string;
   }) => {
     try {
       const data = await registerCustomer(params);

@@ -15,6 +15,7 @@ export default function RootLayout() {
             <Stack.Screen name="login" />
             <Stack.Screen name="partner" />
             <Stack.Screen name="register" />
+            <Stack.Screen name="complete-phone" />
             <Stack.Screen name="forgot-password" />
             <Stack.Screen name="verify-otp" />
             <Stack.Screen name="reset-password" />

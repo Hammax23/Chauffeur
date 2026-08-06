@@ -6,13 +6,14 @@ import { CustomerThemeProvider } from "../../contexts/CustomerThemeContext";
 import { getCustomerToken } from "../../services/api";
 import { SlimSpinner } from "../../components/SlimSpinner";
 import { GOLD } from "../../theme/driver-theme";
+import { customerNeedsPhone } from "../../utils/customer-phone";
 
 /**
  * Stack wraps the main tabs so booking screens (create → confirm → pending)
  * push on top. Back from confirm returns to create-reservation with form state.
  */
 export default function CustomerLayout() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const [tokenOk, setTokenOk] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -21,9 +22,15 @@ export default function CustomerLayout() {
       const token = await getCustomerToken();
       const ok = !!token && isAuthenticated;
       setTokenOk(ok);
-      if (!ok) router.replace("/login");
+      if (!ok) {
+        router.replace("/login");
+        return;
+      }
+      if (customerNeedsPhone(user?.phone)) {
+        router.replace("/complete-phone");
+      }
     })();
-  }, [isLoading, isAuthenticated]);
+  }, [isLoading, isAuthenticated, user?.phone]);
 
   if (isLoading || tokenOk === null) {
     return (
@@ -34,6 +41,7 @@ export default function CustomerLayout() {
   }
 
   if (!tokenOk) return null;
+  if (customerNeedsPhone(user?.phone)) return null;
 
   return (
     <CustomerThemeProvider>

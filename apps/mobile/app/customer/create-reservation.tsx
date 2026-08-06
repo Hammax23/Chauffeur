@@ -862,14 +862,6 @@ export default function CreateReservationScreen() {
                       {selectedTier.subtitle}
                     </Text>
                   ) : null}
-                  {selectedTier.seating ? (
-                    <View style={styles.carMetaRow}>
-                      <Ionicons name="person-outline" size={13} color="#64748b" />
-                      <Text style={styles.carMetaText} numberOfLines={1}>
-                        {selectedTier.seating}
-                      </Text>
-                    </View>
-                  ) : null}
                 </View>
                 <View style={styles.carSelectorTrailing}>
                   {tierFareById[selectedTier.id] != null ? (
@@ -947,14 +939,6 @@ export default function CreateReservationScreen() {
                                   <Text style={styles.tierDropdownSubtitle} numberOfLines={2}>
                                     {tier.subtitle}
                                   </Text>
-                                ) : null}
-                                {tier.seating ? (
-                                  <View style={styles.carMetaRow}>
-                                    <Ionicons name="person-outline" size={13} color="#64748b" />
-                                    <Text style={styles.carMetaText} numberOfLines={1}>
-                                      {tier.seating}
-                                    </Text>
-                                  </View>
                                 ) : null}
                               </View>
                               <View style={styles.carDropdownPriceCol}>

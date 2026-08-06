@@ -376,15 +376,21 @@ export async function removeStoredUser(): Promise<void> {
 
 /** Which home to open after splash (validates tokens exist). */
 export async function resolveBootDestination(): Promise<
-  "/customer" | "/driver" | "/concierge" | "/login"
+  "/customer" | "/driver" | "/concierge" | "/login" | "/complete-phone"
 > {
+  const { customerNeedsPhone } = await import("../utils/customer-phone");
+
   const role = await getActiveAuthRole();
-  if (role === "customer" && (await getCustomerToken())) return "/customer";
+  if (role === "customer" && (await getCustomerToken())) {
+    const profile = await getStoredCustomer();
+    return customerNeedsPhone(profile?.phone) ? "/complete-phone" : "/customer";
+  }
   if (role === "driver" && (await getDriverToken())) return "/driver";
   if (role === "concierge" && (await getConciergeToken())) return "/concierge";
   if (await getCustomerToken()) {
     await setActiveAuthRole("customer");
-    return "/customer";
+    const profile = await getStoredCustomer();
+    return customerNeedsPhone(profile?.phone) ? "/complete-phone" : "/customer";
   }
   if (await getDriverToken()) {
     await setActiveAuthRole("driver");
@@ -653,6 +659,7 @@ export async function registerCustomer(params: {
   phone: string;
   password: string;
   city?: string;
+  phoneVerificationToken: string;
 }) {
   const data = await apiRequest<{
     success: boolean;
@@ -669,6 +676,44 @@ export async function registerCustomer(params: {
   }
 
   return data;
+}
+
+export async function sendPhoneOtp(phone: string) {
+  return apiRequestWithResponse<{
+    success: boolean;
+    message?: string;
+    phone?: string;
+    otpLength?: number;
+    error?: string;
+  }>("/customer/auth/send-phone-otp", {
+    method: "POST",
+    body: JSON.stringify({ phone }),
+  });
+}
+
+export async function verifyPhoneOtp(phone: string, otp: string) {
+  return apiRequestWithResponse<{
+    success: boolean;
+    message?: string;
+    phone?: string;
+    phoneVerificationToken?: string;
+    error?: string;
+  }>("/customer/auth/verify-phone-otp", {
+    method: "POST",
+    body: JSON.stringify({ phone, otp }),
+  });
+}
+
+export async function checkPhoneAvailable(phone: string) {
+  return apiRequestWithResponse<{
+    success: boolean;
+    available: boolean;
+    phone?: string;
+    error?: string;
+  }>("/customer/auth/check-phone", {
+    method: "POST",
+    body: JSON.stringify({ phone }),
+  });
 }
 
 export async function forgotPassword(email: string) {
@@ -740,6 +785,32 @@ export async function updateProfile(params: {
   }
 
   return data;
+}
+
+/** Authenticated phone OTP (OAuth / incomplete profile). Static OTP 1234 for now. */
+export async function sendCustomerPhoneOtp(phone: string) {
+  return apiRequestWithResponse<{
+    success: boolean;
+    message?: string;
+    phone?: string;
+    otpLength?: number;
+    error?: string;
+  }>("/customer/phone/send-otp", {
+    method: "POST",
+    body: JSON.stringify({ phone }),
+  });
+}
+
+export async function verifyCustomerPhoneOtp(phone: string, otp: string) {
+  return apiRequestWithResponse<{
+    success: boolean;
+    message?: string;
+    customer?: CustomerProfile;
+    error?: string;
+  }>("/customer/phone/verify-otp", {
+    method: "POST",
+    body: JSON.stringify({ phone, otp }),
+  });
 }
 
 // ==================== PUBLIC FLEET (no auth) ====================

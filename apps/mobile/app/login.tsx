@@ -20,6 +20,8 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
 import { useDriverAuth } from "../contexts/DriverAuthContext";
+import { getStoredCustomer } from "../services/api";
+import { customerNeedsPhone } from "../utils/customer-phone";
 import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
 import * as AppleAuthentication from "expo-apple-authentication";
@@ -28,6 +30,15 @@ import Constants from "expo-constants";
 WebBrowser.maybeCompleteAuthSession();
 
 type MainRole = "customer" | "driver";
+
+async function routeAfterCustomerAuth() {
+  const stored = await getStoredCustomer();
+  if (customerNeedsPhone(stored?.phone)) {
+    router.replace("/complete-phone");
+    return;
+  }
+  router.replace("/customer");
+}
 
 /**
  * Consumer app login — Customer & Driver only.
@@ -102,7 +113,7 @@ export default function LoginScreen() {
       setIsLoading(true);
       const r = await loginWithGoogle(idToken);
       if (r.success) {
-        router.replace("/customer");
+        await routeAfterCustomerAuth();
       } else {
         Alert.alert("Google Login Failed", r.error || "Unable to login with Google");
       }
@@ -140,7 +151,7 @@ export default function LoginScreen() {
           : null,
       });
       if (r.success) {
-        router.replace("/customer");
+        await routeAfterCustomerAuth();
       } else {
         Alert.alert("Apple Login Failed", r.error || "Unable to login with Apple");
       }
@@ -176,7 +187,7 @@ export default function LoginScreen() {
       }
       const result = await login(email.trim(), password);
       if (result.success) {
-        router.replace("/customer");
+        await routeAfterCustomerAuth();
       } else {
         Alert.alert("Login Failed", result.error || "Invalid credentials");
       }
