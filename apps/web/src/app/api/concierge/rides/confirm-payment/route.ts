@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import { verifyConciergeToken } from "@/lib/concierge-auth";
 import { computePlatformFee } from "@/lib/concierge-rules";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 /** After Stripe PaymentIntent succeeds, lock APP payment + 5% platform fee. */
 export async function POST(req: NextRequest) {
@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Ride not found" }, { status: 404 });
     }
 
+    const stripe = getStripe();
     const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
     if (intent.status !== "succeeded") {
       return NextResponse.json(

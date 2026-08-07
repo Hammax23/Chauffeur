@@ -5,7 +5,7 @@ import { verifyConciergeToken } from "@/lib/concierge-auth";
 import { computePlatformFee } from "@/lib/concierge-rules";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 /** Create PaymentIntent for guest APP payment on a concierge ride (fare + tracked 5% fee). */
 export async function POST(req: NextRequest) {
@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
     const amountCents = Math.round(ride.fare * 100);
     const platformFee = computePlatformFee(ride.fare, "APP");
 
+    const stripe = getStripe();
     const intent = await stripe.paymentIntents.create({
       amount: amountCents,
       currency: "cad",

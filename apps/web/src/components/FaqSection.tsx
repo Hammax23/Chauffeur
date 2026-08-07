@@ -47,21 +47,31 @@ const faqs = [
   },
 ];
 
-const faqSchema = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: faqs.map((faq) => ({
-    "@type": "Question",
-    name: faq.question,
-    acceptedAnswer: {
-      "@type": "Answer",
-      text: faq.answer,
-    },
-  })),
-};
+interface FaqItem {
+  question: string;
+  answer: string;
+}
 
-export default function FaqSection() {
+interface FaqSectionProps {
+  data?: FaqItem[];
+}
+
+export default function FaqSection({ data }: FaqSectionProps = {}) {
+  const displayFaqs = data || faqs;
   const [openIndex, setOpenIndex] = useState<number | null>(0);
+
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: displayFaqs.map((faq) => ({
+      "@type": "Question",
+      name: faq.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: faq.answer,
+      },
+    })),
+  };
 
   const toggle = (index: number) => {
     setOpenIndex(openIndex === index ? null : index);
@@ -107,16 +117,15 @@ export default function FaqSection() {
 
           {/* Right — accordion */}
           <div className="space-y-3">
-            {faqs.map((faq, index) => {
+            {displayFaqs.map((faq, index) => {
               const isOpen = openIndex === index;
               return (
                 <div
                   key={faq.question}
-                  className={`rounded-xl border transition-all duration-300 ${
-                    isOpen
+                  className={`rounded-xl border transition-all duration-300 ${isOpen
                       ? "border-[#C9A063]/35 bg-[#fafafa] shadow-sm shadow-[#C9A063]/5"
                       : "border-gray-100 bg-white hover:border-gray-200"
-                  }`}
+                    }`}
                 >
                   <button
                     type="button"
@@ -125,25 +134,22 @@ export default function FaqSection() {
                     aria-expanded={isOpen}
                   >
                     <span
-                      className={`text-[14px] sm:text-[15px] font-semibold leading-snug transition-colors ${
-                        isOpen ? "text-[#1a2b3c]" : "text-gray-800"
-                      }`}
+                      className={`text-[14px] sm:text-[15px] font-semibold leading-snug transition-colors ${isOpen ? "text-[#1a2b3c]" : "text-gray-800"
+                        }`}
                     >
                       {faq.question}
                     </span>
                     <span
-                      className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 ${
-                        isOpen ? "bg-[#C9A063] text-white rotate-180" : "bg-gray-100 text-gray-500"
-                      }`}
+                      className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 ${isOpen ? "bg-[#C9A063] text-white rotate-180" : "bg-gray-100 text-gray-500"
+                        }`}
                     >
                       <ChevronDown className="w-4 h-4" strokeWidth={2.5} />
                     </span>
                   </button>
 
                   <div
-                    className={`grid transition-all duration-300 ease-in-out ${
-                      isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
-                    }`}
+                    className={`grid transition-all duration-300 ease-in-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                      }`}
                   >
                     <div className="overflow-hidden">
                       <p className="px-5 sm:px-6 pb-4 sm:pb-5 text-gray-500 text-[13px] sm:text-[14px] leading-relaxed border-t border-gray-100/80 pt-3.5">

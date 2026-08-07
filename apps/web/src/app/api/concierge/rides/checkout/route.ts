@@ -5,7 +5,7 @@ import { verifyConciergeToken } from "@/lib/concierge-auth";
 import { computePlatformFee } from "@/lib/concierge-rules";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 function safeReturnBase(raw: unknown): string {
   const fallback = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(
@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
     const platformFee = computePlatformFee(ride.fare, "APP");
     const returnBase = safeReturnBase(body.returnBaseUrl);
 
+    const stripe = getStripe();
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],

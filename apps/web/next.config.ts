@@ -8,8 +8,8 @@ const nextConfig: NextConfig = {
   // Enable React strict mode for better development
   reactStrictMode: true,
   
-  output: "standalone",
-  outputFileTracingRoot: monorepoRoot,
+  // output: "standalone",
+  // outputFileTracingRoot: monorepoRoot,
   
   // Optimize production builds
   poweredByHeader: false,

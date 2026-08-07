@@ -6,7 +6,7 @@ import { reservationTotalCents } from "@/lib/reservation-pricing";
 import { getPricingConfig } from "@/lib/get-pricing-config";
 import { getPublicFleet } from "@/lib/get-fleet";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export async function POST(request: NextRequest) {
   try {
@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const stripe = getStripe();
     const paymentIntent = await stripe.paymentIntents.create({
       amount: serverAmountCents,
       currency,

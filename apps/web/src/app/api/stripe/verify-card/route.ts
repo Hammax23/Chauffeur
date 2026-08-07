@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export async function POST(request: NextRequest) {
   try {
     const { setupIntentId } = await request.json();
 
+    const stripe = getStripe();
     const setupIntent = await stripe.setupIntents.retrieve(setupIntentId, {
       expand: ["payment_method"],
     });

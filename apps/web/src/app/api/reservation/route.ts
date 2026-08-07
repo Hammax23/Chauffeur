@@ -11,7 +11,7 @@ import { buildReservationAdminEmail, buildReservationUserEmail } from "@/lib/ema
 import { calculateReservationPricing, isAirportPickupLocation, AIRPORT_PICKUP_FEE } from "@/lib/reservation-pricing";
 import { getPricingConfig } from "@/lib/get-pricing-config";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export async function POST(request: NextRequest) {
   try {
@@ -187,6 +187,7 @@ export async function POST(request: NextRequest) {
         resolvedStripePaymentMethodId = "";
         resolvedPaymentIntentId = "";
       } else {
+        const stripe = getStripe();
         const paymentIntent = await stripe.paymentIntents.retrieve(stripePaymentIntentId, {
           expand: ["payment_method"],
         });

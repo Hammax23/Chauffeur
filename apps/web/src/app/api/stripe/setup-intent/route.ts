@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export async function POST(request: NextRequest) {
   try {
     const { email, name } = await request.json();
 
+    const stripe = getStripe();
+    
     // Create or get existing customer
     let customer;
     const existingCustomers = await stripe.customers.list({ email, limit: 1 });

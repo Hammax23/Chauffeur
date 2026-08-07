@@ -3,7 +3,7 @@ import Stripe from "stripe";
 import prisma from "@/lib/prisma";
 import { computePlatformFee } from "@/lib/concierge-rules";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 /** Finalize APP payment after Stripe Checkout succeeds (no JWT — session is proof). */
 export async function POST(req: NextRequest) {
@@ -14,6 +14,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Invalid session" }, { status: 400 });
     }
 
+    const stripe = getStripe();
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     if (session.payment_status !== "paid") {
       return NextResponse.json(

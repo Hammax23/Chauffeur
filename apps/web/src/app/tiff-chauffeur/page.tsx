@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   PlaneTakeoff,
   Clock,
@@ -6,10 +7,15 @@ import {
   Building2,
   ArrowRight,
   Check,
+  User,
 } from "lucide-react";
 import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import VerticalBookingWidget from "@/components/VerticalBookingWidget";
+import { GoogleMapsProvider } from "@/components/GoogleMapsProvider";
+import FaqSection from "@/components/FaqSection";
+import { Home } from "lucide-react";
 import type { Metadata } from "next";
 import { buildPageMetadata } from "@/lib/seo-metadata";
 
@@ -69,44 +75,56 @@ const highlights = [
 
 const faqs = [
   {
-    question: "Are you part of TIFF or an official sponsor?",
+    question: "When does the Toronto International Film Festival take place in 2026?",
     answer:
-      "No. SARJ Worldwide is a private chauffeur company. We are not owned by, sponsored by, or speaking for the Toronto International Film Festival.",
+      "TIFF 2026 runs September 10–20, marking the festival's 51st edition in downtown Toronto. The 11-day event brings premieres, screenings, and industry gatherings across the Entertainment District, making early transportation booking essential.",
   },
   {
-    question: "When do cars actually fill up for TIFF?",
+    question: "How can I get Toronto Film Festival tickets?",
     answer:
-      "Opening weekend and evening premieres go first. If you need a sedan or SUV for opening nights, book as soon as your flights and hotel are locked — waiting until the week of is a gamble.",
+      "TIFF Member packages go on sale August 21, with public tickets released August 31 via the festival's official ticketing partner. Individual screenings typically range from $25–$60. Once your tickets are confirmed, our chauffeur service ensures you reach each venue on time.",
   },
   {
-    question: "Can you pick us up at Pearson after we land?",
+    question: "What is the Toronto Film Festival submission deadline?",
     answer:
-      "Yes. Use an airport transfer booking, add your flight details, and choose meet & greet if you want the chauffeur inside arrivals with a name sign. We cover YYZ to downtown hotels and straight to venues.",
+      "The standard submission deadline for the 2026 festival was May 8. Filmmakers and industry guests attending after their films are selected often rely on our TIFF Limousine Service for premiere nights and press events.",
   },
   {
-    question: "Hourly or point-to-point — which one for a festival night?",
+    question: "How do I submit a film to the Toronto Film Festival?",
     answer:
-      "One hotel → venue → hotel run is usually point-to-point. Two or more venues, or you don’t know the exact order yet, book hourly. Minimums apply; ask when you reserve if you’re unsure.",
+      "Submissions are handled through FilmFreeway, TIFF's official submission platform. While we don't manage festival entries, we do provide transportation for filmmakers and crews once their projects are selected and events are scheduled.",
   },
   {
-    question: "What if the film runs long or we miss the car?",
+    question: "What vehicles are available for TIFF transportation?",
     answer:
-      "Text or call the number on your confirmation. For airports we already track the flight. For venues, a quick update lets us hold or reposition instead of marking you as a no-show.",
+      "Our fleet includes luxury SUVs such as the Cadillac Escalade, Chevrolet Suburban, and GMC Yukon, along with executive sedans and Lexus Hybrid Black models for a quieter ride. Guests traveling as a group can book Mercedes Sprinter vans or stretch limousines.",
+  },
+  {
+    question: "Do you offer red carpet drop-off service?",
+    answer:
+      "Yes. We provide direct curbside drop-offs at major festival hubs, including Roy Thomson Hall and the Princess of Wales Theatre, so guests can step straight onto the red carpet without navigating festival crowds.",
+  },
+  {
+    question: "Can you provide airport transfers during TIFF?",
+    answer:
+      "Yes. We offer direct pickups from both Toronto Pearson (YYZ) and Billy Bishop (YTZ), with flight tracking included so your chauffeur adjusts to any delays and is ready when you land.",
+  },
+  {
+    question: "What is your on-call logistics service during the festival?",
+    answer:
+      "Our on-call logistics option provides hourly, as-needed driving and waiting service, ideal for navigating heavy downtown traffic and the road closures that come with festival season. Your chauffeur waits and adjusts as your schedule shifts.",
+  },
+  {
+    question: "Can I book a group vehicle for my TIFF crew or delegation?",
+    answer:
+      "Yes. For production teams, sponsors, or larger delegations, our Mercedes Sprinter vans and stretch limousines keep everyone moving together between venues, hotels, and events.",
+  },
+  {
+    question: "How early should I book TIFF transportation?",
+    answer:
+      "We recommend booking as soon as your festival schedule is confirmed. Demand for luxury vehicles rises quickly once TIFF tickets go on sale, especially for red carpet dates and opening weekend.",
   },
 ];
-
-const faqSchema = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: faqs.map((faq) => ({
-    "@type": "Question",
-    name: faq.question,
-    acceptedAnswer: {
-      "@type": "Answer",
-      text: faq.answer,
-    },
-  })),
-};
 
 const breadcrumbJsonLd = {
   "@context": "https://schema.org",
@@ -145,10 +163,6 @@ export default function TiffChauffeurPage() {
     <main className="min-h-screen bg-[#fafafa]">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
-      />
-      <script
-        type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
       <script
@@ -159,39 +173,133 @@ export default function TiffChauffeurPage() {
       <TopNav />
       <Navbar />
 
-      <section className="relative pt-[108px] md:pt-[120px] overflow-hidden">
+      <section className="relative min-h-screen w-full overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: "url('/heropics/airport2.png')" }}
+          style={{ backgroundImage: "url('/Toronto%20International%20Film%20Festival%20Limo%20&%20Chauffeur%20Service.jpg')" }}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-black/65 to-[#0a0a0a]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(201,160,99,0.18),_transparent_55%)]" />
+        <div className="absolute inset-0 bg-black/60"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/60 to-[#0a0a0a]" />
 
-        <div className="relative z-10 max-w-[1100px] mx-auto px-6 sm:px-8 md:px-12 py-16 sm:py-20 md:py-24">
-          <p className="text-[#C9A063] text-[12px] sm:text-[13px] font-semibold tracking-[0.22em] uppercase mb-4">
-            SARJ Worldwide
-          </p>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-[3.25rem] font-bold text-white tracking-tight max-w-3xl leading-[1.1] mb-5">
-            A private car for TIFF week in Toronto
-          </h1>
-          <p className="text-white/75 text-[15px] sm:text-[17px] max-w-xl leading-relaxed font-light mb-8">
-            We handle Pearson arrivals, hotel runs on King West,
-            and hourly cars when your night jumps between theatres.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-            <Link
-              href={RESERVE_HREF}
-              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-[#C9A063] text-[#1a1a1a] text-[14px] font-semibold hover:bg-[#B8935A] transition-colors"
-            >
-              Book a car
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link
-              href={QUOTE_HREF}
-              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full border border-white/25 text-white text-[14px] font-medium hover:border-[#C9A063]/60 hover:text-[#C9A063] transition-colors"
-            >
-              Ask for a quote
-            </Link>
+        <div className="relative z-10 pt-[120px] lg:pt-[140px] pb-12 min-h-[100vh] flex items-center">
+          <div className="max-w-[1400px] mx-auto w-full px-6 lg:px-12 grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-12 lg:gap-8 items-center">
+            {/* Left Column: Text & CTA */}
+            <div className="text-left">
+              {/* Breadcrumbs */}
+              <div className="flex items-center gap-2 text-white text-[15px] font-medium mb-3">
+                <Home className="w-[18px] h-[18px]" />
+                <Link href="/" className="hover:text-[#C9A063] transition-colors">Home</Link>
+                <span className="text-[#C9A063]">»</span>
+                <span className="text-[#C9A063]">TIFF Transportation</span>
+              </div>
+              <div className="w-16 h-[2px] bg-[#C9A063] mb-6"></div>
+
+              {/* Heading */}
+              <h1 className="text-white text-3xl sm:text-4xl md:text-5xl lg:text-[48px] font-bold leading-[1.15] mb-5 drop-shadow-lg">
+                Toronto International Film Festival Limo & Chauffeur Service
+              </h1>
+
+              {/* Description */}
+              <p className="text-white/95 text-[15px] sm:text-[16px] leading-[1.7] max-w-[750px] mb-8 font-normal drop-shadow-md">
+                Arrive at the Toronto International Film Festival in style with a trusted TIFF festival car service in Toronto. Built for premieres, screenings, and industry events, our TIFF Limousine Service pairs professional chauffeurs with a luxury fleet of executive sedans and SUVs. VIP guests, filmmakers, and media rely on us to navigate downtown Toronto's Entertainment District with ease. From a single event to the full festival run, our Toronto International Film Festival chauffeur service delivers punctual, private transportation every time.
+              </p>
+
+              {/* CTA Button */}
+              <Link href="/quote" className="inline-block bg-[#C9A063] hover:bg-[#b58c51] text-white px-8 py-3.5 rounded-[30px] font-semibold text-[15px] transition-all duration-300 shadow-lg">
+                Get Instant Quote
+              </Link>
+            </div>
+
+            {/* Right Column: Booking Widget */}
+            <div className="flex flex-col items-center xl:items-end w-full">
+              <GoogleMapsProvider>
+                <VerticalBookingWidget />
+              </GoogleMapsProvider>
+              <div className="w-full max-w-[360px] text-center mt-4 text-[11px] text-white/70">
+                <p className="mb-1.5">© 2026 Book Rides Online, Inc. All Rights Reserved</p>
+                <div className="flex justify-center gap-4">
+                  <Link href="/terms-of-service" className="hover:text-white transition-colors underline underline-offset-2">Terms &amp; Conditions</Link>
+                  <Link href="/privacy-policy" className="hover:text-white transition-colors underline underline-offset-2">Privacy Policy</Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Premium TIFF Transportation Section */}
+      <section className="py-16 sm:py-20 md:py-24 bg-white">
+        <div className="max-w-[1200px] mx-auto px-6 sm:px-8 lg:px-12">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            {/* Left: Image */}
+            <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl">
+              <Image
+                src="/tiff-red-carpet.jpg"
+                alt="Toronto Film Festival Red Carpet"
+                fill
+                className="object-cover hover:scale-105 transition-transform duration-700"
+              />
+            </div>
+
+            {/* Right: Content */}
+            <div className="flex flex-col items-start text-left">
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight mb-5 tracking-tight">
+                Why You Need TIFF Transportation in Toronto
+              </h2>
+              <div className="w-16 h-1 bg-[#C9A063] mb-8"></div>
+
+              <div className="text-gray-600 text-[15px] sm:text-[16px] leading-relaxed space-y-5 mb-8 font-light">
+                <p>
+                  Every September, the <strong className="font-semibold text-gray-900">Toronto International Film Festival</strong> fills the Entertainment District with premieres, screenings, and packed crowds. Road closures around King Street West and TIFF Bell Lightbox make downtown driving unpredictable during peak festival hours. Parking near festival venues becomes scarce, and rideshare wait times climb as demand spikes across the city.
+                </p>
+                <p>
+                  A dedicated <Link href="/cities-we-serve/toronto-pearson" className="font-semibold text-gray-900 hover:text-[#C9A063] transition-colors">TIFF festival car service in Toronto</Link> removes that guesswork with pre-planned routes and local traffic knowledge. Our chauffeurs know venue entrances, hotel zones, and quiet side-street shortcuts that keep you moving when main roads slow down. That's why festival guests, media, and industry professionals turn to our TIFF Festival Toronto limo services for every event on their schedule. You arrive relaxed, on time, every time.
+                </p>
+              </div>
+
+              <Link
+                href="/contact"
+                className="bg-[#C9A063] hover:bg-[#b58c51] text-white px-8 py-3.5 rounded-full font-medium text-[15px] transition-all duration-300 shadow-lg"
+              >
+                Contact Us
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Luxury Chauffeur TIFF Section (Image Right) */}
+      <section className="py-16 sm:py-20 md:py-24 bg-[#fafafa]">
+        <div className="max-w-[1200px] mx-auto px-6 sm:px-8 lg:px-12">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            {/* Left: Content */}
+            <div className="flex flex-col items-start text-left order-2 lg:order-1">
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight mb-5 tracking-tight">
+                TIFF Limousine Service for Every Guest.
+              </h2>
+              <div className="w-16 h-1 bg-[#C9A063] mb-8"></div>
+
+              <div className="text-gray-600 text-[15px] sm:text-[16px] leading-relaxed space-y-5 mb-8 font-light">
+                <p>
+                  Our <strong className="font-semibold text-gray-900">TIFF Limousine Service</strong> welcomes every kind of festival visitor, not just one type of guest. Industry professionals, producers, distributors, and corporate sponsors rely on us for punctual travel between press events and private meetings. Everyday attendees book us too, wanting a stress-free ride to a red carpet premiere or evening screening.
+                </p>
+                <p>
+                  From hotel transfers to after-parties and networking events, our chauffeurs handle every stop on a packed festival day. Whether you need a single ride or a full itinerary, our <strong className="font-semibold text-gray-900">Toronto International Film Festival limo service</strong> is built around your schedule, not the other way around. Every guest, from a first-time visitor to a returning sponsor, receives the same standard of comfort and professionalism.
+                </p>
+              </div>
+
+
+            </div>
+
+            {/* Right: Image */}
+            <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl order-1 lg:order-2">
+              <Image
+                src="/tiff-every-guest.jpg"
+                alt="TIFF Limousine Service for Every Guest"
+                fill
+                className="object-cover hover:scale-105 transition-transform duration-700"
+              />
+            </div>
           </div>
         </div>
       </section>
@@ -201,16 +309,15 @@ export default function TiffChauffeurPage() {
         <div className="max-w-[1000px] mx-auto px-6 sm:px-8 md:px-12">
           <div className="text-center mb-10 sm:mb-12">
             <h2 className="text-2xl sm:text-3xl md:text-[2rem] font-bold text-white tracking-tight">
-              Why Choose Our{" "}
+              Why Choose Sarj Worldwide's{" "}
               <span className="relative inline-block text-white">
                 TIFF
                 <span className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-10 h-0.5 bg-[#C9A063]" />
               </span>{" "}
-              Chauffeur Service?
+              Limousine Service?
             </h2>
             <p className="mt-6 text-white/75 text-[14px] sm:text-[15px] leading-relaxed max-w-2xl mx-auto font-light">
-              Luxury transport for TIFF week in Toronto — licensed chauffeurs, executive vehicles,
-              and bookings built around your screenings, hotels, and Pearson flights.
+              Experience premium ground transportation crafted for the Toronto International Film Festival, backed by trained chauffeurs, a refined vehicle fleet, and service tailored to your schedule.
             </p>
           </div>
 
@@ -218,19 +325,27 @@ export default function TiffChauffeurPage() {
             {[
               {
                 title: "Professional Chauffeurs",
-                body: "Our drivers know festival traffic on King West, when streets close for red carpets, and how to get you curb-side without the scramble.",
+                body: "Our skilled chauffeurs provide polite, discreet, and on-time service, guiding you through Toronto's congested festival streets with ease and confidence.",
               },
               {
                 title: "Luxury Executive Fleet",
-                body: "Sedans and premium SUVs with space for luggage from YYZ, quiet cabins between venues, and a look that fits premieres — not a random rideshare.",
+                body: "Select from executive sedans and top-tier SUVs offering outstanding comfort, privacy, and sophistication for festival attendees and VIP guests alike.",
               },
               {
                 title: "Flexible Festival Transportation",
-                body: "Morning press, afternoon Market meetings, late premieres, after-parties — we set the car around your TIFF schedule, including hourly as-directed.",
+                body: "From early press interviews to late-night screenings and exclusive parties, we tailor each ride to match your personal TIFF itinerary.",
               },
               {
                 title: "Reliable Downtown Travel",
-                body: "Entertainment District, Lightbox, Roy Thomson Hall, Scotiabank Theatre, MTCC, and the hotels around them — routes we run every September.",
+                body: (
+                  <>
+                    Learn more about our{" "}
+                    <Link href="/" className="font-semibold text-white hover:text-[#C9A063] transition-colors">
+                      SARJ Worldwide
+                    </Link>{" "}
+                    chauffeurs who know Toronto's Entertainment District, festival hotspots, hotels, and key venues inside out, keeping you moving smoothly throughout TIFF.
+                  </>
+                ),
               },
             ].map((card) => (
               <div
@@ -252,36 +367,48 @@ export default function TiffChauffeurPage() {
         </div>
       </section>
 
-      <section className="py-14 sm:py-16 md:py-20 bg-white">
-        <div className="max-w-[1100px] mx-auto px-6 sm:px-8 md:px-12">
-          <span className="inline-block text-[12px] font-bold tracking-[0.2em] uppercase text-[#C9A063] mb-3">
-            Why people book ahead
-          </span>
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight mb-4 max-w-2xl">
-            After a gala lets out, rideshare apps are the worst part of the night
-          </h2>
-          <p className="text-gray-600 text-[15px] sm:text-[16px] leading-relaxed max-w-2xl mb-10 font-light">
-            We’ve driven TIFF weeks before. King Street gets taped off, phones die in the crowd, and
-            surge pricing spikes the second everyone leaves Roy Thomson Hall together. A car that was
-            already assigned to you — with a driver who has your hotel address — is simply calmer.
-          </p>
-          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl">
-            {[
-              "Evening cars for opening weekend go quickest",
-              "YYZ flights tracked so delays don’t strand you",
-              "Low-profile pickups when you don’t want a curb circus",
-              "One team from the airport through the last drop",
-            ].map((item) => (
-              <li key={item} className="flex items-start gap-3 text-[14px] sm:text-[15px] text-gray-700">
-                <span className="mt-0.5 w-5 h-5 rounded-full bg-[#C9A063]/15 flex items-center justify-center flex-shrink-0">
-                  <Check className="w-3 h-3 text-[#C9A063]" strokeWidth={2.5} />
-                </span>
-                {item}
-              </li>
-            ))}
-          </ul>
+      {/* Experience TIFF Without Stress Section */}
+      <section className="py-16 sm:py-20 md:py-24 bg-[#fafafa]">
+        <div className="max-w-[1200px] mx-auto px-6 sm:px-8 lg:px-12">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            {/* Left: Image */}
+            <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl">
+              <Image
+                src="/tiff-expect-service.jpg"
+                alt="Chauffeur Welcoming Guest"
+                fill
+                className="object-cover hover:scale-105 transition-transform duration-700"
+              />
+            </div>
+
+            {/* Right: Content */}
+            <div className="flex flex-col items-start text-left">
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight mb-5 tracking-tight">
+                What to Expect from Our Chauffeur Service
+              </h2>
+              <div className="w-16 h-1 bg-[#C9A063] mb-8"></div>
+
+              <div className="text-gray-600 text-[15px] sm:text-[16px] leading-relaxed space-y-5 mb-8 font-light">
+                <p>
+                  Every ride starts with a licensed, professional chauffeur who understands the pace of festival travel. Pickup times are confirmed in advance, and schedules stay flexible if a screening runs long or a red carpet event shifts. You choose between executive sedans or luxury SUVs, each kept clean, comfortable, and ready for city travel.
+                </p>
+                <p>
+                  For VIP guests, media, and industry professionals, discretion matters as much as comfort, and our chauffeurs are trained to provide both. This is what a <Link href="/services/airport-transfers" className="font-semibold text-gray-900 hover:text-[#C9A063] transition-colors">Toronto International Film Festival chauffeur service</Link> should feel like: quiet, dependable, and built around your itinerary. We handle the driving and the details, so you can focus on the festival itself.
+                </p>
+              </div>
+
+              <Link
+                href="/fleet"
+                className="bg-[#C9A063] hover:bg-[#b58c51] text-white px-8 py-3.5 rounded-full font-medium text-[15px] transition-all duration-300 shadow-lg"
+              >
+                Our Fleet
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
+
+
 
       <section className="py-14 sm:py-16 md:py-20 bg-[#fafafa]">
         <div className="max-w-[1100px] mx-auto px-6 sm:px-8 md:px-12">
@@ -333,7 +460,9 @@ export default function TiffChauffeurPage() {
         </div>
       </section>
 
-      <section className="py-14 sm:py-16 md:py-20 bg-white">
+
+
+      <section className="py-14 sm:py-16 md:py-20 bg-[#fafafa] border-t border-gray-100">
         <div className="max-w-[1100px] mx-auto px-6 sm:px-8 md:px-12">
           <span className="inline-block text-[12px] font-bold tracking-[0.2em] uppercase text-[#C9A063] mb-3">
             Where you’ll be
@@ -383,55 +512,9 @@ export default function TiffChauffeurPage() {
         </div>
       </section>
 
-      <section className="py-14 sm:py-16 md:py-20 bg-white">
-        <div className="max-w-[800px] mx-auto px-6 sm:px-8 md:px-12">
-          <span className="inline-block text-[12px] font-bold tracking-[0.2em] uppercase text-[#C9A063] mb-3">
-            FAQ
-          </span>
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight mb-8">
-            Straight answers
-          </h2>
-          <div className="space-y-6">
-            {faqs.map((faq) => (
-              <div key={faq.question} className="border-b border-gray-100 pb-6">
-                <h3 className="text-[15px] sm:text-[16px] font-semibold text-gray-900 mb-2">
-                  {faq.question}
-                </h3>
-                <p className="text-gray-600 text-[14px] sm:text-[15px] leading-relaxed font-light">
-                  {faq.answer}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <FaqSection data={faqs} />
 
-      <section className="py-14 sm:py-16 bg-[#fafafa] border-t border-gray-100">
-        <div className="max-w-[1100px] mx-auto px-6 sm:px-8 md:px-12 text-center">
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight mb-3">
-            Got your TIFF dates locked?
-          </h2>
-          <p className="text-gray-600 text-[15px] max-w-lg mx-auto mb-8 font-light">
-            Reserve online, or send a quote if you need several days / hourly blocks. Put “TIFF
-            2026” in the notes so the desk knows you’re in festival traffic.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
-            <Link
-              href={RESERVE_HREF}
-              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-[#1a1a1a] text-white text-[14px] font-semibold hover:bg-black transition-colors"
-            >
-              Reserve now
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link
-              href={QUOTE_HREF}
-              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full border border-gray-300 text-gray-900 text-[14px] font-medium hover:border-[#C9A063] hover:text-[#C9A063] transition-colors"
-            >
-              Get a quote
-            </Link>
-          </div>
-        </div>
-      </section>
+
 
       <Footer />
     </main>

@@ -27,8 +27,8 @@ export async function GET(request: NextRequest) {
     prisma.commissionConfirmation.count({ where: { disputeOpen: true } }),
   ]);
 
-  const totalRevenue = completed.reduce((s, r) => s + r.fare, 0);
-  const platformRevenue = completed.reduce((s, r) => s + r.platformFee, 0);
+  const totalRevenue = completed.reduce((s: number, r: any) => s + r.fare, 0);
+  const platformRevenue = completed.reduce((s: number, r: any) => s + r.platformFee, 0);
 
   const recentTrips = await prisma.conciergeRideRequest.findMany({
     orderBy: { createdAt: "desc" },
