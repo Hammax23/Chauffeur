@@ -13,19 +13,7 @@ export interface NewsArticle {
 }
 
 export const newsArticles: NewsArticle[] = [
-  {
-    id: "1",
-    slug: "mercedes-eqs-joins-luxury-fleet",
-    title: "Mercedes-Benz EQS Joins Our Luxury Fleet",
-    excerpt:
-      "We are excited to announce the addition of the all-electric Mercedes-Benz EQS to our premium fleet. Experience silent, sustainable luxury with cutting-edge technology and zero emissions on your next airport transfer or corporate journey.",
-    content:
-      "The Mercedes-Benz EQS represents the pinnacle of electric luxury sedans. With its sleek design, expansive Hyperscreen display, and whisper-quiet cabin, it is the perfect choice for executives and discerning travellers who value both comfort and sustainability. Our chauffeurs have completed comprehensive training to ensure every EQS ride meets the same impeccable standards you expect from SARJ Worldwide. Book an EQS for your next airport transfer, corporate meeting, or special occasion.",
-    category: "Fleet",
-    date: "2026-01-15",
-    image: "/blog/mercedes-eqs.jpg",
-    readTime: "3 min read",
-  },
+
   {
     id: "2",
     slug: "airport-transfer-tips-stress-free-travel",
@@ -104,19 +92,7 @@ export const newsArticles: NewsArticle[] = [
     image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=800&auto=format&fit=crop",
     readTime: "4 min read",
   },
-  {
-    id: "8",
-    slug: "range-rover-suv-premium-comfort",
-    title: "Why the Range Rover SUV Is a Client Favourite",
-    excerpt:
-      "The Range Rover has become one of the most requested vehicles in our fleet. Discover what makes it ideal for airport transfers, family travel, and executive trips—and when to choose it over a sedan.",
-    content:
-      "The Range Rover combines commanding presence with sumptuous interiors and all-terrain capability. Clients often choose it for airport runs with extra luggage, family trips, or when they simply prefer a higher seating position and more cabin space. The rear cabin offers ample legroom and comfort, making it perfect for longer journeys or multi-stop corporate itineraries. We maintain our Range Rovers to the highest standards, so every ride delivers the refinement and reliability you expect. Whether you are heading to the airport, a countryside estate, or a downtown meeting, the Range Rover remains a versatile and luxurious choice.",
-    category: "Fleet",
-    date: "2025-12-22",
-    image: "/blog/range-rover.png",
-    readTime: "3 min read",
-  },
+
   {
     id: "9",
     slug: "holiday-season-booking-tips",

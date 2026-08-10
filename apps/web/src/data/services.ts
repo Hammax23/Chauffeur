@@ -26,7 +26,7 @@ export const services: Service[] = [
     slug: "airport-transfers",
     title: "Airport Transfer",
     heroTitle: "Private Airport Transfer and Limo Service",
-    shortDesc: "Premium comfort for arrivals and departures.",
+    shortDesc: "Pearson, Billy Bishop, private aviation, hotels and downtown transfers.",
     description:
       "Sarj Worldwide offers private airport transfer and airport limo service with confirmed pickup, real-time flight tracking, and professional chauffeurs.",
     features: [
@@ -43,7 +43,7 @@ export const services: Service[] = [
     slug: "corporate-travel",
     title: "Corporate / Business Travel",
     heroTitle: "Corporate Car Service and Executive Travel",
-    shortDesc: "Executive chauffeur service for impeccable first impressions",
+    shortDesc: "Executives, clients, meetings, conferences and corporate travel",
     description:
       "Sarj Worldwide offers corporate car service and executive car service built around your meetings, client visits, and business schedule.",
     features: [
@@ -92,9 +92,9 @@ export const services: Service[] = [
   },
   {
     slug: "wedding-events",
-    title: "Wedding Events",
+    title: "Wedding And Events",
     heroTitle: "A Car That Matches the Day",
-    shortDesc: "Flawless luxury transportation for your special day",
+    shortDesc: "Weddings, birthdays, proms and special events",
     description:
       "Sarj Worldwide offers wedding limousine services and wedding vehicle hire, with licensed chauffeurs and a fleet built for the day.",
     features: [

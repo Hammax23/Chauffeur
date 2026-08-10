@@ -2,6 +2,7 @@
  * Smoke test: Live Auto Mode claim race + settings.
  * Run: npx tsx scripts/smoke-live-auto.ts  (from apps/web)
  */
+// @ts-nocheck
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 

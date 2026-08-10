@@ -20,11 +20,11 @@ export default function PremiumServices() {
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#C9A063]/30 bg-[#C9A063]/5 mb-6">
             <div className="w-1.5 h-1.5 rounded-full bg-[#C9A063]"></div>
             <span className="text-[#C9A063] text-xs sm:text-sm font-semibold tracking-widest uppercase">
-              Our Premium Services
+              Chauffeur Transportation for Every Journey
             </span>
           </div>
           <p className="text-gray-600 text-sm sm:text-base md:text-lg max-w-2xl mx-auto leading-relaxed font-light">
-            Experience unparalleled comfort, punctuality, and professionalism with our comprehensive range of chauffeur services designed for every occasion.
+            Professional chauffeur service for every occasion SARJ Worldwide provides airport transfers, corporate travel, private aviation, weddings, group events, long-distance trips, and more.
           </p>
         </div>
 

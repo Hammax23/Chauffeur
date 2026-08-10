@@ -8,7 +8,7 @@ import { ALL_BLOG_CATEGORIES } from "@/lib/blog-types";
 import RichTextEditor from "@/components/RichTextEditor";
 import SeoImageUpload from "@/components/SeoImageUpload";
 
-const inputCls = "w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500";
+const inputCls = "w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500";
 const labelCls = "block text-sm font-medium text-gray-700 mb-1.5";
 
 function BlogEditorForm() {

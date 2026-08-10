@@ -55,7 +55,7 @@ export default function BookingProcess() {
           </h2>
 
           <p className="text-gray-400 text-[13px] sm:text-[14px] leading-snug max-w-xl mx-auto font-light">
-            Booking your private chauffeur with SARJ Worldwide takes just minutes. Share your trip details, choose between distance-based or hourly service, and select the vehicle that best fits your journey. Once confirmed, you’ll receive your chauffeur’s details and real-time ride updates, ensuring everything is prepared before you even step outside.
+            Reserve Your Chauffeur in Seconds with SARJ Worldwide takes just minutes. Share your trip details, choose between distance-based or hourly service, and select the vehicle that best fits your journey. Once confirmed, you’ll receive your chauffeur’s details and real-time ride updates, ensuring everything is prepared before you even step outside.
           </p>
         </div>
 

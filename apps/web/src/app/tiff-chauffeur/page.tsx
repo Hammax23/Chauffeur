@@ -173,7 +173,7 @@ export default function TiffChauffeurPage() {
       <TopNav />
       <Navbar />
 
-      <section className="relative min-h-screen w-full overflow-hidden">
+      <section className="relative min-h-screen w-full">
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: "url('/Toronto%20International%20Film%20Festival%20Limo%20&%20Chauffeur%20Service.jpg')" }}
@@ -201,7 +201,7 @@ export default function TiffChauffeurPage() {
 
               {/* Description */}
               <p className="text-white/95 text-[15px] sm:text-[16px] leading-[1.7] max-w-[750px] mb-8 font-normal drop-shadow-md">
-                Arrive at the Toronto International Film Festival in style with a trusted TIFF festival car service in Toronto. Built for premieres, screenings, and industry events, our TIFF Limousine Service pairs professional chauffeurs with a luxury fleet of executive sedans and SUVs. VIP guests, filmmakers, and media rely on us to navigate downtown Toronto's Entertainment District with ease. From a single event to the full festival run, our Toronto International Film Festival chauffeur service delivers punctual, private transportation every time.
+                Arrive at the Toronto International Film Festival in style with a trusted TIFF festival car service in Toronto. Built for premieres, screenings, and industry events, our TIFF Limousine Service pairs professional chauffeurs with a luxury fleet of executive sedans and SUVs. VIP guests, filmmakers, and media rely on us to navigate downtown Toronto&apos;s Entertainment District with ease. From a single event to the full festival run, our Toronto International Film Festival chauffeur service delivers punctual, private transportation every time.
               </p>
 
               {/* CTA Button */}
@@ -253,7 +253,7 @@ export default function TiffChauffeurPage() {
                   Every September, the <strong className="font-semibold text-gray-900">Toronto International Film Festival</strong> fills the Entertainment District with premieres, screenings, and packed crowds. Road closures around King Street West and TIFF Bell Lightbox make downtown driving unpredictable during peak festival hours. Parking near festival venues becomes scarce, and rideshare wait times climb as demand spikes across the city.
                 </p>
                 <p>
-                  A dedicated <Link href="/cities-we-serve/toronto-pearson" className="font-semibold text-gray-900 hover:text-[#C9A063] transition-colors">TIFF festival car service in Toronto</Link> removes that guesswork with pre-planned routes and local traffic knowledge. Our chauffeurs know venue entrances, hotel zones, and quiet side-street shortcuts that keep you moving when main roads slow down. That's why festival guests, media, and industry professionals turn to our TIFF Festival Toronto limo services for every event on their schedule. You arrive relaxed, on time, every time.
+                  A dedicated <Link href="/cities-we-serve/toronto-pearson" className="font-semibold text-gray-900 hover:text-[#C9A063] transition-colors">TIFF festival car service in Toronto</Link> removes that guesswork with pre-planned routes and local traffic knowledge. Our chauffeurs know venue entrances, hotel zones, and quiet side-street shortcuts that keep you moving when main roads slow down. That&apos;s why festival guests, media, and industry professionals turn to our TIFF Festival Toronto limo services for every event on their schedule. You arrive relaxed, on time, every time.
                 </p>
               </div>
 
@@ -309,7 +309,7 @@ export default function TiffChauffeurPage() {
         <div className="max-w-[1000px] mx-auto px-6 sm:px-8 md:px-12">
           <div className="text-center mb-10 sm:mb-12">
             <h2 className="text-2xl sm:text-3xl md:text-[2rem] font-bold text-white tracking-tight">
-              Why Choose Sarj Worldwide's{" "}
+              Why Choose Sarj Worldwide&apos;s{" "}
               <span className="relative inline-block text-white">
                 TIFF
                 <span className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-10 h-0.5 bg-[#C9A063]" />
@@ -343,7 +343,7 @@ export default function TiffChauffeurPage() {
                     <Link href="/" className="font-semibold text-white hover:text-[#C9A063] transition-colors">
                       SARJ Worldwide
                     </Link>{" "}
-                    chauffeurs who know Toronto's Entertainment District, festival hotspots, hotels, and key venues inside out, keeping you moving smoothly throughout TIFF.
+                    chauffeurs who know Toronto&apos;s Entertainment District, festival hotspots, hotels, and key venues inside out, keeping you moving smoothly throughout TIFF.
                   </>
                 ),
               },

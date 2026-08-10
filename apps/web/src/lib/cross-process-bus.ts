@@ -185,14 +185,14 @@ export function publishCrossBusMany(
     byteLength(fullJson) <= MAX_NOTIFY_BYTES
       ? full
       : {
-          v: 1,
-          origin,
-          bus,
-          channel: unique[0],
-          channels: unique.length > 1 ? unique : undefined,
-          poke: true,
-          seq,
-        };
+        v: 1,
+        origin,
+        bus,
+        channel: unique[0],
+        channels: unique.length > 1 ? unique : undefined,
+        poke: true,
+        seq,
+      };
 
   void notifyPostgres(JSON.stringify(envelope)).catch((err) => {
     console.error("[cross-process-bus] NOTIFY failed:", err);

@@ -159,17 +159,17 @@ export default async function ServicePage({ params }: Props) {
             {/* CTA Buttons */}
             <div className="flex flex-wrap justify-center items-center gap-4 mt-8">
               <Link
-                href="/contact"
+                href="/reservation"
                 className="inline-flex items-center justify-center px-8 py-3.5 bg-[#C9A063] text-black text-[13px] font-bold uppercase tracking-[0.1em] rounded-md hover:bg-[#B8935A] transition-all duration-300 shadow-[0_0_20px_rgba(201,160,99,0.3)] hover:shadow-[0_0_30px_rgba(201,160,99,0.5)]"
+              >
+                Reserve Now
+              </Link>
+              <Link
+                href="/contact"
+                className="inline-flex items-center justify-center px-8 py-3.5 border border-white text-white text-[13px] font-bold uppercase tracking-[0.1em] rounded-md hover:bg-white hover:text-black transition-all duration-300"
               >
                 Contact Us
               </Link>
-              <a
-                href="tel:4168935779"
-                className="inline-flex items-center justify-center px-8 py-3.5 border border-white text-white text-[13px] font-bold uppercase tracking-[0.1em] rounded-md hover:bg-white hover:text-black transition-all duration-300"
-              >
-                Call +1 416-893-5779
-              </a>
             </div>
           </div>
         </section>

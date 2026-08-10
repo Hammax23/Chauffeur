@@ -178,6 +178,7 @@ export default function VerticalBookingWidget() {
                 timeFormat="h:mm aa"
                 minDate={new Date()}
                 placeholderText="Select date & time"
+                portalId="root"
                 className="w-full text-[13px] py-2 px-3 focus:outline-none cursor-pointer bg-transparent"
               />
             </div>

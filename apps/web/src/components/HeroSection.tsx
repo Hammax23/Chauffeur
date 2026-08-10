@@ -104,7 +104,7 @@ const HeroSection = () => {
   };
 
   return (
-    <section className="relative min-h-screen w-full overflow-hidden">
+    <section className="relative min-h-screen w-full">
 
       <video
         autoPlay
@@ -125,9 +125,9 @@ const HeroSection = () => {
         <div className="max-w-[1600px] mx-auto w-full px-8">
           <div className="text-left mb-3 sm:mb-4 md:mb-5 mt-6 sm:mt-8 md:mt-12 lg:mt-16 max-w-[800px] lg:ml-[240px]">
             <p className="text-white/90 text-sm sm:text-base md:text-lg mb-3 sm:mb-4 font-normal tracking-wide">
-              Where Would You Like To Go?
+              Reserve Your Chauffeur in Seconds
             </p>
-            <h1 className="text-white text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold leading-tight max-w-[800px]">
+            <h1 className="text-white text-2xl sm:text-3xl md:text-4xl lg:text-4xl xl:text-5xl font-bold leading-tight max-w-[800px]">
               Luxury Chauffeur & Airport Limo Service in Canada
             </h1>
             <p className="text-white text-sm sm:text-base md:text-lg mt-4 max-w-[700px] leading-relaxed">

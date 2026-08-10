@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { verifySeoPanelAuth } from "@/lib/seo-auth";
-import { sanitizeInput } from "@/lib/sanitize";
+import { sanitizeInput, sanitizeUrl } from "@/lib/sanitize";
 import { sanitizeBlogHtml } from "@/lib/blog-content";
 import { logSeoAudit } from "@/lib/seo-audit";
 import { getClientIP } from "@/lib/seo-auth";
@@ -61,11 +61,11 @@ export async function PUT(
       ? sanitizeBlogHtml(rawContent)
       : (body.content != null ? sanitizeInput(rawContent) : existing.content);
     const category = body.category != null ? sanitizeInput(String(body.category)).trim() : existing.category;
-    const imageUrl = body.imageUrl != null ? sanitizeInput(String(body.imageUrl)).trim() : existing.imageUrl;
+    const imageUrl = body.imageUrl != null ? sanitizeUrl(body.imageUrl) : existing.imageUrl;
     const author = body.author != null ? sanitizeInput(String(body.author)).trim() : existing.author;
     const seoTitle = body.seoTitle != null ? sanitizeInput(String(body.seoTitle)).trim() : (existing as any).seoTitle;
     const seoDescription = body.seoDescription != null ? sanitizeInput(String(body.seoDescription)).trim() : (existing as any).seoDescription;
-    const canonicalUrl = body.canonicalUrl != null ? sanitizeInput(String(body.canonicalUrl)).trim() : (existing as any).canonicalUrl;
+    const canonicalUrl = body.canonicalUrl != null ? sanitizeUrl(body.canonicalUrl) : (existing as any).canonicalUrl;
     const focusKeyword = body.focusKeyword != null ? sanitizeInput(String(body.focusKeyword)).trim() : (existing as any).focusKeyword;
     const robotsIndex = typeof body.robotsIndex === "boolean" ? body.robotsIndex : (existing as any).robotsIndex;
     const robotsFollow = typeof body.robotsFollow === "boolean" ? body.robotsFollow : (existing as any).robotsFollow;
