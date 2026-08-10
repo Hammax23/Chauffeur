@@ -5,10 +5,10 @@ import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import {
-  Bold, Italic, List, ListOrdered, Heading2, Heading3,
+  Bold, Italic, List, ListOrdered, Heading2, Heading3, Heading4,
   Quote, Undo, Redo, Minus, Link as LinkIcon, Image as ImageIcon,
 } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface RichTextEditorProps {
   value: string;
@@ -50,12 +50,15 @@ function ToolbarButton({
 
 export default function RichTextEditor({ value, onChange, placeholder }: RichTextEditorProps) {
   const lastEmittedHtml = useRef<string>(value || "<p></p>");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [showImageDialog, setShowImageDialog] = useState(false);
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         heading: {
-          levels: [2, 3],
+          levels: [2, 3, 4],
         },
       }),
       Link.configure({
@@ -80,7 +83,7 @@ export default function RichTextEditor({ value, onChange, placeholder }: RichTex
     editorProps: {
       attributes: {
         class:
-          "prose prose-base max-w-none min-h-[280px] px-4 py-3 focus:outline-none prose-headings:font-bold prose-h2:text-2xl prose-h2:mt-6 prose-h2:mb-4 prose-h3:text-xl prose-h3:mt-5 prose-h3:mb-3 prose-p:my-3 prose-ul:my-4 prose-ol:my-4 prose-li:my-1 prose-blockquote:border-l-4 prose-blockquote:border-gray-300 prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:text-gray-700 prose-a:text-[#C9A063] prose-a:font-medium prose-a:no-underline hover:prose-a:underline prose-img:rounded-lg prose-hr:my-6 prose-hr:border-gray-300",
+          "prose prose-base max-w-none min-h-[280px] px-4 py-3 focus:outline-none prose-headings:font-bold prose-h2:text-2xl prose-h2:mt-6 prose-h2:mb-4 prose-h3:text-xl prose-h3:mt-5 prose-h3:mb-3 prose-h4:text-lg prose-h4:mt-4 prose-h4:mb-2 prose-p:my-3 prose-ul:my-4 prose-ol:my-4 prose-li:my-1 prose-blockquote:border-l-4 prose-blockquote:border-gray-300 prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:text-gray-700 prose-a:text-[#C9A063] prose-a:font-medium prose-a:no-underline hover:prose-a:underline prose-img:rounded-lg prose-hr:my-6 prose-hr:border-gray-300",
       },
     },
     onUpdate: ({ editor: ed }) => {
@@ -111,7 +114,7 @@ export default function RichTextEditor({ value, onChange, placeholder }: RichTex
     );
   }
 
-  const handleHeading = (level: 2 | 3) => {
+  const handleHeading = (level: 2 | 3 | 4) => {
     const isActive = editor.isActive("heading", { level });
     if (isActive) {
       editor.chain().focus().setParagraph().run();
@@ -163,7 +166,52 @@ export default function RichTextEditor({ value, onChange, placeholder }: RichTex
       .run();
   };
 
+  const handleImageUpload = async (file: File) => {
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", "blog");
+
+      const res = await fetch("/api/seopanel/upload", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!data.success) {
+        alert(data.error || "Upload failed");
+        return;
+      }
+
+      // Insert the uploaded image
+      const alt = window.prompt("Alt text (describe the image for SEO and accessibility):", "") || "Image";
+      editor.chain().focus().setImage({ 
+        src: data.url, 
+        alt: alt.trim(),
+      }).run();
+      
+      console.log('Image uploaded and inserted:', data.url);
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert('Failed to upload image. Please try again.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleImage = () => {
+    setShowImageDialog(true);
+  };
+
+  const handleImageFromComputer = () => {
+    setShowImageDialog(false);
+    fileInputRef.current?.click();
+  };
+
+  const handleImageFromUrl = () => {
+    setShowImageDialog(false);
     const src = window.prompt(
       "Image URL (must be a direct link to an image file):\n\n" +
       "Examples:\n" +
@@ -216,6 +264,48 @@ export default function RichTextEditor({ value, onChange, placeholder }: RichTex
 
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden bg-white focus-within:ring-2 focus-within:ring-emerald-500/30 focus-within:border-emerald-500">
+      {/* Custom Image Dialog */}
+      {showImageDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowImageDialog(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Insert Image</h3>
+            <p className="text-sm text-gray-600 mb-6">Choose how you want to add an image to your content</p>
+            
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={handleImageFromComputer}
+                className="w-full px-4 py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                Upload from Computer
+              </button>
+              
+              <button
+                type="button"
+                onClick={handleImageFromUrl}
+                className="w-full px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+                Use Image URL
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => setShowImageDialog(false)}
+                className="w-full px-4 py-2.5 text-gray-600 text-sm hover:text-gray-800 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style dangerouslySetInnerHTML={{
         __html: `
           .ProseMirror {
@@ -234,6 +324,13 @@ export default function RichTextEditor({ value, onChange, placeholder }: RichTex
             margin-top: 1.25rem;
             margin-bottom: 0.75rem;
             line-height: 1.4;
+          }
+          .ProseMirror h4 {
+            font-size: 1.125rem;
+            font-weight: 700;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+            line-height: 1.5;
           }
           .ProseMirror p {
             margin-top: 0.75rem;
@@ -324,6 +421,14 @@ export default function RichTextEditor({ value, onChange, placeholder }: RichTex
           <Heading3 className="w-4 h-4" />
         </ToolbarButton>
         
+        <ToolbarButton
+          onClick={() => handleHeading(4)}
+          active={editor.isActive("heading", { level: 4 })}
+          title="Heading 4"
+        >
+          <Heading4 className="w-4 h-4" />
+        </ToolbarButton>
+        
         <ToolbarButton 
           onClick={handleBulletList} 
           active={editor.isActive("bulletList")} 
@@ -367,9 +472,14 @@ export default function RichTextEditor({ value, onChange, placeholder }: RichTex
         
         <ToolbarButton
           onClick={handleImage}
-          title="Insert image"
+          disabled={uploadingImage}
+          title={uploadingImage ? "Uploading..." : "Insert image (from file or URL)"}
         >
-          <ImageIcon className="w-4 h-4" />
+          {uploadingImage ? (
+            <div className="w-4 h-4 border-2 border-gray-400 border-t-emerald-600 rounded-full animate-spin" />
+          ) : (
+            <ImageIcon className="w-4 h-4" />
+          )}
         </ToolbarButton>
         
         <div className="w-px h-6 bg-gray-200 mx-1" />
@@ -388,6 +498,21 @@ export default function RichTextEditor({ value, onChange, placeholder }: RichTex
           <Redo className="w-4 h-4" />
         </ToolbarButton>
       </div>
+
+      {/* Hidden file input for image upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/jpg,image/gif"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            handleImageUpload(file);
+            e.target.value = ""; // Reset input
+          }
+        }}
+      />
 
       <EditorContent editor={editor} />
       {placeholder && editor.isEmpty && (

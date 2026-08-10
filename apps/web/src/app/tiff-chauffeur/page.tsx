@@ -176,7 +176,7 @@ export default function TiffChauffeurPage() {
       <section className="relative min-h-screen w-full">
         <div
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: "url('/Toronto%20International%20Film%20Festival%20Limo%20&%20Chauffeur%20Service.jpg')" }}
+          style={{ backgroundImage: "url('/tiff-hero.jpg')" }}
         />
         <div className="absolute inset-0 bg-black/60"></div>
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/60 to-[#0a0a0a]" />
