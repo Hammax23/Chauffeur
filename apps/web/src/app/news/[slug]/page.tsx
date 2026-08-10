@@ -129,15 +129,15 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
               </div>
             </div>
 
-            {/* Right: Featured Image */}
-            <div className="relative rounded-3xl overflow-hidden shadow-2xl shadow-gray-300/50 aspect-[16/10]">
+            {/* Right: Featured Image - 1200x600 (2:1 aspect ratio) */}
+            <div className="relative rounded-3xl overflow-hidden shadow-2xl shadow-gray-300/50 w-full" style={{ aspectRatio: '2 / 1' }}>
               <Image
                 src={article.image}
                 alt={article.imageAlt?.trim() ? article.imageAlt.trim() : article.title}
                 title={article.imageTitle?.trim() ? article.imageTitle.trim() : undefined}
-                fill
-                sizes="(max-width: 1024px) 100vw, 50vw"
-                className="object-cover"
+                width={1200}
+                height={600}
+                className="object-cover w-full h-full"
                 priority
               />
               {article.imageCaption?.trim() && (
