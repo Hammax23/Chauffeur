@@ -332,7 +332,7 @@ const CityServicePageContent = ({ name, slug }: CityServicePageContentProps) => 
                     <div className="w-16 h-[3px] bg-[#C9A063] mb-8" />
                     <div className="text-gray-600 text-[16px] md:text-[18px] leading-[1.9] font-normal mb-8 whitespace-pre-line">
                       <p className="mb-6">
-                        Passengers who need additional arrival support can reserve our <Link href="/services/meet-and-greet" className="text-[#C9A063] hover:underline transition-colors">VIP airport greeting</Link> for a smoother transition from the terminal to their waiting vehicle, with a chauffeur on hand from baggage claim through to the car. This is available for both arriving and departing travellers across Montreal.
+                        Passengers who need additional arrival support can reserve our <Link href="/services/meet-greet" className="text-[#C9A063] hover:underline transition-colors">VIP airport greeting</Link> for a smoother transition from the terminal to their waiting vehicle, with a chauffeur on hand from baggage claim through to the car. This is available for both arriving and departing travellers across Montreal.
                       </p>
                       <p className="mb-0">
                         Choose professional limo services Montreal travellers can book in advance for private, comfortable transportation to a residence, hotel, workplace, meeting location, or special event. Whether heading to Old Montreal, the Plateau, or downtown Ville-Marie, your journey is arranged around your schedule from start to finish.

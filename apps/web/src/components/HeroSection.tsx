@@ -128,10 +128,10 @@ const HeroSection = () => {
               Reserve Your Chauffeur in Seconds
             </p>
             <h1 className="text-white text-2xl sm:text-3xl md:text-4xl lg:text-4xl xl:text-5xl font-bold leading-tight max-w-[800px]">
-              Luxury Chauffeur & Airport Limo Service in Canada
+              Premium Chauffeur & Private Transportation Services
             </h1>
             <p className="text-white text-sm sm:text-base md:text-lg mt-4 max-w-[700px] leading-relaxed">
-              SARJ Worldwide provides luxury chauffeur services for airport transfers, corporate travel, and private occasions across 15+ Canadian cities. Enjoy professional chauffeurs, premium vehicles, and seamless journeys with comfort and discretion.
+              Professional chauffeur transportation for airport transfers, corporate travel, special events, and long distance travel, serving the Greater Toronto Area, Ontario and beyond.
             </p>
           </div>
         </div>

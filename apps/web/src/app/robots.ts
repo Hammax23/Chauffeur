@@ -7,10 +7,9 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
 
   const rules: MetadataRoute.Robots["rules"] = {
     userAgent: "*",
-    allow: "/",
+    allow: ["/", "/_next/static/"],
     disallow: [
       "/api/",
-      "/_next/",
       "/admin/",
       "/seopanel/",
       "/operational-manager/",

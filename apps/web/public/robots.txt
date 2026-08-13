@@ -3,11 +3,11 @@
 
 User-agent: *
 Allow: /
+Allow: /_next/static/
 
 Sitemap: https://sarjworldwide.ca/sitemap.xml
 
 Disallow: /api/
-Disallow: /_next/
 Disallow: /admin/
 Disallow: /seopanel/
 Disallow: /operational-manager/
