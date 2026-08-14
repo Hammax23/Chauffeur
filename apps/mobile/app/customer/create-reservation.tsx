@@ -26,6 +26,7 @@ import { fetchDirectionsSummary } from "../../services/places";
 import { getAppFleetVehicles, type AppFleetVehicleDto } from "../../services/api";
 import {
   buildVehicleTiersFromAppFleet,
+  filterVehicleTiersForParcel,
   findTierById,
   resolveTierIdFromFleetVehicleId,
   type VehicleTierOption,
@@ -212,17 +213,17 @@ export default function CreateReservationScreen() {
   const [fleetError, setFleetError] = useState("");
   const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
   const [showTierDropdown, setShowTierDropdown] = useState(false);
+  const isParcel = isParcelServiceType(serviceType);
 
-  const vehicleTiers = useMemo(
-    () => buildVehicleTiersFromAppFleet(fleetVehicles),
-    [fleetVehicles]
-  );
+  const vehicleTiers = useMemo(() => {
+    const all = buildVehicleTiersFromAppFleet(fleetVehicles);
+    return isParcel ? filterVehicleTiersForParcel(all) : all;
+  }, [fleetVehicles, isParcel]);
 
   const selectedTier = useMemo(
     () => (selectedTierId ? findTierById(vehicleTiers, selectedTierId) : null),
     [vehicleTiers, selectedTierId]
   );
-  const isParcel = isParcelServiceType(serviceType);
   /** Silent default — 407 allowed on routed trips (UI toggle removed). */
   const tollRoute = true;
   const [routeSummary, setRouteSummary] = useState<{
@@ -254,7 +255,12 @@ export default function CreateReservationScreen() {
     if (rideFor === "me") {
       setFirstName((prev) => prev || user.firstName || "");
       setLastName((prev) => prev || user.lastName || "");
-      setPhoneNumber((prev) => prev || user.phone || "");
+      // Verified account phone is authoritative for "For me"
+      if (user.phone?.trim()) {
+        setPhoneNumber(user.phone);
+      } else {
+        setPhoneNumber((prev) => prev || "");
+      }
       setEmail((prev) => prev || user.email || "");
     } else {
       // Keep booker email for receipts when riding for someone else
@@ -290,13 +296,23 @@ export default function CreateReservationScreen() {
           extraKmRate: pricing.extraKmRate || EXTRA_KM_RATE,
         });
       }
-      const tiers = buildVehicleTiersFromAppFleet(vehicles);
+      const allTiers = buildVehicleTiersFromAppFleet(vehicles);
+      const parcelMode = isParcelServiceType(
+        typeof params.prefill === "string"
+          ? params.prefill
+          : Array.isArray(params.prefill)
+            ? params.prefill[0]
+            : serviceType
+      );
+      const tiers = parcelMode ? filterVehicleTiersForParcel(allTiers) : allTiers;
 
       const rawId = params.vehicleId;
       const requestedFleetOrTierId =
         typeof rawId === "string" ? rawId : Array.isArray(rawId) ? rawId[0] : undefined;
       const preferredTierId =
-        requestedFleetOrTierId && !consumedVehicleParamRef.current
+        !parcelMode &&
+        requestedFleetOrTierId &&
+        !consumedVehicleParamRef.current
           ? resolveTierIdFromFleetVehicleId(requestedFleetOrTierId)
           : null;
       if (preferredTierId) consumedVehicleParamRef.current = true;
@@ -313,11 +329,20 @@ export default function CreateReservationScreen() {
     } finally {
       setFleetLoading(false);
     }
-  }, [params.vehicleId]);
+  }, [params.vehicleId, params.prefill, serviceType]);
 
   useEffect(() => {
     loadFleet();
   }, [loadFleet]);
+
+  // Parcel: lock selection to the only allowed car when tiers refresh
+  useEffect(() => {
+    if (!isParcel || vehicleTiers.length === 0) return;
+    setSelectedTierId((prev) =>
+      prev && vehicleTiers.some((t) => t.id === prev) ? prev : vehicleTiers[0].id
+    );
+    setShowTierDropdown(false);
+  }, [isParcel, vehicleTiers]);
 
   const fillCurrentPickup = useCallback(async (opts?: { force?: boolean }) => {
     if (!opts?.force && pickupAutoFilledRef.current) return;
@@ -557,7 +582,11 @@ export default function CreateReservationScreen() {
       Alert.alert("Missing info", "Please enter pickup and drop-off addresses.");
       return;
     }
-    if (!firstName.trim() || !lastName.trim() || !phoneNumber.trim()) {
+    const bookingPhone =
+      rideFor === "me" && user?.phone?.trim()
+        ? user.phone.trim()
+        : phoneNumber.trim();
+    if (!firstName.trim() || !lastName.trim() || !bookingPhone) {
       Alert.alert(
         "Missing info",
         rideFor === "me"
@@ -635,7 +664,7 @@ export default function CreateReservationScreen() {
       childSeatCount: isParcel ? "0" : String(childSeatCount),
       firstName,
       lastName,
-      phoneNumber,
+      phoneNumber: bookingPhone,
       email: rideFor === "someone" ? (user?.email || email).trim() : email.trim(),
       rideFor,
       bookerName:
@@ -820,12 +849,18 @@ export default function CreateReservationScreen() {
           ) : null}
         </View>
 
-        {/* Select Vehicle */}
+        {/* Vehicle */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Select Vehicle</Text>
-          <Text style={styles.sectionSubtitle}>Choose your ride category</Text>
+          <Text style={styles.sectionTitle}>
+            {isParcel ? "Vehicle" : "Select Vehicle"}
+          </Text>
+          <Text style={styles.sectionSubtitle}>
+            {isParcel
+              ? "Assigned vehicle for parcel delivery"
+              : "Choose your ride category"}
+          </Text>
 
-          <Text style={styles.inputLabel}>Select Car</Text>
+          {!isParcel ? <Text style={styles.inputLabel}>Select Car</Text> : null}
           {fleetLoading ? (
             <View style={styles.fleetLoadingBox}>
               <ActivityIndicator size="small" color="#D4A04A" />
@@ -841,10 +876,17 @@ export default function CreateReservationScreen() {
           ) : selectedTier ? (
             <>
               <TouchableOpacity
-                style={styles.carSelector}
-                onPress={() => vehicleTiers.length > 1 && setShowTierDropdown(!showTierDropdown)}
-                disabled={vehicleTiers.length <= 1}
-                activeOpacity={0.85}
+                style={[
+                  styles.carSelector,
+                  isParcel || vehicleTiers.length <= 1 ? styles.carSelectorLocked : null,
+                ]}
+                onPress={() =>
+                  !isParcel &&
+                  vehicleTiers.length > 1 &&
+                  setShowTierDropdown(!showTierDropdown)
+                }
+                disabled={isParcel || vehicleTiers.length <= 1}
+                activeOpacity={isParcel || vehicleTiers.length <= 1 ? 1 : 0.85}
               >
                 <View style={styles.carThumbWrap}>
                   <Image
@@ -1169,109 +1211,94 @@ export default function CreateReservationScreen() {
           )}
         </View>
 
-        {/* Who is riding */}
-        {!isParcel ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Who is riding?</Text>
+        {/* Contact / Who is riding — same UI for Ride & Parcel */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            {isParcel ? "Contact Info" : "Who is riding?"}
+          </Text>
 
-            <View style={styles.rideForTrack}>
-              <Pressable
-                onPress={() => selectRideFor("me")}
-                style={({ pressed }) => [
-                  styles.rideForSeg,
-                  rideFor === "me" && styles.rideForSegOn,
-                  pressed && { opacity: 0.92 },
+          <View style={styles.rideForTrack}>
+            <Pressable
+              onPress={() => selectRideFor("me")}
+              style={({ pressed }) => [
+                styles.rideForSeg,
+                rideFor === "me" && styles.rideForSegOn,
+                pressed && { opacity: 0.92 },
+              ]}
+            >
+              <Text
+                style={[styles.rideForSegText, rideFor === "me" && styles.rideForSegTextOn]}
+              >
+                For me
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => selectRideFor("someone")}
+              style={({ pressed }) => [
+                styles.rideForSeg,
+                rideFor === "someone" && styles.rideForSegOn,
+                pressed && { opacity: 0.92 },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.rideForSegText,
+                  rideFor === "someone" && styles.rideForSegTextOn,
                 ]}
               >
-                <Text
-                  style={[styles.rideForSegText, rideFor === "me" && styles.rideForSegTextOn]}
-                >
-                  For me
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => selectRideFor("someone")}
-                style={({ pressed }) => [
-                  styles.rideForSeg,
-                  rideFor === "someone" && styles.rideForSegOn,
-                  pressed && { opacity: 0.92 },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.rideForSegText,
-                    rideFor === "someone" && styles.rideForSegTextOn,
-                  ]}
-                >
-                  Someone else
-                </Text>
-              </Pressable>
-            </View>
+                Someone else
+              </Text>
+            </Pressable>
+          </View>
 
-            {rideFor === "me" ? (
-              <>
-                {user?.firstName && user?.lastName ? (
-                  <View style={styles.riderSimpleRow}>
-                    <View style={styles.riderAvatar}>
-                      <Text style={styles.riderInitials}>
+          {rideFor === "me" ? (
+            user?.firstName && user?.lastName ? (
+              <View style={styles.forMeCard}>
+                <View style={styles.forMeCardTop}>
+                  <View style={styles.forMeAvatar}>
+                    {user.photo ? (
+                      <Image
+                        source={{ uri: user.photo }}
+                        style={styles.forMeAvatarImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Text style={styles.forMeInitials}>
                         {`${(user.firstName[0] || "Y").toUpperCase()}${(user.lastName[0] || "").toUpperCase()}`}
                       </Text>
-                    </View>
-                    <Text style={styles.riderName} numberOfLines={1}>
+                    )}
+                  </View>
+                  <View style={styles.forMeCopy}>
+                    <Text style={styles.forMeName} numberOfLines={1}>
                       {[firstName, lastName].filter(Boolean).join(" ") || "You"}
                     </Text>
+                    <Text style={styles.forMeMeta} numberOfLines={1}>
+                      {isParcel
+                        ? "Sending with your account"
+                        : "Booking with your account"}
+                    </Text>
                   </View>
-                ) : (
-                  <View style={styles.nameRow}>
-                    <View style={styles.nameField}>
-                      <Text style={styles.inputLabel}>First Name*</Text>
-                      <View style={styles.inputBox}>
-                        <TextInput
-                          style={styles.textInput}
-                          value={firstName}
-                          onChangeText={setFirstName}
-                          placeholder="First name"
-                          placeholderTextColor="#999"
-                          autoCapitalize="words"
-                        />
-                      </View>
-                    </View>
-                    <View style={styles.nameField}>
-                      <Text style={styles.inputLabel}>Last Name*</Text>
-                      <View style={styles.inputBox}>
-                        <TextInput
-                          style={styles.textInput}
-                          value={lastName}
-                          onChangeText={setLastName}
-                          placeholder="Last name"
-                          placeholderTextColor="#999"
-                          autoCapitalize="words"
-                        />
-                      </View>
-                    </View>
+                  <View style={styles.forMeVerified}>
+                    <Ionicons name="shield-checkmark" size={14} color="#2e7d32" />
+                    <Text style={styles.forMeVerifiedText}>Verified</Text>
                   </View>
-                )}
-                <Text style={[styles.inputLabel, { marginTop: 12 }]}>Phone*</Text>
-                <View style={styles.phoneInput}>
-                  <View style={styles.countryCode}>
-                    <View style={styles.flagIcon}>
-                      <Text>🇨🇦</Text>
-                    </View>
-                    <Ionicons name="chevron-down" size={14} color="#999" />
-                  </View>
-                  <TextInput
-                    style={styles.phoneField}
-                    value={phoneNumber}
-                    onChangeText={setPhoneNumber}
-                    keyboardType="phone-pad"
-                    placeholder="Mobile number"
-                    placeholderTextColor="#999"
-                  />
                 </View>
-              </>
+                {user?.email?.trim() ? (
+                  <View style={styles.forMeFooter}>
+                    <Ionicons name="mail-outline" size={14} color="#9ca3af" />
+                    <Text style={styles.forMeEmail} numberOfLines={1}>
+                      {user.email}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
             ) : (
-              <>
-                <View style={styles.nameRow}>
+              <View style={styles.forMeCard}>
+                <Text style={styles.forMeIncompleteTitle}>Complete your name</Text>
+                <Text style={styles.forMeIncompleteHint}>
+                  We’ll save this to your booking details.
+                </Text>
+                <View style={[styles.nameRow, { marginTop: 12 }]}>
                   <View style={styles.nameField}>
                     <Text style={styles.inputLabel}>First Name*</Text>
                     <View style={styles.inputBox}>
@@ -1279,7 +1306,7 @@ export default function CreateReservationScreen() {
                         style={styles.textInput}
                         value={firstName}
                         onChangeText={setFirstName}
-                        placeholder="Passenger"
+                        placeholder="First name"
                         placeholderTextColor="#999"
                         autoCapitalize="words"
                       />
@@ -1292,90 +1319,66 @@ export default function CreateReservationScreen() {
                         style={styles.textInput}
                         value={lastName}
                         onChangeText={setLastName}
-                        placeholder="Name"
+                        placeholder="Last name"
                         placeholderTextColor="#999"
                         autoCapitalize="words"
                       />
                     </View>
                   </View>
                 </View>
-
-                <Text style={styles.inputLabel}>Phone*</Text>
-                <View style={styles.phoneInput}>
-                  <View style={styles.countryCode}>
-                    <View style={styles.flagIcon}>
-                      <Text>🇨🇦</Text>
-                    </View>
-                    <Ionicons name="chevron-down" size={14} color="#999" />
+              </View>
+            )
+          ) : (
+            <>
+              <View style={styles.nameRow}>
+                <View style={styles.nameField}>
+                  <Text style={styles.inputLabel}>First Name*</Text>
+                  <View style={styles.inputBox}>
+                    <TextInput
+                      style={styles.textInput}
+                      value={firstName}
+                      onChangeText={setFirstName}
+                      placeholder={isParcel ? "Sender" : "Passenger"}
+                      placeholderTextColor="#999"
+                      autoCapitalize="words"
+                    />
                   </View>
-                  <TextInput
-                    style={styles.phoneField}
-                    value={phoneNumber}
-                    onChangeText={setPhoneNumber}
-                    keyboardType="phone-pad"
-                    placeholder="Passenger mobile"
-                    placeholderTextColor="#999"
-                  />
                 </View>
-              </>
-            )}
-          </View>
-        ) : (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Contact Info</Text>
-            <Text style={styles.sectionSubtitle}>Your Details</Text>
-
-            <View style={styles.nameRow}>
-              <View style={styles.nameField}>
-                <Text style={styles.inputLabel}>First Name*</Text>
-                <View style={styles.inputBox}>
-                  <TextInput
-                    style={styles.textInput}
-                    value={firstName}
-                    onChangeText={setFirstName}
-                  />
+                <View style={styles.nameField}>
+                  <Text style={styles.inputLabel}>Last Name*</Text>
+                  <View style={styles.inputBox}>
+                    <TextInput
+                      style={styles.textInput}
+                      value={lastName}
+                      onChangeText={setLastName}
+                      placeholder="Name"
+                      placeholderTextColor="#999"
+                      autoCapitalize="words"
+                    />
+                  </View>
                 </View>
               </View>
-              <View style={styles.nameField}>
-                <Text style={styles.inputLabel}>Last Name*</Text>
-                <View style={styles.inputBox}>
-                  <TextInput
-                    style={styles.textInput}
-                    value={lastName}
-                    onChangeText={setLastName}
-                  />
-                </View>
-              </View>
-            </View>
 
-            <Text style={styles.inputLabel}>Phone Number*</Text>
-            <View style={styles.phoneInput}>
-              <View style={styles.countryCode}>
-                <View style={styles.flagIcon}>
-                  <Text>🇨🇦</Text>
+              <Text style={styles.inputLabel}>Phone*</Text>
+              <View style={styles.phoneInput}>
+                <View style={styles.countryCode}>
+                  <View style={styles.flagIcon}>
+                    <Text>🇨🇦</Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={14} color="#999" />
                 </View>
-                <Ionicons name="chevron-down" size={14} color="#999" />
+                <TextInput
+                  style={styles.phoneField}
+                  value={phoneNumber}
+                  onChangeText={setPhoneNumber}
+                  keyboardType="phone-pad"
+                  placeholder={isParcel ? "Sender mobile" : "Passenger mobile"}
+                  placeholderTextColor="#999"
+                />
               </View>
-              <TextInput
-                style={styles.phoneField}
-                value={phoneNumber}
-                onChangeText={setPhoneNumber}
-                keyboardType="phone-pad"
-              />
-            </View>
-
-            <Text style={styles.inputLabel}>Email*</Text>
-            <View style={styles.inputBox}>
-              <TextInput
-                style={styles.textInput}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-          </View>
-        )}
+            </>
+          )}
+        </View>
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -1514,6 +1517,94 @@ const styles = StyleSheet.create({
   rideForSegTextOn: {
     color: "#111827",
     fontWeight: "700",
+  },
+  forMeCard: {
+    borderWidth: 1,
+    borderColor: "#eceff3",
+    borderRadius: 14,
+    backgroundColor: "#fafafa",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  forMeCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  forMeAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#F5EBD9",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(201,160,99,0.35)",
+    overflow: "hidden",
+  },
+  forMeAvatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+  forMeInitials: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#8B6914",
+    letterSpacing: 0.4,
+  },
+  forMeCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  forMeName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 2,
+  },
+  forMeMeta: {
+    fontSize: 12,
+    color: "#6b7280",
+    fontWeight: "500",
+  },
+  forMeVerified: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#e8f5e9",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  forMeVerifiedText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#2e7d32",
+  },
+  forMeFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#e5e7eb",
+  },
+  forMeEmail: {
+    flex: 1,
+    fontSize: 13,
+    color: "#6b7280",
+  },
+  forMeIncompleteTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  forMeIncompleteHint: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "#6b7280",
+    lineHeight: 16,
   },
   riderSimpleRow: {
     flexDirection: "row",
@@ -1903,6 +1994,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     gap: 12,
     minHeight: 96,
+  },
+  carSelectorLocked: {
+    backgroundColor: "#fafafa",
+    borderColor: "#eceff3",
   },
   carThumbWrap: {
     width: 108,

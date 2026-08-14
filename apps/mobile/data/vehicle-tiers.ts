@@ -126,3 +126,28 @@ export function buildVehicleTiersFromAppFleet(appFleet: AppFleetVehicleDto[]): V
 export function findTierById(tiers: VehicleTierOption[], id: string): VehicleTierOption | undefined {
   return tiers.find((t) => t.id === id);
 }
+
+/** Parcel Delivery: only BLACK CAR · Luxury Sedan/SUV. */
+export function isParcelBlackCarTier(tier: {
+  id: string;
+  title: string;
+  subtitle: string;
+}): boolean {
+  const title = tier.title.trim().toLowerCase().replace(/\s+/g, " ");
+  const subtitle = tier.subtitle.trim().toLowerCase().replace(/\s+/g, " ");
+  if (tier.id === "black-sedan") return true;
+  return (
+    title === "black car" &&
+    subtitle.includes("luxury sedan") &&
+    subtitle.includes("suv")
+  );
+}
+
+export function filterVehicleTiersForParcel(
+  tiers: VehicleTierOption[]
+): VehicleTierOption[] {
+  const matched = tiers.filter(isParcelBlackCarTier);
+  if (matched.length > 0) return matched;
+  // Fallback: title-only match if subtitle text drifted in admin
+  return tiers.filter((t) => t.title.trim().toLowerCase().replace(/\s+/g, " ") === "black car");
+}
