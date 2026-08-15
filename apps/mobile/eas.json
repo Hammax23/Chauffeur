@@ -16,13 +16,15 @@
       "distribution": "internal",
       "channel": "preview",
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://sarjworldwide.ca/api"
+        "EXPO_PUBLIC_API_BASE_URL": "https://sarjworldwide.ca/api",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51THn5sHmALaKaI49v1buYfEwghhbwYLBTpqCSGsTXehW0q8cNkCwCnimYlqhTclKjc9ydNixfOod7VJ5Bzg1fTjv00zKHWUECG"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://sarjworldwide.ca/api"
+        "EXPO_PUBLIC_API_BASE_URL": "https://sarjworldwide.ca/api",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51THn5sHmALaKaI49v1buYfEwghhbwYLBTpqCSGsTXehW0q8cNkCwCnimYlqhTclKjc9ydNixfOod7VJ5Bzg1fTjv00zKHWUECG"
       }
     }
   },

@@ -1,12 +1,15 @@
 import { Stack, router } from "expo-router";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
+import { StripeProvider } from "@stripe/stripe-react-native";
 import { useAuth } from "../../contexts/AuthContext";
 import { CustomerThemeProvider } from "../../contexts/CustomerThemeContext";
 import { getCustomerToken } from "../../services/api";
 import { SlimSpinner } from "../../components/SlimSpinner";
 import { GOLD } from "../../theme/driver-theme";
 import { customerNeedsPhone } from "../../utils/customer-phone";
+
+const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || "";
 
 /**
  * Stack wraps the main tabs so booking screens (create → confirm → pending)
@@ -44,16 +47,21 @@ export default function CustomerLayout() {
   if (customerNeedsPhone(user?.phone)) return null;
 
   return (
-    <CustomerThemeProvider>
-      <Stack screenOptions={{ headerShown: false, animation: "slide_from_right" }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="create-reservation" />
-        <Stack.Screen name="reservation-confirm" />
-        <Stack.Screen name="reservation-pending" />
-        <Stack.Screen name="edit-profile" />
-        <Stack.Screen name="track-ride" />
-        <Stack.Screen name="chat" />
-      </Stack>
-    </CustomerThemeProvider>
+    <StripeProvider
+      publishableKey={STRIPE_PUBLISHABLE_KEY}
+      urlScheme="sarjworldwide"
+    >
+      <CustomerThemeProvider>
+        <Stack screenOptions={{ headerShown: false, animation: "slide_from_right" }}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="create-reservation" />
+          <Stack.Screen name="reservation-confirm" />
+          <Stack.Screen name="reservation-pending" />
+          <Stack.Screen name="edit-profile" />
+          <Stack.Screen name="track-ride" />
+          <Stack.Screen name="chat" />
+        </Stack>
+      </CustomerThemeProvider>
+    </StripeProvider>
   );
 }

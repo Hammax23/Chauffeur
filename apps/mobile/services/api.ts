@@ -975,6 +975,7 @@ export async function createReservation(params: {
   lastName?: string;
   phone?: string;
   email?: string;
+  stripePaymentIntentId?: string;
   stripePaymentMethodId?: string;
   stripeCustomerId?: string;
   cardType?: string;
@@ -985,6 +986,28 @@ export async function createReservation(params: {
     bookingId: string;
     reservationId: string;
   }>("/customer/reservations", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export async function createCustomerPaymentIntent(params: {
+  vehicle: string;
+  vehicleId?: string;
+  childSeats?: number;
+  pickupLocation: string;
+  stops?: string;
+  distanceMeters: number;
+  gratuityPercent: number;
+  email?: string;
+}) {
+  return apiRequest<{
+    success: boolean;
+    clientSecret: string;
+    paymentIntentId: string;
+    amountCents: number;
+    error?: string;
+  }>("/customer/create-payment-intent", {
     method: "POST",
     body: JSON.stringify(params),
   });

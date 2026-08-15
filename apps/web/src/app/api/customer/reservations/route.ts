@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import Stripe from "stripe";
 import prisma from "@/lib/prisma";
 import { getCustomerFromRequest } from "@/lib/customer-auth";
 import { publishReservationFromDb } from "@/lib/realtime-bus";
 import {
-  calculateAppDistanceFare,
-  APP_DEFAULT_GRATUITY_PERCENT,
-} from "@/lib/reservation-pricing";
+  fareTotalCents,
+  resolveAppReservationFare,
+} from "@/lib/app-reservation-fare";
+
+const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 // GET - Get customer's reservations
 export async function GET(req: NextRequest) {
@@ -102,7 +105,6 @@ export async function POST(req: NextRequest) {
       distance,
       duration,
       distanceMeters,
-      pricePerKm: clientPricePerKm,
       gratuityPercent: clientGratuityPercent,
       airline,
       flightNumber,
@@ -114,6 +116,7 @@ export async function POST(req: NextRequest) {
       email,
       stripePaymentMethodId,
       stripeCustomerId,
+      stripePaymentIntentId,
       cardType,
       cardLast4,
     } = body;
@@ -125,101 +128,182 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const meters = Number(distanceMeters) || 0;
-    if (meters <= 0) {
-      return NextResponse.json(
-        { success: false, error: "Valid trip distance is required" },
-        { status: 400 }
-      );
-    }
+    const paymentIntentId =
+      typeof stripePaymentIntentId === "string" ? stripePaymentIntentId.trim() : "";
 
-    let hourlyRate = 0;
-    let pricePerKm = 0;
-    let vehicleBaseKm = 0;
-    let vehicleExtraRate = 0;
-    const tierKey = typeof vehicleId === "string" ? vehicleId.trim() : "";
-    if (tierKey) {
-      const fleetRow = await prisma.appFleetVehicle.findFirst({
-        where: {
-          OR: [{ tierId: tierKey }, { id: tierKey }],
-          isActive: true,
-        },
-        select: {
-          pricePerKm: true,
-          hourlyRate: true,
-          title: true,
-          baseDistanceKm: true,
-          extraKmRate: true,
-        },
-      });
-      if (fleetRow) {
-        hourlyRate = fleetRow.hourlyRate || 0;
-        pricePerKm = fleetRow.pricePerKm || 0;
-        vehicleBaseKm = fleetRow.baseDistanceKm > 0 ? fleetRow.baseDistanceKm : 17;
-        vehicleExtraRate =
-          fleetRow.extraKmRate > 0
-            ? fleetRow.extraKmRate
-            : fleetRow.pricePerKm > 0
-              ? fleetRow.pricePerKm
-              : 3.2;
-      }
-    }
-    if (hourlyRate <= 0 && pricePerKm <= 0) {
-      const byTitle = await prisma.appFleetVehicle.findFirst({
-        where: { title: vehicle, isActive: true },
-        select: {
-          pricePerKm: true,
-          hourlyRate: true,
-          baseDistanceKm: true,
-          extraKmRate: true,
-        },
-      });
-      if (byTitle) {
-        hourlyRate = byTitle.hourlyRate || 0;
-        pricePerKm = byTitle.pricePerKm || 0;
-        vehicleBaseKm = byTitle.baseDistanceKm > 0 ? byTitle.baseDistanceKm : 17;
-        vehicleExtraRate =
-          byTitle.extraKmRate > 0
-            ? byTitle.extraKmRate
-            : byTitle.pricePerKm > 0
-              ? byTitle.pricePerKm
-              : 3.2;
-      }
-    }
-    if (hourlyRate <= 0 && pricePerKm <= 0) {
-      pricePerKm = Number(clientPricePerKm) || 0;
-    }
-    if (hourlyRate <= 0 && pricePerKm <= 0) {
-      return NextResponse.json(
-        { success: false, error: "Could not resolve vehicle pricing" },
-        { status: 400 }
-      );
-    }
-
-    const { getPricingConfig } = await import("@/lib/get-pricing-config");
-    const { charges } = await getPricingConfig();
-
-    const hasStop = typeof stops === "string" && stops.trim().length >= 3;
-    const pricing = calculateAppDistanceFare({
-      distanceMeters: meters,
-      hourlyRate,
-      pricePerKm,
-      baseDistanceKm: vehicleBaseKm || charges.baseDistanceKm,
-      extraKmRate: vehicleExtraRate || charges.extraKmRate,
-      hasStop,
-      childSeatCount: Number(childSeats) || 0,
-      gratuityPercent: (() => {
-        const n = Number(clientGratuityPercent);
-        return Number.isFinite(n) && n >= 0 ? n : APP_DEFAULT_GRATUITY_PERCENT;
-      })(),
+    const fare = await resolveAppReservationFare({
+      vehicleId,
+      vehicle,
+      distanceMeters,
+      stops,
+      childSeats,
+      gratuityPercent: clientGratuityPercent,
       pickupLocation,
     });
+    if ("error" in fare) {
+      return NextResponse.json({ success: false, error: fare.error }, { status: 400 });
+    }
+    const pricing = fare.pricing;
+    const expectedAmountCents = fareTotalCents(pricing.total);
 
-    if (!pricing) {
-      return NextResponse.json(
-        { success: false, error: "Unable to calculate fare" },
-        { status: 400 }
-      );
+    // Temporary testing mode: allow unpaid app reservations (PENDING).
+    // When a PaymentIntent is provided, still verify and mark PAID.
+    let paymentStatus = "PENDING";
+    let resolvedCardLast4: string | null = cardLast4 || null;
+    let resolvedCardType: string | null = cardType || null;
+    let resolvedStripePaymentMethodId: string | null = stripePaymentMethodId || null;
+    let resolvedStripeCustomerId: string | null = stripeCustomerId || null;
+    let storedRequirements =
+      typeof specialRequirements === "string" && specialRequirements.trim()
+        ? specialRequirements.trim()
+        : null;
+
+    if (paymentIntentId) {
+      if (!process.env.STRIPE_SECRET_KEY) {
+        return NextResponse.json(
+          { success: false, error: "Payments are temporarily unavailable." },
+          { status: 503 }
+        );
+      }
+
+      const stripe = getStripe();
+      const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {
+        expand: ["payment_method"],
+      });
+
+      if (paymentIntent.status !== "succeeded") {
+        return NextResponse.json(
+          { success: false, error: "Payment has not been completed." },
+          { status: 400 }
+        );
+      }
+      if (paymentIntent.amount !== expectedAmountCents) {
+        return NextResponse.json(
+          { success: false, error: "Payment amount does not match booking total." },
+          { status: 400 }
+        );
+      }
+      if (paymentIntent.metadata?.customerId && paymentIntent.metadata.customerId !== tokenData.id) {
+        return NextResponse.json(
+          { success: false, error: "Payment does not match this account." },
+          { status: 400 }
+        );
+      }
+      if (paymentIntent.metadata?.bookingId) {
+        return NextResponse.json(
+          { success: false, error: "This payment has already been used." },
+          { status: 400 }
+        );
+      }
+
+      const alreadyUsed = await prisma.reservation.findFirst({
+        where: { specialRequirements: { contains: paymentIntentId } },
+        select: { id: true },
+      });
+      if (alreadyUsed) {
+        return NextResponse.json(
+          { success: false, error: "This payment has already been used." },
+          { status: 400 }
+        );
+      }
+
+      const paymentMethod = paymentIntent.payment_method as Stripe.PaymentMethod | null;
+      resolvedCardLast4 = paymentMethod?.card?.last4 || cardLast4 || null;
+      resolvedCardType = paymentMethod?.card?.brand || cardType || null;
+      resolvedStripePaymentMethodId =
+        typeof paymentIntent.payment_method === "string"
+          ? paymentIntent.payment_method
+          : paymentMethod?.id || stripePaymentMethodId || null;
+      resolvedStripeCustomerId =
+        typeof paymentIntent.customer === "string"
+          ? paymentIntent.customer
+          : paymentIntent.customer?.id || stripeCustomerId || null;
+      paymentStatus = "PAID";
+      storedRequirements = [
+        typeof specialRequirements === "string" ? specialRequirements : "",
+        `Stripe payment: ${paymentIntentId}`,
+      ]
+        .filter((line) => line && String(line).trim())
+        .join("\n");
+
+      const bookingId = `SARJ-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
+      const customer = await prisma.customer.findUnique({
+        where: { id: tokenData.id },
+      });
+
+      const reservation = await prisma.reservation.create({
+        data: {
+          bookingId,
+          status: "PENDING",
+          customerId: tokenData.id,
+          firstName: firstName || customer?.firstName || "",
+          lastName: lastName || customer?.lastName || "",
+          email: email || customer?.email || "",
+          phone: phone || customer?.phone || "",
+          serviceType,
+          vehicle,
+          passengers: passengers || 1,
+          childSeats: childSeats || 0,
+          etr407: etr407 || "No",
+          serviceDate,
+          serviceTime,
+          pickupLocation,
+          stops: stops || null,
+          dropoffLocation,
+          distance: distance || null,
+          duration: duration || null,
+          airline: airline || null,
+          flightNumber: flightNumber || null,
+          flightNote: flightNote || null,
+          rideFare: pricing.rideFare,
+          stopCharge: pricing.stopCharge,
+          childSeatCharge: pricing.childSeatCharge,
+          subtotal: pricing.subtotal,
+          hst: pricing.hst,
+          gratuity: pricing.gratuity,
+          total: pricing.total,
+          specialRequirements: storedRequirements || null,
+          stripePaymentMethodId: resolvedStripePaymentMethodId,
+          stripeCustomerId: resolvedStripeCustomerId,
+          cardType: resolvedCardType,
+          cardLast4: resolvedCardLast4,
+          paymentStatus,
+        },
+      });
+
+      try {
+        await stripe.paymentIntents.update(paymentIntentId, {
+          metadata: {
+            ...paymentIntent.metadata,
+            bookingId: reservation.bookingId,
+          },
+        });
+      } catch (metaError) {
+        console.error("[app-reservation] failed to stamp payment intent:", metaError);
+      }
+
+      await publishReservationFromDb(reservation.bookingId, "reservation_created");
+
+      const { maybeBroadcastNewReservation } = await import("@/lib/live-auto");
+      await maybeBroadcastNewReservation(reservation.bookingId);
+
+      return NextResponse.json({
+        success: true,
+        message: "Reservation created successfully",
+        bookingId: reservation.bookingId,
+        reservationId: reservation.id,
+        pricing: {
+          rideFare: pricing.rideFare,
+          stopCharge: pricing.stopCharge,
+          childSeatCharge: pricing.childSeatCharge,
+          subtotal: pricing.subtotal,
+          hst: pricing.hst,
+          gratuity: pricing.gratuity,
+          gratuityPercent: pricing.gratuityPercent,
+          total: pricing.total,
+        },
+      });
     }
 
     const bookingId = `SARJ-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
@@ -259,12 +343,12 @@ export async function POST(req: NextRequest) {
         hst: pricing.hst,
         gratuity: pricing.gratuity,
         total: pricing.total,
-        specialRequirements: specialRequirements || null,
-        stripePaymentMethodId: stripePaymentMethodId || null,
-        stripeCustomerId: stripeCustomerId || null,
-        cardType: cardType || null,
-        cardLast4: cardLast4 || null,
-        paymentStatus: stripePaymentMethodId ? "AUTHORIZED" : "PENDING",
+        specialRequirements: storedRequirements,
+        stripePaymentMethodId: null,
+        stripeCustomerId: null,
+        cardType: null,
+        cardLast4: null,
+        paymentStatus: "PENDING",
       },
     });
 

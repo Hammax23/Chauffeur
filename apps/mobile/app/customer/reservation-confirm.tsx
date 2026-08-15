@@ -15,7 +15,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { createReservation } from "../../services/api";
+import { usePaymentSheet } from "@stripe/stripe-react-native";
+import { createReservation, createCustomerPaymentIntent } from "../../services/api";
 import { clearBookingDraft, loadBookingDraft, type BookingDraft } from "../../services/booking-draft";
 import {
   APP_DEFAULT_GRATUITY_PERCENT,
@@ -29,6 +30,9 @@ import {
 
 const SITE = "https://sarjworldwide.ca";
 
+/** Temporary: skip Stripe while we finish testing. Flip to true when live payments go back on. */
+const APP_PAYMENTS_ENABLED = false;
+
 export default function ReservationConfirmScreen() {
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<BookingDraft | null>(null);
@@ -37,6 +41,7 @@ export default function ReservationConfirmScreen() {
   const [tipModalOpen, setTipModalOpen] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
 
   useEffect(() => {
     void (async () => {
@@ -107,6 +112,50 @@ export default function ReservationConfirmScreen() {
           })
         : undefined;
 
+      let stripePaymentIntentId: string | undefined;
+
+      if (APP_PAYMENTS_ENABLED) {
+        const intent = await createCustomerPaymentIntent({
+          vehicle: draft.vehicle,
+          vehicleId: draft.vehicleId,
+          childSeats,
+          pickupLocation: draft.pickupAddress,
+          stops: draft.stopAddress || undefined,
+          distanceMeters,
+          gratuityPercent: fare.gratuityPercent,
+          email: draft.email,
+        });
+
+        if (!intent.success || !intent.clientSecret || !intent.paymentIntentId) {
+          Alert.alert("Payment", intent.error || "Could not start payment. Please try again.");
+          return;
+        }
+
+        const { error: initError } = await initPaymentSheet({
+          merchantDisplayName: "SARJ Worldwide",
+          paymentIntentClientSecret: intent.clientSecret,
+          defaultBillingDetails: {
+            name: guestName || undefined,
+            email: draft.email || undefined,
+            phone: draft.phoneNumber || undefined,
+          },
+          returnURL: "sarjworldwide://stripe-redirect",
+        });
+        if (initError) {
+          Alert.alert("Payment", initError.message || "Could not open card payment.");
+          return;
+        }
+
+        const { error: presentError } = await presentPaymentSheet();
+        if (presentError) {
+          if (presentError.code !== "Canceled") {
+            Alert.alert("Payment", presentError.message || "Payment was not completed.");
+          }
+          return;
+        }
+        stripePaymentIntentId = intent.paymentIntentId;
+      }
+
       const result = await createReservation({
         serviceType: draft.serviceType || "Point-to-Point transportation",
         vehicle: draft.vehicle,
@@ -129,6 +178,7 @@ export default function ReservationConfirmScreen() {
         lastName: draft.lastName,
         phone: draft.phoneNumber,
         email: draft.email,
+        stripePaymentIntentId,
       });
       if (result.success) {
         await clearBookingDraft();
@@ -137,7 +187,12 @@ export default function ReservationConfirmScreen() {
           params: { bookingId: result.bookingId },
         });
       } else {
-        Alert.alert("Error", "Failed to create reservation");
+        Alert.alert(
+          APP_PAYMENTS_ENABLED ? "Payment received" : "Error",
+          APP_PAYMENTS_ENABLED
+            ? "Your card was charged but the booking could not be saved. Please contact SARJ with your receipt."
+            : "Failed to create reservation"
+        );
       }
     } catch (e) {
       Alert.alert(
@@ -187,7 +242,11 @@ export default function ReservationConfirmScreen() {
         </View>
 
         <Text style={styles.pageTitle}>Review & confirm</Text>
-        <Text style={styles.pageSubtitle}>Confirm trip details. Payment is arranged after booking.</Text>
+        <Text style={styles.pageSubtitle}>
+          {APP_PAYMENTS_ENABLED
+            ? "Confirm trip details and pay by card."
+            : "Confirm trip details. Card payment is temporarily unavailable."}
+        </Text>
 
         <View style={styles.card}>
           <View style={styles.routeBlock}>
@@ -418,17 +477,41 @@ export default function ReservationConfirmScreen() {
           </View>
         )}
 
-        <View style={styles.card}>
+        <View style={[styles.card, !APP_PAYMENTS_ENABLED && styles.paymentDisabledCard]}>
           <View style={styles.cardTitleRow}>
-            <Text style={styles.cardTitle}>Payment</Text>
-            <View style={styles.secureBadge}>
-              <Ionicons name="time-outline" size={11} color="#64748b" />
-              <Text style={styles.secureBadgeText}>Pending</Text>
+            <Text style={[styles.cardTitle, !APP_PAYMENTS_ENABLED && styles.paymentDisabledText]}>
+              Payment
+            </Text>
+            <View
+              style={[
+                styles.secureBadge,
+                !APP_PAYMENTS_ENABLED && styles.paymentDisabledBadge,
+              ]}
+            >
+              <Ionicons
+                name={APP_PAYMENTS_ENABLED ? "lock-closed-outline" : "ban-outline"}
+                size={11}
+                color={APP_PAYMENTS_ENABLED ? "#2e7d32" : "#64748b"}
+              />
+              <Text
+                style={[
+                  styles.secureBadgeText,
+                  !APP_PAYMENTS_ENABLED && styles.paymentDisabledBadgeText,
+                ]}
+              >
+                {APP_PAYMENTS_ENABLED ? "Pay by card" : "Unavailable"}
+              </Text>
             </View>
           </View>
+          <Text
+            style={[styles.paymentAmount, !APP_PAYMENTS_ENABLED && styles.paymentDisabledText]}
+          >
+            ${fare.total.toFixed(2)} CAD
+          </Text>
           <Text style={styles.paymentNote}>
-            Your reservation is submitted without charging a card in-app. Our team will confirm
-            payment details after a chauffeur is assigned.
+            {APP_PAYMENTS_ENABLED
+              ? "Your card is charged now for the fare, tax, and tip shown above. You will receive a Stripe receipt after a successful payment."
+              : "Card checkout is temporarily disabled for testing. Your reservation will be created without charging a card."}
           </Text>
         </View>
 
@@ -470,7 +553,9 @@ export default function ReservationConfirmScreen() {
 
       <View style={styles.bottomBar}>
         <View style={styles.bottomTotal}>
-          <Text style={styles.bottomTotalLabel}>Estimated total</Text>
+          <Text style={styles.bottomTotalLabel}>
+            {APP_PAYMENTS_ENABLED ? "Total due" : "Estimated total"}
+          </Text>
           <Text style={styles.bottomTotalValue}>${fare.total.toFixed(2)}</Text>
         </View>
         <TouchableOpacity
@@ -482,7 +567,9 @@ export default function ReservationConfirmScreen() {
           {isSubmitting ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
-            <Text style={styles.submitBtnText}>Submit reservation</Text>
+            <Text style={styles.submitBtnText}>
+              {APP_PAYMENTS_ENABLED ? "Pay & confirm" : "Submit reservation"}
+            </Text>
           )}
         </TouchableOpacity>
       </View>
@@ -802,13 +889,32 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#f1f5f9",
+    backgroundColor: "#e8f5e9",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
     marginBottom: 10,
   },
-  secureBadgeText: { fontSize: 11, fontWeight: "600", color: "#64748b" },
+  secureBadgeText: { fontSize: 11, fontWeight: "600", color: "#2e7d32" },
+  paymentDisabledCard: {
+    opacity: 0.72,
+    backgroundColor: "#f8fafc",
+  },
+  paymentDisabledBadge: {
+    backgroundColor: "#e2e8f0",
+  },
+  paymentDisabledBadgeText: {
+    color: "#64748b",
+  },
+  paymentDisabledText: {
+    color: "#94a3b8",
+  },
+  paymentAmount: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 8,
+  },
   paymentNote: { fontSize: 13, color: "#64748b", lineHeight: 19 },
   notesCard: {
     backgroundColor: "#f8fafc",
