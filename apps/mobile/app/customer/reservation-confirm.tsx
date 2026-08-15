@@ -180,18 +180,23 @@ export default function ReservationConfirmScreen() {
         email: draft.email,
         stripePaymentIntentId,
       });
-      if (result.success) {
+      if (result.success && result.bookingId) {
         await clearBookingDraft();
         router.replace({
           pathname: "/customer/reservation-pending",
           params: { bookingId: result.bookingId },
         });
       } else {
+        const serverError =
+          typeof (result as { error?: string }).error === "string"
+            ? (result as { error?: string }).error
+            : undefined;
         Alert.alert(
           APP_PAYMENTS_ENABLED ? "Payment received" : "Error",
-          APP_PAYMENTS_ENABLED
-            ? "Your card was charged but the booking could not be saved. Please contact SARJ with your receipt."
-            : "Failed to create reservation"
+          serverError ||
+            (APP_PAYMENTS_ENABLED
+              ? "Your card was charged but the booking could not be saved. Please contact SARJ with your receipt."
+              : "Failed to create reservation")
         );
       }
     } catch (e) {

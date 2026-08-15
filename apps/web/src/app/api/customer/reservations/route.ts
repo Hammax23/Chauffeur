@@ -375,8 +375,18 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("Create reservation error:", error);
+    const detail =
+      error instanceof Error && error.message
+        ? error.message.slice(0, 240)
+        : "Failed to create reservation";
     return NextResponse.json(
-      { success: false, error: "Failed to create reservation" },
+      {
+        success: false,
+        error:
+          process.env.NODE_ENV === "development"
+            ? detail
+            : "Failed to create reservation",
+      },
       { status: 500 }
     );
   }

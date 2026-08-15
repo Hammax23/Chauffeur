@@ -31,10 +31,7 @@ export async function getPricingConfig(): Promise<PricingConfig> {
       select: {
         vehicleId: true,
         hourlyRate: true,
-        basePrice: true,
         pricePerKm: true,
-        baseDistanceKm: true,
-        extraKmRate: true,
       },
     });
 
@@ -42,11 +39,10 @@ export async function getPricingConfig(): Promise<PricingConfig> {
       fleet = dbVehicles.map((v) => ({
         id: v.vehicleId,
         hourlyRate: v.hourlyRate,
-        basePrice: v.basePrice > 0 ? v.basePrice : v.hourlyRate,
+        basePrice: v.hourlyRate,
         pricePerKm: v.pricePerKm,
-        baseDistanceKm: v.baseDistanceKm > 0 ? v.baseDistanceKm : BASE_DISTANCE_KM,
-        extraKmRate:
-          v.extraKmRate > 0 ? v.extraKmRate : v.pricePerKm > 0 ? v.pricePerKm : EXTRA_KM_RATE,
+        baseDistanceKm: BASE_DISTANCE_KM,
+        extraKmRate: v.pricePerKm > 0 ? v.pricePerKm : EXTRA_KM_RATE,
       }));
     }
 

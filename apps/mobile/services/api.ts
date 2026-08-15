@@ -9,8 +9,8 @@ function normalizeApiBaseUrl(raw: string): string {
 
 /**
  * Production + dev-safe API origin.
- * In Expo Go (__DEV__), prefer Metro's debugger host so a stale .env LAN IP
- * does not hang the app when Wi‑Fi / PC IP changes.
+ * - HTTPS env (deployed API) wins even in Expo Go — avoids LAN timeouts to local Next.
+ * - HTTP LAN env / no env: prefer Metro debugger host so a stale PC IP does not hang.
  */
 function resolveApiBaseUrl(): string {
   const defaultProd = "https://sarjworldwide.ca/api";
@@ -19,6 +19,14 @@ function resolveApiBaseUrl(): string {
   // Release builds: allow EAS env (preview/staging/prod) to override the API host.
   if (!__DEV__) {
     return normalizeApiBaseUrl(fromEnv || defaultProd);
+  }
+
+  if (fromEnv) {
+    const envNorm = normalizeApiBaseUrl(fromEnv);
+    // Point Expo Go at the deployed API (same DB as production / TestFlight).
+    if (/^https:\/\//i.test(envNorm)) {
+      return envNorm;
+    }
   }
 
   const dbg =
@@ -61,10 +69,10 @@ function resolveApiBaseUrl(): string {
   }
 
   console.warn(
-    "[API] iPhone/Expo Go: create apps/mobile/.env with EXPO_PUBLIC_API_BASE_URL=http://YOUR_PC_IP:3000/api"
+    "[API] iPhone/Expo Go: set EXPO_PUBLIC_API_BASE_URL=https://sarjworldwide.ca/api (deployed) or http://YOUR_PC_IP:3000/api (local)"
   );
 
-  return "http://127.0.0.1:3000/api";
+  return defaultProd;
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
@@ -76,7 +84,7 @@ if (__DEV__) {
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
-  timeoutMs = 12_000
+  timeoutMs = 25_000
 ): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -985,6 +993,7 @@ export async function createReservation(params: {
     success: boolean;
     bookingId: string;
     reservationId: string;
+    error?: string;
   }>("/customer/reservations", {
     method: "POST",
     body: JSON.stringify(params),
