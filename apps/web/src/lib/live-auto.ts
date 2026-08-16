@@ -412,6 +412,11 @@ export async function revokeOffersForBooking(
   bookingId: string,
   exceptDriverId?: string
 ): Promise<void> {
+  if (!prisma.rideOffer) {
+    console.warn("[live-auto] RideOffer model missing — skip revokeOffersForBooking");
+    return;
+  }
+
   const open = await prisma.rideOffer.findMany({
     where: {
       bookingId,

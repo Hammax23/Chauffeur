@@ -40,32 +40,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await revokeOffersForBooking(bookingId, driverId);
+    try {
+      await revokeOffersForBooking(bookingId, driverId);
+    } catch (err) {
+      // Assignment already saved — do not fail the request if offer cleanup fails
+      console.error("[assign] revokeOffersForBooking", err);
+    }
 
     // SSE first (await), push never blocks the response
-    const { notifyDriverOfManualAssignment } = await import("@/lib/live-auto");
-    const { notifyDriverReservationAssigned } = await import("@/lib/driver-push");
-    await Promise.all([
-      notifyDriverOfManualAssignment(bookingId, driverId),
-      publishReservationFromDb(bookingId, "driver_assigned"),
-    ]);
-    void notifyDriverReservationAssigned(bookingId, driverId).catch((err) =>
-      console.error("[assign] driver push", err)
-    );
-    void import("@/lib/driver-sms")
-      .then(({ notifyDriverAssignmentSms }) => notifyDriverAssignmentSms(bookingId, driverId))
-      .catch((err) => console.error("[assign] driver sms", err));
+    try {
+      const { notifyDriverOfManualAssignment } = await import("@/lib/live-auto");
+      const { notifyDriverReservationAssigned } = await import("@/lib/driver-push");
+      await Promise.all([
+        notifyDriverOfManualAssignment(bookingId, driverId),
+        publishReservationFromDb(bookingId, "driver_assigned"),
+      ]);
+      void notifyDriverReservationAssigned(bookingId, driverId).catch((err) =>
+        console.error("[assign] driver push", err)
+      );
+      void import("@/lib/driver-sms")
+        .then(({ notifyDriverAssignmentSms }) => notifyDriverAssignmentSms(bookingId, driverId))
+        .catch((err) => console.error("[assign] driver sms", err));
 
-    void import("@/lib/customer-push")
-      .then(({ notifyCustomerDriverAssigned }) => notifyCustomerDriverAssigned(bookingId))
-      .catch((err) => console.error("[assign] customer notify", err));
+      void import("@/lib/customer-push")
+        .then(({ notifyCustomerDriverAssigned }) => notifyCustomerDriverAssigned(bookingId))
+        .catch((err) => console.error("[assign] customer notify", err));
+    } catch (err) {
+      console.error("[assign] post-assign notify", err);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     console.error("Assign driver error:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to assign driver" },
-      { status: 500 }
-    );
+    const detail =
+      error instanceof Error && process.env.NODE_ENV === "development"
+        ? error.message.slice(0, 240)
+        : "Failed to assign driver";
+    return NextResponse.json({ success: false, error: detail }, { status: 500 });
   }
 }

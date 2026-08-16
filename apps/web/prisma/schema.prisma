@@ -98,6 +98,34 @@ model Driver {
   createdAt                   DateTime      @default(now())
   updatedAt                   DateTime      @updatedAt
   reservations                Reservation[]
+  rideOffers                  RideOffer[]
+  conciergeProfile            ConciergeDriverProfile?
+}
+
+/// Live Auto Mode + ops panel toggles (single row id = "global")
+model OpsSettings {
+  id                String   @id @default("global")
+  liveAutoMode      Boolean  @default(false)
+  onlyActiveDrivers Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+/// Per-driver offer row for Live Auto Mode (OPEN / CLAIMED / REVOKED / DECLINED)
+model RideOffer {
+  id          String    @id @default(cuid())
+  bookingId   String
+  driverId    String
+  status      String    @default("OPEN")
+  respondedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  driver      Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, driverId])
+  @@index([driverId, status])
+  @@index([bookingId, status])
+  @@index([status])
 }
 
 model Quote {
@@ -133,11 +161,13 @@ model Customer {
   oauthSub           String?
   /// Where this customer account was created (e.g. "app" via mobile, "web" via website/admin).
   registrationSource String        @default("web")
+  pushToken          String?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
   reservations       Reservation[]
 
   @@unique([oauthProvider, oauthSub])
+  @@index([pushToken])
 }
 
 model DriverInvite {
@@ -225,49 +255,59 @@ model OperationalManager {
 
 /// Fleet vehicles for online reservation pricing (website)
 model FleetVehicle {
-  id           String   @id @default(cuid())
-  vehicleId    String   @unique
-  name         String
-  dropdownName String
-  description  String
-  image        String
-  category     String
-  seating      String
-  luggage      String
+  id             String   @id @default(cuid())
+  vehicleId      String   @unique
+  name           String
+  dropdownName   String
+  description    String
+  image          String
+  category       String
+  seating        String
+  luggage        String
+  /// Distance booking: flat fare for first baseDistanceKm
+  basePrice      Float    @default(0)
+  /// Distance booking: included kilometres in basePrice
+  baseDistanceKm Float    @default(17)
   /// Hourly booking only: dollars per hour
-  hourlyRate   Float
+  hourlyRate     Float
+  /// Extra km beyond baseDistanceKm
+  extraKmRate    Float    @default(0)
   /// Legacy / display alias; prefer `extraKmRate` for distance extras
-  pricePerKm   Float
-  isActive     Boolean  @default(true)
-  sortOrder    Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  pricePerKm     Float
+  isActive       Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([isActive, sortOrder])
 }
 
 /// App reservation fleet tiers (managed separately from website fleet)
 model AppFleetVehicle {
-  id          String   @id @default(cuid())
+  id             String   @id @default(cuid())
   /// Stable slug used by the mobile app (e.g. "black-sedan", "exec-black-suv")
-  tierId      String   @unique
-  title       String
-  subtitle    String   @default("")
-  description String   @default("")
-  image       String   @default("")
+  tierId         String   @unique
+  title          String
+  subtitle       String   @default("")
+  description    String   @default("")
+  image          String   @default("")
   /// standard | executive
-  group       String   @default("standard")
-  category    String   @default("Sedan")
-  seating     String   @default("")
-  luggage     String   @default("")
-  pricePerKm  Float    @default(0)
-  hourlyRate  Float    @default(0)
+  group          String   @default("standard")
+  category       String   @default("Sedan")
+  seating        String   @default("")
+  luggage        String   @default("")
+  pricePerKm     Float    @default(0)
+  hourlyRate     Float    @default(0)
+  /// Optional per-tier override; 0 = use global ReservationCharges
+  baseDistanceKm Float    @default(0)
+  /// Optional per-tier override; 0 = use pricePerKm / global charges
+  extraKmRate    Float    @default(0)
   /// Show on customer home fleet preview
-  showOnHome  Boolean  @default(true)
-  isActive    Boolean  @default(true)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  showOnHome     Boolean  @default(true)
+  isActive       Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([isActive, sortOrder])
   @@index([group, isActive])
@@ -485,4 +525,120 @@ model ChatMessage {
   thread     ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
   @@index([threadId, createdAt])
+}
+
+// ─── Hotel Concierge Platform ───────────────────────────────────────────────
+
+model Hotel {
+  id                 String                @id @default(cuid())
+  name               String
+  address            String                @default("")
+  city               String                @default("")
+  phone              String                @default("")
+  email              String                @default("")
+  commissionPercent  Float                 @default(10)
+  isActive           Boolean               @default(true)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  concierges         Concierge[]
+  rides              ConciergeRideRequest[]
+}
+
+model Concierge {
+  id        String                @id @default(cuid())
+  hotelId   String
+  name      String
+  email     String                @unique
+  phone     String                @default("")
+  password  String
+  isActive  Boolean               @default(true)
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+  hotel     Hotel                 @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  rides     ConciergeRideRequest[]
+  ratings   ConciergeRating[]
+
+  @@index([hotelId])
+}
+
+model ConciergeDriverProfile {
+  id                   String                @id @default(cuid())
+  driverId             String                @unique
+  membershipStatus     String                @default("ACTIVE")
+  membershipExpiresAt  DateTime?
+  vehicleClass         String                @default("SEDAN")
+  vehicleLabel         String                @default("")
+  availability         String                @default("OFFLINE")
+  referralEarnings     Float                 @default(0)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  driver               Driver                @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  assignedRides        ConciergeRideRequest[]
+
+  @@index([availability, membershipStatus])
+  @@index([vehicleClass])
+}
+
+model ConciergeRideRequest {
+  id                   String                   @id @default(cuid())
+  requestCode          String                   @unique
+  hotelId              String
+  conciergeId          String
+  assignedDriverId     String?
+  guestName            String                   @default("")
+  guestPhone           String                   @default("")
+  pickupLocation       String
+  dropoffLocation      String                   @default("")
+  notes                String?
+  vehicleRequestRule   String
+  guestPaymentMethod   String                   @default("UNSET")
+  fare                 Float                    @default(0)
+  platformFee          Float                    @default(0)
+  hotelCommission      Float                    @default(0)
+  status               String                   @default("OPEN")
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  completedAt          DateTime?
+  hotel                Hotel                    @relation(fields: [hotelId], references: [id])
+  concierge            Concierge                @relation(fields: [conciergeId], references: [id])
+  assignedDriverProfile ConciergeDriverProfile? @relation(fields: [assignedDriverId], references: [id], onDelete: SetNull)
+  commission           CommissionConfirmation?
+  ratings              ConciergeRating[]
+
+  @@index([status, createdAt])
+  @@index([conciergeId])
+  @@index([hotelId])
+  @@index([assignedDriverId])
+}
+
+model CommissionConfirmation {
+  id             String              @id @default(cuid())
+  rideId         String              @unique
+  driverClaim    String              @default("UNSET")
+  conciergeClaim String              @default("UNSET")
+  matched        Boolean             @default(false)
+  disputeOpen    Boolean             @default(false)
+  resolvedAt     DateTime?
+  resolvedNote   String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  ride           ConciergeRideRequest @relation(fields: [rideId], references: [id], onDelete: Cascade)
+}
+
+model ConciergeRating {
+  id          String              @id @default(cuid())
+  rideId      String
+  fromRole    String
+  fromId      String
+  toRole      String
+  toId        String
+  stars       Int
+  note        String?
+  conciergeId String?
+  createdAt   DateTime            @default(now())
+  ride        ConciergeRideRequest @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  concierge   Concierge?          @relation(fields: [conciergeId], references: [id], onDelete: SetNull)
+
+  @@unique([rideId, fromRole, fromId])
+  @@index([rideId])
 }

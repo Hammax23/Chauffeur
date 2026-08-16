@@ -38,7 +38,11 @@ export async function POST(request: NextRequest) {
     }
 
     const { revokeOffersForBooking, notifyDriverOfManualAssignment } = await import("@/lib/live-auto");
-    await revokeOffersForBooking(bookingId, driverId);
+    try {
+      await revokeOffersForBooking(bookingId, driverId);
+    } catch (err) {
+      console.error("[ops-assign] revokeOffersForBooking", err);
+    }
 
     const { notifyDriverReservationAssigned } = await import("@/lib/driver-push");
     await Promise.all([
