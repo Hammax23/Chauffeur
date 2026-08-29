@@ -153,7 +153,14 @@ export default function LoginScreen() {
       if (r.success) {
         await routeAfterCustomerAuth();
       } else {
-        Alert.alert("Apple Login Failed", r.error || "Unable to login with Apple");
+        const detail =
+          __DEV__ && r.tokenAudience
+            ? `\n\n(dev) token aud: ${String(r.tokenAudience)}`
+            : "";
+        Alert.alert(
+          "Apple Login Failed",
+          (r.error || "Unable to login with Apple") + detail
+        );
       }
     } catch (e: unknown) {
       // User dismissed the Apple sheet — not an error
