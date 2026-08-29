@@ -169,7 +169,15 @@ export default function LoginScreen() {
           ? String((e as { code?: string }).code)
           : "";
       if (code === "ERR_REQUEST_CANCELED" || code === "ERR_CANCELED") return;
-      const msg = e instanceof Error ? e.message : "Apple login failed";
+      const raw = e instanceof Error ? e.message : "Apple login failed";
+      const lower = raw.toLowerCase();
+      // Apple ASAuthorizationError 1000 / capability mismatch often shows this copy
+      const msg =
+        lower.includes("sign up not completed") ||
+        lower.includes("authorizationerror") ||
+        code === "ERR_REQUEST_UNKNOWN"
+          ? "Apple Sign In could not start on this install. Delete the app, install the latest TestFlight build, and try again. If it still fails, Sign in with Apple may need to be re-enabled on the App ID in Apple Developer."
+          : raw;
       Alert.alert("Apple Login Failed", msg);
     } finally {
       setIsLoading(false);

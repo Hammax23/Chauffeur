@@ -17,7 +17,12 @@
       "supportsTablet": true,
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.sarjworldwide.chauffeur",
-      "buildNumber": "32",
+      "buildNumber": "34",
+      "entitlements": {
+        "com.apple.developer.applesignin": [
+          "Default"
+        ]
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "SARJ needs access to your photo library so you can choose a profile picture for your customer account — for example, when you tap Edit Profile and select a photo from your library.",
