@@ -37,6 +37,7 @@ interface ReservationRow {
   dropoffLocation: string;
   assignedDriverId?: string | null;
   assignedDriver?: AssignedDriver | null;
+  assignmentChannel?: string | null;
   driverOnTheWayAt?: string | null;
   driverStopPeriodsJson?: string | null;
   completedAt?: string | null;
@@ -60,6 +61,7 @@ export default function OperationalManagerPage() {
   const [search, setSearch] = useState("");
   const [filterUnassigned, setFilterUnassigned] = useState(false);
   const [pickDriver, setPickDriver] = useState<Record<string, string>>({});
+  const [assignChannel, setAssignChannel] = useState<Record<string, "app" | "web">>({});
   const [assigning, setAssigning] = useState<string | null>(null);
   const [expandedTripTiming, setExpandedTripTiming] = useState<string | null>(null);
 
@@ -135,12 +137,21 @@ export default function OperationalManagerPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ bookingId, driverId }),
+        body: JSON.stringify({
+          bookingId,
+          driverId,
+          channel: assignChannel[bookingId] === "web" ? "web" : "app",
+        }),
       });
       const data = await res.json();
       if (data.success) {
         await load(true);
         setPickDriver((prev) => {
+          const next = { ...prev };
+          delete next[bookingId];
+          return next;
+        });
+        setAssignChannel((prev) => {
           const next = { ...prev };
           delete next[bookingId];
           return next;
@@ -169,7 +180,7 @@ export default function OperationalManagerPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Reservations</h1>
           <p className="text-sm text-gray-600 mt-1 leading-relaxed max-w-xl">
-            Select a driver and assign to a booking. Drivers receive a push notification when assigned.
+            Choose App or Web URLs, select a driver, then assign. App notifies the driver app; Web emails/SMS the driver and track links.
           </p>
         </div>
         <button
@@ -288,7 +299,18 @@ export default function OperationalManagerPage() {
                     <td className="px-4 py-3 align-top text-gray-900 hidden lg:table-cell">
                       {r.assignedDriver ? (
                         <div className="flex flex-col gap-2 items-start max-w-[220px]">
-                          <DriverStatusBadge status={r.assignedDriver.status} />
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <DriverStatusBadge status={r.assignedDriver.status} />
+                            {r.assignmentChannel === "web" ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-100 text-sky-800">
+                                Web
+                              </span>
+                            ) : r.assignmentChannel === "app" ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-800">
+                                App
+                              </span>
+                            ) : null}
+                          </div>
                           <div>
                             <span className="font-medium">{r.assignedDriver.name}</span>
                             <span className="block text-xs text-gray-700 font-medium mt-0.5">
@@ -301,7 +323,36 @@ export default function OperationalManagerPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 align-top">
-                      <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                      <div className="flex flex-col gap-2">
+                        <div className="inline-flex rounded-lg p-0.5 bg-gray-100 border border-gray-200 self-start">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setAssignChannel((prev) => ({ ...prev, [r.bookingId]: "app" }))
+                            }
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                              (assignChannel[r.bookingId] || "app") === "app"
+                                ? "bg-[#1C1C1E] text-white"
+                                : "text-gray-600"
+                            }`}
+                          >
+                            App
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setAssignChannel((prev) => ({ ...prev, [r.bookingId]: "web" }))
+                            }
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                              assignChannel[r.bookingId] === "web"
+                                ? "bg-[#1C1C1E] text-white"
+                                : "text-gray-600"
+                            }`}
+                          >
+                            Web
+                          </button>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
                         <div className="flex flex-1 min-w-0 flex-col sm:flex-row gap-2 sm:items-center">
                           <select
                             value={pickDriver[r.bookingId] ?? ""}
@@ -359,6 +410,7 @@ export default function OperationalManagerPage() {
                           )}
                           Assign
                         </button>
+                      </div>
                       </div>
                     </td>
                   </tr>

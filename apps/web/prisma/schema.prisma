@@ -56,6 +56,8 @@ model Reservation {
   driverResponse        String?
   driverRespondedAt     DateTime?
   rejectedDriverIds     String?
+  /// How this booking was dispatched: "app" | "web"
+  assignmentChannel     String?
   customerId            String?
   assignedDriverId      String?
   createdAt             DateTime    @default(now())

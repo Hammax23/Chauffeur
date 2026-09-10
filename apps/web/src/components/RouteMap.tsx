@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, memo, useMemo } from "react";
+import { useCallback, useEffect, useState, memo } from "react";
 import {
   GoogleMap,
   DirectionsRenderer,
@@ -51,6 +51,7 @@ const mapOptions = {
 };
 
 function RouteMap({ pickupLocation, dropoffLocation, stops = [], onRouteCalculated }: RouteMapProps) {
+  const [mounted, setMounted] = useState(false);
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [pickupCoords, setPickupCoords] = useState<google.maps.LatLngLiteral | null>(null);
   const [dropoffCoords, setDropoffCoords] = useState<google.maps.LatLngLiteral | null>(null);
@@ -58,6 +59,10 @@ function RouteMap({ pickupLocation, dropoffLocation, stops = [], onRouteCalculat
   const [map, setMap] = useState<google.maps.Map | null>(null);
 
   const { isLoaded, loadError } = useGoogleMaps();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const onLoad = useCallback((map: google.maps.Map) => {
     setMap(map);
@@ -234,7 +239,7 @@ function RouteMap({ pickupLocation, dropoffLocation, stops = [], onRouteCalculat
     );
   }
 
-  if (!isLoaded) {
+  if (!mounted || !isLoaded) {
     return (
       <div className="h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
         <div className="text-center">

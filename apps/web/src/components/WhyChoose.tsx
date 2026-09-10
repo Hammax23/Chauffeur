@@ -52,7 +52,8 @@ const WhyChoose = () => {
           </div>
 
           <h5 className="text-gray-600 text-[17px] sm:text-[19px] md:text-[20px] font-normal leading-snug text-center max-w-4xl mx-auto">
-            Every SARJ Worldwide journey is designed around comfort, punctuality, privacy, and professional chauffeur service. Our experienced team ensures a smooth and reliable travel experience with attention to detail, from your initial pickup to your final drop-off.{" "}
+            Every SARJ Worldwide journey is designed around comfort, punctuality, privacy, and professional{" "}
+            <strong className="font-semibold text-gray-700">chauffeur service</strong>. Our experienced team ensures a smooth and reliable travel experience with attention to detail, from your initial pickup to your final drop-off.{" "}
             <Link
               href="/fleet"
               className="text-[#C9A063] underline underline-offset-4 decoration-2 hover:text-[#B8935A] transition-colors duration-200 font-medium ml-1"

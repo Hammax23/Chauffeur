@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { assignDriverToReservation } from "@/lib/data-store";
+import {
+  assignDriverToReservation,
+  type AssignmentChannel,
+} from "@/lib/data-store";
 import { verifyOperationalManagerAuth } from "@/lib/operational-manager-auth";
 import { publishReservationFromDb } from "@/lib/realtime-bus";
+
+function parseChannel(raw: unknown): AssignmentChannel {
+  return raw === "web" ? "web" : "app";
+}
 
 export async function POST(request: NextRequest) {
   const auth = await verifyOperationalManagerAuth(request);
@@ -13,6 +20,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const bookingId = typeof body?.bookingId === "string" ? body.bookingId.trim() : "";
     const driverId = typeof body?.driverId === "string" ? body.driverId.trim() : "";
+    const channel = parseChannel(body?.channel);
 
     if (!bookingId || !driverId) {
       return NextResponse.json(
@@ -21,7 +29,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await assignDriverToReservation(bookingId, driverId);
+    const result = await assignDriverToReservation(bookingId, driverId, { channel });
 
     if (!result.ok) {
       if (result.reason === "busy") {
@@ -37,30 +45,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Failed to assign driver" }, { status: 500 });
     }
 
-    const { revokeOffersForBooking, notifyDriverOfManualAssignment } = await import("@/lib/live-auto");
+    const { revokeOffersForBooking } = await import("@/lib/live-auto");
     try {
       await revokeOffersForBooking(bookingId, driverId);
     } catch (err) {
       console.error("[ops-assign] revokeOffersForBooking", err);
     }
 
-    const { notifyDriverReservationAssigned } = await import("@/lib/driver-push");
-    await Promise.all([
-      notifyDriverOfManualAssignment(bookingId, driverId),
-      publishReservationFromDb(bookingId, "driver_assigned"),
-    ]);
-    void notifyDriverReservationAssigned(bookingId, driverId).catch((err) =>
-      console.error("[ops-assign] driver push", err)
-    );
-    void import("@/lib/driver-sms")
-      .then(({ notifyDriverAssignmentSms }) => notifyDriverAssignmentSms(bookingId, driverId))
-      .catch((err) => console.error("[ops-assign] driver sms", err));
+    try {
+      await publishReservationFromDb(bookingId, "driver_assigned");
 
-    void import("@/lib/customer-push")
-      .then(({ notifyCustomerDriverAssigned }) => notifyCustomerDriverAssigned(bookingId))
-      .catch((err) => console.error("[ops-assign] customer notify", err));
+      if (channel === "web") {
+        void import("@/lib/web-dispatch")
+          .then(({ notifyWebDispatchAssignment }) =>
+            notifyWebDispatchAssignment(bookingId, driverId)
+          )
+          .catch((err) => console.error("[ops-assign] web-dispatch", err));
+      } else {
+        const { notifyDriverOfManualAssignment } = await import("@/lib/live-auto");
+        const { notifyDriverReservationAssigned } = await import("@/lib/driver-push");
+        await notifyDriverOfManualAssignment(bookingId, driverId);
+        void notifyDriverReservationAssigned(bookingId, driverId).catch((err) =>
+          console.error("[ops-assign] driver push", err)
+        );
+        void import("@/lib/driver-sms")
+          .then(({ notifyDriverAssignmentSms }) => notifyDriverAssignmentSms(bookingId, driverId))
+          .catch((err) => console.error("[ops-assign] driver sms", err));
+        void import("@/lib/customer-push")
+          .then(({ notifyCustomerDriverAssigned }) => notifyCustomerDriverAssigned(bookingId))
+          .catch((err) => console.error("[ops-assign] customer notify", err));
+      }
+    } catch (err) {
+      console.error("[ops-assign] post-assign notify", err);
+    }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, channel });
   } catch (e) {
     console.error("Operational manager assign error:", e);
     return NextResponse.json({ success: false, error: "Failed to assign driver" }, { status: 500 });

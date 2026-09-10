@@ -671,3 +671,83 @@ function buildPanelOtpEmail(otp: string, expiryMinutes: number, panelLabel: stri
       emailFooterNote()
   );
 }
+
+export type WebDispatchDriverEmailData = {
+  driverName: string;
+  bookingId: string;
+  pickupLocation: string;
+  dropoffLocation: string;
+  serviceDate: string;
+  serviceTime: string;
+  passengerName: string;
+  driverLink: string;
+};
+
+export type WebDispatchCustomerEmailData = {
+  customerName: string;
+  bookingId: string;
+  pickupLocation: string;
+  dropoffLocation: string;
+  serviceDate: string;
+  serviceTime: string;
+  driverName: string;
+  trackLink: string;
+};
+
+/** Assign-time email: driver receives their web trip link (no app required). */
+export function buildWebDispatchDriverEmail(d: WebDispatchDriverEmailData): string {
+  return emailDocument(
+    emailHeader({
+      eyebrow: "Driver dispatch",
+      title: "New trip assigned",
+      subtitle: "Open your web driver link to manage this booking",
+      badge: "Web link",
+    }) +
+      emailBody(
+        emailGreeting(d.driverName) +
+          emailParagraph(
+            `You have been assigned booking <strong style="color:${TEXT};">${e(d.bookingId)}</strong>. Use the button below to open your driver page and update trip status — no app required.`
+          ) +
+          emailBookingRef(d.bookingId) +
+          emailSection(
+            "Trip details",
+            `<p style="margin:0 0 8px 0;font-size:14px;line-height:1.6;"><strong style="color:${MUTED};">Passenger</strong><br>${e(d.passengerName)}</p>
+             <p style="margin:0 0 8px 0;font-size:14px;line-height:1.6;"><strong style="color:${MUTED};">When</strong><br>${e(d.serviceDate)} at ${e(d.serviceTime)}</p>
+             <p style="margin:0 0 8px 0;font-size:14px;line-height:1.6;"><strong style="color:${MUTED};">Pickup</strong><br>${e(d.pickupLocation)}</p>
+             <p style="margin:0;font-size:14px;line-height:1.6;"><strong style="color:${MUTED};">Drop-off</strong><br>${e(d.dropoffLocation)}</p>`
+          ) +
+          `<div style="text-align:center;margin:24px 0 8px;">${emailCta(d.driverLink, "Open driver page")}</div>` +
+          emailCallout(`Or copy this link: <a href="${e(d.driverLink)}" style="color:${GOLD};word-break:break-all;">${e(d.driverLink)}</a>`)
+      ) +
+      emailFooterNote()
+  );
+}
+
+/** Assign-time email: customer receives live track link. */
+export function buildWebDispatchCustomerEmail(d: WebDispatchCustomerEmailData): string {
+  return emailDocument(
+    emailHeader({
+      eyebrow: "SARJ Worldwide",
+      title: "Your chauffeur is assigned",
+      subtitle: "Track your ride with the link below",
+      tone: "success",
+      badge: "Track ride",
+    }) +
+      emailBody(
+        emailGreeting(d.customerName) +
+          emailParagraph(
+            `Your chauffeur <strong style="color:${TEXT};">${e(d.driverName)}</strong> has been assigned to booking <strong style="color:${TEXT};">${e(d.bookingId)}</strong>. Use the tracking link anytime for live updates.`
+          ) +
+          emailBookingRef(d.bookingId) +
+          emailSection(
+            "Trip details",
+            `<p style="margin:0 0 8px 0;font-size:14px;line-height:1.6;"><strong style="color:${MUTED};">When</strong><br>${e(d.serviceDate)} at ${e(d.serviceTime)}</p>
+             <p style="margin:0 0 8px 0;font-size:14px;line-height:1.6;"><strong style="color:${MUTED};">Pickup</strong><br>${e(d.pickupLocation)}</p>
+             <p style="margin:0;font-size:14px;line-height:1.6;"><strong style="color:${MUTED};">Drop-off</strong><br>${e(d.dropoffLocation)}</p>`
+          ) +
+          `<div style="text-align:center;margin:24px 0 8px;">${emailCta(d.trackLink, "Track my ride")}</div>` +
+          emailCallout(`Or copy this link: <a href="${e(d.trackLink)}" style="color:${GOLD};word-break:break-all;">${e(d.trackLink)}</a>`)
+      ) +
+      emailFooterNote()
+  );
+}

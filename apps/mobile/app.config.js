@@ -1,42 +1,33 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
+/** Load app.json and merge Google OAuth IDs from EAS build env (production/TestFlight). */
 const appJson = require("./app.json");
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function resolveProjectId(baseExpo) {
-  const fromEnv = (
-    process.env.EAS_PROJECT_ID ||
-    process.env.EXPO_PUBLIC_EAS_PROJECT_ID ||
-    ""
-  ).trim();
-
-  if (UUID_RE.test(fromEnv)) return fromEnv;
-
-  const fromJson = String(baseExpo?.extra?.eas?.projectId ?? "").trim();
-  if (UUID_RE.test(fromJson)) return fromJson;
-
-  return null;
+function pickEnv(key, fallback) {
+  const fromEnv = process.env[key]?.trim();
+  if (fromEnv && !fromEnv.includes("REPLACE")) return fromEnv;
+  const fromExtra = fallback?.trim();
+  if (fromExtra && !fromExtra.includes("REPLACE")) return fromExtra;
+  return undefined;
 }
 
-module.exports = ({ config }) => {
-  const baseExpo = config?.expo ?? appJson.expo;
-  const projectId = resolveProjectId(baseExpo);
+/** @type {import('expo/config').ExpoConfig} */
+module.exports = () => {
+  const base = appJson.expo;
+  const extra = { ...(base.extra || {}) };
+
+  const googleKeys = [
+    "GOOGLE_EXPO_CLIENT_ID",
+    "GOOGLE_IOS_CLIENT_ID",
+    "GOOGLE_ANDROID_CLIENT_ID",
+    "GOOGLE_WEB_CLIENT_ID",
+  ];
+
+  for (const key of googleKeys) {
+    const value = pickEnv(key, extra[key]);
+    if (value) extra[key] = value;
+  }
 
   return {
-    expo: {
-      ...baseExpo,
-      extra: {
-        ...baseExpo.extra,
-        ...(projectId
-          ? {
-              eas: {
-                ...(baseExpo.extra?.eas || {}),
-                projectId,
-              },
-            }
-          : {}),
-      },
-    },
+    ...base,
+    extra,
   };
 };

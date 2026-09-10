@@ -11,7 +11,14 @@ export interface DiscoveredPage {
 }
 
 const STATIC_PAGES: DiscoveredPage[] = [
-  { path: "/", pageType: "static", pageLabel: "Homepage", defaultTitle: "SARJ Worldwide Chauffeur Services | Premium Luxury Transportation" },
+  {
+    path: "/",
+    pageType: "static",
+    pageLabel: "Homepage",
+    defaultTitle: "Luxury Chauffeur & Airport Limo Service in Canada | SARJ Worldwide",
+    defaultDescription:
+      "Book SARJ Worldwide for luxury chauffeur service, airport limo transfers, corporate travel, and private car service across Toronto, Ontario, and Canada.",
+  },
   { path: "/about", pageType: "static", pageLabel: "About Us" },
   { path: "/fleet", pageType: "static", pageLabel: "Fleet" },
   { path: "/services", pageType: "static", pageLabel: "Services" },

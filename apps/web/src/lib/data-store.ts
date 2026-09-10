@@ -258,16 +258,29 @@ export async function findBusyDriverIds(
   );
 }
 
+export type AssignmentChannel = "app" | "web";
+
 export type AssignDriverToReservationResult =
   | { ok: true }
   | { ok: false; reason: "busy" | "failed" };
 
+export type AssignDriverOptions = {
+  /** Dispatch channel — default "app" */
+  channel?: AssignmentChannel;
+};
+
+function normalizeAssignmentChannel(channel?: string | null): AssignmentChannel {
+  return channel === "web" ? "web" : "app";
+}
+
 // Assign driver to reservation (blocks if driver already on another active ride).
 // Re-assigning a previously rejected driver is allowed — they are cleared from rejectedDriverIds.
 // Re-assigning a DONE/CANCELLED booking reopens it as PENDING so Requests + Accept work again.
+// Web channel auto-accepts (no in-app Accept) and stores assignmentChannel.
 export async function assignDriverToReservation(
   bookingId: string,
-  driverId: string
+  driverId: string,
+  options: AssignDriverOptions = {}
 ): Promise<AssignDriverToReservationResult> {
   try {
     if (await driverHasActiveAssignmentElsewhere(driverId, bookingId)) {
@@ -276,7 +289,7 @@ export async function assignDriverToReservation(
 
     const existing = await prisma.reservation.findUnique({
       where: { bookingId },
-      select: { rejectedDriverIds: true, status: true },
+      select: { rejectedDriverIds: true, status: true, driverLink: true, trackLink: true },
     });
 
     if (!existing) {
@@ -292,14 +305,22 @@ export async function assignDriverToReservation(
 
     const reopenFromTerminal = isReservationTerminal(existing.status);
     const now = new Date();
+    const channel = normalizeAssignmentChannel(options.channel);
+    const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://sarjworldwide.ca").replace(/\/$/, "");
+    const ensureLinks = {
+      ...(!existing.driverLink ? { driverLink: `${baseUrl}/driver/${bookingId}` } : {}),
+      ...(!existing.trackLink ? { trackLink: `${baseUrl}/track/${bookingId}` } : {}),
+    };
 
     await prisma.reservation.update({
       where: { bookingId },
       data: {
         assignedDriverId: driverId,
-        driverResponse: null,
-        driverRespondedAt: null,
+        assignmentChannel: channel,
+        driverResponse: channel === "web" ? "ACCEPTED" : null,
+        driverRespondedAt: channel === "web" ? now : null,
         rejectedDriverIds: rejectedClean,
+        ...ensureLinks,
         ...(reopenFromTerminal
           ? {
               status: "PENDING",

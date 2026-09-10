@@ -7,7 +7,11 @@ import type { Metadata } from "next";
 import { buildPageMetadata } from "@/lib/seo-metadata";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return buildPageMetadata("/");
+  return buildPageMetadata("/", {
+    title: "Luxury Chauffeur & Airport Limo Service in Canada | SARJ Worldwide",
+    description:
+      "Book SARJ Worldwide for luxury chauffeur service, airport limo transfers, corporate travel, and private car service across Toronto, Ontario, and Canada.",
+  });
 }
 
 // Lazy load below-the-fold components for faster initial load

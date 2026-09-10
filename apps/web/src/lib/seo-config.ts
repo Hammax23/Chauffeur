@@ -87,9 +87,9 @@ const DEFAULT_SETTINGS: Omit<SeoSettings, "createdAt" | "updatedAt"> = {
   siteUrl: "https://sarjworldwide.ca",
   siteName: "SARJ Worldwide Chauffeur Services",
   titleTemplate: "%s | SARJ Worldwide Chauffeur",
-  defaultTitle: "SARJ Worldwide Chauffeur Services | Premium Luxury Transportation",
+  defaultTitle: "Luxury Chauffeur & Airport Limo Service in Canada | SARJ Worldwide",
   defaultDescription:
-    "SARJ Worldwide chauffeur services. Airport transfers, corporate travel, weddings, VIP transport & city tours. Professional chauffeurs, premium vehicles.",
+    "Book SARJ Worldwide for luxury chauffeur service, airport limo transfers, corporate travel, and private car service across Toronto, Ontario, and Canada.",
   defaultKeywords: null,
   defaultOgImage: "https://sarjworldwide.ca/logo1.png",
   twitterHandle: "@sarjworldwide",

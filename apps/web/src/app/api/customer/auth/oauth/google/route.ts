@@ -7,15 +7,12 @@ import { OAuth2Client } from "google-auth-library";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
-function getAllowedAudiences() {
+function getAllowedAudiences(): string[] {
   const raw =
     process.env.GOOGLE_OAUTH_CLIENT_IDS ||
     process.env.GOOGLE_OAUTH_CLIENT_ID ||
     "";
-  return raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  return [...new Set(raw.split(",").map((s) => s.trim()).filter(Boolean))];
 }
 
 function issueCustomerJwt(customer: { id: string; email: string }) {
@@ -24,6 +21,26 @@ function issueCustomerJwt(customer: { id: string; email: string }) {
     JWT_SECRET,
     { expiresIn: "30d" }
   );
+}
+
+function customerPayload(customer: {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  city: string | null;
+  photo: string | null;
+}) {
+  return {
+    id: customer.id,
+    firstName: customer.firstName,
+    lastName: customer.lastName,
+    email: customer.email,
+    phone: customer.phone,
+    city: customer.city,
+    photo: customer.photo,
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -39,18 +56,39 @@ export async function POST(req: NextRequest) {
     const allowedAud = getAllowedAudiences();
     if (allowedAud.length === 0) {
       return NextResponse.json(
-        { success: false, error: "Google OAuth is not configured" },
-        { status: 500 }
+        {
+          success: false,
+          error: "Google Sign In is temporarily unavailable. Please use email login.",
+        },
+        { status: 503 }
       );
     }
 
     const client = new OAuth2Client();
-    const ticket = await client.verifyIdToken({
-      idToken,
-      audience: allowedAud,
-    });
+    let payload;
+    try {
+      const ticket = await client.verifyIdToken({
+        idToken,
+        audience: allowedAud,
+      });
+      payload = ticket.getPayload();
+    } catch (err: unknown) {
+      console.error("[google-oauth] token verify failed", {
+        allowedAud,
+        message: err instanceof Error ? err.message : String(err),
+      });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Sign in with Google failed. Please try again or use email login.",
+          ...(process.env.NODE_ENV !== "production"
+            ? { allowedAudiences: allowedAud }
+            : {}),
+        },
+        { status: 401 }
+      );
+    }
 
-    const payload = ticket.getPayload();
     if (!payload?.sub || !payload.email) {
       return NextResponse.json(
         { success: false, error: "Invalid Google token" },
@@ -60,7 +98,10 @@ export async function POST(req: NextRequest) {
 
     if (payload.email_verified !== true) {
       return NextResponse.json(
-        { success: false, error: "Google email is not verified. Please verify your email with Google and try again." },
+        {
+          success: false,
+          error: "Google email is not verified. Please verify your email with Google and try again.",
+        },
         { status: 403 }
       );
     }
@@ -79,19 +120,10 @@ export async function POST(req: NextRequest) {
         success: true,
         message: "Login successful",
         token,
-        customer: {
-          id: existingLinked.id,
-          firstName: existingLinked.firstName,
-          lastName: existingLinked.lastName,
-          email: existingLinked.email,
-          phone: existingLinked.phone,
-          city: existingLinked.city,
-          photo: existingLinked.photo,
-        },
+        customer: customerPayload(existingLinked),
       });
     }
 
-    // Prevent silent takeover of password-based accounts
     const existingByEmail = await prisma.customer.findUnique({
       where: { email },
     });
@@ -105,8 +137,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Never silently rebind a different OAuth provider/sub onto an existing account
-    if (existingByEmail?.oauthProvider) {
+    if (existingByEmail?.oauthProvider && existingByEmail.oauthProvider !== "google") {
       return NextResponse.json(
         {
           success: false,
@@ -115,6 +146,16 @@ export async function POST(req: NextRequest) {
         },
         { status: 409 }
       );
+    }
+
+    if (existingByEmail?.oauthProvider === "google" && existingByEmail.oauthSub === oauthSub) {
+      const token = issueCustomerJwt(existingByEmail);
+      return NextResponse.json({
+        success: true,
+        message: "Login successful",
+        token,
+        customer: customerPayload(existingByEmail),
+      });
     }
 
     const randomPassword = crypto.randomBytes(24).toString("base64url");
@@ -146,22 +187,19 @@ export async function POST(req: NextRequest) {
       success: true,
       message: "Login successful",
       token,
-      customer: {
-        id: customer.id,
-        firstName: customer.firstName,
-        lastName: customer.lastName,
-        email: customer.email,
-        phone: customer.phone,
-        city: customer.city,
-        photo: customer.photo,
-      },
+      customer: customerPayload(customer),
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Google OAuth error:", error);
     return NextResponse.json(
-      { success: false, error: "Google login failed" },
+      {
+        success: false,
+        error: "Sign in with Google failed. Please try again or use email login.",
+        ...(process.env.NODE_ENV !== "production" && error instanceof Error
+          ? { details: error.message }
+          : {}),
+      },
       { status: 500 }
     );
   }
 }
-

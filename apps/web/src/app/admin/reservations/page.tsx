@@ -78,6 +78,8 @@ interface Reservation {
   driverResponse?: string | null;
   driverRespondedAt?: string | null;
   rejectedDriverIds?: string | null;
+  /** How booking was dispatched: "app" | "web" */
+  assignmentChannel?: string | null;
   /** ISO — trip timer starts when driver reaches On The Way */
   driverOnTheWayAt?: string | null;
   /** JSON [{ start, end? }] mid-trip Stop → Continue */
@@ -102,6 +104,7 @@ export default function ReservationsPage() {
   const [editingChargeId, setEditingChargeId] = useState<string | null>(null);
   const [chargeAmounts, setChargeAmounts] = useState<Record<string, number>>({});
   const [reassignBookingId, setReassignBookingId] = useState<string | null>(null);
+  const [assignChannel, setAssignChannel] = useState<"app" | "web">("app");
   const [availableDrivers, setAvailableDrivers] = useState<{id: string; name: string; phone: string; vehicle: string; vehiclePlate: string; isActive: boolean}[]>([]);
   const [loadingDrivers, setLoadingDrivers] = useState(false);
   const [assigningDriver, setAssigningDriver] = useState<string | null>(null);
@@ -260,6 +263,7 @@ export default function ReservationsPage() {
   // Open reassign modal — previously rejected drivers can be sent the request again
   const openReassignModal = async (bookingId: string, rejectedDriverIds?: string | null) => {
     setReassignBookingId(bookingId);
+    setAssignChannel("app");
     setLoadingDrivers(true);
     try {
       const res = await fetch("/api/admin/drivers");
@@ -308,7 +312,11 @@ export default function ReservationsPage() {
       const res = await fetch("/api/admin/reservations/assign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookingId: reassignBookingId, driverId }),
+        body: JSON.stringify({
+          bookingId: reassignBookingId,
+          driverId,
+          channel: assignChannel,
+        }),
       });
       const data = await res.json();
       if (data.success) {
@@ -531,7 +539,18 @@ export default function ReservationsPage() {
                           <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Assigned Driver</h4>
                           {r.assignedDriver ? (
                             <div className="text-sm text-gray-700 space-y-1">
-                              <p className="font-semibold text-[#C9A063]">{r.assignedDriver.name}</p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-semibold text-[#C9A063]">{r.assignedDriver.name}</p>
+                                {r.assignmentChannel === "web" ? (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-100 text-sky-800">
+                                    Web
+                                  </span>
+                                ) : r.assignmentChannel === "app" ? (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-800">
+                                    App
+                                  </span>
+                                ) : null}
+                              </div>
                               <a href={`tel:${r.assignedDriver.phone}`} className="flex items-center gap-2 text-sm text-gray-600 hover:text-[#C9A063]">
                                 <Phone className="w-3.5 h-3.5" /> {r.assignedDriver.phone}
                               </a>
@@ -1105,6 +1124,38 @@ export default function ReservationsPage() {
               >
                 <X className="w-5 h-5 text-gray-500" />
               </button>
+            </div>
+            <div className="px-6 pt-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Dispatch method</p>
+              <div className="inline-flex rounded-xl p-1 bg-gray-100 border border-gray-200 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setAssignChannel("app")}
+                  className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                    assignChannel === "app"
+                      ? "bg-[#1C1C1E] text-white shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  App
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAssignChannel("web")}
+                  className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                    assignChannel === "web"
+                      ? "bg-[#1C1C1E] text-white shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  Web URLs
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                {assignChannel === "web"
+                  ? "Driver gets web link; customer gets track link (email/SMS). No app notification."
+                  : "Driver is notified in the app (push/SMS) to Accept or Reject."}
+              </p>
             </div>
             <div className="p-6 overflow-y-auto flex-1">
               {loadingDrivers ? (

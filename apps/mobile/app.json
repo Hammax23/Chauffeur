@@ -17,7 +17,7 @@
       "supportsTablet": true,
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.sarjworldwide.chauffeur",
-      "buildNumber": "34",
+      "buildNumber": "40",
       "entitlements": {
         "com.apple.developer.applesignin": [
           "Default"
@@ -25,9 +25,9 @@
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSPhotoLibraryUsageDescription": "SARJ needs access to your photo library so you can choose a profile picture for your customer account — for example, when you tap Edit Profile and select a photo from your library.",
-        "NSPhotoLibraryAddUsageDescription": "SARJ may save images you choose when updating your profile photo.",
-        "NSCameraUsageDescription": "SARJ can use the camera so you can take a new profile photo for your account.",
+        "NSPhotoLibraryUsageDescription": "SARJ Worldwide accesses your photo library so you can select an existing photo to use as your customer profile picture. For example, when you tap Edit Profile in the Account tab and choose Select from Library, we open your Photos so you can pick one image, which is then uploaded and displayed on your profile.",
+        "NSPhotoLibraryAddUsageDescription": "SARJ Worldwide saves a photo to your Photos library only when you take a new profile picture with the in-app camera and choose to keep a copy, so the image you uploaded to your customer account is also available in your Photos.",
+        "NSCameraUsageDescription": "SARJ Worldwide uses the camera so you can take a new profile picture for your customer account. For example, when you tap Edit Profile in the Account tab and choose Take Photo, the camera opens so you can capture an image that is then uploaded and shown on your profile.",
         "UIBackgroundModes": [
           "location",
           "remote-notification"
@@ -79,9 +79,9 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "SARJ uses your location to show your live position to dispatch and for ride assignments — for example, while you are online as a driver on an active trip.",
-          "locationAlwaysAndWhenInUsePermission": "SARJ uses your location in the background so dispatch can see you until you log out or close the app — for example, during an assigned chauffeur trip.",
-          "locationAlwaysPermission": "SARJ uses your location in the background for live driver tracking during an assigned trip.",
+          "locationWhenInUsePermission": "SARJ Worldwide uses your location while the app is open. For customers, this auto-fills your pickup address when you tap Use My Location on the Book a Ride screen and shows your ride vehicle on the live map. For drivers, this sends your position to dispatch when you are online for a trip.",
+          "locationAlwaysAndWhenInUsePermission": "SARJ Worldwide uses your location in the background only for drivers who are online with an accepted trip, so dispatch and the customer can track the vehicle on the live map until the trip ends. Background tracking is not used for customer accounts.",
+          "locationAlwaysPermission": "SARJ Worldwide uses your location in the background only for drivers with an active accepted trip, so dispatch and the paired customer can see the vehicle on the live map until the trip is completed.",
           "isIosBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true,
           "isAndroidBackgroundLocationEnabled": true
@@ -90,16 +90,16 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "SARJ needs access to your photo library so you can choose a profile picture for your customer account — for example, when you tap Edit Profile and select a photo from your library.",
-          "cameraPermission": "SARJ can use the camera so you can take a new profile photo for your account."
+          "photosPermission": "SARJ Worldwide accesses your photo library so you can select an existing photo to use as your customer profile picture. For example, when you tap Edit Profile in the Account tab and choose Select from Library, we open your Photos so you can pick one image, which is then uploaded and displayed on your profile.",
+          "cameraPermission": "SARJ Worldwide uses the camera so you can take a new profile picture for your customer account. For example, when you tap Edit Profile in the Account tab and choose Take Photo, the camera opens so you can capture an image that is then uploaded and shown on your profile."
         }
       ]
     ],
     "extra": {
-      "GOOGLE_EXPO_CLIENT_ID": "199624638433-v2bm7j4a52pb0kql61thdr9gt98hsucp.apps.googleusercontent.com",
-      "GOOGLE_IOS_CLIENT_ID": "REPLACE_ME",
+      "GOOGLE_EXPO_CLIENT_ID": "339504428086-ii7547k8d5fn33rnotbn2al49b7j7mvq.apps.googleusercontent.com",
+      "GOOGLE_WEB_CLIENT_ID": "339504428086-ii7547k8d5fn33rnotbn2al49b7j7mvq.apps.googleusercontent.com",
+      "GOOGLE_IOS_CLIENT_ID": "339504428086-votguml8g694jfcej359pq7l6j68klcd.apps.googleusercontent.com",
       "GOOGLE_ANDROID_CLIENT_ID": "REPLACE_ME",
-      "GOOGLE_WEB_CLIENT_ID": "REPLACE_ME",
       "router": {},
       "eas": {
         "projectId": "8c2b91c9-8e3a-4b36-bda1-4dd99a3d01f5"

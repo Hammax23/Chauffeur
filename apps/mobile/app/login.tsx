@@ -81,36 +81,47 @@ export default function LoginScreen() {
 
   async function handleGoogle() {
     try {
-      // Google rejects Expo Go's exp:// redirect URI (Error 400: invalid_request).
-      // Google Sign-In needs a development/production build with iOS/Android client IDs.
       if (Constants.appOwnership === "expo") {
         Alert.alert(
           "Google Sign-In unavailable in Expo Go",
-          "Google does not allow Expo Go redirects (exp://…). Use email/password here, or test Google login in a development build with GOOGLE_IOS_CLIENT_ID / GOOGLE_ANDROID_CLIENT_ID / GOOGLE_WEB_CLIENT_ID set in app.json."
+          "Google does not allow Expo Go redirects (exp://…). Use email/password here, or test Google login in a TestFlight / production build."
         );
         return;
       }
+
+      if (Platform.OS === "ios" && !googleIosClientId) {
+        Alert.alert(
+          "Google Sign-In not configured",
+          "iOS Google client ID is missing. Create an iOS OAuth client in Google Cloud Console for bundle com.sarjworldwide.chauffeur, then add GOOGLE_IOS_CLIENT_ID to the app build."
+        );
+        return;
+      }
+
       if (!googleRequest) return;
+
       const anyId =
-        googleExpoClientId ||
         googleIosClientId ||
         googleAndroidClientId ||
-        googleWebClientId;
+        googleWebClientId ||
+        googleExpoClientId;
       if (!anyId) {
         Alert.alert(
           "Config Missing",
-          "Google OAuth client IDs are not set. Add GOOGLE_IOS_CLIENT_ID, GOOGLE_ANDROID_CLIENT_ID, and GOOGLE_WEB_CLIENT_ID in app.json extra."
+          "Google OAuth client IDs are not set. Add GOOGLE_IOS_CLIENT_ID (iOS) and GOOGLE_WEB_CLIENT_ID in app config."
         );
         return;
       }
+
+      setIsLoading(true);
       const result = await promptGoogle();
       if (result.type !== "success") return;
+
       const idToken = result.params?.id_token;
       if (!idToken) {
         Alert.alert("Google Login Failed", "No id_token returned.");
         return;
       }
-      setIsLoading(true);
+
       const r = await loginWithGoogle(idToken);
       if (r.success) {
         await routeAfterCustomerAuth();

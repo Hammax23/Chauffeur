@@ -10,6 +10,7 @@ import { verifyOperationalManagerAuth } from "@/lib/operational-manager-auth";
 import { buildReservationAdminEmail, buildReservationUserEmail } from "@/lib/email-templates";
 import { calculateReservationPricing, isAirportPickupLocation, AIRPORT_PICKUP_FEE } from "@/lib/reservation-pricing";
 import { getPricingConfig } from "@/lib/get-pricing-config";
+import { createReservationPaymentLink } from "@/lib/reservation-payment-link";
 
 const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -217,6 +218,12 @@ export async function POST(request: NextRequest) {
             ? paymentIntent.customer
             : paymentIntent.customer?.id || resolvedStripeCustomerId;
       }
+    } else {
+      // Staff custom reservation: honor selected payment status
+      const staffPaymentStatus = String(body.paymentStatus || "").toUpperCase();
+      if (["PENDING", "PAID", "CANCELLED", "CASH_ON_DELIVERY"].includes(staffPaymentStatus)) {
+        paymentStatus = staffPaymentStatus;
+      }
     }
 
     const priceDisplay = total > 0 ? `$${total.toFixed(2)} CAD` : "To be confirmed";
@@ -301,8 +308,15 @@ export async function POST(request: NextRequest) {
       zipCode: zipCode || undefined,
       purchaseOrder: purchaseOrder || undefined,
       deptNumber: deptNumber || undefined,
-      paymentMethodLabel:
-        checkoutPaymentMethod === "cash" ? "Cash on Delivery" : "Card (paid online)",
+      paymentMethodLabel: wantsSkipTurnstile
+        ? paymentStatus === "PAID"
+          ? "Already paid (recorded by staff)"
+          : paymentStatus === "CASH_ON_DELIVERY"
+            ? "Cash on Delivery"
+            : "Pay later (Stripe link)"
+        : checkoutPaymentMethod === "cash"
+          ? "Cash on Delivery"
+          : "Card (paid online)",
       paymentStatusLabel: paymentStatus,
       driverLink,
       customerTrackLink,
@@ -401,7 +415,42 @@ export async function POST(request: NextRequest) {
     const { maybeBroadcastNewReservation } = await import("@/lib/live-auto");
     await maybeBroadcastNewReservation(bookingId);
 
-    return NextResponse.json({ success: true, message: "Reservation submitted successfully!", bookingId });
+    // Custom / staff reservations: always attach a Stripe pay-later link when unpaid.
+    let paymentUrl: string | null = null;
+    let paymentLinkError: string | null = null;
+    if (
+      wantsSkipTurnstile &&
+      paymentStatus !== "PAID" &&
+      paymentStatus !== "CANCELLED" &&
+      total >= 0.5
+    ) {
+      try {
+        const link = await createReservationPaymentLink({
+          bookingId,
+          total,
+          email,
+          firstName,
+          lastName,
+          pickupLocation,
+          returnBaseUrl: body.returnBaseUrl || process.env.NEXT_PUBLIC_SITE_URL,
+        });
+        paymentUrl = link.url;
+      } catch (e) {
+        console.error("[reservation] pay-later Stripe link failed:", e);
+        paymentLinkError =
+          e instanceof Error ? e.message : "Could not create Stripe payment link";
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Reservation submitted successfully!",
+      bookingId,
+      paymentUrl,
+      paymentLinkError,
+      paymentStatus,
+      total,
+    });
   } catch (error: any) {
     console.error("Reservation email error:", error);
     let errorMessage = "Failed to send reservation. Please try again later.";

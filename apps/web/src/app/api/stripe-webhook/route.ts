@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import prisma from "@/lib/prisma";
 
 const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-01-28.clover" as any,
@@ -27,12 +28,43 @@ export async function POST(request: NextRequest) {
     }
 
     switch (event.type) {
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        if (
+          session.payment_status === "paid" &&
+          session.metadata?.type === "reservation" &&
+          session.metadata?.bookingId
+        ) {
+          const bookingId = session.metadata.bookingId;
+          try {
+            await prisma.reservation.update({
+              where: { bookingId },
+              data: { paymentStatus: "PAID" },
+            });
+            console.log(`Reservation ${bookingId} marked PAID via checkout.session.completed`);
+          } catch (e) {
+            console.error(`Failed to mark reservation ${bookingId} paid:`, e);
+          }
+        }
+        break;
+      }
+
       case "payment_intent.succeeded": {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         console.log(`Payment succeeded: ${paymentIntent.id}`);
         console.log("Amount:", paymentIntent.amount / 100, paymentIntent.currency.toUpperCase());
         console.log("Metadata:", paymentIntent.metadata);
-        // Future: Save to database, send confirmation emails, etc.
+        if (paymentIntent.metadata?.type === "reservation" && paymentIntent.metadata?.bookingId) {
+          const bookingId = paymentIntent.metadata.bookingId;
+          try {
+            await prisma.reservation.update({
+              where: { bookingId },
+              data: { paymentStatus: "PAID" },
+            });
+          } catch (e) {
+            console.error(`Failed to mark reservation ${bookingId} paid from PI:`, e);
+          }
+        }
         break;
       }
 
