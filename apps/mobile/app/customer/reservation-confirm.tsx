@@ -372,27 +372,12 @@ export default function ReservationConfirmScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Fare summary</Text>
           {fare.km > 0 ? (
-            <>
-              <View style={styles.fareRow}>
-                <Text style={styles.fareLabel}>Distance</Text>
-                <Text style={styles.fareValue}>
-                  {draft.distanceText || `${fare.km.toFixed(2)} km`}
-                </Text>
-              </View>
-              {hourlyRate > 0 ? (
-                <View style={styles.fareRow}>
-                  <Text style={styles.fareLabel}>Base rate</Text>
-                  <Text style={styles.fareValue}>
-                    ${hourlyRate.toFixed(2)} (first {baseDistanceKm} km)
-                  </Text>
-                </View>
-              ) : pricePerKm > 0 ? (
-                <View style={styles.fareRow}>
-                  <Text style={styles.fareLabel}>Rate</Text>
-                  <Text style={styles.fareValue}>${pricePerKm.toFixed(2)}/km</Text>
-                </View>
-              ) : null}
-            </>
+            <View style={styles.fareRow}>
+              <Text style={styles.fareLabel}>Distance</Text>
+              <Text style={styles.fareValue}>
+                {draft.distanceText || `${fare.km.toFixed(2)} km`}
+              </Text>
+            </View>
           ) : null}
           <View style={styles.fareRow}>
             <Text style={styles.fareLabel}>Ride fare</Text>

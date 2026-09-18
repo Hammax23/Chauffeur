@@ -163,6 +163,10 @@ model Customer {
   oauthSub           String?
   /// Where this customer account was created (e.g. "app" via mobile, "web" via website/admin).
   registrationSource String        @default("web")
+  /// ACTIVE | BLOCKED — blocked customers cannot sign in to the app.
+  accountStatus      String        @default("ACTIVE")
+  blockedAt          DateTime?
+  blockedReason      String?
   pushToken          String?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
@@ -170,6 +174,8 @@ model Customer {
 
   @@unique([oauthProvider, oauthSub])
   @@index([pushToken])
+  @@index([accountStatus])
+  @@index([registrationSource])
 }
 
 model DriverInvite {

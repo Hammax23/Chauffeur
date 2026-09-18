@@ -24,10 +24,41 @@ import { getStoredCustomer } from "../services/api";
 import { customerNeedsPhone } from "../utils/customer-phone";
 import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
+import { makeRedirectUri, ResponseType, exchangeCodeAsync } from "expo-auth-session";
 import * as AppleAuthentication from "expo-apple-authentication";
-import Constants from "expo-constants";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 
 WebBrowser.maybeCompleteAuthSession();
+
+const GOOGLE_DISCOVERY = {
+  authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
+  tokenEndpoint: "https://oauth2.googleapis.com/token",
+  revocationEndpoint: "https://oauth2.googleapis.com/revoke",
+  userInfoEndpoint: "https://openidconnect.googleapis.com/v1/userinfo",
+};
+
+function googleReversedIosScheme(iosClientId: string | undefined): string | undefined {
+  if (!iosClientId) return undefined;
+  const id = iosClientId.replace(/\.apps\.googleusercontent\.com$/i, "");
+  if (!id || id.includes("REPLACE")) return undefined;
+  return `com.googleusercontent.apps.${id}`;
+}
+
+function extractGoogleIdToken(result: {
+  params?: Record<string, string>;
+  authentication?: { idToken?: string | null } | null;
+}): string | null {
+  const fromParams = result.params?.id_token?.trim();
+  if (fromParams) return fromParams;
+  const fromAuth = result.authentication?.idToken?.trim();
+  if (fromAuth) return fromAuth;
+  return null;
+}
+
+function isExpoGoRuntime(): boolean {
+  if (Constants.appOwnership === "expo") return true;
+  return Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+}
 
 type MainRole = "customer" | "driver";
 
@@ -71,20 +102,77 @@ export default function LoginScreen() {
   const googleIosClientId = sanitizeGoogleClientId(extra.GOOGLE_IOS_CLIENT_ID);
   const googleAndroidClientId = sanitizeGoogleClientId(extra.GOOGLE_ANDROID_CLIENT_ID);
   const googleWebClientId = sanitizeGoogleClientId(extra.GOOGLE_WEB_CLIENT_ID);
+  const googleIosScheme = googleReversedIosScheme(googleIosClientId);
 
-  const [googleRequest, , promptGoogle] = Google.useIdTokenAuthRequest({
-    clientId: googleExpoClientId,
-    iosClientId: googleIosClientId,
-    androidClientId: googleAndroidClientId,
-    webClientId: googleWebClientId,
+  const googleRedirectUri = makeRedirectUri({
+    // Native Google iOS clients expect the reversed-client-id URL scheme.
+    native:
+      Platform.OS === "ios" && googleIosScheme
+        ? `${googleIosScheme}:/oauthredirect`
+        : undefined,
   });
+
+  const [googleRequest, , promptGoogle] = Google.useIdTokenAuthRequest(
+    {
+      clientId: googleExpoClientId || googleWebClientId,
+      iosClientId: googleIosClientId,
+      androidClientId: googleAndroidClientId,
+      webClientId: googleWebClientId,
+      redirectUri: googleRedirectUri,
+      selectAccount: true,
+      scopes: ["openid", "profile", "email"],
+      responseType: Platform.OS === "web" ? ResponseType.IdToken : ResponseType.Code,
+      shouldAutoExchangeCode: true,
+    },
+    Platform.OS === "ios" && googleIosScheme
+      ? { scheme: googleIosScheme, path: "oauthredirect" }
+      : undefined
+  );
+
+  async function resolveGoogleIdToken(
+    result: Awaited<ReturnType<typeof promptGoogle>>
+  ): Promise<string | null> {
+    if (result.type !== "success") return null;
+
+    const immediate = extractGoogleIdToken(result);
+    if (immediate) return immediate;
+
+    // Code flow: promptAsync often returns before auto-exchange finishes.
+    const code = result.params?.code;
+    if (!code || !googleRequest) return null;
+
+    const clientId =
+      (Platform.OS === "ios" && googleIosClientId) ||
+      (Platform.OS === "android" && googleAndroidClientId) ||
+      googleWebClientId ||
+      googleExpoClientId;
+    if (!clientId) return null;
+
+    try {
+      const tokenResponse = await exchangeCodeAsync(
+        {
+          clientId,
+          code,
+          redirectUri: googleRedirectUri,
+          extraParams: {
+            code_verifier: googleRequest.codeVerifier || "",
+          },
+        },
+        GOOGLE_DISCOVERY
+      );
+      return tokenResponse.idToken?.trim() || null;
+    } catch (e) {
+      console.warn("[Google] code exchange failed", e);
+      return null;
+    }
+  }
 
   async function handleGoogle() {
     try {
-      if (Constants.appOwnership === "expo") {
+      if (isExpoGoRuntime()) {
         Alert.alert(
           "Google Sign-In unavailable in Expo Go",
-          "Google does not allow Expo Go redirects (exp://…). Use email/password here, or test Google login in a TestFlight / production build."
+          "Google login needs a development build or TestFlight app (not Expo Go). Use email/password here, or open the SARJ build."
         );
         return;
       }
@@ -116,9 +204,13 @@ export default function LoginScreen() {
       const result = await promptGoogle();
       if (result.type !== "success") return;
 
-      const idToken = result.params?.id_token;
+      const idToken = await resolveGoogleIdToken(result);
+
       if (!idToken) {
-        Alert.alert("Google Login Failed", "No id_token returned.");
+        Alert.alert(
+          "Google Login Failed",
+          "Google did not return an ID token. Confirm the iOS OAuth client bundle ID is com.sarjworldwide.chauffeur and rebuild the app after Google config changes."
+        );
         return;
       }
 
@@ -271,9 +363,12 @@ export default function LoginScreen() {
             >
               <Text
                 style={[styles.segmentText, userType === "driver" && styles.segmentTextActive]}
-                maxFontSizeMultiplier={1.2}
+                maxFontSizeMultiplier={1.15}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}
               >
-                Driver
+                Drive for us!
               </Text>
             </TouchableOpacity>
           </View>
@@ -409,7 +504,7 @@ export default function LoginScreen() {
               style={({ pressed }) => [styles.partnerLink, pressed && { opacity: 0.7 }]}
               hitSlop={8}
             >
-              <Text style={styles.partnerLinkText}>Hotel partner access</Text>
+              <Text style={styles.partnerLinkText}>SARJ Partners</Text>
               <Ionicons name="open-outline" size={13} color="#94a3b8" />
             </Pressable>
           </View>
@@ -464,9 +559,10 @@ const styles = StyleSheet.create({
   },
   segmentBtnActive: { backgroundColor: "#1a1a1a" },
   segmentText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "600",
     color: "#64748b",
+    textAlign: "center",
   },
   segmentTextActive: { color: "#fff" },
   inputGroup: { marginBottom: 20 },

@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
         phone: true,
         city: true,
         photo: true,
+        accountStatus: true,
         createdAt: true,
       },
     });
@@ -50,7 +51,19 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, customer });
+    if (String(customer.accountStatus || "ACTIVE").toUpperCase() === "BLOCKED") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Your account has been blocked. Please contact support.",
+          code: "ACCOUNT_BLOCKED",
+        },
+        { status: 403 }
+      );
+    }
+
+    const { accountStatus: _status, ...safeCustomer } = customer;
+    return NextResponse.json({ success: true, customer: safeCustomer });
   } catch (error) {
     console.error("Profile fetch error:", error);
     return NextResponse.json(

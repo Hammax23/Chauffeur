@@ -21,6 +21,9 @@ export async function GET(request: NextRequest) {
         city: true,
         photo: true,
         oauthProvider: true,
+        accountStatus: true,
+        blockedAt: true,
+        blockedReason: true,
         createdAt: true,
       },
     });

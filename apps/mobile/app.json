@@ -5,7 +5,10 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "sarjworldwide",
+    "scheme": [
+      "sarjworldwide",
+      "com.googleusercontent.apps.339504428086-votguml8g694jfcej359pq7l6j68klcd"
+    ],
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { blockedCustomerResponse, isCustomerBlocked } from "@/lib/customer-auth";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
@@ -17,7 +18,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Find customer
     const customer = await prisma.customer.findUnique({
       where: { email: email.toLowerCase() },
     });
@@ -29,7 +29,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify password
+    if (isCustomerBlocked(customer)) {
+      return NextResponse.json(blockedCustomerResponse(), { status: 403 });
+    }
+
     const isValidPassword = await bcrypt.compare(password, customer.password);
     if (!isValidPassword) {
       return NextResponse.json(
@@ -38,7 +41,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate JWT token
     const token = jwt.sign(
       { id: customer.id, email: customer.email, type: "customer" },
       JWT_SECRET,

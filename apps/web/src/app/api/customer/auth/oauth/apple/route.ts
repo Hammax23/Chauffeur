@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { createRemoteJWKSet, decodeJwt, jwtVerify } from "jose";
+import { blockedCustomerResponse, isCustomerBlocked } from "@/lib/customer-auth";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 /** Native iOS bundle id — always accepted as Apple identity-token `aud`. */
@@ -155,6 +156,9 @@ export async function POST(req: NextRequest) {
     });
 
     if (existingLinked) {
+      if (isCustomerBlocked(existingLinked)) {
+        return NextResponse.json(blockedCustomerResponse(), { status: 403 });
+      }
       const token = issueCustomerJwt(existingLinked);
       return NextResponse.json({
         success: true,
@@ -201,6 +205,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (existingByEmail?.oauthProvider === "apple" && existingByEmail.oauthSub === oauthSub) {
+      if (isCustomerBlocked(existingByEmail)) {
+        return NextResponse.json(blockedCustomerResponse(), { status: 403 });
+      }
       const token = issueCustomerJwt(existingByEmail);
       return NextResponse.json({
         success: true,

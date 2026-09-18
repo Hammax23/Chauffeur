@@ -117,7 +117,7 @@ export default function CustomerHomeScreen() {
     const fabSize = isCompact ? 40 : 44;
     const pickupMinH = isCompact ? 50 : 56;
     const titleSize = isCompact ? 20 : 22;
-    const fleetCardW = Math.min(windowWidth * (isTablet ? 0.28 : 0.42), isTablet ? 220 : 180);
+    const fleetCardW = Math.min(windowWidth * (isTablet ? 0.3 : 0.44), isTablet ? 240 : 188);
     return {
       isCompact,
       isShort,
@@ -806,18 +806,31 @@ export default function CustomerHomeScreen() {
                   }
                   style={({ pressed }) => [
                     styles.fleetCard,
-                    { width: layout.fleetCardW },
+                    {
+                      width: layout.fleetCardW,
+                      backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
+                      borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+                    },
                     pressed && styles.pressed,
                   ]}
                 >
-                  <Image source={{ uri: v.imageUrl }} style={styles.fleetImage} resizeMode="contain" />
-                  <Text style={styles.fleetName} numberOfLines={1}>
+                  <View
+                    style={[
+                      styles.fleetImageWrap,
+                      { backgroundColor: isDark ? "#2C2C2E" : "#F3F3F5" },
+                    ]}
+                  >
+                    <Image
+                      source={{ uri: v.imageUrl }}
+                      style={styles.fleetImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+                  <Text
+                    style={[styles.fleetName, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]}
+                    numberOfLines={2}
+                  >
                     {v.title}
-                  </Text>
-                  <Text style={styles.fleetPrice}>
-                    {v.hourlyRate > 0
-                      ? `$${v.hourlyRate.toFixed(0)} base`
-                      : `$${v.pricePerKm.toFixed(2)}/km`}
                   </Text>
                 </Pressable>
               ))}
@@ -1449,36 +1462,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   fleetScroll: {
-    paddingRight: 8,
+    paddingRight: 4,
     gap: 10,
+    paddingBottom: 2,
   },
   fleetCard: {
-    backgroundColor: "#F4F0EA",
-    borderRadius: 16,
-    padding: 10,
+    borderRadius: 14,
+    padding: 8,
     marginRight: 10,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(0,0,0,0.06)",
+  },
+  fleetImageWrap: {
+    borderRadius: 10,
+    height: 96,
+    marginBottom: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
   fleetImage: {
-    width: "100%",
-    height: 72,
-    marginBottom: 8,
+    width: "92%",
+    height: 78,
   },
   fleetName: {
     fontSize: 13,
-    fontWeight: "700",
-    color: "#1C1C1E",
-  },
-  fleetPrice: {
-    marginTop: 3,
-    fontSize: 12,
-    fontWeight: "700",
-    color: ACCENT_DARK,
+    fontWeight: "600",
+    lineHeight: 17,
+    letterSpacing: -0.1,
+    paddingHorizontal: 2,
   },
   pressed: {
-    opacity: 0.88,
-    transform: [{ scale: 0.985 }],
+    opacity: 0.92,
   },
   modalRoot: {
     flex: 1,
