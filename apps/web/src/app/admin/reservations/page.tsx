@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Search, RefreshCw, Filter, ExternalLink, Phone, Mail,
   Car, MapPin, Clock, Users, ChevronDown, ChevronUp,
@@ -88,13 +89,21 @@ interface Reservation {
 }
 
 export default function ReservationsPage() {
+  const searchParams = useSearchParams();
+  const qFromUrl = searchParams.get("q")?.trim() || "";
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(qFromUrl);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [serviceFilter, setServiceFilter] = useState<"ALL" | "RIDES" | "PARCEL">("ALL");
-  const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [expandedRow, setExpandedRow] = useState<string | null>(qFromUrl || null);
+
+  useEffect(() => {
+    if (!qFromUrl) return;
+    setSearchQuery(qFromUrl);
+    setExpandedRow(qFromUrl);
+  }, [qFromUrl]);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);

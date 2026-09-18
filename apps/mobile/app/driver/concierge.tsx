@@ -65,7 +65,12 @@ export default function DriverConciergeScreen() {
         getDriverConciergeRides("mine"),
         getDriverConciergeEarnings(),
       ]);
-      setEnrolled(!!openRes.enrolled);
+      const isEnrolled = !!openRes.enrolled;
+      setEnrolled(isEnrolled);
+      if (!isEnrolled) {
+        router.replace("/driver");
+        return;
+      }
       setProfile(openRes.profile || mineRes.profile || null);
       setOpenRequests(openRes.openRequests || []);
       setMyRides(mineRes.myRides || []);

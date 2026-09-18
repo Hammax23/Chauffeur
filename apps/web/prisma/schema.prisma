@@ -63,6 +63,7 @@ model Reservation {
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
   chatThread            ChatThread?
+  tripReview            TripReview?
   assignedDriver        Driver?     @relation(fields: [assignedDriverId], references: [id])
   customer              Customer?   @relation(fields: [customerId], references: [id])
 }
@@ -101,6 +102,7 @@ model Driver {
   updatedAt                   DateTime      @updatedAt
   reservations                Reservation[]
   rideOffers                  RideOffer[]
+  tripReviews                 TripReview[]
   conciergeProfile            ConciergeDriverProfile?
 }
 
@@ -128,6 +130,26 @@ model RideOffer {
   @@index([driverId, status])
   @@index([bookingId, status])
   @@index([status])
+}
+
+/// Customer review of an assigned chauffeur after a completed (DONE) trip.
+model TripReview {
+  id            String      @id @default(cuid())
+  reservationId String      @unique
+  bookingId     String
+  customerId    String
+  driverId      String
+  stars         Int
+  comment       String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  reservation   Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  customer      Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  driver        Driver      @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([driverId, createdAt])
+  @@index([customerId])
+  @@index([bookingId])
 }
 
 model Quote {
@@ -158,6 +180,8 @@ model Customer {
   password           String
   city               String?
   photo              String?
+  /// Stripe Customer id for saved payment methods (PCI: cards live on Stripe only).
+  stripeCustomerId   String?       @unique
   /// OAuth provider account linking (e.g. google/apple). If set, password login still exists but should be treated as internal.
   oauthProvider      String?
   oauthSub           String?
@@ -171,6 +195,7 @@ model Customer {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
   reservations       Reservation[]
+  tripReviews        TripReview[]
 
   @@unique([oauthProvider, oauthSub])
   @@index([pushToken])

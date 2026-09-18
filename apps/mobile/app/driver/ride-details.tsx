@@ -764,6 +764,32 @@ export default function RideDetailsScreen() {
                 ) : null}
               </View>
 
+              {ride?.review ? (
+                <View style={[styles.card, styles.iosShadow]}>
+                  <Text style={styles.cardTitle}>Customer review</Text>
+                  <View style={styles.reviewHeader}>
+                    <Text style={styles.reviewCustomer} numberOfLines={1}>
+                      {ride.review.customerName}
+                    </Text>
+                    <View style={styles.reviewStars}>
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <Ionicons
+                          key={n}
+                          name={n <= ride.review!.stars ? "star" : "star-outline"}
+                          size={14}
+                          color={GOLD}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                  {ride.review.comment ? (
+                    <Text style={styles.reviewComment}>{ride.review.comment}</Text>
+                  ) : (
+                    <Text style={styles.reviewNoComment}>No written comment</Text>
+                  )}
+                </View>
+              ) : null}
+
               {/* Route */}
               <View style={[styles.card, styles.iosShadow]}>
                 <Text style={styles.cardTitle}>Trip route</Text>
@@ -1216,6 +1242,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   cardTitle: { fontSize: 13, fontWeight: "800", color: INK, marginBottom: 12, letterSpacing: -0.2 },
+  reviewHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginBottom: 8,
+  },
+  reviewCustomer: { flex: 1, fontSize: 15, fontWeight: "700", color: INK },
+  reviewStars: { flexDirection: "row", gap: 2 },
+  reviewComment: { fontSize: 14, lineHeight: 20, color: "#334155" },
+  reviewNoComment: { fontSize: 13, fontStyle: "italic", color: "#94a3b8" },
   customerRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
   avatar: { width: 50, height: 50, borderRadius: 25, alignItems: "center", justifyContent: "center" },
   avatarText: { color: "#fff", fontSize: 18, fontWeight: "800" },

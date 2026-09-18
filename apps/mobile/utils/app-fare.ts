@@ -9,6 +9,11 @@ export const APP_GRATUITY_PERCENTS = [15, 20, 25] as const;
 export const APP_DEFAULT_GRATUITY_PERCENT = 0;
 export const BASE_DISTANCE_KM = 17;
 export const EXTRA_KM_RATE = 3.2;
+/** Website / app hourly minimum (same as web reservation). */
+export const APP_MIN_HOURLY_HOURS = 3;
+export const APP_HOURLY_DURATIONS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
+
+export type AppBookingMode = "distance" | "hourly";
 
 export type AppDistancePricing = {
   baseDistanceKm: number;
@@ -26,6 +31,7 @@ export type AppFareResult = {
   gratuityPercent: number;
   total: number;
   km: number;
+  hours?: number;
 };
 
 /** Detect airport pickup from address / IATA code (any airport). */
@@ -39,6 +45,58 @@ export function isAirportPickupLocation(location?: string | null): boolean {
   if (/\btrudeau\b/.test(t)) return true;
   if (/\bint(?:ernational)?\.?\s+airport\b/.test(t)) return true;
   return false;
+}
+
+function finalizeAppFare(input: {
+  rideFare: number;
+  hasStop: boolean;
+  childSeatCount: number;
+  gratuityPercent?: number;
+  airportPickup?: boolean;
+  pickupLocation?: string;
+  km?: number;
+  hours?: number;
+}): AppFareResult | null {
+  const rideFare = Number(input.rideFare) || 0;
+  if (rideFare <= 0) return null;
+
+  const stopCharge = input.hasStop ? STOP_CHARGE : 0;
+  const childSeatCount = Math.max(0, Math.floor(Number(input.childSeatCount) || 0));
+  const childSeatCharge = childSeatCount * CHILD_SEAT_CHARGE;
+  const airportPickupFee =
+    input.airportPickup === true || isAirportPickupLocation(input.pickupLocation)
+      ? AIRPORT_PICKUP_FEE
+      : 0;
+  const subtotal = rideFare + stopCharge + childSeatCharge + airportPickupFee;
+  const hst = subtotal * HST_RATE;
+
+  let gratuityPercent = Number(input.gratuityPercent);
+  if (!Number.isFinite(gratuityPercent) || gratuityPercent < 0) {
+    gratuityPercent = 0;
+  } else if (
+    gratuityPercent > 0 &&
+    !(APP_GRATUITY_PERCENTS as readonly number[]).includes(gratuityPercent)
+  ) {
+    gratuityPercent = APP_DEFAULT_GRATUITY_PERCENT;
+  } else {
+    gratuityPercent = Math.round(gratuityPercent);
+  }
+  const gratuity = (subtotal * gratuityPercent) / 100;
+  const total = subtotal + hst + gratuity;
+
+  return {
+    rideFare,
+    stopCharge,
+    childSeatCharge,
+    airportPickupFee,
+    subtotal,
+    hst,
+    gratuity,
+    gratuityPercent,
+    total,
+    km: Number(input.km) || 0,
+    hours: input.hours,
+  };
 }
 
 /**
@@ -75,42 +133,41 @@ export function calculateAppDistanceFare(input: {
     rideFare = km * pricePerKm;
   }
 
-  const stopCharge = input.hasStop ? STOP_CHARGE : 0;
-  const childSeatCount = Math.max(0, Math.floor(Number(input.childSeatCount) || 0));
-  const childSeatCharge = childSeatCount * CHILD_SEAT_CHARGE;
-  const airportPickupFee =
-    input.airportPickup === true || isAirportPickupLocation(input.pickupLocation)
-      ? AIRPORT_PICKUP_FEE
-      : 0;
-  const subtotal = rideFare + stopCharge + childSeatCharge + airportPickupFee;
-  const hst = subtotal * HST_RATE;
-
-  let gratuityPercent = Number(input.gratuityPercent);
-  if (!Number.isFinite(gratuityPercent) || gratuityPercent < 0) {
-    gratuityPercent = 0;
-  } else if (
-    gratuityPercent > 0 &&
-    !(APP_GRATUITY_PERCENTS as readonly number[]).includes(gratuityPercent)
-  ) {
-    gratuityPercent = APP_DEFAULT_GRATUITY_PERCENT;
-  } else {
-    gratuityPercent = Math.round(gratuityPercent);
-  }
-  const gratuity = (subtotal * gratuityPercent) / 100;
-  const total = subtotal + hst + gratuity;
-
-  return {
+  return finalizeAppFare({
     rideFare,
-    stopCharge,
-    childSeatCharge,
-    airportPickupFee,
-    subtotal,
-    hst,
-    gratuity,
-    gratuityPercent,
-    total,
+    hasStop: input.hasStop,
+    childSeatCount: input.childSeatCount,
+    gratuityPercent: input.gratuityPercent,
+    airportPickup: input.airportPickup,
+    pickupLocation: input.pickupLocation,
     km,
-  };
+  });
+}
+
+/** Hourly / as-directed: $/hr × hours (minimum 3h), same extras as distance. */
+export function calculateAppHourlyFare(input: {
+  hours: number;
+  hourlyRate: number;
+  hasStop: boolean;
+  childSeatCount: number;
+  gratuityPercent?: number;
+  airportPickup?: boolean;
+  pickupLocation?: string;
+}): AppFareResult | null {
+  const hours = Math.floor(Number(input.hours) || 0);
+  const rate = Number(input.hourlyRate) || 0;
+  if (hours < APP_MIN_HOURLY_HOURS || rate <= 0) return null;
+
+  return finalizeAppFare({
+    rideFare: rate * hours,
+    hasStop: input.hasStop,
+    childSeatCount: input.childSeatCount,
+    gratuityPercent: input.gratuityPercent,
+    airportPickup: input.airportPickup,
+    pickupLocation: input.pickupLocation,
+    km: 0,
+    hours,
+  });
 }
 
 /** Parse "3 maximum, 3 comfortable" / "4" → max passengers. */

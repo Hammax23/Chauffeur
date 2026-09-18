@@ -185,13 +185,20 @@ export default function DriverProfileScreen() {
             </Text>
 
             <View style={styles.statRow}>
-              <View style={[styles.statChip, { backgroundColor: palette.metaChipBg, borderColor: palette.border }]}>
+              <Pressable
+                onPress={() => router.push("/driver/reviews")}
+                style={({ pressed }) => [
+                  styles.statChip,
+                  { backgroundColor: palette.metaChipBg, borderColor: palette.border },
+                  pressed && styles.pressed,
+                ]}
+              >
                 <Ionicons name="star" size={14} color={GOLD} />
                 <Text style={[styles.statValue, { color: palette.text }]}>
                   {driver?.rating?.toFixed(1) || "5.0"}
                 </Text>
                 <Text style={[styles.statLabel, { color: palette.muted }]}>Rating</Text>
-              </View>
+              </Pressable>
               <View style={[styles.statChip, { backgroundColor: palette.metaChipBg, borderColor: palette.border }]}>
                 <Ionicons name="navigate" size={14} color={GOLD} />
                 <Text style={[styles.statValue, { color: palette.text }]}>
@@ -252,6 +259,21 @@ export default function DriverProfileScreen() {
           </BlurView>
 
           {/* Menu */}
+          <Text style={[styles.sectionEyebrow, { color: GOLD }]}>ACCOUNT</Text>
+          <View style={styles.menuList}>
+            <MenuRow
+              label="Customer reviews"
+              icon="star-outline"
+              onPress={() => router.push("/driver/reviews")}
+              chevronColor={palette.menuChevron}
+              textColor={palette.text}
+              borderColor={palette.border}
+              cardBg={palette.cardAndroid}
+              blurTint={palette.blurTint}
+              blurIntensity={cardBlur}
+            />
+          </View>
+
           <Text style={[styles.sectionEyebrow, { color: GOLD }]}>SUPPORT</Text>
           <View style={styles.menuList}>
             <MenuRow

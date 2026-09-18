@@ -1,7 +1,7 @@
 import * as Notifications from "expo-notifications";
 import { Alert, InteractionManager } from "react-native";
 import { router } from "expo-router";
-import { getDriverRideDetail } from "./api";
+import { getDriverRideDetail, isDriverConciergeEnrolled } from "./api";
 
 /** Push payload shapes used across SARJ (driver / concierge / future customer). */
 export type SarjNotificationData = {
@@ -238,8 +238,22 @@ export async function routeDriverNotificationResponse(
       const rideId = String(data.rideId || "") || null;
       await dismissPresentedForEntity({ rideId });
       await clearBadgeSafely();
+      if (!(await isDriverConciergeEnrolled())) {
+        return { kind: "skipped" as const };
+      }
       router.push("/driver/concierge");
       return { kind: "navigated" as const, rideId: rideId || undefined };
+    }
+
+    if (type === "trip_review") {
+      const bookingId = String(data.bookingId || "").trim();
+      await clearBadgeSafely();
+      if (bookingId) {
+        await dismissPresentedForEntity({ bookingId });
+        return resolveDriverBookingNavigation(bookingId, { type });
+      }
+      router.push("/driver/reviews");
+      return { kind: "navigated" as const };
     }
 
     if (type !== "new_assignment" && type !== "live_offer") {

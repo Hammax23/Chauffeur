@@ -19,6 +19,9 @@ export async function POST(req: NextRequest) {
 
     const driver = await prisma.driver.findUnique({
       where: { email: email.toLowerCase() },
+      include: {
+        conciergeProfile: { select: { id: true } },
+      },
     });
 
     if (!driver) {
@@ -60,6 +63,7 @@ export async function POST(req: NextRequest) {
         photo: driver.photo,
         rating: driver.rating,
         totalTrips: driver.totalTrips,
+        conciergeEnrolled: !!driver.conciergeProfile,
       },
     });
   } catch (error) {

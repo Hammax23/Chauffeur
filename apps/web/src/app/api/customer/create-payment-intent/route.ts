@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
-import { getCustomerFromRequest } from "@/lib/customer-auth";
+import {
+  getCustomerFromRequest,
+  blockedCustomerResponse,
+  isCustomerBlocked,
+} from "@/lib/customer-auth";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import {
   fareTotalCents,
   resolveAppReservationFare,
 } from "@/lib/app-reservation-fare";
-
-const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
+import prisma from "@/lib/prisma";
+import {
+  createCustomerEphemeralKey,
+  ensureStripeCustomer,
+  getStripe,
+} from "@/lib/stripe-customer";
 
 export async function POST(req: NextRequest) {
   try {
@@ -38,6 +45,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const dbCustomer = await prisma.customer.findUnique({
+      where: { id: tokenData.id },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        stripeCustomerId: true,
+        accountStatus: true,
+      },
+    });
+    if (!dbCustomer) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+    if (isCustomerBlocked(dbCustomer)) {
+      return NextResponse.json(blockedCustomerResponse(), { status: 403 });
+    }
+
     const body = await req.json();
     const fare = await resolveAppReservationFare(body);
     if ("error" in fare) {
@@ -55,14 +80,19 @@ export async function POST(req: NextRequest) {
     const email =
       typeof body.email === "string" && body.email.trim()
         ? body.email.trim()
-        : tokenData.email;
+        : dbCustomer.email;
     const vehicleId = typeof body.vehicleId === "string" ? body.vehicleId.trim() : "";
     const vehicle = typeof body.vehicle === "string" ? body.vehicle.trim() : "";
 
     const stripe = getStripe();
+    const stripeCustomerId = await ensureStripeCustomer(dbCustomer, stripe);
+    const ephemeralKeySecret = await createCustomerEphemeralKey(stripeCustomerId, stripe);
+
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountCents,
       currency: "cad",
+      customer: stripeCustomerId,
+      setup_future_usage: "off_session",
       automatic_payment_methods: { enabled: true },
       receipt_email: email || undefined,
       metadata: {
@@ -71,6 +101,13 @@ export async function POST(req: NextRequest) {
         vehicleId,
         vehicleName: vehicle,
         distanceMeters: String(Number(body.distanceMeters) || 0),
+        bookingMode:
+          String(body.bookingMode || "distance").toLowerCase() === "hourly"
+            ? "hourly"
+            : "distance",
+        hourlyDuration: String(
+          Math.max(3, Math.floor(Number(body.hourlyDuration) || 3))
+        ),
         gratuityPercent: String(fare.pricing.gratuityPercent),
       },
     });
@@ -79,11 +116,15 @@ export async function POST(req: NextRequest) {
       success: true,
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
+      customerId: stripeCustomerId,
+      ephemeralKeySecret,
       amountCents,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Payment intent creation failed";
-    console.error("[app-payment-intent]", message);
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    console.error("[app-payment-intent]", error instanceof Error ? error.message : error);
+    return NextResponse.json(
+      { success: false, error: "Could not start payment. Please try again." },
+      { status: 500 }
+    );
   }
 }

@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     const reservations = await prisma.reservation.findMany({
       where: { customerId: tokenData.id },
       orderBy: { createdAt: "desc" },
-      include: { assignedDriver: true },
+      include: { assignedDriver: true, tripReview: true },
     });
 
     const formatted = reservations.map((r: (typeof reservations)[number]) => ({
@@ -66,6 +66,15 @@ export async function GET(req: NextRequest) {
             rating: r.assignedDriver.rating,
           }
         : null,
+      review: r.tripReview
+        ? {
+            stars: r.tripReview.stars,
+            comment: r.tripReview.comment,
+            createdAt: r.tripReview.createdAt.toISOString(),
+          }
+        : null,
+      canReview:
+        r.status === "DONE" && !!r.assignedDriverId && !r.tripReview,
     }));
 
     return NextResponse.json({ success: true, reservations: formatted });
@@ -119,11 +128,29 @@ export async function POST(req: NextRequest) {
       stripePaymentIntentId,
       cardType,
       cardLast4,
+      bookingMode: rawBookingMode,
+      hourlyDuration: rawHourlyDuration,
     } = body;
 
-    if (!serviceType || !vehicle || !serviceDate || !serviceTime || !pickupLocation || !dropoffLocation) {
+    const bookingMode =
+      String(rawBookingMode || "").toLowerCase() === "hourly" ? "hourly" : "distance";
+    const hourlyDuration = Math.max(3, Math.floor(Number(rawHourlyDuration) || 3));
+    const resolvedDropoff =
+      typeof dropoffLocation === "string" && dropoffLocation.trim()
+        ? dropoffLocation.trim()
+        : bookingMode === "hourly"
+          ? "As directed"
+          : "";
+
+    if (!serviceType || !vehicle || !serviceDate || !serviceTime || !pickupLocation) {
       return NextResponse.json(
         { success: false, error: "Missing required reservation fields" },
+        { status: 400 }
+      );
+    }
+    if (bookingMode === "distance" && !resolvedDropoff) {
+      return NextResponse.json(
+        { success: false, error: "Drop-off location is required" },
         { status: 400 }
       );
     }
@@ -139,12 +166,26 @@ export async function POST(req: NextRequest) {
       childSeats,
       gratuityPercent: clientGratuityPercent,
       pickupLocation,
+      bookingMode,
+      hourlyDuration,
     });
     if ("error" in fare) {
       return NextResponse.json({ success: false, error: fare.error }, { status: 400 });
     }
     const pricing = fare.pricing;
     const expectedAmountCents = fareTotalCents(pricing.total);
+
+    const modeNote =
+      bookingMode === "hourly"
+        ? `Booking mode: Hourly · ${hourlyDuration} hours`
+        : "Booking mode: Distance";
+    const baseRequirements =
+      typeof specialRequirements === "string" && specialRequirements.trim()
+        ? specialRequirements.trim()
+        : "";
+    let storedRequirements = [baseRequirements, modeNote]
+      .filter((line) => line && String(line).trim())
+      .join("\n");
 
     // Temporary testing mode: allow unpaid app reservations (PENDING).
     // When a PaymentIntent is provided, still verify and mark PAID.
@@ -153,10 +194,6 @@ export async function POST(req: NextRequest) {
     let resolvedCardType: string | null = cardType || null;
     let resolvedStripePaymentMethodId: string | null = stripePaymentMethodId || null;
     let resolvedStripeCustomerId: string | null = stripeCustomerId || null;
-    let storedRequirements =
-      typeof specialRequirements === "string" && specialRequirements.trim()
-        ? specialRequirements.trim()
-        : null;
 
     if (paymentIntentId) {
       if (!process.env.STRIPE_SECRET_KEY) {
@@ -219,10 +256,7 @@ export async function POST(req: NextRequest) {
           ? paymentIntent.customer
           : paymentIntent.customer?.id || stripeCustomerId || null;
       paymentStatus = "PAID";
-      storedRequirements = [
-        typeof specialRequirements === "string" ? specialRequirements : "",
-        `Stripe payment: ${paymentIntentId}`,
-      ]
+      storedRequirements = [baseRequirements, modeNote, `Stripe payment: ${paymentIntentId}`]
         .filter((line) => line && String(line).trim())
         .join("\n");
 
@@ -250,9 +284,15 @@ export async function POST(req: NextRequest) {
           serviceTime,
           pickupLocation,
           stops: stops || null,
-          dropoffLocation,
-          distance: distance || null,
-          duration: duration || null,
+          dropoffLocation: resolvedDropoff,
+          distance:
+            bookingMode === "hourly"
+              ? `Hourly · ${hourlyDuration}h`
+              : distance || null,
+          duration:
+            bookingMode === "hourly"
+              ? `${hourlyDuration} hours`
+              : duration || null,
           airline: airline || null,
           flightNumber: flightNumber || null,
           flightNote: flightNote || null,
@@ -330,9 +370,15 @@ export async function POST(req: NextRequest) {
         serviceTime,
         pickupLocation,
         stops: stops || null,
-        dropoffLocation,
-        distance: distance || null,
-        duration: duration || null,
+        dropoffLocation: resolvedDropoff,
+        distance:
+          bookingMode === "hourly"
+            ? `Hourly · ${hourlyDuration}h`
+            : distance || null,
+        duration:
+          bookingMode === "hourly"
+            ? `${hourlyDuration} hours`
+            : duration || null,
         airline: airline || null,
         flightNumber: flightNumber || null,
         flightNote: flightNote || null,
@@ -343,7 +389,7 @@ export async function POST(req: NextRequest) {
         hst: pricing.hst,
         gratuity: pricing.gratuity,
         total: pricing.total,
-        specialRequirements: storedRequirements,
+        specialRequirements: storedRequirements || null,
         stripePaymentMethodId: null,
         stripeCustomerId: null,
         cardType: null,

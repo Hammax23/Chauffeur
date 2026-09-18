@@ -71,6 +71,19 @@ export async function GET(
         where: { bookingId, driverId: tokenData.id, status: "OPEN" },
       }));
 
+    const tripReview =
+      reservation.assignedDriverId === tokenData.id
+        ? await prisma.tripReview.findUnique({
+            where: { reservationId: reservation.id },
+            select: {
+              stars: true,
+              comment: true,
+              createdAt: true,
+              customer: { select: { firstName: true, lastName: true } },
+            },
+          })
+        : null;
+
     return NextResponse.json({
       success: true,
       ride: {
@@ -98,6 +111,18 @@ export async function GET(
         driverStopPeriodsJson: reservation.driverStopPeriodsJson ?? null,
         completedAt: reservation.completedAt?.toISOString() ?? null,
         liveOffer,
+        review: tripReview
+          ? {
+              stars: tripReview.stars,
+              comment: tripReview.comment,
+              createdAt: tripReview.createdAt.toISOString(),
+              customerName:
+                [tripReview.customer.firstName, tripReview.customer.lastName]
+                  .filter(Boolean)
+                  .join(" ")
+                  .trim() || "Customer",
+            }
+          : null,
       },
     });
   } catch (error) {

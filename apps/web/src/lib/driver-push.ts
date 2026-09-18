@@ -134,3 +134,37 @@ export async function sendDriverLiveOfferPushes(
   if (payload.length === 0) return;
   await sendBulkPushNotifications(payload);
 }
+
+/** Push when a customer leaves a trip review for the assigned driver. */
+export async function notifyDriverTripReviewed(input: {
+  driverId: string;
+  bookingId: string;
+  customerName: string;
+  stars: number;
+}): Promise<void> {
+  try {
+    const driver = await prisma.driver.findUnique({
+      where: { id: input.driverId },
+      select: { pushToken: true },
+    });
+    if (!driver?.pushToken) return;
+
+    const stars = Math.min(5, Math.max(1, Math.floor(input.stars) || 1));
+    const starLabel = "★".repeat(stars) + "☆".repeat(5 - stars);
+    const name = input.customerName.trim() || "A customer";
+
+    await sendPushNotification(
+      driver.pushToken,
+      "New customer review",
+      `${name} rated you ${starLabel}`,
+      {
+        type: "trip_review",
+        bookingId: input.bookingId,
+        screen: "DriverReviews",
+        channelId: "reservations",
+      }
+    );
+  } catch (error) {
+    console.error("[notifyDriverTripReviewed]", error);
+  }
+}

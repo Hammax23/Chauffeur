@@ -809,26 +809,40 @@ export default function CustomerHomeScreen() {
                     {
                       width: layout.fleetCardW,
                       backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
-                      borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+                      borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
                     },
                     pressed && styles.pressed,
                   ]}
                 >
-                  <View
-                    style={[
-                      styles.fleetImageWrap,
-                      { backgroundColor: isDark ? "#2C2C2E" : "#F3F3F5" },
-                    ]}
+                  <LinearGradient
+                    colors={
+                      isDark
+                        ? ["#2A2622", "#1A1816", "#121110"]
+                        : ["#2C2926", "#1B1917", "#12100E"]
+                    }
+                    locations={[0, 0.55, 1]}
+                    start={{ x: 0.15, y: 0 }}
+                    end={{ x: 0.85, y: 1 }}
+                    style={styles.fleetImageWrap}
                   >
+                    <LinearGradient
+                      colors={["rgba(201,160,99,0.18)", "transparent"]}
+                      start={{ x: 0.5, y: 0 }}
+                      end={{ x: 0.5, y: 0.55 }}
+                      style={styles.fleetStageGlow}
+                      pointerEvents="none"
+                    />
                     <Image
                       source={{ uri: v.imageUrl }}
                       style={styles.fleetImage}
                       resizeMode="contain"
                     />
-                  </View>
+                    <View style={styles.fleetGroundShadow} pointerEvents="none" />
+                    <View style={styles.fleetStageEdge} pointerEvents="none" />
+                  </LinearGradient>
                   <Text
                     style={[styles.fleetName, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]}
-                    numberOfLines={2}
+                    numberOfLines={1}
                   >
                     {v.title}
                   </Text>
@@ -1468,28 +1482,62 @@ const styles = StyleSheet.create({
   },
   fleetCard: {
     borderRadius: 14,
-    padding: 8,
+    padding: 6,
+    paddingBottom: 8,
     marginRight: 10,
     borderWidth: StyleSheet.hairlineWidth,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+      },
+      android: { elevation: 2 },
+    }),
   },
   fleetImageWrap: {
     borderRadius: 10,
-    height: 96,
-    marginBottom: 8,
+    height: 100,
+    marginBottom: 6,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
   },
+  fleetStageGlow: {
+    ...StyleSheet.absoluteFillObject,
+  },
   fleetImage: {
-    width: "92%",
-    height: 78,
+    width: "94%",
+    height: 72,
+    zIndex: 1,
+  },
+  fleetGroundShadow: {
+    position: "absolute",
+    bottom: 10,
+    alignSelf: "center",
+    width: "58%",
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    opacity: 0.55,
+    transform: [{ scaleX: 1.05 }],
+  },
+  fleetStageEdge: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: StyleSheet.hairlineWidth * 2,
+    backgroundColor: "rgba(201,160,99,0.35)",
   },
   fleetName: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: "600",
-    lineHeight: 17,
-    letterSpacing: -0.1,
+    lineHeight: 16,
+    letterSpacing: -0.15,
     paddingHorizontal: 2,
+    marginTop: 0,
   },
   pressed: {
     opacity: 0.92,

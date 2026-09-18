@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma";
 import {
   APP_DEFAULT_GRATUITY_PERCENT,
   calculateAppDistanceFare,
+  calculateAppHourlyFare,
   type ReservationPricingResult,
 } from "@/lib/reservation-pricing";
 
@@ -13,15 +14,16 @@ export type AppReservationFareInput = {
   childSeats?: unknown;
   gratuityPercent?: unknown;
   pickupLocation?: unknown;
+  bookingMode?: unknown;
+  hourlyDuration?: unknown;
 };
 
 export async function resolveAppReservationFare(
   input: AppReservationFareInput
 ): Promise<{ pricing: ReservationPricingResult } | { error: string }> {
-  const meters = Number(input.distanceMeters) || 0;
-  if (meters <= 0) {
-    return { error: "Valid trip distance is required" };
-  }
+  const bookingMode = String(input.bookingMode || "distance").toLowerCase() === "hourly"
+    ? "hourly"
+    : "distance";
 
   const vehicleId = typeof input.vehicleId === "string" ? input.vehicleId.trim() : "";
   const vehicleTitle = typeof input.vehicle === "string" ? input.vehicle.trim() : "";
@@ -71,11 +73,39 @@ export async function resolveAppReservationFare(
   const { getPricingConfig } = await import("@/lib/get-pricing-config");
   const { charges } = await getPricingConfig();
   vehicleBaseKm = charges.baseDistanceKm;
-  vehicleExtraRate =
-    pricePerKm > 0 ? pricePerKm : charges.extraKmRate;
+  vehicleExtraRate = pricePerKm > 0 ? pricePerKm : charges.extraKmRate;
   const hasStop = typeof input.stops === "string" && input.stops.trim().length >= 3;
   const pickupLocation =
     typeof input.pickupLocation === "string" ? input.pickupLocation : "";
+  const gratuityPercent = (() => {
+    const n = Number(input.gratuityPercent);
+    return Number.isFinite(n) && n >= 0 ? n : APP_DEFAULT_GRATUITY_PERCENT;
+  })();
+  const childSeatCount = Number(input.childSeats) || 0;
+
+  if (bookingMode === "hourly") {
+    if (hourlyRate <= 0) {
+      return { error: "This vehicle is not available for hourly booking" };
+    }
+    const hours = Math.max(3, Math.floor(Number(input.hourlyDuration) || 3));
+    const pricing = calculateAppHourlyFare({
+      hours,
+      hourlyRate,
+      hasStop,
+      childSeatCount,
+      gratuityPercent,
+      pickupLocation,
+    });
+    if (!pricing) {
+      return { error: "Unable to calculate hourly fare" };
+    }
+    return { pricing };
+  }
+
+  const meters = Number(input.distanceMeters) || 0;
+  if (meters <= 0) {
+    return { error: "Valid trip distance is required" };
+  }
 
   const pricing = calculateAppDistanceFare({
     distanceMeters: meters,
@@ -84,11 +114,8 @@ export async function resolveAppReservationFare(
     baseDistanceKm: vehicleBaseKm,
     extraKmRate: vehicleExtraRate,
     hasStop,
-    childSeatCount: Number(input.childSeats) || 0,
-    gratuityPercent: (() => {
-      const n = Number(input.gratuityPercent);
-      return Number.isFinite(n) && n >= 0 ? n : APP_DEFAULT_GRATUITY_PERCENT;
-    })(),
+    childSeatCount,
+    gratuityPercent,
     pickupLocation,
   });
 

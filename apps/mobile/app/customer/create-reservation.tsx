@@ -33,10 +33,14 @@ import {
 } from "../../data/vehicle-tiers";
 import {
   calculateAppDistanceFare,
+  calculateAppHourlyFare,
   APP_DEFAULT_GRATUITY_PERCENT,
+  APP_HOURLY_DURATIONS,
+  APP_MIN_HOURLY_HOURS,
   parseMaxPassengers,
   BASE_DISTANCE_KM,
   EXTRA_KM_RATE,
+  type AppBookingMode,
   type AppDistancePricing,
 } from "../../utils/app-fare";
 import { saveBookingDraft } from "../../services/booking-draft";
@@ -48,6 +52,8 @@ import {
 
 /** Silent default — create UI no longer asks for service type (distance bookings). */
 const DEFAULT_SERVICE_TYPE = "Point-to-Point transportation";
+const HOURLY_SERVICE_TYPE = "Hourly ride";
+const AS_DIRECTED_DROPOFF = "As directed";
 
 function defaultPickupDate(): Date {
   const d = new Date();
@@ -189,6 +195,8 @@ export default function CreateReservationScreen() {
   const consumedVehicleParamRef = useRef(false);
   const pickupAutoFilledRef = useRef(false);
   const [serviceType, setServiceType] = useState(DEFAULT_SERVICE_TYPE);
+  const [bookingMode, setBookingMode] = useState<AppBookingMode>("distance");
+  const [hourlyDuration, setHourlyDuration] = useState<number>(APP_MIN_HOURLY_HOURS);
   const [pickupAddress, setPickupAddress] = useState("");
   /** GPS from "My location" — used as Directions origin so distance/duration stay accurate. */
   const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -214,11 +222,17 @@ export default function CreateReservationScreen() {
   const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
   const [showTierDropdown, setShowTierDropdown] = useState(false);
   const isParcel = isParcelServiceType(serviceType);
+  const isHourly = !isParcel && bookingMode === "hourly";
+  const showDropoff = !isHourly;
 
   const vehicleTiers = useMemo(() => {
     const all = buildVehicleTiersFromAppFleet(fleetVehicles);
-    return isParcel ? filterVehicleTiersForParcel(all) : all;
-  }, [fleetVehicles, isParcel]);
+    const base = isParcel ? filterVehicleTiersForParcel(all) : all;
+    if (isHourly) {
+      return base.filter((t) => t.hourlyRate > 0);
+    }
+    return base;
+  }, [fleetVehicles, isParcel, isHourly]);
 
   const selectedTier = useMemo(
     () => (selectedTierId ? findTierById(vehicleTiers, selectedTierId) : null),
@@ -242,6 +256,21 @@ export default function CreateReservationScreen() {
   const [lastName, setLastName] = useState(user?.lastName || "");
   const [phoneNumber, setPhoneNumber] = useState(user?.phone || "");
   const [email, setEmail] = useState(user?.email || "");
+
+  const setModeDistance = useCallback(() => {
+    setBookingMode("distance");
+    setServiceType((prev) =>
+      isParcelServiceType(prev) ? prev : DEFAULT_SERVICE_TYPE
+    );
+  }, []);
+
+  const setModeHourly = useCallback(() => {
+    setBookingMode("hourly");
+    setServiceType(HOURLY_SERVICE_TYPE);
+    setDropoffAddress("");
+    setRouteSummary(null);
+    setRouteError(null);
+  }, []);
 
   const applyAccountContact = useCallback(() => {
     setFirstName(user?.firstName || "");
@@ -423,10 +452,35 @@ export default function CreateReservationScreen() {
     const key = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : undefined;
     if (!key) return;
     const value = SERVICE_PREFILL_MAP[key];
-    if (value) setServiceType(value);
+    if (!value) return;
+    setServiceType(value);
+    if (key === "hourly" || key === "events" || value === HOURLY_SERVICE_TYPE) {
+      setBookingMode("hourly");
+      setDropoffAddress("");
+    } else {
+      // distance, parcel, airport, corporate, etc.
+      setBookingMode("distance");
+    }
   }, [params.prefill]);
 
+  // Keep selection valid when switching to hourly (only vehicles with hourly rates)
   useEffect(() => {
+    if (vehicleTiers.length === 0) {
+      setSelectedTierId(null);
+      return;
+    }
+    if (!selectedTierId || !vehicleTiers.some((t) => t.id === selectedTierId)) {
+      setSelectedTierId(vehicleTiers[0].id);
+    }
+  }, [vehicleTiers, selectedTierId]);
+
+  useEffect(() => {
+    if (isHourly) {
+      setRouteSummary(null);
+      setRouteError(null);
+      setRouteLoading(false);
+      return;
+    }
     const pickup = pickupAddress.trim();
     const dropoff = dropoffAddress.trim();
     const waypoint =
@@ -493,7 +547,15 @@ export default function CreateReservationScreen() {
       ac.abort();
       setRouteLoading(false);
     };
-  }, [pickupAddress, pickupCoords, dropoffAddress, stopAddress, showStopField, tollRoute]);
+  }, [
+    isHourly,
+    pickupAddress,
+    pickupCoords,
+    dropoffAddress,
+    stopAddress,
+    showStopField,
+    tollRoute,
+  ]);
 
   const serviceDateStr = pickupAt.toLocaleDateString("en-CA");
   const serviceTimeStr = pickupAt.toLocaleTimeString("en-US", {
@@ -512,6 +574,17 @@ export default function CreateReservationScreen() {
    */
   const fareEstimate = useMemo(() => {
     if (!selectedTier) return null;
+    const hasStop = showStopField && stopAddress.trim().length >= 3;
+    if (isHourly) {
+      return calculateAppHourlyFare({
+        hours: hourlyDuration,
+        hourlyRate: selectedTier.hourlyRate,
+        hasStop,
+        childSeatCount,
+        gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
+        pickupLocation: pickupAddress,
+      });
+    }
     const meters = routeSummary?.distanceMeters ?? null;
     if (meters == null || meters <= 0) return null;
     return calculateAppDistanceFare({
@@ -520,13 +593,15 @@ export default function CreateReservationScreen() {
       pricePerKm: selectedTier.pricePerKm,
       baseDistanceKm: selectedTier.baseDistanceKm || distancePricing.baseDistanceKm,
       extraKmRate: selectedTier.extraKmRate || distancePricing.extraKmRate,
-      hasStop: showStopField && stopAddress.trim().length >= 3,
+      hasStop,
       childSeatCount,
       gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
       pickupLocation: pickupAddress,
     });
   }, [
     selectedTier,
+    isHourly,
+    hourlyDuration,
     routeSummary,
     showStopField,
     stopAddress,
@@ -547,9 +622,24 @@ export default function CreateReservationScreen() {
 
   /** Per-tier ride fare for the list (Uber-style price on the right). */
   const tierFareById = useMemo(() => {
-    const meters = routeSummary?.distanceMeters ?? null;
-    if (meters == null || meters <= 0) return {} as Record<string, number>;
     const out: Record<string, number> = {};
+    const hasStop = false;
+    if (isHourly) {
+      for (const tier of vehicleTiers) {
+        const fare = calculateAppHourlyFare({
+          hours: hourlyDuration,
+          hourlyRate: tier.hourlyRate,
+          hasStop,
+          childSeatCount: 0,
+          gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
+          pickupLocation: pickupAddress,
+        });
+        if (fare) out[tier.id] = fare.rideFare;
+      }
+      return out;
+    }
+    const meters = routeSummary?.distanceMeters ?? null;
+    if (meters == null || meters <= 0) return out;
     for (const tier of vehicleTiers) {
       const fare = calculateAppDistanceFare({
         distanceMeters: meters,
@@ -557,7 +647,7 @@ export default function CreateReservationScreen() {
         pricePerKm: tier.pricePerKm,
         baseDistanceKm: tier.baseDistanceKm || distancePricing.baseDistanceKm,
         extraKmRate: tier.extraKmRate || distancePricing.extraKmRate,
-        hasStop: false,
+        hasStop,
         childSeatCount: 0,
         gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
         pickupLocation: pickupAddress,
@@ -565,7 +655,14 @@ export default function CreateReservationScreen() {
       if (fare) out[tier.id] = fare.rideFare;
     }
     return out;
-  }, [vehicleTiers, routeSummary?.distanceMeters, distancePricing, pickupAddress]);
+  }, [
+    vehicleTiers,
+    isHourly,
+    hourlyDuration,
+    routeSummary?.distanceMeters,
+    distancePricing,
+    pickupAddress,
+  ]);
 
   const onDateChange = (event: DateTimePickerEvent, date?: Date) => {
     if (Platform.OS === "android") {
@@ -577,8 +674,35 @@ export default function CreateReservationScreen() {
     if (date) setPickupAt(date);
   };
 
+  const continueDisabled =
+    fleetLoading ||
+    !selectedTier ||
+    !pickupAddress.trim() ||
+    !fareEstimate ||
+    (showDropoff && !dropoffAddress.trim()) ||
+    (!isHourly && (!!routeLoading || !routeSummary?.distanceMeters));
+
+  const continueLabel = (() => {
+    if (fleetLoading) return "Loading vehicles…";
+    if (!selectedTier) {
+      if (isHourly && vehicleTiers.length === 0) return "No hourly vehicles";
+      return "Select a vehicle";
+    }
+    if (!pickupAddress.trim()) return "Enter pickup address";
+    if (showDropoff && !dropoffAddress.trim()) return "Enter drop-off address";
+    if (!isHourly && routeLoading) return "Calculating route…";
+    if (!fareEstimate) {
+      return isHourly ? "Fare unavailable" : "Route needed to continue";
+    }
+    return `Continue · $${fareEstimate.total.toFixed(2)}`;
+  })();
+
   const continueToConfirm = async () => {
-    if (!pickupAddress.trim() || !dropoffAddress.trim()) {
+    if (!pickupAddress.trim()) {
+      Alert.alert("Missing info", "Please enter a pickup address.");
+      return;
+    }
+    if (showDropoff && !dropoffAddress.trim()) {
       Alert.alert("Missing info", "Please enter pickup and drop-off addresses.");
       return;
     }
@@ -604,10 +728,23 @@ export default function CreateReservationScreen() {
       return;
     }
     if (!selectedTier) {
-      Alert.alert("Missing info", "Please wait for the vehicle list to load, then select a vehicle.");
+      Alert.alert(
+        "Missing info",
+        isHourly
+          ? "No vehicles are available for hourly booking right now."
+          : "Please wait for the vehicle list to load, then select a vehicle."
+      );
       return;
     }
-    if (!routeSummary?.distanceMeters || !fareEstimate) {
+    if (isHourly) {
+      if (selectedTier.hourlyRate <= 0 || !fareEstimate) {
+        Alert.alert(
+          "Hourly fare",
+          "This vehicle isn’t available for hourly booking. Try another vehicle or Distance mode."
+        );
+        return;
+      }
+    } else if (!routeSummary?.distanceMeters || !fareEstimate) {
       Alert.alert(
         routeLoading ? "Calculating route" : "Route not ready",
         routeLoading
@@ -635,11 +772,18 @@ export default function CreateReservationScreen() {
       }
     }
 
+    const resolvedDropoff = isHourly
+      ? dropoffAddress.trim() || AS_DIRECTED_DROPOFF
+      : dropoffAddress.trim();
+
     await saveBookingDraft({
       serviceType,
-      pickupAddress,
-      dropoffAddress,
-      stopAddress: showStopField ? stopAddress : "",
+      bookingMode: isHourly ? "hourly" : "distance",
+      hourlyDuration: isHourly ? String(hourlyDuration) : undefined,
+      pickupAddress: pickupAddress.trim(),
+      dropoffAddress: resolvedDropoff,
+      stopAddress:
+        showStopField && stopAddress.trim().length >= 3 ? stopAddress.trim() : "",
       serviceDate: serviceDateStr,
       serviceTime: serviceTimeStr,
       pickupTimeDisplay,
@@ -647,8 +791,9 @@ export default function CreateReservationScreen() {
       vehicle: selectedTier.title,
       vehicleId: selectedTier.id,
       vehicleSubtitle: selectedTier.subtitle,
-      vehiclePrice:
-        selectedTier.hourlyRate > 0
+      vehiclePrice: isHourly
+        ? `$${selectedTier.hourlyRate.toFixed(2)}/hr · ${hourlyDuration}h`
+        : selectedTier.hourlyRate > 0
           ? `From $${selectedTier.hourlyRate.toFixed(2)}`
           : `$${selectedTier.pricePerKm.toFixed(2)}/km`,
       rideFare: String(fareEstimate.rideFare ?? 0),
@@ -656,14 +801,20 @@ export default function CreateReservationScreen() {
       hourlyRate: String(selectedTier.hourlyRate),
       baseDistanceKm: String(selectedTier.baseDistanceKm || distancePricing.baseDistanceKm),
       extraKmRate: String(selectedTier.extraKmRate || distancePricing.extraKmRate),
-      distanceText: routeSummary?.distanceText ?? "",
-      durationText: routeSummary?.durationText ?? "",
-      distanceMeters: String(routeSummary?.distanceMeters ?? ""),
-      durationSeconds: String(routeSummary?.durationSeconds ?? ""),
+      distanceText: isHourly
+        ? `Hourly · ${hourlyDuration}h`
+        : routeSummary?.distanceText ?? "",
+      durationText: isHourly
+        ? `${hourlyDuration} hours`
+        : routeSummary?.durationText ?? "",
+      distanceMeters: isHourly ? "0" : String(routeSummary?.distanceMeters ?? ""),
+      durationSeconds: isHourly
+        ? String(hourlyDuration * 3600)
+        : String(routeSummary?.durationSeconds ?? ""),
       tollRoute: tollRoute ? "Yes" : "No",
       childSeatCount: isParcel ? "0" : String(childSeatCount),
-      firstName,
-      lastName,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
       phoneNumber: bookingPhone,
       email: rideFor === "someone" ? (user?.email || email).trim() : email.trim(),
       rideFor,
@@ -699,7 +850,7 @@ export default function CreateReservationScreen() {
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
-            {isParcel ? "Send a Parcel" : "Create Reservation"}
+            {isParcel ? "Send a Parcel" : isHourly ? "Hourly Reservation" : "Create Reservation"}
           </Text>
           <View style={{ width: 60 }} />
         </View>
@@ -724,6 +875,48 @@ export default function CreateReservationScreen() {
               <Ionicons name="cube-outline" size={16} color="#D4A04A" />
               <Text style={styles.parcelBannerText}>Parcel Delivery · same-day chauffeur</Text>
             </View>
+          ) : (
+            <View style={styles.modeToggle} accessibilityRole="tablist">
+              <TouchableOpacity
+                style={[styles.modeToggleBtn, !isHourly && styles.modeToggleBtnActive]}
+                onPress={setModeDistance}
+                activeOpacity={0.85}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: !isHourly }}
+                accessibilityLabel="Distance booking"
+              >
+                <Ionicons
+                  name="navigate-outline"
+                  size={15}
+                  color={!isHourly ? "#fff" : "#64748b"}
+                />
+                <Text style={[styles.modeToggleText, !isHourly && styles.modeToggleTextActive]}>
+                  Distance
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modeToggleBtn, isHourly && styles.modeToggleBtnActive]}
+                onPress={setModeHourly}
+                activeOpacity={0.85}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: isHourly }}
+                accessibilityLabel="Hourly booking"
+              >
+                <Ionicons
+                  name="time-outline"
+                  size={15}
+                  color={isHourly ? "#fff" : "#64748b"}
+                />
+                <Text style={[styles.modeToggleText, isHourly && styles.modeToggleTextActive]}>
+                  Hourly
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {!isParcel && isHourly ? (
+            <Text style={styles.modeHint}>
+              Chauffeur as directed · {APP_MIN_HOURLY_HOURS}h minimum · priced by the hour
+            </Text>
           ) : null}
 
           {/* Pickup Address */}
@@ -764,14 +957,62 @@ export default function CreateReservationScreen() {
             <Text style={styles.pickupHint}>{pickupLocationHint}</Text>
           ) : null}
 
-          {/* Dropoff Address */}
-          <Text style={styles.inputLabel}>Dropoff Address</Text>
-          <GooglePlacesAddressField
-            value={dropoffAddress}
-            onChangeText={setDropoffAddress}
-            placeholder="Search destination"
-            iconName="location-outline"
-          />
+          {/* Dropoff Address — required for distance / parcel; hourly is as-directed */}
+          {showDropoff ? (
+            <>
+              <Text style={styles.inputLabel}>Dropoff Address</Text>
+              <GooglePlacesAddressField
+                value={dropoffAddress}
+                onChangeText={setDropoffAddress}
+                placeholder="Search destination"
+                iconName="location-outline"
+              />
+            </>
+          ) : (
+            <View style={styles.asDirectedCard}>
+              <View style={styles.asDirectedIcon}>
+                <Ionicons name="compass-outline" size={18} color="#D4A04A" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.asDirectedTitle}>Drop-off · As directed</Text>
+                <Text style={styles.asDirectedSub}>
+                  Your chauffeur stays with you for the booked hours
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {isHourly ? (
+            <>
+              <Text style={styles.inputLabel}>Duration</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                nestedScrollEnabled
+                contentContainerStyle={styles.hoursRow}
+                style={styles.hoursScroll}
+              >
+                {APP_HOURLY_DURATIONS.map((h) => {
+                  const active = hourlyDuration === h;
+                  return (
+                    <TouchableOpacity
+                      key={h}
+                      style={[styles.hourChip, active && styles.hourChipActive]}
+                      onPress={() => setHourlyDuration(h)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[styles.hourChipValue, active && styles.hourChipValueActive]}>
+                        {h}
+                      </Text>
+                      <Text style={[styles.hourChipUnit, active && styles.hourChipUnitActive]}>
+                        hrs
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </>
+          ) : null}
 
           {/* Add Stop */}
           <TouchableOpacity 
@@ -857,7 +1098,9 @@ export default function CreateReservationScreen() {
           <Text style={styles.sectionSubtitle}>
             {isParcel
               ? "Assigned vehicle for parcel delivery"
-              : "Choose your ride category"}
+              : isHourly
+                ? "Vehicles with hourly rates · fare updates with duration"
+                : "Choose your ride category"}
           </Text>
 
           {!isParcel ? <Text style={styles.inputLabel}>Select Car</Text> : null}
@@ -913,7 +1156,9 @@ export default function CreateReservationScreen() {
                   ) : (
                     <Text style={styles.carPriceText} numberOfLines={1}>
                       {selectedTier.hourlyRate > 0
-                        ? `From $${selectedTier.hourlyRate.toFixed(0)}`
+                        ? isHourly
+                          ? `$${selectedTier.hourlyRate.toFixed(0)}/hr`
+                          : `From $${selectedTier.hourlyRate.toFixed(0)}`
                         : `$${selectedTier.pricePerKm.toFixed(2)}/km`}
                     </Text>
                   )}
@@ -988,7 +1233,9 @@ export default function CreateReservationScreen() {
                                   {tierFare != null
                                     ? `$${tierFare.toFixed(2)}`
                                     : tier.hourlyRate > 0
-                                      ? `From $${tier.hourlyRate.toFixed(0)}`
+                                      ? isHourly
+                                        ? `$${tier.hourlyRate.toFixed(0)}/hr`
+                                        : `From $${tier.hourlyRate.toFixed(0)}`
                                       : `$${tier.pricePerKm.toFixed(2)}/km`}
                                 </Text>
                                 <View
@@ -1012,7 +1259,11 @@ export default function CreateReservationScreen() {
               ) : null}
             </>
           ) : (
-            <Text style={styles.fleetErrorText}>No vehicles available.</Text>
+            <Text style={styles.fleetErrorText}>
+              {isHourly
+                ? "No vehicles with hourly rates are available. Switch to Distance, or try again later."
+                : "No vehicles available."}
+            </Text>
           )}
 
           {/* Passengers + Child Seat — rides only */}
@@ -1121,93 +1372,127 @@ export default function CreateReservationScreen() {
           )}
         </View>
 
-        {/* Map Preview — static Google Map image of the booked route with labelled markers */}
+        {/* Map Preview — distance route, or hourly as-directed card */}
         <View style={styles.mapContainer}>
-          <View style={styles.mapImageWrap}>
-            {routeSummary?.mapImageUrl ? (
-              <Image
-                source={{ uri: routeSummary.mapImageUrl }}
-                style={styles.mapImage}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={styles.mapPlaceholder}>
-                <Ionicons name="map-outline" size={28} color="#94a3b8" />
-                <Text style={styles.mapPlaceholderText}>
-                  {pickupAddress.trim().length < 8 || dropoffAddress.trim().length < 8
-                    ? "Enter pickup & drop-off to preview the route"
-                    : routeLoading
-                      ? "Calculating route…"
-                      : routeError
-                        ? "Route preview unavailable"
-                        : "Route will appear here"}
+          {isHourly ? (
+            <View style={styles.hourlyHero}>
+              <View style={styles.hourlyHeroBadge}>
+                <Ionicons name="time" size={16} color="#1a1208" />
+                <Text style={styles.hourlyHeroBadgeText}>Hourly</Text>
+              </View>
+              <Text style={styles.hourlyHeroHours}>{hourlyDuration}</Text>
+              <Text style={styles.hourlyHeroHoursLabel}>hours reserved</Text>
+              {selectedTier && fareEstimate ? (
+                <Text style={styles.hourlyHeroFare}>
+                  ${selectedTier.hourlyRate.toFixed(0)}/hr · ride ${fareEstimate.rideFare.toFixed(2)}
                 </Text>
-              </View>
-            )}
-            {routeLoading && routeSummary?.mapImageUrl ? (
-              <View style={styles.mapImageLoadingOverlay} pointerEvents="none">
-                <ActivityIndicator size="small" color="#D4A04A" />
-              </View>
-            ) : null}
-          </View>
-
-          {/* A / B / (C) legend */}
-          {routeSummary && routeSummary.pointCount >= 2 ? (
-            <View style={styles.mapLegend}>
-              <View style={styles.mapLegendItem}>
-                <View style={styles.mapLegendDot}>
-                  <Text style={styles.mapLegendDotText}>A</Text>
-                </View>
-                <Text style={styles.mapLegendLabel}>From</Text>
-                <Text style={styles.mapLegendText} numberOfLines={1}>
-                  {pickupAddress || "—"}
+              ) : (
+                <Text style={styles.hourlyHeroFare}>Select a vehicle to see your fare</Text>
+              )}
+              <Text style={styles.hourlyHeroHint} numberOfLines={2}>
+                {pickupAddress.trim()
+                  ? `From ${pickupAddress.trim()}`
+                  : "Add pickup — destination as directed"}
+              </Text>
+              {fareEstimate ? (
+                <Text style={styles.hourlyHeroTaxNote}>
+                  Est. ${fareEstimate.total.toFixed(2)} incl. HST · tip on next step
                 </Text>
-              </View>
-              {routeSummary.pointCount >= 3 ? (
-                <View style={styles.mapLegendItem}>
-                  <View style={styles.mapLegendDot}>
-                    <Text style={styles.mapLegendDotText}>B</Text>
+              ) : null}
+            </View>
+          ) : (
+            <>
+              <View style={styles.mapImageWrap}>
+                {routeSummary?.mapImageUrl ? (
+                  <Image
+                    source={{ uri: routeSummary.mapImageUrl }}
+                    style={styles.mapImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.mapPlaceholder}>
+                    <Ionicons name="map-outline" size={28} color="#94a3b8" />
+                    <Text style={styles.mapPlaceholderText}>
+                      {pickupAddress.trim().length < 8 || dropoffAddress.trim().length < 8
+                        ? "Enter pickup & drop-off to preview the route"
+                        : routeLoading
+                          ? "Calculating route…"
+                          : routeError
+                            ? "Route preview unavailable"
+                            : "Route will appear here"}
+                    </Text>
                   </View>
-                  <Text style={styles.mapLegendLabel}>Stop</Text>
-                  <Text style={styles.mapLegendText} numberOfLines={1}>
-                    {stopAddress || "—"}
-                  </Text>
+                )}
+                {routeLoading && routeSummary?.mapImageUrl ? (
+                  <View style={styles.mapImageLoadingOverlay} pointerEvents="none">
+                    <ActivityIndicator size="small" color="#D4A04A" />
+                  </View>
+                ) : null}
+              </View>
+
+              {/* A / B / (C) legend */}
+              {routeSummary && routeSummary.pointCount >= 2 ? (
+                <View style={styles.mapLegend}>
+                  <View style={styles.mapLegendItem}>
+                    <View style={styles.mapLegendDot}>
+                      <Text style={styles.mapLegendDotText}>A</Text>
+                    </View>
+                    <Text style={styles.mapLegendLabel}>From</Text>
+                    <Text style={styles.mapLegendText} numberOfLines={1}>
+                      {pickupAddress || "—"}
+                    </Text>
+                  </View>
+                  {routeSummary.pointCount >= 3 ? (
+                    <View style={styles.mapLegendItem}>
+                      <View style={styles.mapLegendDot}>
+                        <Text style={styles.mapLegendDotText}>B</Text>
+                      </View>
+                      <Text style={styles.mapLegendLabel}>Stop</Text>
+                      <Text style={styles.mapLegendText} numberOfLines={1}>
+                        {stopAddress || "—"}
+                      </Text>
+                    </View>
+                  ) : null}
+                  <View style={styles.mapLegendItem}>
+                    <View style={styles.mapLegendDot}>
+                      <Text style={styles.mapLegendDotText}>
+                        {routeSummary.pointCount >= 3 ? "C" : "B"}
+                      </Text>
+                    </View>
+                    <Text style={styles.mapLegendLabel}>To</Text>
+                    <Text style={styles.mapLegendText} numberOfLines={1}>
+                      {dropoffAddress || "—"}
+                    </Text>
+                  </View>
                 </View>
               ) : null}
-              <View style={styles.mapLegendItem}>
-                <View style={styles.mapLegendDot}>
-                  <Text style={styles.mapLegendDotText}>
-                    {routeSummary.pointCount >= 3 ? "C" : "B"}
+
+              {/* Distance & Duration */}
+              <View style={styles.mapInfo}>
+                <View style={styles.mapInfoItem}>
+                  <Text style={styles.mapInfoLabel}>Estimated Distance</Text>
+                  <Text style={styles.mapInfoValue}>
+                    {routeLoading ? "…" : routeSummary?.distanceText ?? "—"}
                   </Text>
                 </View>
-                <Text style={styles.mapLegendLabel}>To</Text>
-                <Text style={styles.mapLegendText} numberOfLines={1}>
-                  {dropoffAddress || "—"}
-                </Text>
+                <View style={styles.mapInfoItem}>
+                  <Text style={styles.mapInfoLabel}>Estimated Duration</Text>
+                  <Text style={styles.mapInfoValue}>
+                    {routeLoading ? "…" : routeSummary?.durationText ?? "—"}
+                  </Text>
+                </View>
               </View>
-            </View>
-          ) : null}
 
-          {/* Distance & Duration */}
-          <View style={styles.mapInfo}>
-            <View style={styles.mapInfoItem}>
-              <Text style={styles.mapInfoLabel}>Estimated Distance</Text>
-              <Text style={styles.mapInfoValue}>{routeLoading ? "…" : routeSummary?.distanceText ?? "—"}</Text>
-            </View>
-            <View style={styles.mapInfoItem}>
-              <Text style={styles.mapInfoLabel}>Estimated Duration</Text>
-              <Text style={styles.mapInfoValue}>{routeLoading ? "…" : routeSummary?.durationText ?? "—"}</Text>
-            </View>
-          </View>
-
-          {routeError ? (
-            <Text style={styles.mapInfoError} numberOfLines={2}>
-              {routeError}
-            </Text>
-          ) : (
-            <Text style={styles.mapInfoFootnote}>
-              Driving directions via Google · Typical time (not live traffic)
-            </Text>
+              {routeError ? (
+                <Text style={styles.mapInfoError} numberOfLines={2}>
+                  {routeError}
+                </Text>
+              ) : (
+                <Text style={styles.mapInfoFootnote}>
+                  Driving directions via Google · Typical time (not live traffic)
+                </Text>
+              )}
+            </>
           )}
         </View>
 
@@ -1386,12 +1671,12 @@ export default function CreateReservationScreen() {
       {/* Continue Button */}
       <View style={styles.bottomContainer}>
         <TouchableOpacity 
-          style={[styles.continueBtn, (fleetLoading || !selectedTier) && styles.continueBtnDisabled]} 
+          style={[styles.continueBtn, continueDisabled && styles.continueBtnDisabled]} 
           activeOpacity={0.9}
           onPress={continueToConfirm}
-          disabled={fleetLoading || !selectedTier}
+          disabled={continueDisabled}
         >
-          <Text style={styles.continueBtnText}>Continue</Text>
+          <Text style={styles.continueBtnText}>{continueLabel}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -1634,6 +1919,172 @@ const styles = StyleSheet.create({
   },
   sectionSubtitleWhenWhere: {
     marginBottom: 4,
+  },
+  modeToggle: {
+    flexDirection: "row",
+    backgroundColor: "#f1f5f9",
+    borderRadius: 12,
+    padding: 4,
+    marginTop: 10,
+    marginBottom: 4,
+    gap: 4,
+  },
+  modeToggleBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: 9,
+  },
+  modeToggleBtnActive: {
+    backgroundColor: "#1a1a1a",
+  },
+  modeToggleText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#64748b",
+    letterSpacing: 0.2,
+  },
+  modeToggleTextActive: {
+    color: "#fff",
+  },
+  modeHint: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: "#64748b",
+    marginTop: 8,
+    marginBottom: 2,
+  },
+  asDirectedCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: "#FFF8E7",
+    borderWidth: 1,
+    borderColor: "rgba(212, 160, 74, 0.28)",
+  },
+  asDirectedIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "rgba(212, 160, 74, 0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  asDirectedTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1a1a1a",
+  },
+  asDirectedSub: {
+    fontSize: 12,
+    color: "#64748b",
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  hoursScroll: {
+    marginTop: 2,
+    marginHorizontal: -4,
+  },
+  hoursRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  hourChip: {
+    minWidth: 56,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    alignItems: "center",
+  },
+  hourChipActive: {
+    backgroundColor: "#1a1a1a",
+    borderColor: "#1a1a1a",
+  },
+  hourChipValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1a1a1a",
+  },
+  hourChipValueActive: {
+    color: "#fff",
+  },
+  hourChipUnit: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: "#94a3b8",
+    marginTop: 1,
+  },
+  hourChipUnitActive: {
+    color: "rgba(255,255,255,0.72)",
+  },
+  hourlyHero: {
+    borderRadius: 16,
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    backgroundColor: "#14110e",
+    overflow: "hidden",
+  },
+  hourlyHeroBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#D4A04A",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginBottom: 14,
+  },
+  hourlyHeroBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#1a1208",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  hourlyHeroHours: {
+    fontSize: 56,
+    fontWeight: "700",
+    color: "#fff",
+    letterSpacing: -1.5,
+    lineHeight: 60,
+  },
+  hourlyHeroHoursLabel: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: "rgba(255,255,255,0.65)",
+    marginTop: 2,
+  },
+  hourlyHeroFare: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#D4A04A",
+    marginTop: 16,
+  },
+  hourlyHeroHint: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.45)",
+    marginTop: 10,
+    textAlign: "center",
+    paddingHorizontal: 12,
+  },
+  hourlyHeroTaxNote: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.38)",
+    marginTop: 8,
+    textAlign: "center",
   },
   placesHint: {
     fontSize: 11,

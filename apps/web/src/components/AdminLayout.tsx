@@ -21,6 +21,7 @@ import {
   Building2,
   Radio,
   Globe,
+  Star,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -32,6 +33,7 @@ const NAV_ITEMS = [
   { href: "/admin/fleet", label: "Fleet Pricing", icon: DollarSign },
   { href: "/admin/app-fleets", label: "App Fleets", icon: Smartphone },
   { href: "/admin/drivers", label: "Drivers", icon: Car },
+  { href: "/admin/trip-reviews", label: "Trip Reviews", icon: Star },
   { href: "/admin/track-drivers", label: "Track Drivers", icon: MapPin },
   { href: "/admin/concierge", label: "Hotel Concierge", icon: Building2 },
   { href: "/admin/operational-managers", label: "Operational Managers", icon: UserCog },

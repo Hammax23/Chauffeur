@@ -34,7 +34,7 @@ export async function GET(
 
     const reservation = await prisma.reservation.findFirst({
       where: { bookingId: id, customerId: tokenData.id },
-      include: { assignedDriver: true },
+      include: { assignedDriver: true, tripReview: true },
     });
 
     if (!reservation) {
@@ -87,6 +87,17 @@ export async function GET(
               rating: reservation.assignedDriver.rating,
             }
           : null,
+        review: reservation.tripReview
+          ? {
+              stars: reservation.tripReview.stars,
+              comment: reservation.tripReview.comment,
+              createdAt: reservation.tripReview.createdAt.toISOString(),
+            }
+          : null,
+        canReview:
+          reservation.status === "DONE" &&
+          !!reservation.assignedDriverId &&
+          !reservation.tripReview,
       },
     });
   } catch (error) {

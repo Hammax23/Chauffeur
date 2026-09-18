@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
         photo: true,
         rating: true,
         totalTrips: true,
+        conciergeProfile: { select: { id: true } },
       },
     });
 
@@ -49,7 +50,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Driver not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, driver });
+    const { conciergeProfile, ...rest } = driver;
+    return NextResponse.json({
+      success: true,
+      driver: {
+        ...rest,
+        conciergeEnrolled: !!conciergeProfile,
+      },
+    });
   } catch (error) {
     console.error("Driver profile error:", error);
     return NextResponse.json({ success: false, error: "Failed to fetch profile" }, { status: 500 });

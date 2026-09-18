@@ -8,6 +8,8 @@ const DRAFT_KEY = "sarj_booking_draft_v1";
 
 export type BookingDraft = {
   serviceType: string;
+  bookingMode?: "distance" | "hourly";
+  hourlyDuration?: string;
   pickupAddress: string;
   dropoffAddress: string;
   stopAddress: string;

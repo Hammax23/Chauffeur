@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -22,6 +22,7 @@ import {
   APP_DEFAULT_GRATUITY_PERCENT,
   APP_GRATUITY_PERCENTS,
   calculateAppDistanceFare,
+  calculateAppHourlyFare,
 } from "../../utils/app-fare";
 import {
   encodeParcelRequirements,
@@ -30,8 +31,8 @@ import {
 
 const SITE = "https://sarjworldwide.ca";
 
-/** Temporary: skip Stripe while we finish testing. Flip to true when live payments go back on. */
-const APP_PAYMENTS_ENABLED = false;
+/** App card checkout via Stripe PaymentSheet (saved cards + Apple Pay when available). */
+const APP_PAYMENTS_ENABLED = true;
 
 export default function ReservationConfirmScreen() {
   const insets = useSafeAreaInsets();
@@ -41,16 +42,31 @@ export default function ReservationConfirmScreen() {
   const [tipModalOpen, setTipModalOpen] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const fareErrorShownRef = useRef(false);
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
 
   useEffect(() => {
     void (async () => {
       const loaded = await loadBookingDraft();
-      if (!loaded?.pickupAddress || !loaded?.dropoffAddress) {
+      const isHourlyDraft = loaded?.bookingMode === "hourly";
+      if (
+        !loaded?.pickupAddress?.trim() ||
+        (!isHourlyDraft && !loaded?.dropoffAddress?.trim())
+      ) {
         Alert.alert("Session expired", "Please create your reservation again.", [
           { text: "OK", onPress: () => router.replace("/customer/create-reservation") },
         ]);
         return;
+      }
+      if (isHourlyDraft) {
+        const rate = parseFloat(loaded.hourlyRate || "0") || 0;
+        const hours = Math.floor(parseFloat(loaded.hourlyDuration || "0") || 0);
+        if (rate <= 0 || hours < 3) {
+          Alert.alert("Booking incomplete", "Please create your hourly reservation again.", [
+            { text: "OK", onPress: () => router.replace("/customer/create-reservation") },
+          ]);
+          return;
+        }
       }
       setDraft(loaded);
       setReady(true);
@@ -63,30 +79,57 @@ export default function ReservationConfirmScreen() {
   const hourlyRate = Math.max(0, parseFloat(draft?.hourlyRate || "0") || 0);
   const baseDistanceKm = Math.max(0, parseFloat(draft?.baseDistanceKm || "17") || 17);
   const extraKmRate = Math.max(0, parseFloat(draft?.extraKmRate || "3.2") || 3.2);
+  const isHourly = draft?.bookingMode === "hourly";
+  const hourlyDuration = Math.max(
+    3,
+    Math.floor(parseFloat(draft?.hourlyDuration || "3") || 3)
+  );
+  const hasStop = (draft?.stopAddress?.trim().length ?? 0) >= 3;
 
   const fare = useMemo(() => {
     if (!draft) return null;
+    if (isHourly) {
+      return calculateAppHourlyFare({
+        hours: hourlyDuration,
+        hourlyRate,
+        hasStop,
+        childSeatCount: childSeats,
+        gratuityPercent,
+        pickupLocation: draft.pickupAddress,
+      });
+    }
     return calculateAppDistanceFare({
       distanceMeters,
       hourlyRate,
       pricePerKm,
       baseDistanceKm,
       extraKmRate,
-      hasStop: !!draft.stopAddress.trim(),
+      hasStop,
       childSeatCount: childSeats,
       gratuityPercent,
       pickupLocation: draft.pickupAddress,
     });
   }, [
     draft,
+    isHourly,
+    hourlyDuration,
     distanceMeters,
     hourlyRate,
     pricePerKm,
     baseDistanceKm,
     extraKmRate,
+    hasStop,
     childSeats,
     gratuityPercent,
   ]);
+
+  useEffect(() => {
+    if (!ready || !draft || fare || fareErrorShownRef.current) return;
+    fareErrorShownRef.current = true;
+    Alert.alert("Fare unavailable", "Please create your reservation again.", [
+      { text: "OK", onPress: () => router.replace("/customer/create-reservation") },
+    ]);
+  }, [ready, draft, fare]);
 
   const dateTimeSummary =
     draft?.pickupTimeDisplay?.trim() ||
@@ -94,6 +137,10 @@ export default function ReservationConfirmScreen() {
 
   const guestName = [draft?.firstName, draft?.lastName].filter(Boolean).join(" ").trim();
   const isParcel = isParcelServiceType(draft?.serviceType);
+  const dropoffDisplay =
+    draft?.dropoffAddress?.trim() || (isHourly ? "As directed" : "—");
+  const isAsDirected =
+    isHourly && dropoffDisplay.toLowerCase() === "as directed";
 
   const handleSubmit = async () => {
     if (!draft || !fare) return;
@@ -120,13 +167,21 @@ export default function ReservationConfirmScreen() {
           vehicleId: draft.vehicleId,
           childSeats,
           pickupLocation: draft.pickupAddress,
-          stops: draft.stopAddress || undefined,
-          distanceMeters,
+          stops: hasStop ? draft.stopAddress : undefined,
+          distanceMeters: isHourly ? undefined : distanceMeters,
           gratuityPercent: fare.gratuityPercent,
           email: draft.email,
+          bookingMode: isHourly ? "hourly" : "distance",
+          hourlyDuration: isHourly ? hourlyDuration : undefined,
         });
 
-        if (!intent.success || !intent.clientSecret || !intent.paymentIntentId) {
+        if (
+          !intent.success ||
+          !intent.clientSecret ||
+          !intent.paymentIntentId ||
+          !intent.customerId ||
+          !intent.ephemeralKeySecret
+        ) {
           Alert.alert("Payment", intent.error || "Could not start payment. Please try again.");
           return;
         }
@@ -134,15 +189,28 @@ export default function ReservationConfirmScreen() {
         const { error: initError } = await initPaymentSheet({
           merchantDisplayName: "SARJ Worldwide",
           paymentIntentClientSecret: intent.clientSecret,
+          customerId: intent.customerId,
+          customerEphemeralKeySecret: intent.ephemeralKeySecret,
+          allowsDelayedPaymentMethods: false,
           defaultBillingDetails: {
             name: guestName || undefined,
             email: draft.email || undefined,
             phone: draft.phoneNumber || undefined,
           },
           returnURL: "sarjworldwide://stripe-redirect",
+          appearance: {
+            colors: {
+              primary: "#C9A063",
+            },
+          },
         });
         if (initError) {
-          Alert.alert("Payment", initError.message || "Could not open card payment.");
+          Alert.alert(
+            "Payment",
+            initError.message?.includes("publishable")
+              ? "Payments are not configured on this build. Please update the app or try again later."
+              : initError.message || "Could not open secure checkout."
+          );
           return;
         }
 
@@ -166,13 +234,15 @@ export default function ReservationConfirmScreen() {
         serviceDate: draft.serviceDate,
         serviceTime: draft.serviceTime,
         pickupLocation: draft.pickupAddress,
-        stops: draft.stopAddress || undefined,
-        dropoffLocation: draft.dropoffAddress,
+        stops: hasStop ? draft.stopAddress : undefined,
+        dropoffLocation: dropoffDisplay,
         distance: draft.distanceText || "—",
         duration: draft.durationText || "—",
-        distanceMeters,
+        distanceMeters: isHourly ? undefined : distanceMeters,
         pricePerKm,
         gratuityPercent: fare.gratuityPercent,
+        bookingMode: isHourly ? "hourly" : "distance",
+        hourlyDuration: isHourly ? hourlyDuration : undefined,
         specialRequirements,
         firstName: draft.firstName,
         lastName: draft.lastName,
@@ -249,29 +319,45 @@ export default function ReservationConfirmScreen() {
         <Text style={styles.pageTitle}>Review & confirm</Text>
         <Text style={styles.pageSubtitle}>
           {APP_PAYMENTS_ENABLED
-            ? "Confirm trip details and pay by card."
+            ? isHourly
+              ? "Confirm your hourly booking and pay securely. Saved cards and Apple Pay appear when available."
+              : "Confirm trip details and pay securely. Saved cards and Apple Pay appear when available."
             : "Confirm trip details. Card payment is temporarily unavailable."}
         </Text>
 
         <View style={styles.card}>
+          {!isParcel ? (
+            <View style={styles.modeBadgeRow}>
+              <View style={[styles.modeBadge, isHourly && styles.modeBadgeHourly]}>
+                <Ionicons
+                  name={isHourly ? "time-outline" : "navigate-outline"}
+                  size={13}
+                  color={isHourly ? "#1a1208" : "#334155"}
+                />
+                <Text style={[styles.modeBadgeText, isHourly && styles.modeBadgeTextHourly]}>
+                  {isHourly ? `Hourly · ${hourlyDuration} hours` : "Distance"}
+                </Text>
+              </View>
+            </View>
+          ) : null}
           <View style={styles.routeBlock}>
             <View style={styles.routeRail}>
               <View style={styles.routeDotStart} />
               <View style={styles.routeLine} />
-              {draft.stopAddress.trim() ? (
+              {hasStop ? (
                 <>
                   <View style={styles.routeDotStop} />
                   <View style={styles.routeLine} />
                 </>
               ) : null}
-              <View style={styles.routeDotEnd} />
+              <View style={[styles.routeDotEnd, isAsDirected && styles.routeDotAsDirected]} />
             </View>
             <View style={styles.routeCopy}>
               <View style={styles.routeItem}>
                 <Text style={styles.routeLabel}>Pickup</Text>
                 <Text style={styles.routeValue}>{draft.pickupAddress || "—"}</Text>
               </View>
-              {draft.stopAddress.trim() ? (
+              {hasStop ? (
                 <View style={styles.routeItem}>
                   <Text style={styles.routeLabel}>Stop</Text>
                   <Text style={styles.routeValue}>{draft.stopAddress}</Text>
@@ -279,7 +365,11 @@ export default function ReservationConfirmScreen() {
               ) : null}
               <View style={styles.routeItem}>
                 <Text style={styles.routeLabel}>Drop-off</Text>
-                <Text style={styles.routeValue}>{draft.dropoffAddress || "—"}</Text>
+                <Text
+                  style={[styles.routeValue, isAsDirected && styles.routeValueMuted]}
+                >
+                  {isAsDirected ? "As directed by you" : dropoffDisplay}
+                </Text>
               </View>
             </View>
           </View>
@@ -303,6 +393,15 @@ export default function ReservationConfirmScreen() {
                 </Text>
               </View>
             </View>
+            {isHourly ? (
+              <View style={styles.metaItem}>
+                <Ionicons name="time-outline" size={15} color="#64748b" />
+                <View style={styles.metaTextWrap}>
+                  <Text style={styles.metaLabel}>Duration</Text>
+                  <Text style={styles.metaValue}>{hourlyDuration} hours</Text>
+                </View>
+              </View>
+            ) : null}
             <View style={styles.metaItem}>
               <Ionicons name={isParcel ? "cube-outline" : "people-outline"} size={15} color="#64748b" />
               <View style={styles.metaTextWrap}>
@@ -354,7 +453,7 @@ export default function ReservationConfirmScreen() {
             ) : null}
           </View>
 
-          {(draft.distanceText || draft.durationText) && (
+          {!isHourly && (draft.distanceText || draft.durationText) ? (
             <View style={styles.routeStats}>
               {draft.distanceText ? (
                 <Text style={styles.routeStatText}>{draft.distanceText}</Text>
@@ -366,12 +465,19 @@ export default function ReservationConfirmScreen() {
                 <Text style={styles.routeStatText}>{draft.durationText}</Text>
               ) : null}
             </View>
-          )}
+          ) : null}
         </View>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Fare summary</Text>
-          {fare.km > 0 ? (
+          {isHourly ? (
+            <View style={styles.fareRow}>
+              <Text style={styles.fareLabel}>Hourly</Text>
+              <Text style={styles.fareValue}>
+                ${hourlyRate.toFixed(2)}/hr × {hourlyDuration}h
+              </Text>
+            </View>
+          ) : fare.km > 0 ? (
             <View style={styles.fareRow}>
               <Text style={styles.fareLabel}>Distance</Text>
               <Text style={styles.fareValue}>
@@ -489,7 +595,7 @@ export default function ReservationConfirmScreen() {
                   !APP_PAYMENTS_ENABLED && styles.paymentDisabledBadgeText,
                 ]}
               >
-                {APP_PAYMENTS_ENABLED ? "Pay by card" : "Unavailable"}
+                {APP_PAYMENTS_ENABLED ? "Pay securely" : "Unavailable"}
               </Text>
             </View>
           </View>
@@ -500,9 +606,26 @@ export default function ReservationConfirmScreen() {
           </Text>
           <Text style={styles.paymentNote}>
             {APP_PAYMENTS_ENABLED
-              ? "Your card is charged now for the fare, tax, and tip shown above. You will receive a Stripe receipt after a successful payment."
+              ? "Your card is charged now for the fare, tax, and tip shown above. Cards are encrypted by Stripe — SARJ never sees your full card number. You will receive a receipt after payment."
               : "Card checkout is temporarily disabled for testing. Your reservation will be created without charging a card."}
           </Text>
+          {APP_PAYMENTS_ENABLED ? (
+            <View style={styles.paymentTrustRow}>
+              <Ionicons name="shield-checkmark-outline" size={14} color="#2e7d32" />
+              <Text style={styles.paymentTrustText}>Secured by Stripe · PCI compliant</Text>
+            </View>
+          ) : null}
+          {APP_PAYMENTS_ENABLED ? (
+            <Pressable
+              onPress={() => router.push("/customer/payment-methods")}
+              style={styles.manageCardsBtn}
+              hitSlop={6}
+            >
+              <Ionicons name="wallet-outline" size={14} color="#0f172a" />
+              <Text style={styles.manageCardsText}>Manage saved cards</Text>
+              <Ionicons name="chevron-forward" size={14} color="#94a3b8" />
+            </Pressable>
+          ) : null}
         </View>
 
         <View style={styles.notesCard}>
@@ -687,6 +810,32 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   cardTitle: { fontSize: 15, fontWeight: "700", color: "#0f172a", marginBottom: 10 },
+  modeBadgeRow: {
+    marginBottom: 12,
+  },
+  modeBadge: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "#f1f5f9",
+  },
+  modeBadgeHourly: {
+    backgroundColor: "#F5E6C8",
+  },
+  modeBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#334155",
+    letterSpacing: 0.2,
+  },
+  modeBadgeTextHourly: {
+    color: "#1a1208",
+    fontWeight: "700",
+  },
   routeBlock: { flexDirection: "row", marginBottom: 14 },
   routeRail: { width: 16, alignItems: "center", paddingTop: 4 },
   routeDotStart: {
@@ -707,11 +856,20 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: "#0f172a",
   },
+  routeDotAsDirected: {
+    borderRadius: 5,
+    backgroundColor: "#C9A063",
+  },
   routeLine: { width: 2, flex: 1, backgroundColor: "#e2e8f0", marginVertical: 4 },
   routeCopy: { flex: 1, paddingLeft: 10, gap: 12 },
   routeItem: {},
   routeLabel: { fontSize: 11, fontWeight: "600", color: "#94a3b8", marginBottom: 2 },
   routeValue: { fontSize: 14, color: "#0f172a", lineHeight: 20 },
+  routeValueMuted: {
+    color: "#64748b",
+    fontStyle: "italic",
+    fontWeight: "500",
+  },
   metaGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   metaItem: {
     width: "47%",
@@ -906,6 +1064,35 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   paymentNote: { fontSize: 13, color: "#64748b", lineHeight: 19 },
+  paymentTrustRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 12,
+  },
+  paymentTrustText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#2e7d32",
+  },
+  manageCardsBtn: {
+    marginTop: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: "#f8fafc",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#e2e8f0",
+  },
+  manageCardsText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#0f172a",
+  },
   notesCard: {
     backgroundColor: "#f8fafc",
     borderRadius: 12,

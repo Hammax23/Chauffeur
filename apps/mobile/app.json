@@ -20,7 +20,7 @@
       "supportsTablet": true,
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.sarjworldwide.chauffeur",
-      "buildNumber": "42",
+      "buildNumber": "43",
       "entitlements": {
         "com.apple.developer.applesignin": [
           "Default"

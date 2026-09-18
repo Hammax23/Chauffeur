@@ -47,12 +47,20 @@ function mergeLiveIntoReservation(prev: Reservation, live: ReservationLiveData):
         rating: live.driver.rating ?? 0,
       }
     : null;
+  const nextDriver = driver ?? prev.driver;
+  const status = live.status;
   return {
     ...prev,
-    status: live.status,
+    status,
     statusUpdatedAt: live.statusUpdatedAt ?? prev.statusUpdatedAt,
     completedAt: live.completedAt ?? prev.completedAt,
-    driver: driver ?? prev.driver,
+    driver: nextDriver,
+    canReview:
+      status === "DONE" && !!nextDriver && !prev.review
+        ? true
+        : status === "DONE" && !!prev.review
+          ? false
+          : prev.canReview,
   };
 }
 
@@ -481,6 +489,50 @@ export default function ReservationsScreen() {
                       </View>
                     ) : null}
 
+                    {reservation.status === "DONE" && reservation.driver ? (
+                      reservation.review ? (
+                        <View style={styles.reviewedRow}>
+                          <View style={styles.reviewedStars}>
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <Ionicons
+                                key={n}
+                                name={n <= (reservation.review?.stars ?? 0) ? "star" : "star-outline"}
+                                size={14}
+                                color={GOLD}
+                              />
+                            ))}
+                          </View>
+                          <Text style={[styles.reviewedText, { color: palette.muted }]}>
+                            You rated this trip
+                          </Text>
+                          <Pressable
+                            onPress={() =>
+                              router.push({
+                                pathname: "/customer/rate-driver",
+                                params: { bookingId: reservation.bookingId },
+                              })
+                            }
+                            hitSlop={8}
+                          >
+                            <Text style={styles.reviewedEdit}>Edit</Text>
+                          </Pressable>
+                        </View>
+                      ) : (
+                        <Pressable
+                          style={({ pressed }) => [styles.rateBtn, pressed && styles.pressed]}
+                          onPress={() =>
+                            router.push({
+                              pathname: "/customer/rate-driver",
+                              params: { bookingId: reservation.bookingId },
+                            })
+                          }
+                        >
+                          <Ionicons name="star-outline" size={16} color="#1A1208" />
+                          <Text style={styles.rateBtnText}>Rate chauffeur</Text>
+                        </Pressable>
+                      )
+                    ) : null}
+
                     {reservation.status === "PENDING" ? (
                       <Pressable
                         style={({ pressed }) => [
@@ -794,6 +846,42 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
     color: "#1A1208",
+  },
+  rateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 14,
+    paddingVertical: 13,
+    backgroundColor: GOLD,
+    marginBottom: 4,
+  },
+  rateBtnText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#1A1208",
+  },
+  reviewedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+  },
+  reviewedStars: {
+    flexDirection: "row",
+    gap: 2,
+  },
+  reviewedText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  reviewedEdit: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: GOLD,
   },
   emptyState: {
     alignItems: "center",

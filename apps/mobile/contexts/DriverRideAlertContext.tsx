@@ -21,6 +21,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Notifications from "expo-notifications";
 import { useDriverAuth } from "./DriverAuthContext";
+import { isDriverConciergeEnrolled } from "../services/api";
 import {
   parseNotificationData,
   openDriverBookingFromNotification,
@@ -135,8 +136,12 @@ export function DriverRideAlertProvider({ children }: { children: React.ReactNod
     const received = Notifications.addNotificationReceivedListener((notification) => {
       const data = parseNotificationData(notification.request.content.data);
       if (data?.type === "concierge_offer") {
-        if (Platform.OS === "android") Vibration.vibrate([0, 60, 40, 60]);
-        else Vibration.vibrate(60);
+        // Only enrolled Concierge drivers should react to hotel offers.
+        void isDriverConciergeEnrolled().then((enrolled) => {
+          if (!enrolled) return;
+          if (Platform.OS === "android") Vibration.vibrate([0, 60, 40, 60]);
+          else Vibration.vibrate(60);
+        });
         return;
       }
       if (!isRideNotificationType(data?.type)) return;

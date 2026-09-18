@@ -224,6 +224,12 @@ export default function CustomerProfileScreen() {
           <Text style={styles.sectionEyebrow}>ACCOUNT</Text>
           <View style={styles.menuList}>
             <MenuRow
+              label="Payment methods"
+              icon="wallet-outline"
+              onPress={() => router.push("/customer/payment-methods")}
+              {...menuCommon}
+            />
+            <MenuRow
               label="Logout"
               icon="log-out-outline"
               onPress={handleLogout}

@@ -150,6 +150,8 @@ export interface DriverProfile {
   photo: string | null;
   rating: number;
   totalTrips: number;
+  /** True only when admin enrolled this driver in Hotel Concierge network. */
+  conciergeEnrolled?: boolean;
 }
 
 export interface ConciergeProfile {
@@ -454,6 +456,12 @@ export interface Reservation {
   completedAt: string | null;
   createdAt: string;
   driver: ReservationDriver | null;
+  review?: {
+    stars: number;
+    comment: string | null;
+    createdAt: string;
+  } | null;
+  canReview?: boolean;
 }
 
 export interface ApiResponse<T = unknown> {
@@ -951,6 +959,22 @@ export async function getReservationById(bookingId: string) {
   );
 }
 
+export async function submitTripReview(
+  bookingId: string,
+  params: { stars: number; comment?: string }
+) {
+  return apiRequest<{
+    success: boolean;
+    review?: { stars: number; comment: string | null; createdAt: string };
+    driverRating?: number;
+    updated?: boolean;
+    error?: string;
+  }>(`/customer/reservations/${bookingId}/review`, {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
 export async function createReservation(params: {
   serviceType: string;
   vehicle: string;
@@ -968,6 +992,8 @@ export async function createReservation(params: {
   distanceMeters?: number;
   pricePerKm?: number;
   gratuityPercent?: number;
+  bookingMode?: "distance" | "hourly";
+  hourlyDuration?: number;
   airline?: string;
   flightNumber?: string;
   flightNote?: string;
@@ -1006,20 +1032,62 @@ export async function createCustomerPaymentIntent(params: {
   childSeats?: number;
   pickupLocation: string;
   stops?: string;
-  distanceMeters: number;
+  distanceMeters?: number;
   gratuityPercent: number;
   email?: string;
+  bookingMode?: "distance" | "hourly";
+  hourlyDuration?: number;
 }) {
   return apiRequest<{
     success: boolean;
     clientSecret: string;
     paymentIntentId: string;
+    customerId: string;
+    ephemeralKeySecret: string;
     amountCents: number;
     error?: string;
   }>("/customer/create-payment-intent", {
     method: "POST",
     body: JSON.stringify(params),
   });
+}
+
+export type SavedPaymentMethod = {
+  id: string;
+  brand: string;
+  last4: string;
+  expMonth: number | null;
+  expYear: number | null;
+  isDefault: boolean;
+};
+
+export async function getCustomerPaymentMethods() {
+  return apiRequest<{
+    success: boolean;
+    customerId?: string;
+    paymentMethods: SavedPaymentMethod[];
+    error?: string;
+  }>("/customer/payment-methods");
+}
+
+export async function createCustomerSetupIntent() {
+  return apiRequest<{
+    success: boolean;
+    setupIntentClientSecret: string;
+    customerId: string;
+    ephemeralKeySecret: string;
+    error?: string;
+  }>("/customer/payment-methods/setup-intent", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export async function deleteCustomerPaymentMethod(paymentMethodId: string) {
+  return apiRequest<{ success: boolean; error?: string }>(
+    `/customer/payment-methods/${encodeURIComponent(paymentMethodId)}`,
+    { method: "DELETE" }
+  );
 }
 
 export async function getDriverLiveLocation(bookingId: string) {
@@ -1072,7 +1140,27 @@ export interface DriverRide {
   completedAt?: string | null;
   /** Live Auto Mode marketplace offer (not yet assigned). */
   liveOffer?: boolean;
+  /** Customer trip review for this ride (when completed). */
+  review?: {
+    stars: number;
+    comment: string | null;
+    createdAt: string;
+    customerName: string;
+  } | null;
 }
+
+export type DriverTripReviewItem = {
+  id: string;
+  bookingId: string;
+  stars: number;
+  comment: string | null;
+  createdAt: string;
+  customerName: string;
+  serviceDate: string;
+  serviceTime: string;
+  pickupShort: string;
+  dropoffShort: string;
+};
 
 // ==================== DRIVER AUTH API ====================
 
@@ -1119,6 +1207,21 @@ export async function getDriverRideDetail(bookingId: string) {
   return apiRequest<{ success: boolean; ride: DriverRide }>(
     `/driver/rides/${bookingId}`
   );
+}
+
+export async function getDriverReviews(params?: { limit?: number; cursor?: string }) {
+  const q = new URLSearchParams();
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.cursor) q.set("cursor", params.cursor);
+  const qs = q.toString();
+  return apiRequest<{
+    success: boolean;
+    average: number;
+    count: number;
+    nextCursor: string | null;
+    reviews: DriverTripReviewItem[];
+    error?: string;
+  }>(`/driver/reviews${qs ? `?${qs}` : ""}`);
 }
 
 export async function updateRideStatus(bookingId: string, status: string) {
@@ -1437,6 +1540,25 @@ export async function getDriverConciergeRides(tab: "open" | "mine" = "open") {
     openRequests?: ConciergeRide[];
     myRides?: ConciergeRide[];
   }>(`/driver/concierge/rides?tab=${tab}`);
+}
+
+/**
+ * Source of truth for Hotel Concierge UI: admin enroll = ConciergeDriverProfile row.
+ * Prefer live API so enroll/unenroll is reflected without waiting for a stale local profile.
+ */
+export async function isDriverConciergeEnrolled(): Promise<boolean> {
+  try {
+    const res = await getDriverConciergeRides("open");
+    const enrolled = !!res.enrolled;
+    const stored = await getStoredDriver();
+    if (stored && stored.conciergeEnrolled !== enrolled) {
+      await persistDriverProfile({ ...stored, conciergeEnrolled: enrolled });
+    }
+    return enrolled;
+  } catch {
+    const stored = await getStoredDriver();
+    return stored?.conciergeEnrolled === true;
+  }
 }
 
 export async function patchDriverConcierge(

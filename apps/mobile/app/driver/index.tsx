@@ -25,7 +25,7 @@ import { useDriverRideAlertOptional } from "../../contexts/DriverRideAlertContex
 import { useDriverTheme } from "../../contexts/DriverThemeContext";
 import { GOLD } from "../../theme/driver-theme";
 import { SlimSpinner } from "../../components/SlimSpinner";
-import { getDriverRides, acceptRide, rejectRide, DriverRide } from "../../services/api";
+import { getDriverRides, acceptRide, rejectRide, isDriverConciergeEnrolled, DriverRide } from "../../services/api";
 import { dismissPresentedForEntity } from "../../services/notification-deep-link";
 import { syncDriverLiveTracking, syncLiveTrackingFromRideList } from "../../services/driver-live-session";
 import { openDriverStream, type DriverOfferEvent } from "../../services/driver-stream";
@@ -91,6 +91,7 @@ export default function DriverDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [requestCount, setRequestCount] = useState(0);
+  const [conciergeEnrolled, setConciergeEnrolled] = useState(!!driver?.conciergeEnrolled);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const streamRef = useRef<ReturnType<typeof openDriverStream> | null>(null);
   const isFocusedRef = useRef(true);
@@ -106,6 +107,11 @@ export default function DriverDashboard() {
     () => driver?.name?.split(" ")[0] || "Driver",
     [driver?.name]
   );
+
+  useEffect(() => {
+    if (driver?.conciergeEnrolled === true) setConciergeEnrolled(true);
+    else if (driver?.conciergeEnrolled === false) setConciergeEnrolled(false);
+  }, [driver?.conciergeEnrolled]);
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -250,11 +256,21 @@ export default function DriverDashboard() {
     }
   }, [params.tab]);
 
-  // Admin may change name/photo in dashboard — re-fetch profile when this screen is shown
+  // Admin may change name/photo / Concierge enroll — re-fetch when this screen is shown
   useFocusEffect(
     useCallback(() => {
       refreshProfile();
       syncDriverLiveTracking().catch(() => {});
+
+      let cancelled = false;
+      void (async () => {
+        const enrolled = await isDriverConciergeEnrolled();
+        if (!cancelled) setConciergeEnrolled(enrolled);
+      })();
+
+      return () => {
+        cancelled = true;
+      };
     }, [refreshProfile])
   );
 
@@ -530,19 +546,21 @@ export default function DriverDashboard() {
             </BlurView>
 
             <View style={styles.headerRight}>
-              <Pressable
-                onPress={() => router.push("/driver/concierge")}
-                accessibilityLabel="Hotel Concierge"
-                style={({ pressed }) => [styles.glassCircleWrap, pressed && styles.pressed]}
-              >
-                <BlurView
-                  intensity={blurIntensity}
-                  tint={palette.blurTint}
-                  style={[styles.glassCircle, { borderColor: palette.glassBorder }]}
+              {conciergeEnrolled ? (
+                <Pressable
+                  onPress={() => router.push("/driver/concierge")}
+                  accessibilityLabel="Hotel Concierge"
+                  style={({ pressed }) => [styles.glassCircleWrap, pressed && styles.pressed]}
                 >
-                  <Ionicons name="business-outline" size={18} color={GOLD} />
-                </BlurView>
-              </Pressable>
+                  <BlurView
+                    intensity={blurIntensity}
+                    tint={palette.blurTint}
+                    style={[styles.glassCircle, { borderColor: palette.glassBorder }]}
+                  >
+                    <Ionicons name="business-outline" size={18} color={GOLD} />
+                  </BlurView>
+                </Pressable>
+              ) : null}
 
               <Pressable
                 onPress={toggleTheme}
@@ -584,18 +602,23 @@ export default function DriverDashboard() {
             <Text style={[styles.greetingSubtitle, { color: palette.textSecondary }]}>
               {greetingLine(firstName, isActive)}
             </Text>
-            <Pressable
-              onPress={() => router.push("/driver/concierge")}
-              style={({ pressed }) => [
-                styles.conciergeEntry,
-                { borderColor: palette.border, backgroundColor: isDark ? "rgba(212,160,74,0.12)" : "rgba(212,160,74,0.15)" },
-                pressed && styles.pressed,
-              ]}
-            >
-              <Ionicons name="business-outline" size={16} color={GOLD} />
-              <Text style={styles.conciergeEntryText}>Hotel Concierge</Text>
-              <Ionicons name="chevron-forward" size={16} color={GOLD} />
-            </Pressable>
+            {conciergeEnrolled ? (
+              <Pressable
+                onPress={() => router.push("/driver/concierge")}
+                style={({ pressed }) => [
+                  styles.conciergeEntry,
+                  {
+                    borderColor: palette.border,
+                    backgroundColor: isDark ? "rgba(212,160,74,0.12)" : "rgba(212,160,74,0.15)",
+                  },
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Ionicons name="business-outline" size={16} color={GOLD} />
+                <Text style={styles.conciergeEntryText}>Hotel Concierge</Text>
+                <Ionicons name="chevron-forward" size={16} color={GOLD} />
+              </Pressable>
+            ) : null}
           </View>
 
           {/* Tabs */}

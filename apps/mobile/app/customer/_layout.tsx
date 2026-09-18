@@ -58,7 +58,9 @@ export default function CustomerLayout() {
           <Stack.Screen name="reservation-confirm" />
           <Stack.Screen name="reservation-pending" />
           <Stack.Screen name="edit-profile" />
+          <Stack.Screen name="payment-methods" />
           <Stack.Screen name="track-ride" />
+          <Stack.Screen name="rate-driver" />
           <Stack.Screen name="chat" />
         </Stack>
       </CustomerThemeProvider>

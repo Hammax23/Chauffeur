@@ -14,13 +14,14 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { getReservationById, getDriverLiveLocation, Reservation, API_BASE_URL } from "../../services/api";
 import { useReservationStream } from "../../hooks/useReservationStream";
 import type { ReservationStreamStatus } from "../../services/reservation-stream";
 import { isParcelServiceType } from "../../utils/parcel";
+import { wasReviewPrompted, markReviewPrompted } from "../../utils/review-prompt";
 
 // Palette — kept consistent with customer/index.tsx
 const ACCENT = "#C9A063";
@@ -170,6 +171,21 @@ export default function TrackRideScreen() {
     void reload();
   }, [reload]);
 
+  // Soft refresh on focus (e.g. after returning from rate-driver).
+  useFocusEffect(
+    useCallback(() => {
+      if (!bookingId) return;
+      void (async () => {
+        try {
+          const data = await getReservationById(bookingId);
+          if (data.success && data.reservation) setReservation(data.reservation);
+        } catch {
+          /* keep current snapshot */
+        }
+      })();
+    }, [bookingId])
+  );
+
   // 2. Open the realtime SSE channel — server pushes status / driver / GPS.
   const liveBookingId = typeof bookingId === "string" ? bookingId : null;
   const live = useReservationStream(liveBookingId);
@@ -238,6 +254,42 @@ export default function TrackRideScreen() {
       };
     });
   }, [live.data]);
+
+  // Refresh snapshot when trip completes so review / canReview are accurate.
+  useEffect(() => {
+    if (reservation?.status !== "DONE" || !bookingId) return;
+    void (async () => {
+      try {
+        const data = await getReservationById(bookingId);
+        if (data.success && data.reservation) {
+          setReservation(data.reservation);
+        }
+      } catch {
+        /* keep live snapshot */
+      }
+    })();
+  }, [bookingId, reservation?.status]);
+
+  // One-time prompt to rate chauffeur when trip becomes DONE.
+  useEffect(() => {
+    if (!bookingId || !reservation) return;
+    if (reservation.status !== "DONE" || !reservation.driver) return;
+    if (reservation.review) return;
+    let cancelled = false;
+    void (async () => {
+      const prompted = await wasReviewPrompted(bookingId);
+      if (cancelled || prompted) return;
+      await markReviewPrompted(bookingId);
+      if (cancelled) return;
+      router.push({
+        pathname: "/customer/rate-driver",
+        params: { bookingId },
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bookingId, reservation?.status, reservation?.driver, reservation?.review]);
 
   const currentStatus: RideStatus = reservation ? statusFromString(reservation.status) : "pending";
   const currentIndex = getStatusIndex(currentStatus);
@@ -743,6 +795,51 @@ export default function TrackRideScreen() {
               <Text style={styles.connectionHintWarn}>Reconnecting… {live.error}</Text>
             ) : null}
           </View>
+
+          {reservation?.status === "DONE" && reservation.driver ? (
+            <View style={styles.section}>
+              {reservation.review ? (
+                <TouchableOpacity
+                  style={styles.ratedCta}
+                  activeOpacity={0.9}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/customer/rate-driver",
+                      params: { bookingId: reservation.bookingId },
+                    })
+                  }
+                >
+                  <View style={styles.ratedStars}>
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <Ionicons
+                        key={n}
+                        name={n <= (reservation.review?.stars ?? 0) ? "star" : "star-outline"}
+                        size={16}
+                        color={ACCENT_DARK}
+                      />
+                    ))}
+                  </View>
+                  <Text style={styles.ratedCtaText}>You rated this trip · Edit</Text>
+                  <Ionicons name="chevron-forward" size={16} color={ACCENT_DARK} />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.rateCta}
+                  activeOpacity={0.9}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/customer/rate-driver",
+                      params: { bookingId: reservation.bookingId },
+                    })
+                  }
+                >
+                  <Ionicons name="star" size={18} color="#1A1208" />
+                  <Text style={styles.rateCtaText}>Rate your chauffeur</Text>
+                  <Ionicons name="chevron-forward" size={16} color="#1A1208" />
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : null}
 
           <View style={{ height: 24 }} />
         </ScrollView>
@@ -1286,6 +1383,39 @@ const styles = StyleSheet.create({
   journeyMetaCurrent: {
     color: ACCENT_DARK,
     fontWeight: "700",
+  },
+  rateCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: ACCENT,
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+  },
+  rateCtaText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#1A1208",
+  },
+  ratedCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "rgba(201,160,99,0.12)",
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(201,160,99,0.35)",
+  },
+  ratedStars: { flexDirection: "row", gap: 2 },
+  ratedCtaText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
+    color: ACCENT_DARK,
   },
   journeyNowChip: {
     paddingHorizontal: 7,
