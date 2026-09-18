@@ -218,7 +218,14 @@ export default function LoginScreen() {
       if (r.success) {
         await routeAfterCustomerAuth();
       } else {
-        Alert.alert("Google Login Failed", r.error || "Unable to login with Google");
+        const hint =
+          r.tokenAudience != null
+            ? `\n\n(Token audience: ${Array.isArray(r.tokenAudience) ? r.tokenAudience.join(", ") : r.tokenAudience})`
+            : "";
+        Alert.alert(
+          "Google Login Failed",
+          `${r.error || "Unable to login with Google"}${__DEV__ ? hint : ""}`
+        );
       }
     } catch (e: unknown) {
       Alert.alert("Error", e instanceof Error ? e.message : "Google login failed");

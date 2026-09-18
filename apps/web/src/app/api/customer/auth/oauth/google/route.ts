@@ -8,12 +8,39 @@ import { blockedCustomerResponse, isCustomerBlocked } from "@/lib/customer-auth"
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
+/**
+ * Always accept the mobile app's current Google OAuth client IDs (iOS + Web).
+ * VPS env often lags behind app.json / eas.json — missing/old audiences cause
+ * "Sign in with Google failed" after a successful Google UI login.
+ */
+const APP_GOOGLE_CLIENT_IDS = [
+  "339504428086-votguml8g694jfcej359pq7l6j68klcd.apps.googleusercontent.com", // iOS
+  "339504428086-ii7547k8d5fn33rnotbn2al49b7j7mvq.apps.googleusercontent.com", // Web / Expo
+];
+
 function getAllowedAudiences(): string[] {
   const raw =
     process.env.GOOGLE_OAUTH_CLIENT_IDS ||
     process.env.GOOGLE_OAUTH_CLIENT_ID ||
     "";
-  return [...new Set(raw.split(",").map((s) => s.trim()).filter(Boolean))];
+  const fromEnv = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return [...new Set([...fromEnv, ...APP_GOOGLE_CLIENT_IDS])];
+}
+
+/** Peek JWT `aud` without verifying — for clearer logs / client errors only. */
+function peekTokenAudience(idToken: string): string | string[] | null {
+  try {
+    const parts = idToken.split(".");
+    if (parts.length < 2) return null;
+    const json = Buffer.from(parts[1], "base64url").toString("utf8");
+    const payload = JSON.parse(json) as { aud?: string | string[] };
+    return payload.aud ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function issueCustomerJwt(customer: { id: string; email: string }) {
@@ -65,6 +92,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const tokenAudience = peekTokenAudience(idToken);
     const client = new OAuth2Client();
     let payload;
     try {
@@ -76,12 +104,14 @@ export async function POST(req: NextRequest) {
     } catch (err: unknown) {
       console.error("[google-oauth] token verify failed", {
         allowedAud,
+        tokenAudience,
         message: err instanceof Error ? err.message : String(err),
       });
       return NextResponse.json(
         {
           success: false,
           error: "Sign in with Google failed. Please try again or use email login.",
+          tokenAudience,
           ...(process.env.NODE_ENV !== "production"
             ? { allowedAudiences: allowedAud }
             : {}),
