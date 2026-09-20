@@ -121,8 +121,9 @@ function PaymentForm({ disabled, beforeSubmit, onSuccess, onError }: PaymentForm
 
       <button
         type="submit"
+        id="reservation-pay-cta"
         disabled={!stripe || isProcessing || disabled || !elementReady || !!elementError}
-        className="w-full flex items-center justify-center gap-2 bg-[#C9A063] text-white px-6 py-4 rounded-xl text-[16px] font-semibold hover:bg-[#B8935A] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-[#C9A063]/20"
+        className="w-full min-h-12 flex items-center justify-center gap-2 bg-[#C9A063] text-white px-6 py-4 rounded-xl text-[16px] font-semibold hover:bg-[#B8935A] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-[#C9A063]/20"
       >
         {isProcessing ? (
           <>

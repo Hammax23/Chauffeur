@@ -30,7 +30,10 @@ import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import RouteMap from "@/components/RouteMap";
-import PlacesAutocomplete from "@/components/PlacesAutocomplete";
+import PlacesAutocomplete, {
+  PLACES_CLOSE_EVENT,
+  PLACES_OPEN_EVENT,
+} from "@/components/PlacesAutocomplete";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import StripePayment from "@/components/StripePayment";
@@ -71,6 +74,18 @@ function ReservationPageContent() {
   const [countryCode, setCountryCode] = useState(COUNTRY_CODES[0].code);
   const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
   const [mobileMapOpen, setMobileMapOpen] = useState(false);
+  const [placesOpen, setPlacesOpen] = useState(false);
+
+  useEffect(() => {
+    const onOpen = () => setPlacesOpen(true);
+    const onClose = () => setPlacesOpen(false);
+    window.addEventListener(PLACES_OPEN_EVENT, onOpen);
+    window.addEventListener(PLACES_CLOSE_EVENT, onClose);
+    return () => {
+      window.removeEventListener(PLACES_OPEN_EVENT, onOpen);
+      window.removeEventListener(PLACES_CLOSE_EVENT, onClose);
+    };
+  }, []);
   
   // Dynamic location states
   const [bookingMode, setBookingMode] = useState<"distance" | "hourly">("distance");
@@ -900,7 +915,7 @@ function ReservationPageContent() {
                         {isCompleted ? <CheckCircle className="w-4 h-4" /> : step.id}
                       </span>
                       <span
-                        className={`text-[10px] font-semibold leading-tight text-center truncate w-full px-0.5 ${
+                        className={`text-[11px] font-semibold leading-tight text-center truncate w-full px-0.5 ${
                           isCurrent || isCompleted ? "text-[#C9A063]" : "text-gray-400"
                         }`}
                       >
@@ -923,11 +938,11 @@ function ReservationPageContent() {
             
             {/* Form Section */}
             <div className={`lg:col-span-2 ${currentStep === 1 ? "flex" : ""}`}>
-              <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200/80 overflow-hidden w-full h-fit">
+              <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-200/80 overflow-visible w-full h-fit">
                 {currentStep === 1 ? (
                   <div className="px-3.5 sm:px-4 pt-3.5 sm:pt-4 pb-0">
                     <div className="mb-3">
-                      <p className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#C9A063] mb-0.5">
+                      <p className="text-[11px] sm:text-[12px] font-semibold tracking-[0.12em] uppercase text-[#C9A063] mb-0.5">
                         Step 1
                       </p>
                       <h2 className="text-base sm:text-lg font-semibold text-gray-900 tracking-tight leading-tight">
@@ -1000,7 +1015,7 @@ function ReservationPageContent() {
                 ) : (
                   <div className="px-3.5 sm:px-4 pt-3.5 sm:pt-4 pb-0">
                     <div className="mb-1">
-                      <p className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#C9A063] mb-0.5">
+                      <p className="text-[11px] sm:text-[12px] font-semibold tracking-[0.12em] uppercase text-[#C9A063] mb-0.5">
                         Step {currentStep}
                       </p>
                       <h2 className="text-base sm:text-lg font-semibold text-gray-900 tracking-tight leading-tight">
@@ -1025,14 +1040,14 @@ function ReservationPageContent() {
                         <div className="px-3 py-2.5 bg-white">
                           <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <MapPin className="w-3.5 h-3.5 text-[#C9A063] shrink-0" strokeWidth={2} />
-                            <label className="text-[10px] font-semibold text-[#C9A063] uppercase tracking-wider">
+                            <label className="text-[11px] sm:text-[12px] font-semibold text-[#C9A063] uppercase tracking-wider">
                               Pickup
                             </label>
                             <button
                               type="button"
                               onClick={handleGetMyLocation}
                               disabled={locating}
-                              className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold text-[#C9A063] hover:text-[#B8935A] disabled:opacity-60 transition-colors whitespace-nowrap"
+                              className="inline-flex items-center gap-1.5 min-h-11 px-2.5 rounded-md text-[12px] font-semibold text-[#C9A063] hover:text-[#B8935A] hover:bg-[#C9A063]/10 disabled:opacity-60 transition-colors whitespace-nowrap"
                               title="Use your current location"
                             >
                               {locating ? (
@@ -1051,7 +1066,7 @@ function ReservationPageContent() {
                               if (locationError) setLocationError(null);
                             }}
                             placeholder="Address or airport code (e.g. YYZ)"
-                            className="w-full py-0.5 bg-transparent text-[13px] sm:text-[14px] text-gray-900 placeholder-gray-400 focus:outline-none"
+                            className="w-full min-h-11 py-2.5 bg-transparent text-base text-gray-900 placeholder-gray-400 focus:outline-none"
                           />
                           {locationError && (
                             <p className="text-[10px] text-red-500 mt-1 leading-tight">{locationError}</p>
@@ -1061,13 +1076,13 @@ function ReservationPageContent() {
                           <div className="px-3 py-2.5 bg-white">
                             <div className="flex items-center gap-2 mb-1">
                               <MapPin className="w-3.5 h-3.5 text-[#C9A063] shrink-0" strokeWidth={2} />
-                              <label className="text-[10px] font-semibold text-[#C9A063] uppercase tracking-wider">Drop-off</label>
+                              <label className="text-[11px] sm:text-[12px] font-semibold text-[#C9A063] uppercase tracking-wider">Drop-off</label>
                             </div>
                             <PlacesAutocomplete
                               value={dropoffLocation}
                               onChange={(val) => { setDropoffLocation(val); setStepError(""); }}
                               placeholder="Destination address"
-                              className="w-full py-0.5 bg-transparent text-[13px] sm:text-[14px] text-gray-900 placeholder-gray-400 focus:outline-none"
+                              className="w-full min-h-11 py-2.5 bg-transparent text-base text-gray-900 placeholder-gray-400 focus:outline-none"
                             />
                           </div>
                         )}
@@ -1075,12 +1090,12 @@ function ReservationPageContent() {
                           <div className="px-3 py-2.5 bg-white">
                             <div className="flex items-center gap-2 mb-1">
                               <Clock className="w-3.5 h-3.5 text-[#C9A063] shrink-0" strokeWidth={2} />
-                              <label className="text-[10px] font-semibold text-[#C9A063] uppercase tracking-wider">Duration (Hours)</label>
+                              <label className="text-[11px] sm:text-[12px] font-semibold text-[#C9A063] uppercase tracking-wider">Duration (Hours)</label>
                             </div>
                             <select
                               value={hourlyDuration}
                               onChange={(e) => setHourlyDuration(parseInt(e.target.value))}
-                              className="w-full py-0.5 bg-transparent text-[13px] sm:text-[14px] text-gray-900 focus:outline-none"
+                              className="w-full min-h-11 py-2.5 bg-transparent text-base text-gray-900 focus:outline-none"
                             >
                               {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((h) => (
                                 <option key={h} value={h}>{h} hours</option>
@@ -1092,7 +1107,7 @@ function ReservationPageContent() {
 
                       {stops.map((stop, index) => (
                         <div key={index} className="rounded-xl border border-gray-200 bg-white px-3 py-2.5">
-                          <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Stop {index + 1}</label>
+                          <label className="block text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Stop {index + 1}</label>
                           <div className="flex items-center gap-2">
                             <div className="flex-1">
                               <PlacesAutocomplete
@@ -1103,15 +1118,16 @@ function ReservationPageContent() {
                                   setStops(newStops);
                                 }}
                                 placeholder="Stop address"
-                                className="w-full py-0.5 bg-transparent text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none"
+                                className="w-full min-h-11 py-2.5 bg-transparent text-base text-gray-900 placeholder-gray-400 focus:outline-none"
                               />
                             </div>
                             <button
                               type="button"
                               onClick={() => setStops(stops.filter((_, i) => i !== index))}
-                              className="p-1 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                              className="w-11 h-11 shrink-0 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 active:bg-gray-100 transition-colors flex items-center justify-center"
+                              aria-label={`Remove stop ${index + 1}`}
                             >
-                              <X className="w-3.5 h-3.5" />
+                              <X className="w-4 h-4" />
                             </button>
                           </div>
                         </div>
@@ -1120,15 +1136,15 @@ function ReservationPageContent() {
                       <button
                         type="button"
                         onClick={() => setStops([...stops, ""])}
-                        className="inline-flex items-center gap-1 text-[#C9A063] hover:text-[#B8935A] text-[12px] font-semibold transition-colors"
+                        className="inline-flex items-center justify-center gap-1.5 min-h-11 px-3 rounded-lg text-[#C9A063] hover:text-[#B8935A] hover:bg-[#C9A063]/10 text-[13px] font-semibold transition-colors"
                       >
-                        <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+                        <Plus className="w-4 h-4" strokeWidth={2.5} />
                         Add Stop
                       </button>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                         <div>
-                          <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Pick-up Time</label>
+                          <label className="block text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Pick-up Time</label>
                           <div className="relative reservation-datepicker">
                             <DatePicker
                               selected={pickupDateTime}
@@ -1140,7 +1156,7 @@ function ReservationPageContent() {
                               timeFormat="h:mm aa"
                               minDate={new Date()}
                               placeholderText="Select date & time"
-                              className="w-full px-3 py-2 pr-9 border border-gray-200 rounded-lg text-[13px] text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200"
+                              className="w-full min-h-11 px-3 py-2.5 pr-9 border border-gray-200 rounded-lg text-base text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200"
                               withPortal
                               required
                             />
@@ -1151,7 +1167,7 @@ function ReservationPageContent() {
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                          <label className="block text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
                             {isParcel ? "Service" : "Passengers"}
                           </label>
                           {isParcel ? (
@@ -1188,31 +1204,31 @@ function ReservationPageContent() {
 
                       {isParcel && (
                         <div className="rounded-xl border border-gray-200 p-3 space-y-2.5 bg-white">
-                          <p className="text-[10px] font-semibold text-[#C9A063] uppercase tracking-wider">Recipient</p>
+                          <p className="text-[11px] sm:text-[12px] font-semibold text-[#C9A063] uppercase tracking-wider">Recipient</p>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                             <div>
-                              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Name</label>
+                              <label className="block text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Name</label>
                               <input
                                 type="text"
                                 value={recipientName}
                                 onChange={(e) => { setRecipientName(e.target.value); setStepError(""); }}
                                 placeholder="Who receives the parcel?"
-                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all"
+                                className="w-full min-h-11 px-3 py-2.5 border border-gray-200 rounded-lg text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all"
                               />
                             </div>
                             <div>
-                              <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Phone</label>
+                              <label className="block text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Phone</label>
                               <input
                                 type="tel"
                                 value={recipientPhone}
                                 onChange={(e) => { setRecipientPhone(e.target.value); setStepError(""); }}
                                 placeholder="Recipient phone"
-                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all"
+                                className="w-full min-h-11 px-3 py-2.5 border border-gray-200 rounded-lg text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all"
                               />
                             </div>
                           </div>
                           <div>
-                            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                            <label className="block text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
                               Parcel weight
                             </label>
                             <div className="flex gap-2">
@@ -1224,7 +1240,7 @@ function ReservationPageContent() {
                                 value={parcelWeight}
                                 onChange={(e) => setParcelWeight(e.target.value)}
                                 placeholder="e.g. 2.5"
-                                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all"
+                                className="flex-1 min-h-11 px-3 py-2.5 border border-gray-200 rounded-lg text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all"
                               />
                               <span className="inline-flex items-center justify-center min-w-[52px] px-3 rounded-lg border border-gray-200 bg-gray-50 text-[12px] font-bold text-gray-500 tracking-wide">
                                 kg
@@ -1233,13 +1249,13 @@ function ReservationPageContent() {
                             <p className="mt-1 text-[11px] text-gray-400">Approximate weight helps the chauffeur prepare</p>
                           </div>
                           <div>
-                            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Package note</label>
+                            <label className="block text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Package note</label>
                             <input
                               type="text"
                               value={parcelNote}
                               onChange={(e) => setParcelNote(e.target.value)}
                               placeholder="e.g. Small box, fragile"
-                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all"
+                              className="w-full min-h-11 px-3 py-2.5 border border-gray-200 rounded-lg text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all"
                             />
                           </div>
                         </div>
@@ -1256,7 +1272,7 @@ function ReservationPageContent() {
                         <button
                           type="button"
                           onClick={() => setExtraOptionsOpen(!extraOptionsOpen)}
-                          className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                          className="w-full min-h-12 px-4 py-3 flex items-center justify-between hover:bg-gray-50 active:bg-gray-50 transition-colors"
                         >
                           <div className="flex items-center gap-3">
                             <div className="w-7 h-7 rounded-lg bg-[#C9A063]/10 flex items-center justify-center">
@@ -1281,9 +1297,17 @@ function ReservationPageContent() {
                               <button
                                 type="button"
                                 onClick={() => setEtr407(!etr407)}
-                                className={`relative w-11 h-6 rounded-full transition-colors duration-300 ${etr407 ? 'bg-[#C9A063]' : 'bg-gray-300'}`}
+                                aria-pressed={etr407}
+                                aria-label="Toggle 407 ETR"
+                                className="p-2 -m-2 flex items-center justify-center"
                               >
-                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300 ${etr407 ? 'translate-x-5' : 'translate-x-0'}`} />
+                                <span
+                                  className={`relative block w-12 h-7 rounded-full transition-colors duration-300 ${etr407 ? "bg-[#C9A063]" : "bg-gray-300"}`}
+                                >
+                                  <span
+                                    className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-300 ${etr407 ? "translate-x-5" : "translate-x-0"}`}
+                                  />
+                                </span>
                               </button>
                             </div>
                             
@@ -1322,7 +1346,7 @@ function ReservationPageContent() {
                                     placeholder="Type (e.g., Infant, Toddler, Booster)"
                                     value={childSeatType}
                                     onChange={(e) => setChildSeatType(e.target.value)}
-                                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A063] transition-all"
+                                    className="w-full min-h-11 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#C9A063] transition-all"
                                   />
                                 </div>
                               )}
@@ -1339,9 +1363,17 @@ function ReservationPageContent() {
                               <button
                                 type="button"
                                 onClick={() => setMeetGreet(!meetGreet)}
-                                className={`relative w-11 h-6 rounded-full transition-colors duration-300 ${meetGreet ? 'bg-[#C9A063]' : 'bg-gray-300'}`}
+                                aria-pressed={meetGreet}
+                                aria-label="Toggle Meet & Greet"
+                                className="p-2 -m-2 flex items-center justify-center"
                               >
-                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300 ${meetGreet ? 'translate-x-5' : 'translate-x-0'}`} />
+                                <span
+                                  className={`relative block w-12 h-7 rounded-full transition-colors duration-300 ${meetGreet ? "bg-[#C9A063]" : "bg-gray-300"}`}
+                                >
+                                  <span
+                                    className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-300 ${meetGreet ? "translate-x-5" : "translate-x-0"}`}
+                                  />
+                                </span>
                               </button>
                             </div>
                             )}
@@ -1356,9 +1388,17 @@ function ReservationPageContent() {
                               <button
                                 type="button"
                                 onClick={() => setBouquetFlowers(!bouquetFlowers)}
-                                className={`relative w-11 h-6 rounded-full transition-colors duration-300 ${bouquetFlowers ? 'bg-[#C9A063]' : 'bg-gray-300'}`}
+                                aria-pressed={bouquetFlowers}
+                                aria-label="Toggle Bouquet of Flowers"
+                                className="p-2 -m-2 flex items-center justify-center"
                               >
-                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300 ${bouquetFlowers ? 'translate-x-5' : 'translate-x-0'}`} />
+                                <span
+                                  className={`relative block w-12 h-7 rounded-full transition-colors duration-300 ${bouquetFlowers ? "bg-[#C9A063]" : "bg-gray-300"}`}
+                                >
+                                  <span
+                                    className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-300 ${bouquetFlowers ? "translate-x-5" : "translate-x-0"}`}
+                                  />
+                                </span>
                               </button>
                             </div>
                             )}
@@ -1368,7 +1408,7 @@ function ReservationPageContent() {
 
                       {/* Select Vehicle */}
                       <div>
-                        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2 px-0.5">
+                        <p className="text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-2 px-0.5">
                           Select Vehicle
                         </p>
                         {/* Category filters — horizontal scroll on mobile */}
@@ -1385,7 +1425,7 @@ function ReservationPageContent() {
                                   key={cat}
                                   type="button"
                                   onClick={() => setVehicleCategoryFilter(cat)}
-                                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[12px] font-semibold transition-colors whitespace-nowrap ${
+                                  className={`flex-shrink-0 min-h-11 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors whitespace-nowrap ${
                                     isActive
                                       ? "bg-[#1C1C1E] text-white"
                                       : "bg-white border border-gray-200 text-gray-600 active:bg-gray-50"
@@ -1421,10 +1461,11 @@ function ReservationPageContent() {
                               return (
                                 <div
                                   key={vehicle.id}
-                                  className={`flex items-center gap-3 sm:gap-4 px-3 py-3.5 sm:px-4 sm:py-4 transition-colors ${
+                                  className={`flex max-[379px]:flex-col min-[380px]:flex-row items-stretch min-[380px]:items-center gap-3 sm:gap-4 px-3 py-3.5 sm:px-4 sm:py-4 transition-colors ${
                                     isSelected ? "bg-[#C9A063]/[0.06]" : "bg-white"
                                   }`}
                                 >
+                                  <div className="flex items-center gap-3 min-w-0 flex-1">
                                   <div className="w-[88px] sm:w-[120px] h-[56px] sm:h-[72px] flex-shrink-0 flex items-center justify-center">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
@@ -1435,13 +1476,13 @@ function ReservationPageContent() {
                                   </div>
 
                                   <div className="flex-1 min-w-0">
-                                    <h4 className="text-[13px] sm:text-[15px] font-medium text-gray-800 truncate">
+                                    <h4 className="text-[14px] sm:text-[15px] font-medium text-gray-800 leading-snug">
                                       {vehicle.name}
                                     </h4>
                                     {(() => {
                                       const fare = getVehicleRideFare(vehicle);
                                       return (
-                                        <p className="mt-0.5 text-[18px] sm:text-[22px] font-bold text-[#4A2C5A] tabular-nums leading-tight">
+                                        <p className="mt-0.5 text-[20px] sm:text-[22px] font-bold text-[#4A2C5A] tabular-nums leading-tight">
                                           {fare != null
                                             ? `CAD${fare.toFixed(2)}`
                                             : "—"}
@@ -1449,8 +1490,9 @@ function ReservationPageContent() {
                                       );
                                     })()}
                                   </div>
+                                  </div>
 
-                                  <div className="flex-shrink-0 flex flex-col items-end gap-2">
+                                  <div className="flex-shrink-0 flex flex-row min-[380px]:flex-col items-center min-[380px]:items-end justify-between gap-2 max-[379px]:w-full pl-[100px] min-[380px]:pl-0">
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -1459,10 +1501,10 @@ function ReservationPageContent() {
                                         setCurrentStep(3);
                                         scrollToFormTop();
                                       }}
-                                      className={`min-h-11 px-4 sm:px-5 py-2 rounded-full text-[12px] sm:text-[13px] font-semibold uppercase tracking-wide transition-colors ${
+                                      className={`min-h-11 px-5 py-2 rounded-full text-[13px] font-semibold uppercase tracking-wide transition-colors max-[379px]:flex-1 ${
                                         isSelected
                                           ? "bg-gray-900 text-white"
-                                          : "bg-gray-200/90 text-gray-600 hover:bg-gray-300"
+                                          : "bg-gray-200/90 text-gray-600 active:bg-gray-300"
                                       }`}
                                     >
                                       {isSelected ? "Selected" : "Select"}
@@ -1496,7 +1538,7 @@ function ReservationPageContent() {
                     <div className="space-y-3">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                         <div>
-                          <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                          <label className="block text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
                             First Name *
                           </label>
                           <div className="relative">
@@ -1507,12 +1549,12 @@ function ReservationPageContent() {
                               placeholder="John"
                               value={firstName}
                               onChange={(e) => { setFirstName(e.target.value); setStepError(""); }}
-                              className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all"
+                              className="w-full min-h-11 pl-9 pr-3 py-2.5 border border-gray-200 rounded-lg text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all"
                             />
                           </div>
                         </div>
                         <div>
-                          <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                          <label className="block text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
                             Last Name *
                           </label>
                           <div className="relative">
@@ -1523,14 +1565,14 @@ function ReservationPageContent() {
                               placeholder="Smith"
                               value={lastName}
                               onChange={(e) => { setLastName(e.target.value); setStepError(""); }}
-                              className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all"
+                              className="w-full min-h-11 pl-9 pr-3 py-2.5 border border-gray-200 rounded-lg text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all"
                             />
                           </div>
                         </div>
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                        <label className="block text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
                           Email Address *
                         </label>
                         <div className="relative">
@@ -1541,21 +1583,21 @@ function ReservationPageContent() {
                             placeholder="john.smith@example.com"
                             value={email}
                             onChange={(e) => { setEmail(e.target.value); setStepError(""); }}
-                            className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all"
+                            className="w-full min-h-11 pl-9 pr-3 py-2.5 border border-gray-200 rounded-lg text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all"
                           />
                         </div>
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                        <label className="block text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
                           Phone Number *
                         </label>
-                        <div className="flex rounded-lg border border-gray-200 focus-within:border-[#C9A063] focus-within:ring-2 focus-within:ring-[#C9A063]/20 transition-all">
+                        <div className="flex rounded-lg border border-gray-200 min-h-11 focus-within:border-[#C9A063] focus-within:ring-2 focus-within:ring-[#C9A063]/20 transition-all">
                           <div className="relative">
                             <button
                               type="button"
                               onClick={() => setCountryDropdownOpen(!countryDropdownOpen)}
-                              className="flex items-center gap-1.5 px-2.5 py-2 bg-gray-50 border-r border-gray-200 rounded-l-lg hover:bg-gray-100 transition-colors"
+                              className="flex items-center gap-1.5 min-h-11 px-3 py-2 bg-gray-50 border-r border-gray-200 rounded-l-lg hover:bg-gray-100 transition-colors"
                             >
                               <img
                                 src={`https://flagcdn.com/w40/${COUNTRY_CODES.find(c => c.code === countryCode)?.flagCode}.png`}
@@ -1566,7 +1608,7 @@ function ReservationPageContent() {
                               <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
                             </button>
                             {countryDropdownOpen && (
-                              <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                              <div className="absolute top-full left-0 mt-1 w-52 max-h-56 overflow-y-auto overscroll-contain bg-white border border-gray-200 rounded-lg shadow-lg z-[60]">
                                 {COUNTRY_CODES.map((country) => (
                                   <button
                                     key={`${country.code}-${country.label}`}
@@ -1575,7 +1617,7 @@ function ReservationPageContent() {
                                       setCountryCode(country.code);
                                       setCountryDropdownOpen(false);
                                     }}
-                                    className="flex items-center gap-2.5 w-full px-3 py-2 hover:bg-gray-50 text-left"
+                                    className="flex items-center gap-2.5 w-full min-h-11 px-3 py-2.5 hover:bg-gray-50 active:bg-gray-50 text-left"
                                   >
                                     <img
                                       src={`https://flagcdn.com/w40/${country.flagCode}.png`}
@@ -1596,14 +1638,14 @@ function ReservationPageContent() {
                               placeholder="123-456-7890"
                               value={phone}
                               onChange={(e) => { setPhone(e.target.value); setStepError(""); }}
-                              className="w-full pl-9 pr-3 py-2 bg-transparent text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none"
+                              className="w-full min-h-11 pl-9 pr-3 py-2.5 bg-transparent text-base text-gray-900 placeholder-gray-400 focus:outline-none"
                             />
                           </div>
                         </div>
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                        <label className="block text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
                           Special Requirements (Optional)
                         </label>
                         <textarea
@@ -1611,7 +1653,7 @@ function ReservationPageContent() {
                           rows={3}
                           value={specialRequirements}
                           onChange={(e) => setSpecialRequirements(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all resize-none"
+                          className="w-full min-h-[88px] px-3 py-2.5 border border-gray-200 rounded-lg text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all resize-none"
                         />
                       </div>
                     </div>
@@ -1634,7 +1676,7 @@ function ReservationPageContent() {
                                 setCheckoutPaymentMethod("card");
                                 setPaymentError(null);
                               }}
-                              className={`relative text-left rounded-xl border px-3.5 py-3 transition-all ${
+                              className={`relative text-left rounded-xl border px-3.5 py-3.5 min-h-[72px] transition-all ${
                                 checkoutPaymentMethod === "card"
                                   ? "border-[#C9A063] bg-[#C9A063]/10 ring-1 ring-[#C9A063]/35"
                                   : "border-gray-200 bg-white hover:border-gray-300"
@@ -1667,7 +1709,7 @@ function ReservationPageContent() {
                               disabled
                               aria-disabled="true"
                               title="On Delivery is temporarily unavailable"
-                              className="relative text-left rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 opacity-55 cursor-not-allowed"
+                              className="relative text-left rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3.5 min-h-[72px] opacity-55 cursor-not-allowed"
                             >
                               <div className="flex items-start gap-3">
                                 <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-400">
@@ -1718,7 +1760,7 @@ function ReservationPageContent() {
                                       type="checkbox"
                                       checked={termsAccepted}
                                       onChange={(e) => setTermsAccepted(e.target.checked)}
-                                      className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063] flex-shrink-0"
+                                      className="mt-0.5 w-5 h-5 rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063] flex-shrink-0"
                                     />
                                     <span className="text-[12px] text-gray-600 leading-snug">
                                       I agree to the{" "}
@@ -1776,7 +1818,7 @@ function ReservationPageContent() {
                                   type="checkbox"
                                   checked={termsAccepted}
                                   onChange={(e) => setTermsAccepted(e.target.checked)}
-                                  className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063] flex-shrink-0"
+                                  className="mt-0.5 w-5 h-5 rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063] flex-shrink-0"
                                 />
                                 <span className="text-[12px] text-gray-600 leading-snug">
                                   I agree to the{" "}
@@ -1793,7 +1835,7 @@ function ReservationPageContent() {
                                   </a>
                                 </span>
                               </label>
-                              <div>
+                              <div className="overflow-x-auto max-w-full -mx-0.5 px-0.5">
                                 <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-500 mb-1.5">
                                   Security check
                                 </div>
@@ -1807,7 +1849,7 @@ function ReservationPageContent() {
                                 type="button"
                                 onClick={confirmCashReservation}
                                 disabled={!termsAccepted || !turnstileToken || emailSending}
-                                className="w-full flex items-center justify-center gap-2 bg-[#C9A063] text-white px-5 py-3.5 rounded-xl text-[14px] font-semibold hover:bg-[#B8935A] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm shadow-[#C9A063]/20"
+                                className="w-full min-h-12 flex items-center justify-center gap-2 bg-[#C9A063] text-white px-5 py-3.5 rounded-xl text-[15px] font-semibold hover:bg-[#B8935A] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm shadow-[#C9A063]/20"
                               >
                                 {emailSending ? (
                                   <>
@@ -2022,7 +2064,7 @@ function ReservationPageContent() {
 
                     <div className="divide-y divide-gray-200/90">
                       <div className="py-3">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-1">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-1">
                           Service Type
                         </div>
                         <div className="text-[14px] text-gray-900">
@@ -2031,7 +2073,7 @@ function ReservationPageContent() {
                       </div>
 
                       <div className="py-3">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-1">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-1">
                           Pickup Location
                         </div>
                         <div className="text-[14px] text-gray-900 break-words leading-snug">
@@ -2041,7 +2083,7 @@ function ReservationPageContent() {
 
                       {bookingMode === "distance" && (
                         <div className="py-3">
-                          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-1">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-1">
                             Drop-off Location
                           </div>
                           <div className="text-[14px] text-gray-900 break-words leading-snug">
@@ -2052,7 +2094,7 @@ function ReservationPageContent() {
 
                       {bookingMode === "hourly" && (
                         <div className="py-3">
-                          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-1">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-1">
                             Duration
                           </div>
                           <div className="text-[14px] text-gray-900">{hourlyDuration} hours</div>
@@ -2060,7 +2102,7 @@ function ReservationPageContent() {
                       )}
 
                       <div className="py-3">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-1">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-1">
                           Pickup Date, Time
                         </div>
                         <div className="text-[14px] text-gray-900">
@@ -2083,7 +2125,7 @@ function ReservationPageContent() {
                       {bookingMode === "distance" && (
                         <div className="py-3 grid grid-cols-2 gap-3">
                           <div>
-                            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-1">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-1">
                               Total Distance
                             </div>
                             <div className="text-[14px] text-gray-900 tabular-nums">
@@ -2091,7 +2133,7 @@ function ReservationPageContent() {
                             </div>
                           </div>
                           <div>
-                            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-1">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-1">
                               Total Time
                             </div>
                             <div className="text-[14px] text-gray-900 tabular-nums">
@@ -2107,7 +2149,7 @@ function ReservationPageContent() {
 
                       <div className="py-3">
                         <div className="rounded-lg bg-[#f1f2f4] px-3 py-2.5">
-                          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-1">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-1">
                             {isParcel ? "Recipient" : "Passengers"}
                           </div>
                           <div className="text-[14px] text-gray-900">
@@ -2124,7 +2166,7 @@ function ReservationPageContent() {
 
                       {(firstName || lastName) && (
                         <div className="py-3">
-                          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-1">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-1">
                             Guest
                           </div>
                           <div className="text-[14px] text-gray-900">
@@ -2213,7 +2255,7 @@ function ReservationPageContent() {
                               <button
                                 type="button"
                                 onClick={() => setTipModalOpen(true)}
-                                className="w-full flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-[#f8fafc] px-3 py-3 text-left hover:border-gray-300 transition-colors"
+                                className="w-full min-h-11 flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-[#f8fafc] px-3 py-3 text-left hover:border-gray-300 active:bg-gray-50 transition-colors"
                               >
                                 <div className="min-w-0">
                                   <div className="text-[14px] font-semibold text-gray-900">Add tip</div>
@@ -2245,75 +2287,11 @@ function ReservationPageContent() {
                         </div>
                       </div>
 
-                      {tipModalOpen ? (
-                        <div
-                          className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center"
-                          role="dialog"
-                          aria-modal="true"
-                          aria-labelledby="tip-modal-title"
-                        >
-                          <button
-                            type="button"
-                            className="absolute inset-0 bg-black/45"
-                            aria-label="Close tip options"
-                            onClick={() => setTipModalOpen(false)}
-                          />
-                          <div className="relative z-[81] w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-2xl px-5 pt-3 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-5 shadow-xl">
-                            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-300 sm:hidden" />
-                            <div className="flex items-center justify-between gap-3 mb-5">
-                              <h3 id="tip-modal-title" className="text-[22px] font-bold text-gray-900 tracking-tight">
-                                Add a tip
-                              </h3>
-                              <button
-                                type="button"
-                                onClick={() => setTipModalOpen(false)}
-                                className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200"
-                                aria-label="Close"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                            <div className="grid grid-cols-3 gap-2.5">
-                              {APP_GRATUITY_PERCENTS.map((pct) => {
-                                const selected = gratuityPercent === pct;
-                                return (
-                                  <button
-                                    key={pct}
-                                    type="button"
-                                    onClick={() => {
-                                      setGratuityPercent(pct);
-                                      setTipModalOpen(false);
-                                    }}
-                                    className={`min-h-[72px] rounded-2xl border-2 text-[22px] font-bold transition-colors ${
-                                      selected
-                                        ? "bg-gray-900 border-gray-900 text-white"
-                                        : "bg-[#f8fafc] border-gray-200 text-gray-900 hover:border-gray-400"
-                                    }`}
-                                  >
-                                    {pct}%
-                                  </button>
-                                );
-                              })}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setGratuityPercent(0);
-                                setTipModalOpen(false);
-                              }}
-                              className="mt-4 w-full py-3 text-[15px] font-semibold text-gray-500 hover:text-gray-800"
-                            >
-                              No tip
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
-
                       {currentStep >= 3 && currentStep < 4 && selectedVehicle && (
                         <button
                           type="button"
                           onClick={() => setCurrentStep(2)}
-                          className="w-full text-center text-[12px] font-medium text-[#C9A063] hover:text-[#B8935A] transition-colors"
+                          className="w-full min-h-11 inline-flex items-center justify-center text-center text-[13px] font-medium text-[#C9A063] hover:text-[#B8935A] transition-colors"
                         >
                           Change vehicle
                         </button>
@@ -2327,8 +2305,72 @@ function ReservationPageContent() {
         </div>
       </section>
 
-      {/* Mobile sticky fare + Continue (enterprise checkout strip) */}
-      {currentStep < 4 && !tipModalOpen ? (
+      {tipModalOpen ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tip-modal-title"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/45"
+            aria-label="Close tip options"
+            onClick={() => setTipModalOpen(false)}
+          />
+          <div className="relative z-[81] w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-2xl px-5 pt-3 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-5 shadow-xl">
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-300 sm:hidden" />
+            <div className="flex items-center justify-between gap-3 mb-5">
+              <h3 id="tip-modal-title" className="text-[22px] font-bold text-gray-900 tracking-tight">
+                Add a tip
+              </h3>
+              <button
+                type="button"
+                onClick={() => setTipModalOpen(false)}
+                className="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2.5">
+              {APP_GRATUITY_PERCENTS.map((pct) => {
+                const selected = gratuityPercent === pct;
+                return (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => {
+                      setGratuityPercent(pct);
+                      setTipModalOpen(false);
+                    }}
+                    className={`min-h-[72px] rounded-2xl border-2 text-[22px] font-bold transition-colors ${
+                      selected
+                        ? "bg-gray-900 border-gray-900 text-white"
+                        : "bg-[#f8fafc] border-gray-200 text-gray-900 hover:border-gray-400"
+                    }`}
+                  >
+                    {pct}%
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setGratuityPercent(0);
+                setTipModalOpen(false);
+              }}
+              className="mt-4 w-full min-h-11 py-3 text-[15px] font-semibold text-gray-500 hover:text-gray-800"
+            >
+              No tip
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Mobile sticky fare + Continue / Pay (enterprise checkout strip) */}
+      {currentStep < 4 && !tipModalOpen && !placesOpen ? (
         <div className="sm:hidden fixed bottom-0 inset-x-0 z-[45] border-t border-gray-200/80 bg-white/95 backdrop-blur-md">
           <div className="px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] flex items-center gap-3">
             <div className="min-w-0 flex-1">
@@ -2346,6 +2388,34 @@ function ReservationPageContent() {
               className="shrink-0 min-h-12 px-5 rounded-xl bg-[#1C1C1E] text-white text-[15px] font-semibold inline-flex items-center gap-2 active:bg-[#2C2C2E]"
             >
               Continue
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {currentStep === 4 && !paymentSuccess && !tipModalOpen && !placesOpen ? (
+        <div className="sm:hidden fixed bottom-0 inset-x-0 z-[45] border-t border-gray-200/80 bg-white/95 backdrop-blur-md">
+          <div className="px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                Total due
+              </p>
+              <p className="text-[18px] font-bold text-gray-900 tabular-nums leading-tight">
+                ${(pricingSummary?.total ?? routePrice ?? 0).toFixed(2)}{" "}
+                <span className="text-[12px] font-semibold text-gray-500">CAD</span>
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const el = document.getElementById("reservation-pay-cta");
+                el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                window.setTimeout(() => el?.focus(), 350);
+              }}
+              className="shrink-0 min-h-12 px-5 rounded-xl bg-[#C9A063] text-white text-[15px] font-semibold inline-flex items-center gap-2 active:bg-[#B8935A]"
+            >
+              Pay
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>

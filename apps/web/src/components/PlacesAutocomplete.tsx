@@ -22,8 +22,20 @@ interface Prediction {
   types: string[];
 }
 
+type DropdownLayout = {
+  top?: number;
+  bottom?: number;
+  left: number;
+  width: number;
+  maxHeight: number;
+  caretLeft: number;
+  placement: "above" | "below" | "sheet";
+};
+
 const DEBOUNCE_MS = 100;
 const MIN_INPUT_LENGTH = 1;
+const PLACES_OPEN_EVENT = "sarj:places-open";
+const PLACES_CLOSE_EVENT = "sarj:places-close";
 
 function HighlightMatch({ text, query }: { text: string; query: string }) {
   if (!query.trim()) return <>{text}</>;
@@ -40,6 +52,12 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
   );
 }
 
+function notifyPlacesOpen(open: boolean) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(open ? PLACES_OPEN_EVENT : PLACES_CLOSE_EVENT));
+  document.body.classList.toggle("places-autocomplete-open", open);
+}
+
 export default function PlacesAutocomplete({
   value,
   onChange,
@@ -52,11 +70,13 @@ export default function PlacesAutocomplete({
   const [inputValue, setInputValue] = useState(value);
   const [isUserTyping, setIsUserTyping] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const [dropdownPosition, setDropdownPosition] = useState({
+  const [layout, setLayout] = useState<DropdownLayout>({
     top: 0,
-    left: 0,
-    width: 0,
+    left: 12,
+    width: 300,
+    maxHeight: 280,
     caretLeft: 24,
+    placement: "below",
   });
   const [mounted, setMounted] = useState(false);
 
@@ -79,30 +99,70 @@ export default function PlacesAutocomplete({
     }
   }, []);
 
+  const closeDropdown = useCallback(() => {
+    setIsOpen(false);
+    setIsUserTyping(false);
+    setHighlightedIndex(-1);
+    notifyPlacesOpen(false);
+  }, []);
+
   const updatePosition = useCallback(() => {
-    if (!inputRef.current) return;
+    if (!inputRef.current || typeof window === "undefined") return;
 
     const rect = inputRef.current.getBoundingClientRect();
+    const vv = window.visualViewport;
+    const vvTop = vv?.offsetTop ?? 0;
+    const vvHeight = vv?.height ?? window.innerHeight;
+    const vvWidth = vv?.width ?? window.innerWidth;
+    const vvBottom = vvTop + vvHeight;
     const isMobile = window.innerWidth < 640;
-    const dropdownWidth = isMobile
-      ? Math.min(window.innerWidth - 24, Math.max(rect.width + 48, 300))
-      : Math.max(rect.width + 56, 360);
 
-    const left = isMobile
-      ? Math.max(12, Math.min(rect.left - 12, window.innerWidth - dropdownWidth - 12))
-      : Math.max(12, rect.left - 28);
+    if (isMobile) {
+      // Sheet sits above the soft keyboard / Safari chrome using visualViewport.
+      const gapBelowViewport = Math.max(0, window.innerHeight - vvBottom);
+      const sheetMax = Math.min(320, Math.max(180, vvHeight * 0.42));
+      setLayout({
+        bottom: gapBelowViewport + 10,
+        left: 12,
+        width: Math.max(0, vvWidth - 24),
+        maxHeight: sheetMax,
+        caretLeft: 24,
+        placement: "sheet",
+      });
+      return;
+    }
 
+    const dropdownWidth = Math.min(vvWidth - 24, Math.max(rect.width + 56, 360));
+    const left = Math.max(12, Math.min(rect.left - 28, vvWidth - dropdownWidth - 12));
     const caretLeft = Math.min(
       Math.max(rect.left + rect.width / 2 - left - 8, 20),
       dropdownWidth - 28
     );
 
-    setDropdownPosition({
-      top: rect.bottom + 10,
-      left,
-      width: dropdownWidth,
-      caretLeft,
-    });
+    const spaceBelow = vvBottom - rect.bottom - 16;
+    const spaceAbove = rect.top - vvTop - 16;
+    const preferBelow = spaceBelow >= 200 || spaceBelow >= spaceAbove;
+    const maxHeight = Math.min(320, Math.max(160, preferBelow ? spaceBelow : spaceAbove));
+
+    if (preferBelow) {
+      setLayout({
+        top: rect.bottom + 10,
+        left,
+        width: dropdownWidth,
+        maxHeight,
+        caretLeft,
+        placement: "below",
+      });
+    } else {
+      setLayout({
+        top: Math.max(vvTop + 8, rect.top - 10 - maxHeight),
+        left,
+        width: dropdownWidth,
+        maxHeight,
+        caretLeft,
+        placement: "above",
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -119,7 +179,7 @@ export default function PlacesAutocomplete({
   }, [isLoaded, refreshSessionToken]);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       const target = event.target as Node;
       if (
         inputRef.current &&
@@ -127,26 +187,43 @@ export default function PlacesAutocomplete({
         dropdownRef.current &&
         !dropdownRef.current.contains(target)
       ) {
-        setIsOpen(false);
-        setIsUserTyping(false);
-        setHighlightedIndex(-1);
+        closeDropdown();
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    document.addEventListener("touchstart", handleClickOutside, { passive: true });
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [closeDropdown]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      notifyPlacesOpen(false);
+      return;
+    }
 
+    notifyPlacesOpen(true);
     updatePosition();
-    window.addEventListener("scroll", updatePosition, true);
-    window.addEventListener("resize", updatePosition);
+
+    const onViewportChange = () => updatePosition();
+    window.addEventListener("scroll", onViewportChange, true);
+    window.addEventListener("resize", onViewportChange);
+    window.visualViewport?.addEventListener("resize", onViewportChange);
+    window.visualViewport?.addEventListener("scroll", onViewportChange);
+
     return () => {
-      window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", onViewportChange, true);
+      window.removeEventListener("resize", onViewportChange);
+      window.visualViewport?.removeEventListener("resize", onViewportChange);
+      window.visualViewport?.removeEventListener("scroll", onViewportChange);
     };
   }, [isOpen, updatePosition]);
+
+  useEffect(() => {
+    return () => notifyPlacesOpen(false);
+  }, []);
 
   const fetchPredictions = useCallback(
     (input: string) => {
@@ -157,6 +234,7 @@ export default function PlacesAutocomplete({
         setIsOpen(false);
         setIsLoading(false);
         setHighlightedIndex(-1);
+        notifyPlacesOpen(false);
         return;
       }
 
@@ -222,6 +300,7 @@ export default function PlacesAutocomplete({
       setIsOpen(false);
       setIsLoading(false);
       setPredictions([]);
+      notifyPlacesOpen(false);
     }
 
     scheduleFetch(newValue);
@@ -235,7 +314,9 @@ export default function PlacesAutocomplete({
     setIsLoading(false);
     setIsUserTyping(false);
     setHighlightedIndex(-1);
+    notifyPlacesOpen(false);
     refreshSessionToken();
+    inputRef.current?.blur();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -270,8 +351,7 @@ export default function PlacesAutocomplete({
     }
 
     if (e.key === "Escape") {
-      setIsOpen(false);
-      setHighlightedIndex(-1);
+      closeDropdown();
     }
   };
 
@@ -291,6 +371,8 @@ export default function PlacesAutocomplete({
   const showDropdown =
     mounted && isOpen && (isLoading || predictions.length > 0);
 
+  const isSheet = layout.placement === "sheet";
+
   return (
     <>
       <input
@@ -300,6 +382,10 @@ export default function PlacesAutocomplete({
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
         onFocus={() => {
+          window.setTimeout(() => {
+            inputRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+            updatePosition();
+          }, 250);
           if (inputValue.trim().length >= MIN_INPUT_LENGTH) {
             fetchPredictions(inputValue);
           }
@@ -307,6 +393,7 @@ export default function PlacesAutocomplete({
         placeholder={placeholder}
         className={className}
         autoComplete="off"
+        enterKeyHint="search"
         aria-autocomplete="list"
         aria-expanded={showDropdown}
         role="combobox"
@@ -318,26 +405,56 @@ export default function PlacesAutocomplete({
             ref={dropdownRef}
             style={{
               position: "fixed",
-              top: dropdownPosition.top,
-              left: dropdownPosition.left,
-              width: dropdownPosition.width,
-              zIndex: 99999,
+              top: layout.top,
+              bottom: layout.bottom,
+              left: layout.left,
+              width: layout.width,
+              maxHeight: layout.maxHeight,
+              zIndex: 100000,
             }}
-            className="places-autocomplete-dropdown"
+            className={`places-autocomplete-dropdown ${isSheet ? "places-autocomplete-sheet" : ""}`}
             role="listbox"
           >
-            <div
-              className="absolute -top-[6px] w-3 h-3 bg-white border-l border-t border-gray-200/90 rotate-45"
-              style={{ left: dropdownPosition.caretLeft }}
-              aria-hidden
-            />
+            {!isSheet ? (
+              <div
+                className={`absolute w-3 h-3 bg-white border-l border-t border-gray-200/90 rotate-45 ${
+                  layout.placement === "above"
+                    ? "-bottom-[6px] border-l-0 border-t-0 border-r border-b"
+                    : "-top-[6px]"
+                }`}
+                style={{ left: layout.caretLeft }}
+                aria-hidden
+              />
+            ) : null}
 
-            <div className="relative bg-white rounded-xl shadow-[0_12px_40px_rgba(0,0,0,0.14)] border border-gray-200/90 overflow-hidden">
-              <div className="places-autocomplete-list max-h-[300px] overflow-y-auto py-1.5 divide-y divide-gray-100/80">
+            <div className="relative flex flex-col h-full max-h-[inherit] bg-white rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.18)] border border-gray-200/90 overflow-hidden">
+              {isSheet ? (
+                <div className="shrink-0 flex items-center justify-between gap-3 px-4 pt-3 pb-2 border-b border-gray-100">
+                  <p className="text-[13px] font-semibold text-gray-800 truncate">
+                    Choose a location
+                  </p>
+                  <button
+                    type="button"
+                    onClick={closeDropdown}
+                    className="min-h-11 px-3 rounded-lg text-[13px] font-semibold text-gray-600 bg-gray-100 active:bg-gray-200"
+                  >
+                    Done
+                  </button>
+                </div>
+              ) : null}
+
+              <div
+                className="places-autocomplete-list flex-1 overflow-y-auto overscroll-contain py-1 divide-y divide-gray-100/80"
+                style={{ maxHeight: isSheet ? undefined : layout.maxHeight - 40 }}
+              >
                 {isLoading && predictions.length === 0 ? (
-                  <div className="flex items-center gap-2.5 px-4 py-3 text-[13px] text-gray-500">
+                  <div className="flex items-center gap-2.5 px-4 py-3.5 text-[13px] text-gray-500">
                     <Loader2 className="w-4 h-4 animate-spin text-[#C9A063]" />
                     Searching locations...
+                  </div>
+                ) : predictions.length === 0 ? (
+                  <div className="px-4 py-3.5 text-[13px] text-gray-500">
+                    No matching places. Try a fuller address.
                   </div>
                 ) : (
                   predictions.map((prediction, index) => {
@@ -350,27 +467,27 @@ export default function PlacesAutocomplete({
                         aria-selected={isHighlighted}
                         onMouseEnter={() => setHighlightedIndex(index)}
                         onClick={() => handleSelect(prediction)}
-                        className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-left transition-colors duration-100 ${
+                        className={`w-full flex items-center gap-3 px-4 min-h-14 py-3 text-left transition-colors duration-100 ${
                           isHighlighted
                             ? "bg-[#C9A063]/8"
                             : "hover:bg-gray-50 active:bg-[#C9A063]/10"
                         }`}
                       >
                         <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
+                          className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
                             isHighlighted ? "bg-[#C9A063]/15" : "bg-gray-100"
                           }`}
                         >
                           {getIcon(prediction.types)}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[14px] font-medium text-gray-800 truncate leading-snug">
+                        <div className="flex-1 min-w-0 pr-1">
+                          <div className="text-[15px] font-medium text-gray-900 leading-snug break-words">
                             <HighlightMatch
                               text={prediction.structured_formatting.main_text}
                               query={inputValue}
                             />
                           </div>
-                          <div className="text-[12px] text-gray-500 truncate leading-snug mt-0.5">
+                          <div className="text-[12px] text-gray-500 leading-snug mt-0.5 break-words">
                             {prediction.structured_formatting.secondary_text}
                           </div>
                         </div>
@@ -380,7 +497,7 @@ export default function PlacesAutocomplete({
                 )}
               </div>
 
-              <div className="px-3.5 py-2 bg-gray-50/90 border-t border-gray-100">
+              <div className="shrink-0 px-4 py-2 bg-gray-50/95 border-t border-gray-100">
                 <img
                   src="https://maps.gstatic.com/mapfiles/api-3/images/powered-by-google-on-white3.png"
                   alt="Powered by Google"
@@ -396,6 +513,7 @@ export default function PlacesAutocomplete({
         .places-autocomplete-list {
           scrollbar-width: thin;
           scrollbar-color: #d1d5db transparent;
+          -webkit-overflow-scrolling: touch;
         }
         .places-autocomplete-list::-webkit-scrollbar {
           width: 6px;
@@ -407,10 +525,15 @@ export default function PlacesAutocomplete({
           background: #d1d5db;
           border-radius: 999px;
         }
-        .places-autocomplete-list::-webkit-scrollbar-thumb:hover {
-          background: #9ca3af;
+        .places-autocomplete-sheet {
+          padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+        body.places-autocomplete-open {
+          overflow: hidden;
         }
       `}</style>
     </>
   );
 }
+
+export { PLACES_OPEN_EVENT, PLACES_CLOSE_EVENT };
