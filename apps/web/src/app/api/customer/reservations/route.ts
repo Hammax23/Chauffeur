@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import prisma from "@/lib/prisma";
-import { getCustomerFromRequest } from "@/lib/customer-auth";
+import { getActiveCustomerFromRequest, customerAuthFailurePayload } from "@/lib/customer-auth";
 import { publishReservationFromDb } from "@/lib/realtime-bus";
 import {
   fareTotalCents,
@@ -13,13 +13,12 @@ const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 // GET - Get customer's reservations
 export async function GET(req: NextRequest) {
   try {
-    const tokenData = getCustomerFromRequest(req);
-    if (!tokenData) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
+    const auth = await getActiveCustomerFromRequest(req);
+    if (!auth.ok) {
+      const fail = customerAuthFailurePayload(auth.reason);
+      return NextResponse.json(fail.body, { status: fail.status });
     }
+    const tokenData = auth.customer;
 
     const reservations = await prisma.reservation.findMany({
       where: { customerId: tokenData.id },
@@ -90,13 +89,12 @@ export async function GET(req: NextRequest) {
 // POST - Create a new reservation for customer
 export async function POST(req: NextRequest) {
   try {
-    const tokenData = getCustomerFromRequest(req);
-    if (!tokenData) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
+    const auth = await getActiveCustomerFromRequest(req);
+    if (!auth.ok) {
+      const fail = customerAuthFailurePayload(auth.reason);
+      return NextResponse.json(fail.body, { status: fail.status });
     }
+    const tokenData = auth.customer;
 
     const body = await req.json();
     const {
@@ -261,6 +259,11 @@ export async function POST(req: NextRequest) {
         .join("\n");
 
       const bookingId = `SARJ-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+      const siteBase = (process.env.NEXT_PUBLIC_SITE_URL || "https://sarjworldwide.ca").replace(
+        /\/$/,
+        ""
+      );
+      const trackLink = `${siteBase}/track/${bookingId}`;
 
       const customer = await prisma.customer.findUnique({
         where: { id: tokenData.id },
@@ -304,6 +307,7 @@ export async function POST(req: NextRequest) {
           gratuity: pricing.gratuity,
           total: pricing.total,
           specialRequirements: storedRequirements || null,
+          trackLink,
           stripePaymentMethodId: resolvedStripePaymentMethodId,
           stripeCustomerId: resolvedStripeCustomerId,
           cardType: resolvedCardType,
@@ -333,6 +337,7 @@ export async function POST(req: NextRequest) {
         message: "Reservation created successfully",
         bookingId: reservation.bookingId,
         reservationId: reservation.id,
+        trackLink,
         pricing: {
           rideFare: pricing.rideFare,
           stopCharge: pricing.stopCharge,
@@ -347,6 +352,11 @@ export async function POST(req: NextRequest) {
     }
 
     const bookingId = `SARJ-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    const siteBase = (process.env.NEXT_PUBLIC_SITE_URL || "https://sarjworldwide.ca").replace(
+      /\/$/,
+      ""
+    );
+    const trackLink = `${siteBase}/track/${bookingId}`;
 
     const customer = await prisma.customer.findUnique({
       where: { id: tokenData.id },
@@ -390,6 +400,7 @@ export async function POST(req: NextRequest) {
         gratuity: pricing.gratuity,
         total: pricing.total,
         specialRequirements: storedRequirements || null,
+        trackLink,
         stripePaymentMethodId: null,
         stripeCustomerId: null,
         cardType: null,
@@ -408,6 +419,7 @@ export async function POST(req: NextRequest) {
       message: "Reservation created successfully",
       bookingId: reservation.bookingId,
       reservationId: reservation.id,
+      trackLink,
       pricing: {
         rideFare: pricing.rideFare,
         stopCharge: pricing.stopCharge,

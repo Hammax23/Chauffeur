@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import prisma from "@/lib/prisma";
 import { subscribeChat, type ChatEvent } from "@/lib/chat-bus";
 import { listMessagesForBooking } from "@/lib/trip-chat";
+import { isCustomerInactive } from "@/lib/customer-auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -11,7 +12,7 @@ export const fetchCache = "force-no-store";
 const HEARTBEAT_MS = 15_000;
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
-function getCustomerIdFromRequest(req: NextRequest): string | null {
+async function getActiveCustomerIdFromRequest(req: NextRequest): Promise<string | null> {
   const authHeader = req.headers.get("authorization");
   let token: string | null = null;
   if (authHeader?.startsWith("Bearer ")) {
@@ -23,7 +24,12 @@ function getCustomerIdFromRequest(req: NextRequest): string | null {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { id: string; type: string };
     if (decoded.type !== "customer") return null;
-    return decoded.id;
+    const customer = await prisma.customer.findUnique({
+      where: { id: decoded.id },
+      select: { id: true, accountStatus: true },
+    });
+    if (!customer || isCustomerInactive(customer)) return null;
+    return customer.id;
   } catch {
     return null;
   }
@@ -37,7 +43,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const customerId = getCustomerIdFromRequest(req);
+  const customerId = await getActiveCustomerIdFromRequest(req);
   if (!customerId) {
     return new Response("Unauthorized", { status: 401 });
   }

@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCustomerFromRequest } from "@/lib/customer-auth";
+import {
+  getActiveCustomerFromRequest,
+  customerAuthFailurePayload,
+} from "@/lib/customer-auth";
 import prisma from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
   try {
-    const tokenData = getCustomerFromRequest(request);
-    if (!tokenData) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    const auth = await getActiveCustomerFromRequest(request);
+    if (!auth.ok) {
+      const fail = customerAuthFailurePayload(auth.reason);
+      return NextResponse.json(fail.body, { status: fail.status });
     }
 
     const { pushToken } = await request.json();
@@ -15,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     await prisma.customer.update({
-      where: { id: tokenData.id },
+      where: { id: auth.customer.id },
       data: { pushToken },
     });
 

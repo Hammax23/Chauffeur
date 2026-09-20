@@ -26,6 +26,16 @@ export async function POST(
       if (auth.reason === "blocked") {
         return NextResponse.json(blockedCustomerResponse(), { status: 403 });
       }
+      if (auth.reason === "deactivated") {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Your account has been deactivated.",
+            code: "ACCOUNT_DEACTIVATED",
+          },
+          { status: 403 }
+        );
+      }
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 

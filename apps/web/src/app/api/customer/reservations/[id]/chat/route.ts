@@ -1,36 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
 import prisma from "@/lib/prisma";
 import { listMessagesForBooking, postChatMessage } from "@/lib/trip-chat";
-
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
-
-function getCustomerFromToken(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  try {
-    const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email: string; type: string };
-    if (decoded.type !== "customer") return null;
-    return decoded;
-  } catch {
-    return null;
-  }
-}
+import {
+  getActiveCustomerFromRequest,
+  customerAuthFailurePayload,
+} from "@/lib/customer-auth";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const tokenData = getCustomerFromToken(req);
-    if (!tokenData) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    const auth = await getActiveCustomerFromRequest(req);
+    if (!auth.ok) {
+      const fail = customerAuthFailurePayload(auth.reason);
+      return NextResponse.json(fail.body, { status: fail.status });
     }
 
     const { id: bookingId } = await params;
     const ride = await prisma.reservation.findFirst({
-      where: { bookingId, customerId: tokenData.id },
+      where: { bookingId, customerId: auth.customer.id },
       select: { bookingId: true },
     });
     if (!ride) {
@@ -54,9 +43,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const tokenData = getCustomerFromToken(req);
-    if (!tokenData) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    const auth = await getActiveCustomerFromRequest(req);
+    if (!auth.ok) {
+      const fail = customerAuthFailurePayload(auth.reason);
+      return NextResponse.json(fail.body, { status: fail.status });
     }
 
     const { id: bookingId } = await params;
@@ -66,7 +56,7 @@ export async function POST(
     const message = await postChatMessage({
       bookingId,
       senderType: "CUSTOMER",
-      senderId: tokenData.id,
+      senderId: auth.customer.id,
       body: text,
     });
 

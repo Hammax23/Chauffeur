@@ -10,8 +10,6 @@ import {
   Animated,
   Pressable,
   ActivityIndicator,
-  Modal,
-  Keyboard,
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -30,7 +28,6 @@ import {
 } from "../../../services/api";
 import { useReservationStream } from "../../../hooks/useReservationStream";
 import { SlimSpinner } from "../../../components/SlimSpinner";
-import { GooglePlacesAddressField } from "../../../components/GooglePlacesAddressField";
 import { GOLD } from "../../../theme/driver-theme";
 import { isParcelServiceType } from "../../../utils/parcel";
 
@@ -117,7 +114,7 @@ export default function CustomerHomeScreen() {
     const fabSize = isCompact ? 40 : 44;
     const pickupMinH = isCompact ? 50 : 56;
     const titleSize = isCompact ? 20 : 22;
-    const fleetCardW = Math.min(windowWidth * (isTablet ? 0.3 : 0.44), isTablet ? 240 : 188);
+    const fleetCardW = Math.min(windowWidth * (isTablet ? 0.34 : 0.52), isTablet ? 268 : 216);
     return {
       isCompact,
       isShort,
@@ -142,12 +139,6 @@ export default function CustomerHomeScreen() {
   const [pickupLabel, setPickupLabel] = useState("Finding your location…");
   const [pickupAddress, setPickupAddress] = useState("");
   const [pickupManual, setPickupManual] = useState(false);
-  const [tripEditorOpen, setTripEditorOpen] = useState(false);
-  const [tripEditorFocus, setTripEditorFocus] = useState<"pickup" | "dropoff">("pickup");
-  const [pickupDraft, setPickupDraft] = useState("");
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [dropoffDraft, setDropoffDraft] = useState("");
-  const [dropoffFocusKey, setDropoffFocusKey] = useState(0);
   const [locating, setLocating] = useState(true);
   const [locationDenied, setLocationDenied] = useState(false);
   const [activeRide, setActiveRide] = useState<Reservation | null>(null);
@@ -163,25 +154,6 @@ export default function CustomerHomeScreen() {
       Animated.timing(slideAnim, { toValue: 0, duration: 480, useNativeDriver: true }),
     ]).start();
   }, [fadeAnim, slideAnim]);
-
-  useEffect(() => {
-    if (!tripEditorOpen) {
-      setKeyboardHeight(0);
-      return;
-    }
-    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const onShow = Keyboard.addListener(showEvent, (e) => {
-      setKeyboardHeight(e.endCoordinates.height);
-    });
-    const onHide = Keyboard.addListener(hideEvent, () => {
-      setKeyboardHeight(0);
-    });
-    return () => {
-      onShow.remove();
-      onHide.remove();
-    };
-  }, [tripEditorOpen]);
 
   useEffect(() => {
     if (!activeRide) {
@@ -315,24 +287,6 @@ export default function CustomerHomeScreen() {
   const friendlyStatus = (s: string) =>
     s === "ACCEPTED" ? "Driver assigned" : s === "CIC" ? "In car" : s;
 
-  const openTripEditor = useCallback(
-    (focus: "pickup" | "dropoff" = "pickup") => {
-      setPickupDraft(
-        pickupAddress ||
-          (pickupLabel !== "Finding your location…" &&
-          pickupLabel !== "Enable location for pickup" &&
-          pickupLabel !== "Couldn’t detect location"
-            ? pickupLabel
-            : "")
-      );
-      setDropoffDraft("");
-      setTripEditorFocus(focus);
-      if (focus === "dropoff") setDropoffFocusKey((k) => k + 1);
-      setTripEditorOpen(true);
-    },
-    [pickupAddress, pickupLabel]
-  );
-
   const bookingParams = useCallback(
     (extra?: Record<string, string>) => {
       const params: Record<string, string> = { ...(extra || {}) };
@@ -354,20 +308,25 @@ export default function CustomerHomeScreen() {
     [pickupAddress, pickupLabel, coords]
   );
 
-  const continueToBooking = useCallback(
-    (dropoff: string, dropCoords?: { lat?: number; lng?: number }) => {
-      const params = bookingParams({ dropoff: dropoff.trim() });
-      if (dropCoords?.lat != null && dropCoords?.lng != null) {
-        params.dropoffLat = String(dropCoords.lat);
-        params.dropoffLng = String(dropCoords.lng);
-      }
-      setTripEditorOpen(false);
-      router.push({ pathname: "/customer/create-reservation", params });
+  const openPlanRide = useCallback(
+    (focus: "pickup" | "dropoff" = "dropoff") => {
+      router.push({
+        pathname: "/customer/plan-ride",
+        params: bookingParams({ focus }),
+      });
     },
     [bookingParams]
   );
 
-  const openRide = useCallback(() => openTripEditor("dropoff"), [openTripEditor]);
+  const openRide = useCallback(
+    () =>
+      router.push({
+        pathname: "/customer/create-reservation",
+        params: bookingParams(),
+      }),
+    [bookingParams]
+  );
+  const openWhereTo = useCallback(() => openPlanRide("dropoff"), [openPlanRide]);
   const openParcel = useCallback(
     () =>
       router.push({
@@ -391,24 +350,6 @@ export default function CustomerHomeScreen() {
   }, [coords, myCoords, pickupManual, resolveLocation]);
 
   const sheetPadBottom = (Platform.OS === "ios" ? 88 : 72) + insets.bottom;
-  // Cap sheet so title/close never slide under the status bar when keyboard opens.
-  const tripSheetTopGap = Math.max(insets.top, 12) + 8;
-  const tripSheetMaxHeight = Math.max(
-    280,
-    windowHeight - tripSheetTopGap - keyboardHeight
-  );
-  const tripSheetHeaderBlock = layout.isCompact ? 78 : 88;
-  const tripScrollMaxHeight = Math.max(
-    160,
-    tripSheetMaxHeight - tripSheetHeaderBlock - (keyboardHeight > 0 ? 12 : Math.max(insets.bottom, 12))
-  );
-  const placesPanelMaxHeight = Math.max(
-    100,
-    Math.min(
-      layout.isShort || keyboardHeight > 0 ? 140 : 220,
-      windowHeight * (keyboardHeight > 0 ? 0.18 : layout.isShort ? 0.22 : 0.28)
-    )
-  );
 
   return (
     <View style={styles.root}>
@@ -521,7 +462,7 @@ export default function CustomerHomeScreen() {
           </Pressable>
 
           <Pressable
-            onPress={() => openTripEditor("pickup")}
+            onPress={() => openPlanRide("pickup")}
             style={({ pressed }) => [
               styles.pickupChip,
               {
@@ -754,9 +695,9 @@ export default function CustomerHomeScreen() {
             </Pressable>
           </View>
 
-          {/* Where to */}
+          {/* Where to — opens Plan your ride (drop-off first) */}
           <Pressable
-            onPress={openRide}
+            onPress={openWhereTo}
             style={({ pressed }) => [
               styles.whereBar,
               {
@@ -817,18 +758,23 @@ export default function CustomerHomeScreen() {
                   <LinearGradient
                     colors={
                       isDark
-                        ? ["#2A2622", "#1A1816", "#121110"]
-                        : ["#2C2926", "#1B1917", "#12100E"]
+                        ? ["#2E2A26", "#24201C", "#1E1B18"]
+                        : ["#F7F4EF", "#F0EBE3", "#E8E2D8"]
                     }
-                    locations={[0, 0.55, 1]}
-                    start={{ x: 0.15, y: 0 }}
-                    end={{ x: 0.85, y: 1 }}
+                    locations={[0, 0.5, 1]}
+                    start={{ x: 0.2, y: 0 }}
+                    end={{ x: 0.8, y: 1 }}
                     style={styles.fleetImageWrap}
                   >
                     <LinearGradient
-                      colors={["rgba(201,160,99,0.18)", "transparent"]}
+                      colors={
+                        isDark
+                          ? ["rgba(212,160,74,0.14)", "transparent"]
+                          : ["rgba(212,160,74,0.12)", "rgba(255,255,255,0.35)", "transparent"]
+                      }
+                      locations={isDark ? [0, 1] : [0, 0.45, 1]}
                       start={{ x: 0.5, y: 0 }}
-                      end={{ x: 0.5, y: 0.55 }}
+                      end={{ x: 0.5, y: 1 }}
                       style={styles.fleetStageGlow}
                       pointerEvents="none"
                     />
@@ -837,8 +783,6 @@ export default function CustomerHomeScreen() {
                       style={styles.fleetImage}
                       resizeMode="contain"
                     />
-                    <View style={styles.fleetGroundShadow} pointerEvents="none" />
-                    <View style={styles.fleetStageEdge} pointerEvents="none" />
                   </LinearGradient>
                   <Text
                     style={[styles.fleetName, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]}
@@ -852,176 +796,6 @@ export default function CustomerHomeScreen() {
           )}
         </ScrollView>
       </Animated.View>
-
-      {/* Pickup + Where to — responsive trip editor */}
-      <Modal
-        visible={tripEditorOpen}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setTripEditorOpen(false)}
-        statusBarTranslucent
-      >
-        <View style={styles.modalRoot}>
-          <Pressable
-            style={styles.modalBackdrop}
-            onPress={() => {
-              Keyboard.dismiss();
-              setTripEditorOpen(false);
-            }}
-            accessibilityLabel="Close"
-          />
-          <View
-            style={[
-              styles.modalAvoid,
-              layout.isTablet && { maxWidth: 560, alignSelf: "center", width: "100%" },
-              {
-                marginBottom: keyboardHeight,
-                maxHeight: tripSheetMaxHeight,
-              },
-            ]}
-          >
-            <View
-              style={[
-                styles.modalSheet,
-                {
-                  maxHeight: tripSheetMaxHeight,
-                  paddingBottom:
-                    keyboardHeight > 0 ? 12 : Math.max(insets.bottom, 16),
-                  paddingHorizontal: layout.isCompact ? 14 : 18,
-                },
-              ]}
-            >
-              <View style={styles.modalHandle} />
-              <View style={styles.modalHeader}>
-                <Text
-                  style={[styles.modalTitle, { fontSize: layout.titleSize }]}
-                  numberOfLines={1}
-                >
-                  Plan your ride
-                </Text>
-                <Pressable
-                  onPress={() => {
-                    Keyboard.dismiss();
-                    setTripEditorOpen(false);
-                  }}
-                  hitSlop={12}
-                  style={styles.modalCloseBtn}
-                >
-                  <Ionicons name="close" size={22} color="#1C1C1E" />
-                </Pressable>
-              </View>
-
-              <ScrollView
-                style={[styles.modalScroll, { maxHeight: tripScrollMaxHeight }]}
-                contentContainerStyle={styles.modalScrollContent}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="on-drag"
-                showsVerticalScrollIndicator={false}
-                bounces={false}
-                nestedScrollEnabled
-              >
-                <View
-                  style={[
-                    styles.routeCard,
-                    layout.isCompact && { paddingHorizontal: 12, paddingVertical: 12, gap: 10 },
-                  ]}
-                >
-                  <View style={styles.routeRail} pointerEvents="none">
-                    <View style={styles.routePickupDot} />
-                    <View style={styles.routeLine} />
-                    <View style={styles.routeDropDot} />
-                  </View>
-                  <View style={styles.routeFields}>
-                    <View
-                      style={[
-                        styles.routeFieldBlock,
-                        tripEditorFocus === "pickup" && styles.routeFieldBlockActive,
-                      ]}
-                    >
-                      <Text style={styles.routeFieldLabel}>Pickup</Text>
-                      <GooglePlacesAddressField
-                        value={pickupDraft}
-                        onChangeText={setPickupDraft}
-                        placeholder="Current location"
-                        iconName="locate-outline"
-                        autoFocus={tripEditorFocus === "pickup"}
-                        maxPanelHeight={placesPanelMaxHeight}
-                        onPlaceResolved={(place) => {
-                          if (place.lat != null && place.lng != null) {
-                            void applyLocation(place.lat, place.lng, {
-                              manual: true,
-                              label: place.address,
-                            });
-                          } else {
-                            setPickupManual(true);
-                            setPickupLabel(place.address);
-                            setPickupAddress(place.address);
-                          }
-                          setPickupDraft(place.address);
-                          setTripEditorFocus("dropoff");
-                          setDropoffFocusKey((k) => k + 1);
-                        }}
-                      />
-                    </View>
-
-                    <View style={styles.routeDivider} />
-
-                    <View
-                      style={[
-                        styles.routeFieldBlock,
-                        tripEditorFocus === "dropoff" && styles.routeFieldBlockActive,
-                      ]}
-                    >
-                      <Text style={styles.routeFieldLabel}>Drop-off</Text>
-                      <GooglePlacesAddressField
-                        key={`dropoff-${dropoffFocusKey}`}
-                        value={dropoffDraft}
-                        onChangeText={setDropoffDraft}
-                        placeholder="Where to?"
-                        iconName="search-outline"
-                        autoFocus={tripEditorFocus === "dropoff"}
-                        maxPanelHeight={placesPanelMaxHeight}
-                        onPlaceResolved={(place) => {
-                          setDropoffDraft(place.address);
-                          continueToBooking(place.address, {
-                            lat: place.lat,
-                            lng: place.lng,
-                          });
-                        }}
-                      />
-                    </View>
-                  </View>
-                </View>
-
-                <Pressable
-                  onPress={async () => {
-                    const label = await resolveLocation();
-                    if (label) setPickupDraft(label);
-                    setTripEditorFocus("dropoff");
-                    setDropoffFocusKey((k) => k + 1);
-                  }}
-                  style={({ pressed }) => [
-                    styles.useGpsBtn,
-                    layout.isCompact && { paddingVertical: 12 },
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <View style={styles.useGpsIcon}>
-                    <Ionicons name="navigate" size={18} color="#1C1C1E" />
-                  </View>
-                  <Text
-                    style={[styles.useGpsText, layout.isCompact && { fontSize: 15 }]}
-                    numberOfLines={1}
-                  >
-                    Use current location
-                  </Text>
-                  <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
-                </Pressable>
-              </ScrollView>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -1481,10 +1255,10 @@ const styles = StyleSheet.create({
     paddingBottom: 2,
   },
   fleetCard: {
-    borderRadius: 14,
-    padding: 6,
-    paddingBottom: 8,
-    marginRight: 10,
+    borderRadius: 16,
+    padding: 8,
+    paddingBottom: 10,
+    marginRight: 12,
     borderWidth: StyleSheet.hairlineWidth,
     ...Platform.select({
       ios: {
@@ -1497,9 +1271,9 @@ const styles = StyleSheet.create({
     }),
   },
   fleetImageWrap: {
-    borderRadius: 10,
-    height: 100,
-    marginBottom: 6,
+    borderRadius: 12,
+    height: 118,
+    marginBottom: 8,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
@@ -1508,186 +1282,19 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   fleetImage: {
-    width: "94%",
-    height: 72,
+    width: "98%",
+    height: 92,
     zIndex: 1,
   },
-  fleetGroundShadow: {
-    position: "absolute",
-    bottom: 10,
-    alignSelf: "center",
-    width: "58%",
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    opacity: 0.55,
-    transform: [{ scaleX: 1.05 }],
-  },
-  fleetStageEdge: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: StyleSheet.hairlineWidth * 2,
-    backgroundColor: "rgba(201,160,99,0.35)",
-  },
   fleetName: {
-    fontSize: 12.5,
+    fontSize: 13.5,
     fontWeight: "600",
-    lineHeight: 16,
+    lineHeight: 18,
     letterSpacing: -0.15,
     paddingHorizontal: 2,
     marginTop: 0,
   },
   pressed: {
     opacity: 0.92,
-  },
-  modalRoot: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  modalAvoid: {
-    width: "100%",
-    maxWidth: 560,
-    alignSelf: "center",
-  },
-  modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.4)",
-  },
-  modalSheet: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingTop: 10,
-    width: "100%",
-    zIndex: 2,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: -6 },
-        shadowOpacity: 0.12,
-        shadowRadius: 18,
-      },
-      android: { elevation: 16 },
-    }),
-  },
-  modalScroll: {
-    flexGrow: 0,
-  },
-  modalScrollContent: {
-    paddingBottom: 12,
-    flexGrow: 1,
-  },
-  modalHandle: {
-    alignSelf: "center",
-    width: 44,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: "#D1D5DB",
-    marginBottom: 14,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-    gap: 12,
-  },
-  modalCloseBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#F3F4F6",
-  },
-  modalTitle: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#1C1C1E",
-    letterSpacing: -0.4,
-  },
-  routeCard: {
-    flexDirection: "row",
-    gap: 14,
-    backgroundColor: "#F3F4F6",
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 16,
-    marginBottom: 12,
-  },
-  routeRail: {
-    width: 16,
-    alignItems: "center",
-    paddingTop: 30,
-    paddingBottom: 14,
-  },
-  routePickupDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#22C55E",
-  },
-  routeLine: {
-    flex: 1,
-    width: 2,
-    backgroundColor: "#D1D5DB",
-    marginVertical: 8,
-    minHeight: 36,
-  },
-  routeDropDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 3,
-    backgroundColor: "#1C1C1E",
-  },
-  routeFields: {
-    flex: 1,
-    minWidth: 0,
-  },
-  routeFieldBlock: {
-    zIndex: 1,
-  },
-  routeFieldBlockActive: {
-    zIndex: 50,
-  },
-  routeFieldLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#6B7280",
-    marginBottom: 8,
-  },
-  routeDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: "#D1D5DB",
-    marginVertical: 14,
-  },
-  useGpsBtn: {
-    marginTop: 4,
-    marginBottom: 4,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    backgroundColor: "#F9FAFB",
-  },
-  useGpsIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#E5E7EB",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  useGpsText: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1C1C1E",
   },
 });

@@ -712,6 +712,13 @@ export default function RideDetailsScreen() {
                           <Ionicons name="cube" size={11} color="#8B6914" />
                           <Text style={styles.parcelBadgeText}>PARCEL</Text>
                         </View>
+                      ) : (ride?.specialRequirements || "")
+                          .toUpperCase()
+                          .includes("CHILD PASSENGER") ? (
+                        <View style={styles.childBadge}>
+                          <Ionicons name="shield-checkmark" size={11} color="#8B6914" />
+                          <Text style={styles.parcelBadgeText}>CHILD</Text>
+                        </View>
                       ) : null}
                     </View>
                     <Text style={styles.customerMeta}>
@@ -744,6 +751,19 @@ export default function RideDetailsScreen() {
                       {parcel.parcelNote ? (
                         <Text style={styles.parcelInfoNote}>{parcel.parcelNote}</Text>
                       ) : null}
+                    </View>
+                  );
+                })()}
+                {(() => {
+                  const notes = (ride?.specialRequirements || "").trim();
+                  if (!notes || isParcelServiceType(ride?.serviceType)) return null;
+                  const isChild = notes.toUpperCase().includes("CHILD PASSENGER");
+                  return (
+                    <View style={[styles.parcelInfoBox, isChild && styles.childRideBox]}>
+                      <Text style={styles.parcelInfoTitle}>
+                        {isChild ? "Child passenger" : "Special requests"}
+                      </Text>
+                      <Text style={styles.parcelInfoNote}>{notes}</Text>
                     </View>
                   );
                 })()}
@@ -1274,6 +1294,17 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(212,160,74,0.4)",
   },
+  childBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(212,160,74,0.16)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(212,160,74,0.4)",
+  },
   parcelBadgeText: {
     fontSize: 10,
     fontWeight: "800",
@@ -1287,6 +1318,10 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(212,160,74,0.1)",
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(212,160,74,0.35)",
+  },
+  childRideBox: {
+    backgroundColor: "rgba(201,160,99,0.14)",
+    borderColor: "rgba(201,160,99,0.45)",
   },
   parcelInfoTitle: {
     fontSize: 11,

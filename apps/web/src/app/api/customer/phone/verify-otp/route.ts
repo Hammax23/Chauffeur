@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getCustomerFromRequest } from "@/lib/customer-auth";
+import {
+  getActiveCustomerFromRequest,
+  customerAuthFailurePayload,
+} from "@/lib/customer-auth";
 import {
   formatUsCanadaE164,
   phoneLookupVariants,
@@ -13,10 +16,12 @@ import { PHONE_OTP_LENGTH, STATIC_PHONE_OTP } from "@/lib/phone-otp";
  */
 export async function POST(req: NextRequest) {
   try {
-    const tokenData = getCustomerFromRequest(req);
-    if (!tokenData) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    const auth = await getActiveCustomerFromRequest(req);
+    if (!auth.ok) {
+      const fail = customerAuthFailurePayload(auth.reason);
+      return NextResponse.json(fail.body, { status: fail.status });
     }
+    const tokenData = auth.customer;
 
     const body = await req.json();
     const phone = typeof body?.phone === "string" ? body.phone : "";

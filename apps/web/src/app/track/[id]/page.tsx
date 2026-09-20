@@ -7,11 +7,24 @@ import Image from "next/image";
 
 const STATUS_STEPS = [
   { key: "PENDING", label: "Reservation Confirmed", description: "Your booking has been received", icon: CheckCircle2, color: "text-gray-400", bgColor: "bg-gray-100" },
+  { key: "ACCEPTED", label: "Chauffeur Assigned", description: "Your chauffeur has accepted this ride", icon: User, color: "text-emerald-500", bgColor: "bg-emerald-50" },
   { key: "ON THE WAY", label: "Driver On The Way", description: "Your driver is heading to the pick-up location", icon: Car, color: "text-blue-500", bgColor: "bg-blue-50" },
   { key: "ARRIVED", label: "Driver Arrived", description: "Your driver has arrived at the pick-up location", icon: MapPin, color: "text-yellow-500", bgColor: "bg-yellow-50" },
   { key: "CIC", label: "Customer In Car", description: "You are on your way to the destination", icon: User, color: "text-purple-500", bgColor: "bg-purple-50" },
+  { key: "STOP", label: "Temporarily Stopped", description: "The trip is paused and will continue shortly", icon: Clock, color: "text-amber-500", bgColor: "bg-amber-50" },
   { key: "DONE", label: "Ride Complete", description: "Thank you for choosing SARJ Worldwide", icon: CheckCircle2, color: "text-green-500", bgColor: "bg-green-50" },
 ];
+
+/** Map API statuses onto the timeline so ACCEPTED / STOP still render correctly. */
+function normalizeTrackStatus(status: string): string {
+  const s = (status || "PENDING").toUpperCase();
+  if (s === "CANCELED") return "CANCELLED";
+  return s;
+}
+
+function isCancelledStatus(status: string): boolean {
+  return normalizeTrackStatus(status) === "CANCELLED";
+}
 
 export default function TrackPage() {
   const params = useParams();
@@ -29,7 +42,7 @@ export default function TrackPage() {
       const data = await res.json();
       if (data.success) {
         setBooking(data);
-        setCurrentStatus(data.status || "PENDING");
+        setCurrentStatus(normalizeTrackStatus(data.status || "PENDING"));
       } else if (data.expired) {
         setExpired(true);
       } else {
@@ -49,8 +62,12 @@ export default function TrackPage() {
     return () => clearInterval(interval);
   }, [fetchStatus]);
 
-  const getStatusIndex = () => STATUS_STEPS.findIndex((s) => s.key === currentStatus);
+  const getStatusIndex = () => {
+    if (isCancelledStatus(currentStatus)) return -1;
+    return STATUS_STEPS.findIndex((s) => s.key === currentStatus);
+  };
   const statusIndex = getStatusIndex();
+  const cancelled = isCancelledStatus(currentStatus);
 
   if (loading) {
     return (
@@ -121,7 +138,15 @@ export default function TrackPage() {
       <div className="max-w-lg mx-auto px-4 sm:px-6">
         {/* Current Status Card */}
         <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-4 sm:p-6 mb-4 sm:mb-6">
-          {(() => {
+          {cancelled ? (
+            <div className="text-center">
+              <div className="w-16 h-16 bg-red-500/15 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Clock className="w-8 h-8 text-red-400" />
+              </div>
+              <h2 className="text-white text-xl font-bold mb-1">Ride Cancelled</h2>
+              <p className="text-gray-400 text-sm">This reservation was cancelled.</p>
+            </div>
+          ) : (() => {
             const current = STATUS_STEPS[statusIndex] || STATUS_STEPS[0];
             const CurrentIcon = current.icon;
             return (
@@ -219,6 +244,7 @@ export default function TrackPage() {
         )}
 
         {/* Status Timeline */}
+        {!cancelled ? (
         <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-4 sm:p-6 mb-4 sm:mb-6">
           <div className="space-y-0">
             {STATUS_STEPS.map((step, index) => {
@@ -263,6 +289,7 @@ export default function TrackPage() {
             })}
           </div>
         </div>
+        ) : null}
 
         {/* Contact */}
         <div className="text-center pb-8 sm:pb-10">

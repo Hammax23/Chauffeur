@@ -30,6 +30,7 @@ type AppCustomer = {
   accountStatus: string;
   blockedAt: string | null;
   blockedReason: string | null;
+  deactivatedAt: string | null;
   createdAt: string;
 };
 
@@ -41,6 +42,16 @@ type ConfirmState =
 
 function isBlocked(c: AppCustomer) {
   return String(c.accountStatus || "ACTIVE").toUpperCase() === "BLOCKED";
+}
+
+function isDeactivated(c: AppCustomer) {
+  return String(c.accountStatus || "ACTIVE").toUpperCase() === "DEACTIVATED";
+}
+
+function statusLabel(c: AppCustomer) {
+  if (isBlocked(c)) return "Blocked";
+  if (isDeactivated(c)) return "Deactivated";
+  return "Active";
 }
 
 function initials(c: AppCustomer) {
@@ -58,7 +69,7 @@ export default function AppCustomersPage() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "blocked">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "blocked" | "deactivated">("all");
   const [selected, setSelected] = useState<AppCustomer | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState>(null);
   const [blockReason, setBlockReason] = useState("");
@@ -93,12 +104,14 @@ export default function AppCustomersPage() {
 
   const stats = useMemo(() => {
     const blocked = customers.filter(isBlocked).length;
+    const deactivated = customers.filter(isDeactivated).length;
     return {
       total: customers.length,
       apple: customers.filter((c) => c.oauthProvider === "apple").length,
       google: customers.filter((c) => c.oauthProvider === "google").length,
       blocked,
-      active: customers.length - blocked,
+      deactivated,
+      active: customers.length - blocked - deactivated,
     };
   }, [customers]);
 
@@ -106,7 +119,8 @@ export default function AppCustomersPage() {
     const q = searchQuery.trim().toLowerCase();
     return customers.filter((c) => {
       if (statusFilter === "blocked" && !isBlocked(c)) return false;
-      if (statusFilter === "active" && isBlocked(c)) return false;
+      if (statusFilter === "deactivated" && !isDeactivated(c)) return false;
+      if (statusFilter === "active" && (isBlocked(c) || isDeactivated(c))) return false;
       if (!q) return true;
       const name = `${c.firstName} ${c.lastName}`.toLowerCase();
       return (
@@ -254,6 +268,7 @@ export default function AppCustomersPage() {
             ["all", "All"],
             ["active", "Active"],
             ["blocked", "Blocked"],
+            ["deactivated", "Deactivated"],
           ] as const).map(([id, label]) => (
             <button
               key={id}
@@ -304,6 +319,8 @@ export default function AppCustomersPage() {
           <div className="divide-y divide-gray-100">
             {filtered.map((c) => {
               const blocked = isBlocked(c);
+              const deactivated = isDeactivated(c);
+              const inactive = blocked || deactivated;
               return (
                 <div
                   key={c.id}
@@ -357,10 +374,12 @@ export default function AppCustomersPage() {
                       className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
                         blocked
                           ? "bg-amber-50 text-amber-800 border border-amber-200"
-                          : "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                          : deactivated
+                            ? "bg-slate-100 text-slate-700 border border-slate-200"
+                            : "bg-emerald-50 text-emerald-700 border border-emerald-100"
                       }`}
                     >
-                      {blocked ? "Blocked" : "Active"}
+                      {statusLabel(c)}
                     </span>
                   </div>
 
@@ -372,15 +391,15 @@ export default function AppCustomersPage() {
                   </div>
 
                   <div className="flex items-center justify-start lg:justify-end gap-1.5">
-                    {blocked ? (
+                    {inactive ? (
                       <button
                         type="button"
-                        title="Unblock customer"
+                        title={deactivated ? "Reactivate customer" : "Unblock customer"}
                         onClick={() => setConfirm({ type: "unblock", customer: c })}
                         className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 transition-colors"
                       >
                         <ShieldCheck className="w-3.5 h-3.5" />
-                        Unblock
+                        {deactivated ? "Reactivate" : "Unblock"}
                       </button>
                     ) : (
                       <button
@@ -441,10 +460,12 @@ export default function AppCustomersPage() {
                   className={`ml-auto text-xs font-semibold px-2 py-0.5 rounded-full ${
                     isBlocked(selected)
                       ? "bg-amber-50 text-amber-800"
-                      : "bg-emerald-50 text-emerald-700"
+                      : isDeactivated(selected)
+                        ? "bg-slate-100 text-slate-700"
+                        : "bg-emerald-50 text-emerald-700"
                   }`}
                 >
-                  {isBlocked(selected) ? "Blocked" : "Active"}
+                  {statusLabel(selected)}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -466,6 +487,22 @@ export default function AppCustomersPage() {
                   {selected.oauthProvider ? selected.oauthProvider.toUpperCase() : "PASSWORD"}
                 </span>
               </div>
+              {isDeactivated(selected) && (
+                <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-slate-800 text-xs">
+                  <p className="font-semibold mb-1">Self-deactivated</p>
+                  {selected.deactivatedAt ? (
+                    <p>
+                      Since{" "}
+                      {new Date(selected.deactivatedAt).toLocaleString("en-US", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </p>
+                  ) : (
+                    <p>Customer deactivated their account from the app.</p>
+                  )}
+                </div>
+              )}
               {isBlocked(selected) && (
                 <div className="rounded-xl bg-amber-50 border border-amber-100 p-3 text-amber-900 text-xs">
                   <p className="font-semibold mb-1">Blocked</p>
@@ -491,14 +528,14 @@ export default function AppCustomersPage() {
             </div>
 
             <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
-              {isBlocked(selected) ? (
+              {isBlocked(selected) || isDeactivated(selected) ? (
                 <button
                   type="button"
                   onClick={() => setConfirm({ type: "unblock", customer: selected })}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100"
                 >
                   <ShieldCheck className="w-4 h-4" />
-                  Unblock
+                  {isDeactivated(selected) ? "Reactivate" : "Unblock"}
                 </button>
               ) : (
                 <button

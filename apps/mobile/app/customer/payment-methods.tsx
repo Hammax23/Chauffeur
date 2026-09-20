@@ -215,8 +215,7 @@ export default function PaymentMethodsScreen() {
           <View style={styles.trustBanner}>
             <Ionicons name="shield-checkmark" size={18} color={GOLD} />
             <Text style={[styles.trustText, { color: palette.muted }]}>
-              Cards are encrypted and stored securely by Stripe. SARJ never sees your full card
-              number.
+              Cards are encrypted and stored securely by Stripe.
             </Text>
           </View>
 
@@ -247,9 +246,7 @@ export default function PaymentMethodsScreen() {
                 <Ionicons name="card-outline" size={28} color={GOLD} />
               </View>
               <Text style={[styles.emptyTitle, { color: palette.text }]}>No cards yet</Text>
-              <Text style={[styles.emptyBody, { color: palette.muted }]}>
-                Add a card once — then pay for rides in one tap at checkout.
-              </Text>
+              <Text style={[styles.emptyBody, { color: palette.muted }]}>Add a card once.</Text>
             </BlurView>
           ) : (
             <View style={styles.list}>

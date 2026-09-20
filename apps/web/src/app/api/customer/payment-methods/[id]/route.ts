@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getCustomerFromRequest,
-  blockedCustomerResponse,
-  isCustomerBlocked,
+  customerInactiveHttpResponse,
 } from "@/lib/customer-auth";
 import prisma from "@/lib/prisma";
 import { getStripe } from "@/lib/stripe-customer";
@@ -31,13 +30,19 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     const customer = await prisma.customer.findUnique({
       where: { id: token.id },
-      select: { stripeCustomerId: true, accountStatus: true },
+      select: {
+        stripeCustomerId: true,
+        accountStatus: true,
+        deactivatedAt: true,
+        oauthProvider: true,
+      },
     });
     if (!customer) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
-    if (isCustomerBlocked(customer)) {
-      return NextResponse.json(blockedCustomerResponse(), { status: 403 });
+    const inactive = customerInactiveHttpResponse(customer);
+    if (inactive) {
+      return NextResponse.json(inactive.body, { status: inactive.status });
     }
     if (!customer.stripeCustomerId) {
       return NextResponse.json({ success: false, error: "No saved cards." }, { status: 404 });

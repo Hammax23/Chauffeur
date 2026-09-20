@@ -77,17 +77,22 @@ export async function POST(req: NextRequest) {
           { phone: { in: phoneLookupVariants(String(phone)) } },
         ],
       },
-      select: { id: true, email: true },
+      select: { id: true, email: true, accountStatus: true },
     });
 
     if (existingCustomer) {
       const sameEmail = existingCustomer.email === email.toLowerCase();
+      const deactivated =
+        String(existingCustomer.accountStatus || "ACTIVE").toUpperCase() === "DEACTIVATED";
       return NextResponse.json(
         {
           success: false,
           error: sameEmail
-            ? "An account with this email already exists"
+            ? deactivated
+              ? "This email belongs to a deactivated account. Sign in to reactivate, or contact support."
+              : "An account with this email already exists"
             : "This phone number is already registered.",
+          code: sameEmail && deactivated ? "ACCOUNT_DEACTIVATED" : undefined,
         },
         { status: 409 }
       );

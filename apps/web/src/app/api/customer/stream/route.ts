@@ -6,6 +6,7 @@ import {
   subscribeCustomer,
   type ReservationEvent,
 } from "@/lib/realtime-bus";
+import { isCustomerInactive } from "@/lib/customer-auth";
 
 /**
  * Long-lived SSE feed for one customer.
@@ -28,7 +29,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 /** Cap how many initial snapshots we replay; older bookings are still fetched on next list refresh. */
 const SNAPSHOT_LIMIT = 30;
 
-function getCustomerIdFromRequest(req: NextRequest): string | null {
+async function getActiveCustomerIdFromRequest(req: NextRequest): Promise<string | null> {
   const authHeader = req.headers.get("authorization");
   let token: string | null = null;
   if (authHeader?.startsWith("Bearer ")) {
@@ -40,7 +41,12 @@ function getCustomerIdFromRequest(req: NextRequest): string | null {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { id: string; type: string };
     if (decoded.type !== "customer") return null;
-    return decoded.id;
+    const customer = await prisma.customer.findUnique({
+      where: { id: decoded.id },
+      select: { id: true, accountStatus: true },
+    });
+    if (!customer || isCustomerInactive(customer)) return null;
+    return customer.id;
   } catch {
     return null;
   }
@@ -51,7 +57,7 @@ function sseFrame(event: string, data: unknown): string {
 }
 
 export async function GET(req: NextRequest) {
-  const customerId = getCustomerIdFromRequest(req);
+  const customerId = await getActiveCustomerIdFromRequest(req);
   if (!customerId) {
     return new Response("Unauthorized", { status: 401 });
   }

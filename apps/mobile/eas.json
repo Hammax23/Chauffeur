@@ -1,15 +1,16 @@
 {
   "cli": {
     "version": ">= 12.0.0",
-    "appVersionSource": "local"
+    "appVersionSource": "local",
+    "promptToConfigurePushNotifications": false
   },
   "build": {
     "development": {
-      "developmentClient": false,
+      "developmentClient": true,
       "distribution": "internal",
-      "channel": "development",
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "http://127.0.0.1:3000/api"
+        "GOOGLE_WEB_CLIENT_ID": "339504428086-ii7547k8d5fn33rnotbn2al49b7j7mvq.apps.googleusercontent.com",
+        "GOOGLE_IOS_CLIENT_ID": "339504428086-votguml8g694jfcej359pq7l6j68klcd.apps.googleusercontent.com"
       }
     },
     "preview": {
@@ -41,4 +42,3 @@
     }
   }
 }
-

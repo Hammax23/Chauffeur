@@ -251,7 +251,8 @@ export default function CreateReservationScreen() {
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [childSeatCount, setChildSeatCount] = useState(0);
-  const [rideFor, setRideFor] = useState<"me" | "someone">("me");
+  const [rideFor, setRideFor] = useState<"me" | "someone" | "child">("me");
+  const [childAge, setChildAge] = useState("");
   const [firstName, setFirstName] = useState(user?.firstName || "");
   const [lastName, setLastName] = useState(user?.lastName || "");
   const [phoneNumber, setPhoneNumber] = useState(user?.phone || "");
@@ -292,26 +293,42 @@ export default function CreateReservationScreen() {
       }
       setEmail((prev) => prev || user.email || "");
     } else {
-      // Keep booker email for receipts when riding for someone else
+      // Keep booker email for receipts when riding for someone else / child
       setEmail((prev) => prev || user.email || "");
     }
   }, [user, rideFor]);
 
   const selectRideFor = useCallback(
-    (next: "me" | "someone") => {
+    (next: "me" | "someone" | "child") => {
       if (next === rideFor) return;
       setRideFor(next);
       if (next === "me") {
         applyAccountContact();
+        setChildAge("");
+      } else if (next === "child") {
+        setFirstName("");
+        setLastName("");
+        setPhoneNumber(user?.phone || "");
+        setEmail(user?.email || "");
+        setChildAge("");
+        setChildSeatCount((n) => (n > 0 ? n : 1));
       } else {
         setFirstName("");
         setLastName("");
         setPhoneNumber("");
         setEmail(user?.email || "");
+        setChildAge("");
       }
     },
-    [rideFor, applyAccountContact, user?.email]
+    [rideFor, applyAccountContact, user?.email, user?.phone]
   );
+
+  // Parcel bookings cannot use "Child" — reset if service type flips.
+  useEffect(() => {
+    if (isParcel && rideFor === "child") {
+      selectRideFor("me");
+    }
+  }, [isParcel, rideFor, selectRideFor]);
 
   const loadFleet = useCallback(async () => {
     setFleetLoading(true);
@@ -715,7 +732,9 @@ export default function CreateReservationScreen() {
         "Missing info",
         rideFor === "me"
           ? "Please confirm your name and phone number."
-          : "Please enter the passenger’s name and phone number."
+          : rideFor === "child"
+            ? "Please enter the child’s name and a guardian phone number."
+            : "Please enter the passenger’s name and phone number."
       );
       return;
     }
@@ -723,9 +742,19 @@ export default function CreateReservationScreen() {
       Alert.alert("Missing info", "Please add an email on your account for booking confirmation.");
       return;
     }
-    if (rideFor === "someone" && !(user?.email || email).trim()) {
+    if (
+      (rideFor === "someone" || rideFor === "child") &&
+      !(user?.email || email).trim()
+    ) {
       Alert.alert("Missing info", "Your account needs an email so we can send the booking confirmation.");
       return;
+    }
+    if (rideFor === "child") {
+      const ageNum = parseInt(childAge.trim(), 10);
+      if (!childAge.trim() || Number.isNaN(ageNum) || ageNum < 1 || ageNum > 17) {
+        Alert.alert("Child age", "Please enter the child’s age (1–17).");
+        return;
+      }
     }
     if (!selectedTier) {
       Alert.alert(
@@ -765,6 +794,23 @@ export default function CreateReservationScreen() {
         Alert.alert("Child seats", "Child seats cannot exceed the passenger count.");
         return;
       }
+      if (rideFor === "child" && childSeatCount < 1) {
+        Alert.alert(
+          "Child seat recommended",
+          "Most children require an approved child seat. Add one to this booking?",
+          [
+            { text: "Not now", style: "cancel", onPress: () => void persistDraftAndContinue() },
+            {
+              text: "Add child seat",
+              onPress: () => {
+                setChildSeatCount(1);
+                void persistDraftAndContinue({ childSeatsOverride: 1 });
+              },
+            },
+          ]
+        );
+        return;
+      }
     } else {
       if (!recipientName.trim() || !recipientPhone.trim()) {
         Alert.alert("Missing info", "Please enter the recipient name and phone number.");
@@ -772,9 +818,22 @@ export default function CreateReservationScreen() {
       }
     }
 
+    await persistDraftAndContinue();
+  };
+
+  const persistDraftAndContinue = async (opts?: { childSeatsOverride?: number }) => {
+    const bookingPhone =
+      rideFor === "me" && user?.phone?.trim()
+        ? user.phone.trim()
+        : phoneNumber.trim();
     const resolvedDropoff = isHourly
       ? dropoffAddress.trim() || AS_DIRECTED_DROPOFF
       : dropoffAddress.trim();
+    const seats =
+      typeof opts?.childSeatsOverride === "number"
+        ? opts.childSeatsOverride
+        : childSeatCount;
+    const bookerRide = rideFor === "someone" || rideFor === "child";
 
     await saveBookingDraft({
       serviceType,
@@ -788,19 +847,19 @@ export default function CreateReservationScreen() {
       serviceTime: serviceTimeStr,
       pickupTimeDisplay,
       passengers: isParcel ? "1" : String(passengersCount),
-      vehicle: selectedTier.title,
-      vehicleId: selectedTier.id,
-      vehicleSubtitle: selectedTier.subtitle,
+      vehicle: selectedTier!.title,
+      vehicleId: selectedTier!.id,
+      vehicleSubtitle: selectedTier!.subtitle,
       vehiclePrice: isHourly
-        ? `$${selectedTier.hourlyRate.toFixed(2)}/hr · ${hourlyDuration}h`
-        : selectedTier.hourlyRate > 0
-          ? `From $${selectedTier.hourlyRate.toFixed(2)}`
-          : `$${selectedTier.pricePerKm.toFixed(2)}/km`,
-      rideFare: String(fareEstimate.rideFare ?? 0),
-      pricePerKm: String(selectedTier.pricePerKm),
-      hourlyRate: String(selectedTier.hourlyRate),
-      baseDistanceKm: String(selectedTier.baseDistanceKm || distancePricing.baseDistanceKm),
-      extraKmRate: String(selectedTier.extraKmRate || distancePricing.extraKmRate),
+        ? `$${selectedTier!.hourlyRate.toFixed(2)}/hr · ${hourlyDuration}h`
+        : selectedTier!.hourlyRate > 0
+          ? `From $${selectedTier!.hourlyRate.toFixed(2)}`
+          : `$${selectedTier!.pricePerKm.toFixed(2)}/km`,
+      rideFare: String(fareEstimate!.rideFare ?? 0),
+      pricePerKm: String(selectedTier!.pricePerKm),
+      hourlyRate: String(selectedTier!.hourlyRate),
+      baseDistanceKm: String(selectedTier!.baseDistanceKm || distancePricing.baseDistanceKm),
+      extraKmRate: String(selectedTier!.extraKmRate || distancePricing.extraKmRate),
       distanceText: isHourly
         ? `Hourly · ${hourlyDuration}h`
         : routeSummary?.distanceText ?? "",
@@ -812,19 +871,19 @@ export default function CreateReservationScreen() {
         ? String(hourlyDuration * 3600)
         : String(routeSummary?.durationSeconds ?? ""),
       tollRoute: tollRoute ? "Yes" : "No",
-      childSeatCount: isParcel ? "0" : String(childSeatCount),
+      childSeatCount: isParcel ? "0" : String(seats),
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       phoneNumber: bookingPhone,
-      email: rideFor === "someone" ? (user?.email || email).trim() : email.trim(),
+      email: bookerRide ? (user?.email || email).trim() : email.trim(),
       rideFor,
-      bookerName:
-        rideFor === "someone"
-          ? [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || undefined
-          : undefined,
-      bookerEmail: rideFor === "someone" ? (user?.email || email).trim() || undefined : undefined,
-      bookerPhone: rideFor === "someone" ? user?.phone || undefined : undefined,
-      seating: selectedTier.seating || "",
+      childAge: rideFor === "child" ? childAge.trim() : undefined,
+      bookerName: bookerRide
+        ? [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || undefined
+        : undefined,
+      bookerEmail: bookerRide ? (user?.email || email).trim() || undefined : undefined,
+      bookerPhone: bookerRide ? user?.phone || bookingPhone || undefined : undefined,
+      seating: selectedTier!.seating || "",
       recipientName: isParcel ? recipientName.trim() : undefined,
       recipientPhone: isParcel ? recipientPhone.trim() : undefined,
       parcelWeight: isParcel ? formatParcelWeight(parcelWeight) || undefined : undefined,
@@ -1517,6 +1576,25 @@ export default function CreateReservationScreen() {
                 For me
               </Text>
             </Pressable>
+            {!isParcel ? (
+              <Pressable
+                onPress={() => selectRideFor("child")}
+                style={({ pressed }) => [
+                  styles.rideForSeg,
+                  rideFor === "child" && styles.rideForSegOn,
+                  pressed && { opacity: 0.92 },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.rideForSegText,
+                    rideFor === "child" && styles.rideForSegTextOn,
+                  ]}
+                >
+                  Child
+                </Text>
+              </Pressable>
+            ) : null}
             <Pressable
               onPress={() => selectRideFor("someone")}
               style={({ pressed }) => [
@@ -1613,6 +1691,81 @@ export default function CreateReservationScreen() {
                 </View>
               </View>
             )
+          ) : rideFor === "child" ? (
+            <>
+              <View style={styles.childSafetyBanner}>
+                <Ionicons name="shield-checkmark-outline" size={18} color="#A67C32" />
+                <Text style={styles.childSafetyText}>
+                  You stay the account holder and pay. Enter your child’s details, keep a
+                  guardian phone reachable, then share the live trip link with family after
+                  booking.
+                </Text>
+              </View>
+
+              <View style={styles.nameRow}>
+                <View style={styles.nameField}>
+                  <Text style={styles.inputLabel}>Child’s first name*</Text>
+                  <View style={styles.inputBox}>
+                    <TextInput
+                      style={styles.textInput}
+                      value={firstName}
+                      onChangeText={setFirstName}
+                      placeholder="First name"
+                      placeholderTextColor="#999"
+                      autoCapitalize="words"
+                    />
+                  </View>
+                </View>
+                <View style={styles.nameField}>
+                  <Text style={styles.inputLabel}>Last name*</Text>
+                  <View style={styles.inputBox}>
+                    <TextInput
+                      style={styles.textInput}
+                      value={lastName}
+                      onChangeText={setLastName}
+                      placeholder="Last name"
+                      placeholderTextColor="#999"
+                      autoCapitalize="words"
+                    />
+                  </View>
+                </View>
+              </View>
+
+              <Text style={styles.inputLabel}>Child’s age*</Text>
+              <View style={styles.inputBox}>
+                <TextInput
+                  style={styles.textInput}
+                  value={childAge}
+                  onChangeText={(t) => setChildAge(t.replace(/[^0-9]/g, "").slice(0, 2))}
+                  keyboardType="number-pad"
+                  placeholder="Age (1–17)"
+                  placeholderTextColor="#999"
+                  maxLength={2}
+                />
+              </View>
+
+              <Text style={[styles.inputLabel, { marginTop: 12 }]}>Guardian phone*</Text>
+              <View style={styles.phoneInput}>
+                <View style={styles.countryCode}>
+                  <View style={styles.flagIcon}>
+                    <Text>🇨🇦</Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={14} color="#999" />
+                </View>
+                <TextInput
+                  style={styles.phoneField}
+                  value={phoneNumber}
+                  onChangeText={setPhoneNumber}
+                  keyboardType="phone-pad"
+                  placeholder="Reachable adult contact"
+                  placeholderTextColor="#999"
+                />
+              </View>
+              <Text style={styles.childPhoneHint}>
+                Chauffeur will use this number at pickup. You’ll get receipts on your account
+                email.
+              </Text>
+            </>
           ) : (
             <>
               <View style={styles.nameRow}>
@@ -1795,13 +1948,38 @@ const styles = StyleSheet.create({
     }),
   },
   rideForSegText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
     color: "#9CA3AF",
+    textAlign: "center",
   },
   rideForSegTextOn: {
     color: "#111827",
     fontWeight: "700",
+  },
+  childSafetyBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(201,160,99,0.12)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(201,160,99,0.35)",
+    marginBottom: 14,
+  },
+  childSafetyText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+    color: "#5c4a2a",
+    fontWeight: "500",
+  },
+  childPhoneHint: {
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 16,
+    color: "#9ca3af",
   },
   forMeCard: {
     borderWidth: 1,

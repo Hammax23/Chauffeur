@@ -83,6 +83,17 @@ const nextConfig: NextConfig = {
         hostname: "via.placeholder.com",
         pathname: "/**",
       },
+      // Google OAuth profile photos (App Customers / login avatars)
+      {
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "**.googleusercontent.com",
+        pathname: "/**",
+      },
     ],
     // Serve modern formats automatically (WebP/AVIF)
     formats: ["image/avif", "image/webp"],

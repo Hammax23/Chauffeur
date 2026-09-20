@@ -49,6 +49,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
               accountStatus: "ACTIVE",
               blockedAt: null,
               blockedReason: null,
+              deactivatedAt: null,
             },
       select: {
         id: true,
@@ -62,6 +63,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         accountStatus: true,
         blockedAt: true,
         blockedReason: true,
+        deactivatedAt: true,
         createdAt: true,
       },
     });

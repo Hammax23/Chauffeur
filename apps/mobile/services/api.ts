@@ -429,6 +429,8 @@ export interface ReservationDriver {
 export interface Reservation {
   id: string;
   bookingId: string;
+  /** Public live-track URL for family/friends (no app login required). */
+  trackLink?: string;
   status: string;
   firstName: string;
   lastName: string;
@@ -603,20 +605,60 @@ async function apiRequestWithResponse<T>(
 // ==================== AUTH API ====================
 
 export async function loginCustomer(email: string, password: string) {
-  const data = await apiRequest<{
+  const res = await apiRequestWithResponse<{
     success: boolean;
-    token: string;
-    customer: CustomerProfile;
+    token?: string;
+    customer?: CustomerProfile;
     error?: string;
+    code?: string;
+    canReactivate?: boolean;
+    reactivatesUntil?: string | null;
   }>("/customer/auth/login", {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
 
-  if (data.success && data.token) {
+  const data = res.data;
+
+  if (res.ok && data.success && data.token && data.customer) {
     await setCustomerSession(data.token, data.customer);
   }
 
+  return data;
+}
+
+export async function deactivateCustomerAccount() {
+  return apiRequestWithResponse<{
+    success: boolean;
+    message?: string;
+    error?: string;
+    cancelledReservations?: number;
+    deactivatedAt?: string;
+    alreadyDeactivated?: boolean;
+  }>("/customer/account/deactivate", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export async function reactivateCustomerAccount(email: string, password: string) {
+  const res = await apiRequestWithResponse<{
+    success: boolean;
+    token?: string;
+    customer?: CustomerProfile;
+    error?: string;
+    code?: string;
+    canReactivate?: boolean;
+    message?: string;
+  }>("/customer/account/reactivate", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+
+  const data = res.data;
+  if (res.ok && data.success && data.token && data.customer) {
+    await setCustomerSession(data.token, data.customer);
+  }
   return data;
 }
 

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getCustomerFromRequest } from "@/lib/customer-auth";
+import {
+  getActiveCustomerFromRequest,
+  customerAuthFailurePayload,
+} from "@/lib/customer-auth";
 
 /**
  * Live chauffeur location for an in-progress booking owned by this customer.
@@ -10,9 +13,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const tokenData = getCustomerFromRequest(req);
-    if (!tokenData) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    const auth = await getActiveCustomerFromRequest(req);
+    if (!auth.ok) {
+      const fail = customerAuthFailurePayload(auth.reason);
+      return NextResponse.json(fail.body, { status: fail.status });
     }
 
     const { id: bookingId } = await params;
@@ -21,7 +25,7 @@ export async function GET(
     }
 
     const reservation = await prisma.reservation.findFirst({
-      where: { bookingId, customerId: tokenData.id },
+      where: { bookingId, customerId: auth.customer.id },
       select: {
         status: true,
         assignedDriver: {

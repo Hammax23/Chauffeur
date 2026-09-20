@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
         accountStatus: true,
         blockedAt: true,
         blockedReason: true,
+        deactivatedAt: true,
         createdAt: true,
       },
     });

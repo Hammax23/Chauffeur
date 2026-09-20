@@ -1,23 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import jwt from "jsonwebtoken";
 import { publishReservationFromDb } from "@/lib/realtime-bus";
-
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
-
-function getCustomerFromToken(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-
-  try {
-    const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email: string; type: string };
-    if (decoded.type !== "customer") return null;
-    return decoded;
-  } catch {
-    return null;
-  }
-}
+import {
+  getActiveCustomerFromRequest,
+  customerAuthFailurePayload,
+} from "@/lib/customer-auth";
 
 // GET - Get single reservation details
 export async function GET(
@@ -25,10 +12,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const tokenData = getCustomerFromToken(req);
-    if (!tokenData) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    const auth = await getActiveCustomerFromRequest(req);
+    if (!auth.ok) {
+      const fail = customerAuthFailurePayload(auth.reason);
+      return NextResponse.json(fail.body, { status: fail.status });
     }
+    const tokenData = auth.customer;
 
     const { id } = await params;
 
@@ -41,11 +30,19 @@ export async function GET(
       return NextResponse.json({ success: false, error: "Reservation not found" }, { status: 404 });
     }
 
+    const siteBase = (process.env.NEXT_PUBLIC_SITE_URL || "https://sarjworldwide.ca").replace(
+      /\/$/,
+      ""
+    );
+    const trackLink =
+      reservation.trackLink?.trim() || `${siteBase}/track/${reservation.bookingId}`;
+
     return NextResponse.json({
       success: true,
       reservation: {
         id: reservation.id,
         bookingId: reservation.bookingId,
+        trackLink,
         status: reservation.status,
         firstName: reservation.firstName,
         lastName: reservation.lastName,
@@ -112,10 +109,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const tokenData = getCustomerFromToken(req);
-    if (!tokenData) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    const auth = await getActiveCustomerFromRequest(req);
+    if (!auth.ok) {
+      const fail = customerAuthFailurePayload(auth.reason);
+      return NextResponse.json(fail.body, { status: fail.status });
     }
+    const tokenData = auth.customer;
 
     const { id } = await params;
 

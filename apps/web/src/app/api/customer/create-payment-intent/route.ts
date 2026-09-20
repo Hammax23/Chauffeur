@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getCustomerFromRequest,
-  blockedCustomerResponse,
-  isCustomerBlocked,
+  customerInactiveHttpResponse,
 } from "@/lib/customer-auth";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import {
@@ -54,13 +53,16 @@ export async function POST(req: NextRequest) {
         lastName: true,
         stripeCustomerId: true,
         accountStatus: true,
+        deactivatedAt: true,
+        oauthProvider: true,
       },
     });
     if (!dbCustomer) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
-    if (isCustomerBlocked(dbCustomer)) {
-      return NextResponse.json(blockedCustomerResponse(), { status: 403 });
+    const inactive = customerInactiveHttpResponse(dbCustomer);
+    if (inactive) {
+      return NextResponse.json(inactive.body, { status: inactive.status });
     }
 
     const body = await req.json();

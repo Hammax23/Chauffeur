@@ -187,10 +187,12 @@ model Customer {
   oauthSub           String?
   /// Where this customer account was created (e.g. "app" via mobile, "web" via website/admin).
   registrationSource String        @default("web")
-  /// ACTIVE | BLOCKED — blocked customers cannot sign in to the app.
+  /// ACTIVE | BLOCKED | DEACTIVATED — blocked/deactivated customers cannot sign in.
   accountStatus      String        @default("ACTIVE")
   blockedAt          DateTime?
   blockedReason      String?
+  /// Set when the customer self-deactivates (soft delete). Cleared on reactivate.
+  deactivatedAt      DateTime?
   pushToken          String?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt

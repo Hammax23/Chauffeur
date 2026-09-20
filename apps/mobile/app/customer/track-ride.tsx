@@ -12,6 +12,8 @@ import {
   Platform,
   Linking,
   ActivityIndicator,
+  Share,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
@@ -357,6 +359,34 @@ export default function TrackRideScreen() {
     Linking.openURL(`tel:${phone}`).catch(() => {});
   }, [reservation?.driver?.phone]);
 
+  const shareTrackLink = useCallback(async () => {
+    const id =
+      (typeof bookingId === "string" && bookingId) || reservation?.bookingId || "";
+    if (!id) return;
+    const url =
+      reservation?.trackLink?.trim() || `https://sarjworldwide.ca/track/${id}`;
+    const message = [
+      "Follow this SARJ chauffeur ride live:",
+      url,
+      "",
+      "Status updates in real time — no app required.",
+    ].join("\n");
+    try {
+      await Share.share(
+        Platform.OS === "ios"
+          ? { message, url }
+          : { message, title: "Share ride status" }
+      );
+    } catch {
+      Alert.alert("Share", "Could not open the share sheet. Please try again.");
+    }
+  }, [bookingId, reservation?.bookingId, reservation?.trackLink]);
+
+  const canShareTrip = useMemo(() => {
+    if (!reservation) return false;
+    return !["DONE", "CANCELLED", "CANCELED"].includes(reservation.status);
+  }, [reservation]);
+
   const conn = useMemo(() => describeConnection(live.status), [live.status]);
   const statusRelative = useMemo(
     () => formatRelative(reservation?.statusUpdatedAt) ?? formatRelative(live.lastEventAt),
@@ -417,7 +447,7 @@ export default function TrackRideScreen() {
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
         >
-          {/* Top bar — back, title, live indicator */}
+          {/* Top bar — back, title, share + live */}
           <View style={styles.topBar}>
             <Animated.View style={{ transform: [{ scale: backScale }] }}>
               <Pressable
@@ -437,6 +467,18 @@ export default function TrackRideScreen() {
                 {reservation?.bookingId || "—"}
               </Text>
             </View>
+
+            {canShareTrip ? (
+              <Pressable
+                style={styles.shareIconBtn}
+                onPress={() => void shareTrackLink()}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Share ride link"
+              >
+                <Ionicons name="share-outline" size={18} color={SLATE_900} />
+              </Pressable>
+            ) : null}
 
             <View
               style={[
@@ -531,6 +573,26 @@ export default function TrackRideScreen() {
               />
             </View>
           </View>
+
+          {canShareTrip ? (
+            <Pressable
+              style={styles.shareTripCard}
+              onPress={() => void shareTrackLink()}
+              accessibilityRole="button"
+              accessibilityLabel="Share ride link with family and friends"
+            >
+              <View style={styles.shareTripIconWrap}>
+                <Ionicons name="people-outline" size={20} color={ACCENT_DARK} />
+              </View>
+              <View style={styles.shareTripCopy}>
+                <Text style={styles.shareTripTitle}>Share trip status</Text>
+                <Text style={styles.shareTripBody}>
+                  Send a live link so family and friends can follow this ride — no app needed.
+                </Text>
+              </View>
+              <Ionicons name="share-outline" size={18} color={ACCENT_DARK} />
+            </Pressable>
+          ) : null}
 
           {/* Live location map */}
           {driverLoc && mapUrl ? (
@@ -879,6 +941,57 @@ const styles = StyleSheet.create({
       ios: { shadowColor: "#0f172a", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6 },
       android: { elevation: 2 },
     }),
+  },
+  shareIconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(255,255,255,0.85)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(15,23,42,0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  shareTripCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    backgroundColor: "#fff",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(201,160,99,0.35)",
+    marginBottom: 14,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#0f172a",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+      },
+      android: { elevation: 1 },
+    }),
+  },
+  shareTripIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(201,160,99,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shareTripCopy: { flex: 1, minWidth: 0 },
+  shareTripTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: SLATE_900,
+    marginBottom: 2,
+  },
+  shareTripBody: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: SLATE_500,
   },
   topTitleCol: {
     flex: 1,

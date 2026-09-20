@@ -150,14 +150,40 @@ export default function ReservationConfirmScreen() {
     }
     setIsSubmitting(true);
     try {
-      const specialRequirements = isParcel
-        ? encodeParcelRequirements({
+      const specialRequirements = (() => {
+        if (isParcel) {
+          return encodeParcelRequirements({
             recipientName: draft.recipientName || "",
             recipientPhone: draft.recipientPhone || "",
             parcelWeight: draft.parcelWeight,
             parcelNote: draft.parcelNote,
-          })
-        : undefined;
+          });
+        }
+        if (draft.rideFor === "child") {
+          const booker =
+            draft.bookerName?.trim() ||
+            [draft.bookerEmail, draft.bookerPhone].filter(Boolean).join(" · ") ||
+            "account holder";
+          const age = draft.childAge?.trim();
+          return [
+            "CHILD PASSENGER — reserve for child",
+            age ? `Child age: ${age}` : null,
+            `Booked by guardian: ${booker}`,
+            draft.phoneNumber
+              ? `Guardian contact at pickup: ${draft.phoneNumber}`
+              : null,
+            "Please confirm identity with the guardian before departure.",
+          ]
+            .filter(Boolean)
+            .join("\n");
+        }
+        if (draft.rideFor === "someone" && draft.bookerName) {
+          return `Passenger booked by: ${draft.bookerName}${
+            draft.bookerPhone ? ` · ${draft.bookerPhone}` : ""
+          }`;
+        }
+        return undefined;
+      })();
 
       let stripePaymentIntentId: string | undefined;
 
@@ -552,16 +578,31 @@ export default function ReservationConfirmScreen() {
         {(guestName || draft.email || draft.phoneNumber) && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>
-              {draft.rideFor === "someone" ? "Passenger" : "Rider"}
+              {draft.rideFor === "child"
+                ? "Child passenger"
+                : draft.rideFor === "someone"
+                  ? "Passenger"
+                  : "Rider"}
             </Text>
             {guestName ? <Text style={styles.guestName}>{guestName}</Text> : null}
-            {draft.phoneNumber ? <Text style={styles.guestDetail}>{draft.phoneNumber}</Text> : null}
+            {draft.rideFor === "child" && draft.childAge ? (
+              <Text style={styles.guestDetail}>Age {draft.childAge}</Text>
+            ) : null}
+            {draft.phoneNumber ? (
+              <Text style={styles.guestDetail}>
+                {draft.rideFor === "child"
+                  ? `Guardian · ${draft.phoneNumber}`
+                  : draft.phoneNumber}
+              </Text>
+            ) : null}
             {draft.rideFor === "me" && draft.email ? (
               <Text style={styles.guestDetail}>{draft.email}</Text>
             ) : null}
-            {draft.rideFor === "someone" ? (
+            {draft.rideFor === "someone" || draft.rideFor === "child" ? (
               <View style={styles.bookerBox}>
-                <Text style={styles.bookerLabel}>Booked by you</Text>
+                <Text style={styles.bookerLabel}>
+                  {draft.rideFor === "child" ? "Booked by parent / guardian" : "Booked by you"}
+                </Text>
                 {draft.bookerName ? (
                   <Text style={styles.guestDetail}>{draft.bookerName}</Text>
                 ) : null}
@@ -569,6 +610,11 @@ export default function ReservationConfirmScreen() {
                   <Text style={styles.guestDetail}>{draft.bookerEmail || draft.email}</Text>
                 ) : null}
               </View>
+            ) : null}
+            {draft.rideFor === "child" ? (
+              <Text style={styles.childShareHint}>
+                After booking, use Share trip status so family can follow the live ride link.
+              </Text>
             ) : null}
           </View>
         )}
@@ -1032,6 +1078,12 @@ const styles = StyleSheet.create({
     color: "#D4A04A",
     marginBottom: 4,
     textTransform: "uppercase",
+  },
+  childShareHint: {
+    marginTop: 12,
+    fontSize: 12,
+    lineHeight: 17,
+    color: "#64748b",
   },
   secureBadge: {
     flexDirection: "row",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, Suspense, type CSSProperties } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { 
@@ -70,6 +70,7 @@ function ReservationPageContent() {
   const [reservationFleet, setReservationFleet] = useState<FleetVehicle[]>(fleetData);
   const [countryCode, setCountryCode] = useState(COUNTRY_CODES[0].code);
   const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
+  const [mobileMapOpen, setMobileMapOpen] = useState(false);
   
   // Dynamic location states
   const [bookingMode, setBookingMode] = useState<"distance" | "hourly">("distance");
@@ -762,11 +763,19 @@ function ReservationPageContent() {
   ];
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 overflow-x-hidden">
+    <main
+      className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 overflow-x-hidden"
+      style={
+        {
+          ["--reservation-nav-h" as string]: "108px",
+          ["--reservation-nav-h-md" as string]: "120px",
+        } as CSSProperties
+      }
+    >
       <TopNav />
       <Navbar />
 
-      <section className="pt-[120px] sm:pt-[140px] md:pt-[155px] pb-8 sm:pb-12 overflow-x-hidden">
+      <section className="pt-[calc(var(--reservation-nav-h)+16px)] md:pt-[calc(var(--reservation-nav-h-md)+20px)] pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] sm:pb-12 overflow-x-hidden">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-8 md:px-12">
           
           {/* Header — slim */}
@@ -873,14 +882,14 @@ function ReservationPageContent() {
                             : step.title
                       }
                       aria-current={isCurrent ? "step" : undefined}
-                      className={`flex flex-1 flex-col items-center gap-1 min-w-0 py-0.5 transition-all ${
+                      className={`flex flex-1 flex-col items-center gap-1.5 min-w-0 py-1 transition-all ${
                         isCompleted
                           ? "cursor-pointer active:scale-95"
                           : "cursor-default"
                       }`}
                     >
                       <span
-                        className={`w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-bold border-2 transition-colors ${
+                        className={`w-11 h-11 rounded-full flex items-center justify-center text-[13px] font-bold border-2 transition-colors ${
                           isCompleted
                             ? "bg-[#C9A063] text-white border-[#C9A063]"
                             : isCurrent
@@ -926,39 +935,49 @@ function ReservationPageContent() {
                       </h2>
                     </div>
 
-                    <div className="grid grid-cols-3 p-0.5 rounded-lg bg-gray-100 border border-gray-200/70">
+                    <div
+                      className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-gray-100 border border-gray-200/70"
+                      role="tablist"
+                      aria-label="Booking mode"
+                    >
                       <button
                         type="button"
+                        role="tab"
+                        aria-selected={bookingMode === "distance" && !isParcel}
                         onClick={() => {
                           setBookingMode("distance");
                           setServiceType("Point-to-Point transportation");
                           setDropoffLocation("");
                         }}
-                        className={`py-1.5 sm:py-2 rounded-md text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.06em] transition-all duration-200 ${
+                        className={`min-h-11 px-1.5 sm:px-2 py-2 rounded-lg text-[11px] sm:text-[12px] font-semibold tracking-wide transition-all duration-200 ${
                           bookingMode === "distance" && !isParcel
                             ? "bg-gray-900 text-white shadow-sm"
-                            : "text-gray-500 hover:text-gray-800"
+                            : "text-gray-600 hover:text-gray-900"
                         }`}
                       >
                         Distance
                       </button>
                       <button
                         type="button"
+                        role="tab"
+                        aria-selected={bookingMode === "hourly"}
                         onClick={() => {
                           setBookingMode("hourly");
                           setServiceType("Hourly ride");
                           setDropoffLocation("");
                         }}
-                        className={`py-1.5 sm:py-2 rounded-md text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.06em] transition-all duration-200 ${
+                        className={`min-h-11 px-1.5 sm:px-2 py-2 rounded-lg text-[11px] sm:text-[12px] font-semibold tracking-wide transition-all duration-200 ${
                           bookingMode === "hourly"
                             ? "bg-gray-900 text-white shadow-sm"
-                            : "text-gray-500 hover:text-gray-800"
+                            : "text-gray-600 hover:text-gray-900"
                         }`}
                       >
                         Hourly
                       </button>
                       <button
                         type="button"
+                        role="tab"
+                        aria-selected={isParcel}
                         onClick={() => {
                           setBookingMode("distance");
                           setServiceType(PARCEL_SERVICE_TYPE);
@@ -968,10 +987,10 @@ function ReservationPageContent() {
                           setMeetGreet(false);
                           setBouquetFlowers(false);
                         }}
-                        className={`py-1.5 sm:py-2 rounded-md text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.06em] transition-all duration-200 ${
+                        className={`min-h-11 px-1.5 sm:px-2 py-2 rounded-lg text-[11px] sm:text-[12px] font-semibold tracking-wide transition-all duration-200 ${
                           isParcel
                             ? "bg-gray-900 text-white shadow-sm"
-                            : "text-gray-500 hover:text-gray-800"
+                            : "text-gray-600 hover:text-gray-900"
                         }`}
                       >
                         Parcel
@@ -1136,18 +1155,18 @@ function ReservationPageContent() {
                             {isParcel ? "Service" : "Passengers"}
                           </label>
                           {isParcel ? (
-                            <div className="flex items-center px-3 py-2 border border-[#C9A063]/35 rounded-lg bg-[#C9A063]/8 min-h-[38px]">
+                            <div className="flex items-center px-3 py-2 border border-[#C9A063]/35 rounded-lg bg-[#C9A063]/8 min-h-11">
                               <span className="text-[13px] font-semibold text-[#8B6914]">Parcel Delivery</span>
                             </div>
                           ) : (
-                          <div className="flex items-center justify-between px-3 py-1.5 border border-gray-200 rounded-lg bg-white min-h-[38px]">
+                          <div className="flex items-center justify-between px-3 py-1.5 border border-gray-200 rounded-lg bg-white min-h-11">
                             <span className="text-[13px] font-semibold text-gray-900 tabular-nums">{passengersCount}</span>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-2">
                               <button
                                 type="button"
                                 onClick={() => { setAdultsCount((p) => Math.max(1, p - 1)); }}
                                 disabled={passengersCount <= 1}
-                                className="w-7 h-7 rounded-md border border-gray-200 bg-gray-50 text-gray-700 hover:border-[#C9A063]/50 hover:text-[#C9A063] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center text-sm leading-none"
+                                className="w-11 h-11 rounded-lg border border-gray-200 bg-gray-50 text-gray-700 hover:border-[#C9A063]/50 hover:text-[#C9A063] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center text-base leading-none"
                                 aria-label="Decrease"
                               >
                                 −
@@ -1156,7 +1175,7 @@ function ReservationPageContent() {
                                 type="button"
                                 onClick={() => { setAdultsCount((p) => Math.min(50, p + 1)); }}
                                 disabled={passengersCount >= 50}
-                                className="w-7 h-7 rounded-md border border-gray-200 bg-gray-50 text-gray-700 hover:border-[#C9A063]/50 hover:text-[#C9A063] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center text-sm leading-none"
+                                className="w-11 h-11 rounded-lg border border-gray-200 bg-gray-50 text-gray-700 hover:border-[#C9A063]/50 hover:text-[#C9A063] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center text-base leading-none"
                                 aria-label="Increase"
                               >
                                 +
@@ -1280,17 +1299,19 @@ function ReservationPageContent() {
                                   <button
                                     type="button"
                                     onClick={() => setChildSeatCount(Math.max(0, childSeatCount - 1))}
-                                    className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:border-[#C9A063] hover:text-[#C9A063] transition-colors"
+                                    className="w-11 h-11 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:border-[#C9A063] hover:text-[#C9A063] transition-colors"
+                                    aria-label="Decrease child seats"
                                   >
-                                    <Minus className="w-3.5 h-3.5" />
+                                    <Minus className="w-4 h-4" />
                                   </button>
-                                  <span className="text-[14px] font-semibold text-gray-900 w-5 text-center">{childSeatCount}</span>
+                                  <span className="text-[14px] font-semibold text-gray-900 w-6 text-center tabular-nums">{childSeatCount}</span>
                                   <button
                                     type="button"
                                     onClick={() => setChildSeatCount(childSeatCount + 1)}
-                                    className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:border-[#C9A063] hover:text-[#C9A063] transition-colors"
+                                    className="w-11 h-11 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:border-[#C9A063] hover:text-[#C9A063] transition-colors"
+                                    aria-label="Increase child seats"
                                   >
-                                    <Plus className="w-3.5 h-3.5" />
+                                    <Plus className="w-4 h-4" />
                                   </button>
                                 </div>
                               </div>
@@ -1438,7 +1459,7 @@ function ReservationPageContent() {
                                         setCurrentStep(3);
                                         scrollToFormTop();
                                       }}
-                                      className={`px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-[12px] font-semibold uppercase tracking-wide transition-colors ${
+                                      className={`min-h-11 px-4 sm:px-5 py-2 rounded-full text-[12px] sm:text-[13px] font-semibold uppercase tracking-wide transition-colors ${
                                         isSelected
                                           ? "bg-gray-900 text-white"
                                           : "bg-gray-200/90 text-gray-600 hover:bg-gray-300"
@@ -1855,68 +1876,131 @@ function ReservationPageContent() {
                     </div>
                   )}
 
-                  {/* Navigation Buttons */}
-                  <div className="flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-2.5 mt-3 pt-3 border-t border-gray-200/60">
+                  {/* Navigation Buttons — desktop / tablet; mobile uses sticky bar */}
+                  <div className="hidden sm:flex flex-row justify-between items-center gap-2.5 mt-3 pt-3 border-t border-gray-200/60">
                     <button
+                      type="button"
                       onClick={handlePrevious}
                       disabled={currentStep === 1}
-                      className={`w-full sm:w-auto min-h-[38px] px-3.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                      className={`min-h-11 px-4 py-2.5 rounded-lg text-[14px] font-medium transition-colors ${
                         currentStep === 1
                           ? "bg-[#e5e5ea] text-gray-400 cursor-not-allowed"
-                          : "bg-white border border-gray-200 text-gray-700 active:bg-[#f2f2f7]"
+                          : "bg-white border border-gray-200 text-gray-700 hover:bg-[#f2f2f7]"
                       }`}
                     >
                       Previous
                     </button>
                     {currentStep < 4 ? (
                       <button
+                        type="button"
                         onClick={handleNext}
-                        className="w-full sm:w-auto min-h-[38px] flex items-center justify-center gap-1.5 bg-[#1C1C1E] text-white px-4 py-2 rounded-lg text-[13px] font-medium active:bg-[#2C2C2E] transition-colors"
+                        className="min-h-11 flex items-center justify-center gap-1.5 bg-[#1C1C1E] text-white px-5 py-2.5 rounded-lg text-[14px] font-medium hover:bg-[#2C2C2E] transition-colors"
                       >
                         Continue
-                        <ArrowRight className="w-3.5 h-3.5" />
+                        <ArrowRight className="w-4 h-4" />
                       </button>
                     ) : null}
                   </div>
+                  {/* Mobile: keep Previous only when past step 1 */}
+                  {currentStep > 1 ? (
+                    <div className="sm:hidden mt-3 pt-3 border-t border-gray-200/60">
+                      <button
+                        type="button"
+                        onClick={handlePrevious}
+                        className="w-full min-h-11 px-4 py-2.5 rounded-lg text-[14px] font-medium bg-white border border-gray-200 text-gray-700 active:bg-[#f2f2f7]"
+                      >
+                        Previous
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
 
-            {/* Right Sidebar - Map (Step 1) or Ride Details (Step 2+) */}
-            <div className="lg:col-span-1 order-first lg:order-last flex">
+            {/* Right Sidebar - Map (Step 1) or Ride Details (Step 2+) — form stays first on mobile */}
+            <div className="lg:col-span-1 flex">
               <div
                 className={`w-full overflow-hidden bg-white flex flex-col ${
                   currentStep === 1
-                    ? "rounded-xl sm:rounded-2xl shadow-sm h-full min-h-[280px]"
-                    : "rounded-xl sm:rounded-2xl border border-gray-200/60 shadow-sm lg:sticky lg:top-8"
+                    ? "rounded-xl sm:rounded-2xl shadow-sm border border-gray-200/60 lg:border-0 lg:h-full lg:min-h-[280px]"
+                    : "rounded-xl sm:rounded-2xl border border-gray-200/60 shadow-sm md:sticky md:top-[calc(var(--reservation-nav-h-md)+12px)]"
                 }`}
               >
                 {currentStep === 1 ? (
                   <>
-                    <div className="relative flex-1 min-h-[220px] sm:min-h-[280px] lg:min-h-0 bg-gray-100">
-                      <div className="absolute inset-0">
-                        <RouteMap
-                          pickupLocation={pickupLocation}
-                          dropoffLocation={dropoffLocation}
-                          stops={stops}
-                          onRouteCalculated={handleRouteCalculated}
-                        />
+                    {/* Mobile / tablet: collapsed map by default */}
+                    <div className="lg:hidden">
+                      <button
+                        type="button"
+                        onClick={() => setMobileMapOpen((o) => !o)}
+                        className="w-full min-h-12 px-4 py-3 flex items-center justify-between gap-3 text-left bg-white"
+                        aria-expanded={mobileMapOpen}
+                      >
+                        <span className="inline-flex items-center gap-2 min-w-0">
+                          <span className="w-9 h-9 rounded-lg bg-[#C9A063]/12 flex items-center justify-center shrink-0">
+                            <MapPin className="w-4 h-4 text-[#C9A063]" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-[14px] font-semibold text-gray-900">
+                              {mobileMapOpen ? "Hide route map" : "Show route map"}
+                            </span>
+                            <span className="block text-[12px] text-gray-500 truncate">
+                              {routeDistance !== "--" ? routeDistance : "Map updates as you enter addresses"}
+                              {routeDuration !== "--" ? ` · ${routeDuration}` : ""}
+                            </span>
+                          </span>
+                        </span>
+                        {mobileMapOpen ? (
+                          <ChevronUp className="w-5 h-5 text-gray-400 shrink-0" />
+                        ) : (
+                          <ChevronDown className="w-5 h-5 text-gray-400 shrink-0" />
+                        )}
+                      </button>
+                      <div
+                        className={`relative bg-gray-100 transition-[height] duration-300 ease-out ${
+                          mobileMapOpen ? "h-[220px] sm:h-[260px]" : "h-0"
+                        } overflow-hidden`}
+                        aria-hidden={!mobileMapOpen}
+                      >
+                        {/* Keep mounted when collapsed so DirectionsService still updates fare */}
+                        <div className={`absolute inset-0 ${mobileMapOpen ? "" : "pointer-events-none"}`}>
+                          <RouteMap
+                            pickupLocation={pickupLocation}
+                            dropoffLocation={dropoffLocation}
+                            stops={stops}
+                            onRouteCalculated={handleRouteCalculated}
+                          />
+                        </div>
                       </div>
                     </div>
-                    <div className="shrink-0 px-3 py-2 border-t border-gray-100 bg-white">
-                      <div className="flex items-center justify-between gap-3 text-[12px]">
-                        <span className="text-gray-500 font-medium">
-                          Distance{" "}
-                          <span className="text-gray-900 font-semibold tabular-nums">
-                            {routeDistance !== "--" ? routeDistance : "-- km"}
+
+                    {/* Desktop: always-visible map */}
+                    <div className="hidden lg:flex flex-col flex-1 min-h-0">
+                      <div className="relative flex-1 min-h-[280px] bg-gray-100">
+                        <div className="absolute inset-0">
+                          <RouteMap
+                            pickupLocation={pickupLocation}
+                            dropoffLocation={dropoffLocation}
+                            stops={stops}
+                            onRouteCalculated={handleRouteCalculated}
+                          />
+                        </div>
+                      </div>
+                      <div className="shrink-0 px-3 py-2 border-t border-gray-100 bg-white">
+                        <div className="flex items-center justify-between gap-3 text-[12px]">
+                          <span className="text-gray-500 font-medium">
+                            Distance{" "}
+                            <span className="text-gray-900 font-semibold tabular-nums">
+                              {routeDistance !== "--" ? routeDistance : "-- km"}
+                            </span>
                           </span>
-                        </span>
-                        <span className="text-gray-500 font-medium">
-                          Duration{" "}
-                          <span className="text-gray-900 font-semibold tabular-nums">
-                            {routeDuration !== "--" ? routeDuration : "-- min"}
+                          <span className="text-gray-500 font-medium">
+                            Duration{" "}
+                            <span className="text-gray-900 font-semibold tabular-nums">
+                              {routeDuration !== "--" ? routeDuration : "-- min"}
+                            </span>
                           </span>
-                        </span>
+                        </div>
                       </div>
                     </div>
                   </>
@@ -2174,7 +2258,7 @@ function ReservationPageContent() {
                             aria-label="Close tip options"
                             onClick={() => setTipModalOpen(false)}
                           />
-                          <div className="relative z-[81] w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-2xl px-5 pt-3 pb-6 sm:pb-5 shadow-xl">
+                          <div className="relative z-[81] w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-2xl px-5 pt-3 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-5 shadow-xl">
                             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-300 sm:hidden" />
                             <div className="flex items-center justify-between gap-3 mb-5">
                               <h3 id="tip-modal-title" className="text-[22px] font-bold text-gray-900 tracking-tight">
@@ -2242,6 +2326,31 @@ function ReservationPageContent() {
           </div>
         </div>
       </section>
+
+      {/* Mobile sticky fare + Continue (enterprise checkout strip) */}
+      {currentStep < 4 && !tipModalOpen ? (
+        <div className="sm:hidden fixed bottom-0 inset-x-0 z-[45] border-t border-gray-200/80 bg-white/95 backdrop-blur-md">
+          <div className="px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                Estimated total
+              </p>
+              <p className="text-[18px] font-bold text-gray-900 tabular-nums leading-tight">
+                ${(pricingSummary?.total ?? routePrice ?? 0).toFixed(2)}{" "}
+                <span className="text-[12px] font-semibold text-gray-500">CAD</span>
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleNext}
+              className="shrink-0 min-h-12 px-5 rounded-xl bg-[#1C1C1E] text-white text-[15px] font-semibold inline-flex items-center gap-2 active:bg-[#2C2C2E]"
+            >
+              Continue
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <Footer />
     </main>

@@ -4,12 +4,14 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
+    "start:dev": "expo start --dev-client",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
     "ios:setup": "powershell -ExecutionPolicy Bypass -File ./scripts/setup-ios-credentials.ps1",
     "ios:fix-profile": "powershell -ExecutionPolicy Bypass -File ./scripts/fix-ios-profile.ps1",
     "ios:build": "powershell -ExecutionPolicy Bypass -File ./scripts/build-ios-production.ps1",
+    "ios:dev-build": "powershell -ExecutionPolicy Bypass -File ./scripts/build-ios-development.ps1",
     "ios:submit": "powershell -ExecutionPolicy Bypass -File ./scripts/submit-ios-testflight.ps1"
   },
   "dependencies": {
@@ -25,6 +27,7 @@
     "expo-blur": "~15.0.8",
     "expo-constants": "~18.0.13",
     "expo-crypto": "~15.0.9",
+    "expo-dev-client": "~6.0.21",
     "expo-device": "~8.0.10",
     "expo-font": "~14.0.11",
     "expo-image-picker": "~17.0.11",

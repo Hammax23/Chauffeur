@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { blockedCustomerResponse, isCustomerBlocked } from "@/lib/customer-auth";
+import { blockedCustomerResponse, canCustomerSelfReactivate, deactivatedCustomerResponse, isCustomerBlocked, isCustomerDeactivated } from "@/lib/customer-auth";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
@@ -31,6 +31,17 @@ export async function POST(req: NextRequest) {
 
     if (isCustomerBlocked(customer)) {
       return NextResponse.json(blockedCustomerResponse(), { status: 403 });
+    }
+
+    if (isCustomerDeactivated(customer)) {
+      const { ok: canReactivate, until } = canCustomerSelfReactivate(customer);
+      return NextResponse.json(
+        deactivatedCustomerResponse({
+          canReactivate,
+          reactivatesUntil: until?.toISOString() ?? null,
+        }),
+        { status: 403 }
+      );
     }
 
     const isValidPassword = await bcrypt.compare(password, customer.password);

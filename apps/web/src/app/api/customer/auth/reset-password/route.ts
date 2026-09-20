@@ -52,13 +52,24 @@ export async function POST(req: NextRequest) {
 
     const customer = await prisma.customer.findUnique({
       where: { id: tokenResult.customerId },
-      select: { id: true, email: true },
+      select: { id: true, email: true, accountStatus: true },
     });
 
     if (!customer || customer.email.toLowerCase() !== tokenResult.email.toLowerCase()) {
       return NextResponse.json(
         { success: false, error: "Account not found. Please start again." },
         { status: 404 }
+      );
+    }
+
+    if (String(customer.accountStatus || "ACTIVE").toUpperCase() === "BLOCKED") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "This account has been blocked. Please contact support.",
+          code: "ACCOUNT_BLOCKED",
+        },
+        { status: 403 }
       );
     }
 

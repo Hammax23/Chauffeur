@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { OAuth2Client } from "google-auth-library";
-import { blockedCustomerResponse, isCustomerBlocked } from "@/lib/customer-auth";
+import { blockedCustomerResponse, deactivatedCustomerResponse, isCustomerBlocked, isCustomerDeactivated } from "@/lib/customer-auth";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
@@ -149,6 +149,15 @@ export async function POST(req: NextRequest) {
       if (isCustomerBlocked(existingLinked)) {
         return NextResponse.json(blockedCustomerResponse(), { status: 403 });
       }
+      if (isCustomerDeactivated(existingLinked)) {
+        return NextResponse.json(
+          deactivatedCustomerResponse({
+            canReactivate: false,
+            reactivatesUntil: null,
+          }),
+          { status: 403 }
+        );
+      }
       const token = issueCustomerJwt(existingLinked);
       return NextResponse.json({
         success: true,
@@ -185,6 +194,15 @@ export async function POST(req: NextRequest) {
     if (existingByEmail?.oauthProvider === "google" && existingByEmail.oauthSub === oauthSub) {
       if (isCustomerBlocked(existingByEmail)) {
         return NextResponse.json(blockedCustomerResponse(), { status: 403 });
+      }
+      if (isCustomerDeactivated(existingByEmail)) {
+        return NextResponse.json(
+          deactivatedCustomerResponse({
+            canReactivate: false,
+            reactivatesUntil: null,
+          }),
+          { status: 403 }
+        );
       }
       const token = issueCustomerJwt(existingByEmail);
       return NextResponse.json({

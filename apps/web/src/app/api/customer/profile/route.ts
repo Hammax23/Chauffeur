@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
+import { customerInactiveHttpResponse } from "@/lib/customer-auth";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
 function getCustomerFromToken(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) return null;
-  
+
   try {
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email: string; type: string };
@@ -40,6 +41,8 @@ export async function GET(req: NextRequest) {
         city: true,
         photo: true,
         accountStatus: true,
+        deactivatedAt: true,
+        oauthProvider: true,
         createdAt: true,
       },
     });
@@ -51,18 +54,12 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    if (String(customer.accountStatus || "ACTIVE").toUpperCase() === "BLOCKED") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Your account has been blocked. Please contact support.",
-          code: "ACCOUNT_BLOCKED",
-        },
-        { status: 403 }
-      );
+    const inactive = customerInactiveHttpResponse(customer);
+    if (inactive) {
+      return NextResponse.json(inactive.body, { status: inactive.status });
     }
 
-    const { accountStatus: _status, ...safeCustomer } = customer;
+    const { accountStatus: _s, deactivatedAt: _d, oauthProvider: _o, ...safeCustomer } = customer;
     return NextResponse.json({ success: true, customer: safeCustomer });
   } catch (error) {
     console.error("Profile fetch error:", error);
@@ -82,6 +79,26 @@ export async function PATCH(req: NextRequest) {
         { success: false, error: "Unauthorized" },
         { status: 401 }
       );
+    }
+
+    const existing = await prisma.customer.findUnique({
+      where: { id: tokenData.id },
+      select: {
+        id: true,
+        accountStatus: true,
+        deactivatedAt: true,
+        oauthProvider: true,
+      },
+    });
+    if (!existing) {
+      return NextResponse.json(
+        { success: false, error: "Customer not found" },
+        { status: 404 }
+      );
+    }
+    const inactive = customerInactiveHttpResponse(existing);
+    if (inactive) {
+      return NextResponse.json(inactive.body, { status: inactive.status });
     }
 
     const body = await req.json();

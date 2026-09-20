@@ -76,7 +76,7 @@ async function routeAfterCustomerAuth() {
  * Hotel Concierge uses the separate enterprise Partner Portal at /partner/login.
  */
 export default function LoginScreen() {
-  const { login, loginWithGoogle, loginWithApple } = useAuth();
+  const { login, reactivate, loginWithGoogle, loginWithApple } = useAuth();
   const { login: driverLogin } = useDriverAuth();
   const { width } = useWindowDimensions();
   const compact = width < 380;
@@ -313,6 +313,38 @@ export default function LoginScreen() {
       const result = await login(email.trim(), password);
       if (result.success) {
         await routeAfterCustomerAuth();
+      } else if (result.code === "ACCOUNT_DEACTIVATED" && result.canReactivate) {
+        Alert.alert(
+          "Account deactivated",
+          "Your account is deactivated. Reactivate now to sign in again? You have 30 days from deactivation to restore access.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Reactivate",
+              onPress: async () => {
+                setIsLoading(true);
+                try {
+                  const r = await reactivate(email.trim(), password);
+                  if (r.success) {
+                    await routeAfterCustomerAuth();
+                  } else {
+                    Alert.alert("Reactivation failed", r.error || "Please contact support.");
+                  }
+                } catch {
+                  Alert.alert("Error", "Something went wrong. Please try again.");
+                } finally {
+                  setIsLoading(false);
+                }
+              },
+            },
+          ]
+        );
+      } else if (result.code === "ACCOUNT_DEACTIVATED") {
+        Alert.alert(
+          "Account deactivated",
+          result.error ||
+            "This account is deactivated. Email reserve@sarjworldwide.ca if you need help restoring access."
+        );
       } else {
         Alert.alert("Login Failed", result.error || "Invalid credentials");
       }

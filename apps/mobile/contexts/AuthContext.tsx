@@ -8,6 +8,7 @@ import {
   loginCustomer,
   loginCustomerWithApple,
   loginCustomerWithGoogle,
+  reactivateCustomerAccount,
   registerCustomer,
   logoutCustomer,
   getProfile,
@@ -21,7 +22,13 @@ interface AuthContextType {
   user: CustomerProfile | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string) => Promise<{
+    success: boolean;
+    error?: string;
+    code?: string;
+    canReactivate?: boolean;
+  }>;
+  reactivate: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   loginWithGoogle: (idToken: string) => Promise<{
     success: boolean;
     error?: string;
@@ -119,14 +126,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     try {
       const data = await loginCustomer(email, password);
-      if (data.success) {
+      if (data.success && data.customer) {
         setUser(data.customer);
         if (data.token) scheduleCustomerPush(data.token);
         return { success: true };
       }
-      return { success: false, error: data.error || "Login failed" };
+      return {
+        success: false,
+        error: data.error || "Login failed",
+        code: data.code,
+        canReactivate: data.canReactivate,
+      };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Login failed";
+      return { success: false, error: message };
+    }
+  }, []);
+
+  const reactivate = useCallback(async (email: string, password: string) => {
+    try {
+      const data = await reactivateCustomerAccount(email, password);
+      if (data.success && data.customer) {
+        setUser(data.customer);
+        if (data.token) scheduleCustomerPush(data.token);
+        return { success: true };
+      }
+      return { success: false, error: data.error || "Reactivation failed" };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Reactivation failed";
       return { success: false, error: message };
     }
   }, []);
@@ -245,6 +272,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         isAuthenticated: !!user,
         login,
+        reactivate,
         loginWithGoogle,
         loginWithApple,
         register,

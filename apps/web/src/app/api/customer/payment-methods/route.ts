@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getCustomerFromRequest,
-  blockedCustomerResponse,
-  isCustomerBlocked,
+  customerInactiveHttpResponse,
 } from "@/lib/customer-auth";
 import prisma from "@/lib/prisma";
 import {
@@ -23,14 +22,17 @@ async function loadActiveCustomer(req: NextRequest) {
       lastName: true,
       stripeCustomerId: true,
       accountStatus: true,
+      deactivatedAt: true,
+      oauthProvider: true,
     },
   });
 
   if (!customer) {
     return { error: NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 }) };
   }
-  if (isCustomerBlocked(customer)) {
-    return { error: NextResponse.json(blockedCustomerResponse(), { status: 403 }) };
+  const inactive = customerInactiveHttpResponse(customer);
+  if (inactive) {
+    return { error: NextResponse.json(inactive.body, { status: inactive.status }) };
   }
   return { customer };
 }
