@@ -12,6 +12,11 @@ import {
   Alert,
   Modal,
   ActivityIndicator,
+  Keyboard,
+  Dimensions,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
+  type TextInputProps,
 } from "react-native";
 import DateTimePicker, {
   type DateTimePickerEvent,
@@ -49,6 +54,11 @@ import {
   formatParcelWeight,
   isParcelServiceType,
 } from "../../utils/parcel";
+import {
+  formatUsCanadaE164,
+  normalizeNanpNationalNumber,
+  validateUsCanadaPhone,
+} from "../../utils/phone-us-ca";
 
 /** Silent default — create UI no longer asks for service type (distance bookings). */
 const DEFAULT_SERVICE_TYPE = "Point-to-Point transportation";
@@ -194,6 +204,49 @@ export default function CreateReservationScreen() {
   // back to whatever the URL says.
   const consumedVehicleParamRef = useRef(false);
   const pickupAutoFilledRef = useRef(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollYRef = useRef(0);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const onScrollViewScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    scrollYRef.current = e.nativeEvent.contentOffset.y;
+  }, []);
+
+  /** Keep focused fields above the soft keyboard (Who is riding / Child is near the bottom). */
+  const onFormFieldFocus = useCallback<NonNullable<TextInputProps["onFocus"]>>((e) => {
+    const target = e.target as unknown as {
+      measureInWindow?: (
+        cb: (x: number, y: number, width: number, height: number) => void
+      ) => void;
+    };
+    const delay = Platform.OS === "ios" ? 340 : 140;
+    setTimeout(() => {
+      target?.measureInWindow?.((_x, y, _w, h) => {
+        const screenH = Dimensions.get("window").height;
+        const keyboardReserve = Platform.OS === "ios" ? 360 : 300;
+        const safeBottom = screenH - keyboardReserve;
+        const fieldBottom = y + h;
+        if (fieldBottom > safeBottom) {
+          const delta = fieldBottom - safeBottom + 28;
+          scrollRef.current?.scrollTo({
+            y: Math.max(0, scrollYRef.current + delta),
+            animated: true,
+          });
+        }
+      });
+    }, delay);
+  }, []);
   const [serviceType, setServiceType] = useState(DEFAULT_SERVICE_TYPE);
   const [bookingMode, setBookingMode] = useState<AppBookingMode>("distance");
   const [hourlyDuration, setHourlyDuration] = useState<number>(APP_MIN_HOURLY_HOURS);
@@ -308,7 +361,8 @@ export default function CreateReservationScreen() {
       } else if (next === "child") {
         setFirstName("");
         setLastName("");
-        setPhoneNumber(user?.phone || "");
+        // Prefill guardian with account phone as digits only — chip already shows 🇨🇦 +1
+        setPhoneNumber(normalizeNanpNationalNumber(user?.phone || ""));
         setEmail(user?.email || "");
         setChildAge("");
         setChildSeatCount((n) => (n > 0 ? n : 1));
@@ -726,7 +780,7 @@ export default function CreateReservationScreen() {
     const bookingPhone =
       rideFor === "me" && user?.phone?.trim()
         ? user.phone.trim()
-        : phoneNumber.trim();
+        : formatUsCanadaE164(phoneNumber) || phoneNumber.trim();
     if (!firstName.trim() || !lastName.trim() || !bookingPhone) {
       Alert.alert(
         "Missing info",
@@ -737,6 +791,16 @@ export default function CreateReservationScreen() {
             : "Please enter the passenger’s name and phone number."
       );
       return;
+    }
+    if (rideFor === "someone" || rideFor === "child") {
+      const phoneError = validateUsCanadaPhone(phoneNumber);
+      if (phoneError) {
+        Alert.alert(
+          rideFor === "child" ? "Guardian phone" : "Phone number",
+          phoneError
+        );
+        return;
+      }
     }
     if (rideFor === "me" && !email.trim()) {
       Alert.alert("Missing info", "Please add an email on your account for booking confirmation.");
@@ -825,7 +889,7 @@ export default function CreateReservationScreen() {
     const bookingPhone =
       rideFor === "me" && user?.phone?.trim()
         ? user.phone.trim()
-        : phoneNumber.trim();
+        : formatUsCanadaE164(phoneNumber) || phoneNumber.trim();
     const resolvedDropoff = isHourly
       ? dropoffAddress.trim() || AS_DIRECTED_DROPOFF
       : dropoffAddress.trim();
@@ -896,11 +960,18 @@ export default function CreateReservationScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <ScrollView
+        ref={scrollRef}
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: keyboardVisible ? 32 : 120 },
+        ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets
+        onScroll={onScrollViewScroll}
+        scrollEventThrottle={16}
       >
         {/* Header */}
         <View style={styles.header}>
@@ -1386,6 +1457,7 @@ export default function CreateReservationScreen() {
                   onChangeText={setRecipientName}
                   placeholder="Who receives the parcel?"
                   placeholderTextColor="#999"
+                  onFocus={onFormFieldFocus}
                 />
               </View>
               <Text style={styles.inputLabel}>Recipient Phone</Text>
@@ -1397,6 +1469,7 @@ export default function CreateReservationScreen() {
                   placeholder="Recipient phone number"
                   placeholderTextColor="#999"
                   keyboardType="phone-pad"
+                  onFocus={onFormFieldFocus}
                 />
               </View>
               <Text style={styles.inputLabel}>Parcel Weight</Text>
@@ -1409,6 +1482,7 @@ export default function CreateReservationScreen() {
                     placeholder="e.g. 2.5"
                     placeholderTextColor="#999"
                     keyboardType="decimal-pad"
+                    onFocus={onFormFieldFocus}
                   />
                 </View>
                 <View style={styles.weightUnit}>
@@ -1425,42 +1499,16 @@ export default function CreateReservationScreen() {
                   placeholder="e.g. Small box, fragile"
                   placeholderTextColor="#999"
                   multiline
+                  onFocus={onFormFieldFocus}
                 />
               </View>
             </View>
           )}
         </View>
 
-        {/* Map Preview — distance route, or hourly as-directed card */}
+        {/* Map Preview — distance bookings only (hourly has no drop-off route) */}
+        {!isHourly ? (
         <View style={styles.mapContainer}>
-          {isHourly ? (
-            <View style={styles.hourlyHero}>
-              <View style={styles.hourlyHeroBadge}>
-                <Ionicons name="time" size={16} color="#1a1208" />
-                <Text style={styles.hourlyHeroBadgeText}>Hourly</Text>
-              </View>
-              <Text style={styles.hourlyHeroHours}>{hourlyDuration}</Text>
-              <Text style={styles.hourlyHeroHoursLabel}>hours reserved</Text>
-              {selectedTier && fareEstimate ? (
-                <Text style={styles.hourlyHeroFare}>
-                  ${selectedTier.hourlyRate.toFixed(0)}/hr · ride ${fareEstimate.rideFare.toFixed(2)}
-                </Text>
-              ) : (
-                <Text style={styles.hourlyHeroFare}>Select a vehicle to see your fare</Text>
-              )}
-              <Text style={styles.hourlyHeroHint} numberOfLines={2}>
-                {pickupAddress.trim()
-                  ? `From ${pickupAddress.trim()}`
-                  : "Add pickup — destination as directed"}
-              </Text>
-              {fareEstimate ? (
-                <Text style={styles.hourlyHeroTaxNote}>
-                  Est. ${fareEstimate.total.toFixed(2)} incl. HST · tip on next step
-                </Text>
-              ) : null}
-            </View>
-          ) : (
-            <>
               <View style={styles.mapImageWrap}>
                 {routeSummary?.mapImageUrl ? (
                   <Image
@@ -1551,9 +1599,8 @@ export default function CreateReservationScreen() {
                   Driving directions via Google · Typical time (not live traffic)
                 </Text>
               )}
-            </>
-          )}
         </View>
+        ) : null}
 
         {/* Contact / Who is riding — same UI for Ride & Parcel */}
         <View style={styles.section}>
@@ -1672,6 +1719,7 @@ export default function CreateReservationScreen() {
                         placeholder="First name"
                         placeholderTextColor="#999"
                         autoCapitalize="words"
+                        onFocus={onFormFieldFocus}
                       />
                     </View>
                   </View>
@@ -1685,6 +1733,7 @@ export default function CreateReservationScreen() {
                         placeholder="Last name"
                         placeholderTextColor="#999"
                         autoCapitalize="words"
+                        onFocus={onFormFieldFocus}
                       />
                     </View>
                   </View>
@@ -1713,6 +1762,7 @@ export default function CreateReservationScreen() {
                       placeholder="First name"
                       placeholderTextColor="#999"
                       autoCapitalize="words"
+                      onFocus={onFormFieldFocus}
                     />
                   </View>
                 </View>
@@ -1726,6 +1776,7 @@ export default function CreateReservationScreen() {
                       placeholder="Last name"
                       placeholderTextColor="#999"
                       autoCapitalize="words"
+                      onFocus={onFormFieldFocus}
                     />
                   </View>
                 </View>
@@ -1741,6 +1792,7 @@ export default function CreateReservationScreen() {
                   placeholder="Age (1–17)"
                   placeholderTextColor="#999"
                   maxLength={2}
+                  onFocus={onFormFieldFocus}
                 />
               </View>
 
@@ -1750,15 +1802,17 @@ export default function CreateReservationScreen() {
                   <View style={styles.flagIcon}>
                     <Text>🇨🇦</Text>
                   </View>
-                  <Ionicons name="chevron-down" size={14} color="#999" />
+                  <Text style={styles.countryCodeText}>+1</Text>
                 </View>
                 <TextInput
                   style={styles.phoneField}
                   value={phoneNumber}
-                  onChangeText={setPhoneNumber}
+                  onChangeText={(t) => setPhoneNumber(normalizeNanpNationalNumber(t))}
                   keyboardType="phone-pad"
-                  placeholder="Reachable adult contact"
+                  placeholder="10-digit number"
                   placeholderTextColor="#999"
+                  maxLength={10}
+                  onFocus={onFormFieldFocus}
                 />
               </View>
               <Text style={styles.childPhoneHint}>
@@ -1779,6 +1833,7 @@ export default function CreateReservationScreen() {
                       placeholder={isParcel ? "Sender" : "Passenger"}
                       placeholderTextColor="#999"
                       autoCapitalize="words"
+                      onFocus={onFormFieldFocus}
                     />
                   </View>
                 </View>
@@ -1792,6 +1847,7 @@ export default function CreateReservationScreen() {
                       placeholder="Name"
                       placeholderTextColor="#999"
                       autoCapitalize="words"
+                      onFocus={onFormFieldFocus}
                     />
                   </View>
                 </View>
@@ -1803,35 +1859,39 @@ export default function CreateReservationScreen() {
                   <View style={styles.flagIcon}>
                     <Text>🇨🇦</Text>
                   </View>
-                  <Ionicons name="chevron-down" size={14} color="#999" />
+                  <Text style={styles.countryCodeText}>+1</Text>
                 </View>
                 <TextInput
                   style={styles.phoneField}
                   value={phoneNumber}
-                  onChangeText={setPhoneNumber}
+                  onChangeText={(t) => setPhoneNumber(normalizeNanpNationalNumber(t))}
                   keyboardType="phone-pad"
-                  placeholder={isParcel ? "Sender mobile" : "Passenger mobile"}
+                  placeholder="10-digit number"
                   placeholderTextColor="#999"
+                  maxLength={10}
+                  onFocus={onFormFieldFocus}
                 />
               </View>
             </>
           )}
         </View>
 
-        <View style={{ height: 100 }} />
+        <View style={{ height: 24 }} />
       </ScrollView>
 
-      {/* Continue Button */}
-      <View style={styles.bottomContainer}>
-        <TouchableOpacity 
-          style={[styles.continueBtn, continueDisabled && styles.continueBtnDisabled]} 
-          activeOpacity={0.9}
-          onPress={continueToConfirm}
-          disabled={continueDisabled}
-        >
-          <Text style={styles.continueBtnText}>{continueLabel}</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Continue — hide while typing so keyboard never covers the active field */}
+      {!keyboardVisible ? (
+        <View style={styles.bottomContainer}>
+          <TouchableOpacity
+            style={[styles.continueBtn, continueDisabled && styles.continueBtnDisabled]}
+            activeOpacity={0.9}
+            onPress={continueToConfirm}
+            disabled={continueDisabled}
+          >
+            <Text style={styles.continueBtnText}>{continueLabel}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -2206,63 +2266,6 @@ const styles = StyleSheet.create({
   },
   hourChipUnitActive: {
     color: "rgba(255,255,255,0.72)",
-  },
-  hourlyHero: {
-    borderRadius: 16,
-    paddingVertical: 28,
-    paddingHorizontal: 20,
-    alignItems: "center",
-    backgroundColor: "#14110e",
-    overflow: "hidden",
-  },
-  hourlyHeroBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "#D4A04A",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginBottom: 14,
-  },
-  hourlyHeroBadgeText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#1a1208",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-  },
-  hourlyHeroHours: {
-    fontSize: 56,
-    fontWeight: "700",
-    color: "#fff",
-    letterSpacing: -1.5,
-    lineHeight: 60,
-  },
-  hourlyHeroHoursLabel: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: "rgba(255,255,255,0.65)",
-    marginTop: 2,
-  },
-  hourlyHeroFare: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#D4A04A",
-    marginTop: 16,
-  },
-  hourlyHeroHint: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.45)",
-    marginTop: 10,
-    textAlign: "center",
-    paddingHorizontal: 12,
-  },
-  hourlyHeroTaxNote: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.38)",
-    marginTop: 8,
-    textAlign: "center",
   },
   placesHint: {
     fontSize: 11,
@@ -3027,13 +3030,18 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRightWidth: 1,
     borderRightColor: "#e8e8e8",
-    gap: 4,
+    gap: 6,
   },
   flagIcon: {
     width: 22,
     height: 16,
     justifyContent: "center",
     alignItems: "center",
+  },
+  countryCodeText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1a1a1a",
   },
   phoneField: {
     flex: 1,

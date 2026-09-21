@@ -125,10 +125,10 @@ export default function HeroBookingWidget() {
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl md:rounded-full shadow-2xl px-4 py-4 sm:px-5 sm:py-4 md:px-6 md:py-4">
-          <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-0">
+        <div className="bg-white rounded-3xl lg:rounded-full shadow-2xl px-4 py-4 sm:px-5 sm:py-4 lg:px-6 lg:py-4 relative z-30">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-0">
             {/* Pickup Location */}
-            <div className="flex items-center gap-2.5 flex-1 min-w-0 md:px-2">
+            <div className="flex items-center gap-2.5 flex-1 min-w-0 lg:px-2">
               <div className="w-8 h-8 rounded-full bg-[#C9A063]/10 flex items-center justify-center flex-shrink-0">
                 <MapPin className="w-4 h-4 text-[#C9A063]" strokeWidth={2} />
               </div>
@@ -159,7 +159,7 @@ export default function HeroBookingWidget() {
                     if (locationError) setLocationError(null);
                   }}
                   placeholder="Enter pickup location"
-                  className="text-[14px] sm:text-[15px] text-gray-900 placeholder:text-gray-400 outline-none bg-transparent w-full py-0.5 border-0 focus:ring-0"
+                  className="text-base lg:text-[15px] text-gray-900 placeholder:text-gray-400 outline-none bg-transparent w-full min-h-11 lg:min-h-0 py-1.5 lg:py-0.5 border-0 focus:ring-0"
                 />
                 {locationError && (
                   <p className="text-[10px] text-red-500 mt-0.5 leading-tight">{locationError}</p>
@@ -169,11 +169,11 @@ export default function HeroBookingWidget() {
 
             {bookingMode === "distance" && (
               <>
-                <div className="hidden md:block w-px self-stretch bg-gray-200 flex-shrink-0 mx-2"></div>
-                <div className="md:hidden h-px w-full bg-gray-200 flex-shrink-0"></div>
+                <div className="hidden lg:block w-px self-stretch bg-gray-200 flex-shrink-0 mx-2"></div>
+                <div className="lg:hidden h-px w-full bg-gray-200 flex-shrink-0"></div>
 
                 {/* Drop-off Location */}
-                <div className="flex items-center gap-2.5 flex-1 min-w-0 md:px-2">
+                <div className="flex items-center gap-2.5 flex-1 min-w-0 lg:px-2">
                   <div className="w-8 h-8 rounded-full bg-[#C9A063]/10 flex items-center justify-center flex-shrink-0">
                     <MapPin className="w-4 h-4 text-[#C9A063]" strokeWidth={2} />
                   </div>
@@ -183,18 +183,18 @@ export default function HeroBookingWidget() {
                       value={dropoff}
                       onChange={setDropoff}
                       placeholder="Enter drop-off location"
-                      className="text-[14px] sm:text-[15px] text-gray-900 placeholder:text-gray-400 outline-none bg-transparent w-full py-0.5 border-0 focus:ring-0"
+                      className="text-base lg:text-[15px] text-gray-900 placeholder:text-gray-400 outline-none bg-transparent w-full min-h-11 lg:min-h-0 py-1.5 lg:py-0.5 border-0 focus:ring-0"
                     />
                   </div>
                 </div>
               </>
             )}
 
-            <div className="hidden md:block w-px self-stretch bg-gray-200 flex-shrink-0 mx-2"></div>
-            <div className="md:hidden h-px w-full bg-gray-200 flex-shrink-0"></div>
+            <div className="hidden lg:block w-px self-stretch bg-gray-200 flex-shrink-0 mx-2"></div>
+            <div className="lg:hidden h-px w-full bg-gray-200 flex-shrink-0"></div>
 
             {/* Pick-up Time */}
-            <div className="flex items-center gap-2.5 flex-1 min-w-0 md:px-2 hero-datepicker">
+            <div className="flex items-center gap-2.5 flex-1 min-w-0 lg:px-2 hero-datepicker">
               <div className="w-8 h-8 rounded-full bg-[#C9A063]/10 flex items-center justify-center flex-shrink-0">
                 <Clock className="w-4 h-4 text-[#C9A063]" strokeWidth={2} />
               </div>
@@ -210,7 +210,8 @@ export default function HeroBookingWidget() {
                   timeFormat="h:mm aa"
                   minDate={new Date()}
                   placeholderText="Select date & time"
-                  className="text-[14px] sm:text-[15px] text-gray-900 placeholder:text-gray-400 outline-none bg-transparent w-full py-0.5 border-0 focus:ring-0 cursor-pointer"
+                  withPortal
+                  className="text-base lg:text-[15px] text-gray-900 placeholder:text-gray-400 outline-none bg-transparent w-full min-h-11 lg:min-h-0 py-1.5 lg:py-0.5 border-0 focus:ring-0 cursor-pointer"
                 />
               </div>
             </div>
@@ -218,10 +219,10 @@ export default function HeroBookingWidget() {
             {/* Duration Field - Only shows for Hourly mode */}
             {bookingMode === "hourly" && (
               <>
-                <div className="hidden md:block w-px self-stretch bg-gray-200 flex-shrink-0 mx-2"></div>
-                <div className="md:hidden h-px w-full bg-gray-200 flex-shrink-0"></div>
+                <div className="hidden lg:block w-px self-stretch bg-gray-200 flex-shrink-0 mx-2"></div>
+                <div className="lg:hidden h-px w-full bg-gray-200 flex-shrink-0"></div>
 
-                <div className="flex items-center gap-2.5 flex-1 min-w-0 md:px-2 relative">
+                <div className="flex items-center gap-2.5 flex-1 min-w-0 lg:px-2 relative">
                   <div className="w-8 h-8 rounded-full bg-[#C9A063]/10 flex items-center justify-center flex-shrink-0">
                     <HelpCircle className="w-4 h-4 text-[#C9A063]" strokeWidth={2} />
                   </div>
@@ -239,7 +240,7 @@ export default function HeroBookingWidget() {
                       <button
                         type="button"
                         onClick={() => setDurationDropdownOpen(!durationDropdownOpen)}
-                        className="w-full flex items-center justify-between text-[14px] sm:text-[15px] text-gray-900 outline-none bg-transparent py-0.5"
+                        className="w-full flex items-center justify-between text-base lg:text-[15px] text-gray-900 outline-none bg-transparent min-h-11 lg:min-h-0 py-1.5 lg:py-0.5"
                       >
                         <span>{duration} hours</span>
                         <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${durationDropdownOpen ? 'rotate-180' : ''}`} />
@@ -270,11 +271,11 @@ export default function HeroBookingWidget() {
             )}
 
             {/* Next Button */}
-            <div className="flex-shrink-0 mt-3 md:mt-0 md:ml-3">
+            <div className="flex-shrink-0 mt-3 lg:mt-0 lg:ml-3">
               <button
                 type="button"
                 onClick={handleNext}
-                className="w-full md:w-auto bg-gradient-to-r from-black via-gray-900 to-black text-white px-6 py-3 sm:px-7 sm:py-3.5 rounded-full text-[13px] sm:text-[14px] font-semibold hover:from-gray-900 hover:via-black hover:to-gray-900 hover:scale-105 hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-all duration-300 backdrop-blur-sm border border-white/10 whitespace-nowrap"
+                className="w-full lg:w-auto bg-gradient-to-r from-black via-gray-900 to-black text-white px-6 py-3 sm:px-7 sm:py-3.5 rounded-full text-[13px] sm:text-[14px] font-semibold hover:from-gray-900 hover:via-black hover:to-gray-900 hover:scale-105 hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-all duration-300 backdrop-blur-sm border border-white/10 whitespace-nowrap"
               >
                 Reserve
               </button>
