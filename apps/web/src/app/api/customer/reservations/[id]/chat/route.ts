@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { listMessagesForBooking, postChatMessage } from "@/lib/trip-chat";
+import {
+  isCustomerTripHistoryLocked,
+  listMessagesForBooking,
+  postChatMessage,
+} from "@/lib/trip-chat";
 import {
   getActiveCustomerFromRequest,
   customerAuthFailurePayload,
@@ -28,6 +32,16 @@ export async function GET(
 
     const since = req.nextUrl.searchParams.get("since") ?? undefined;
     const data = await listMessagesForBooking(bookingId, { since });
+    // History: do not expose prior chat transcript to the customer.
+    if (isCustomerTripHistoryLocked(data.status)) {
+      return NextResponse.json({
+        success: true,
+        threadId: data.threadId,
+        messages: [],
+        canSend: false,
+        status: data.status,
+      });
+    }
     return NextResponse.json({ success: true, ...data });
   } catch (error) {
     if (error instanceof Error && error.message === "NOT_FOUND") {

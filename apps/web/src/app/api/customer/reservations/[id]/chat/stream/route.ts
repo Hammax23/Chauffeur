@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
 import prisma from "@/lib/prisma";
 import { subscribeChat, type ChatEvent } from "@/lib/chat-bus";
-import { listMessagesForBooking } from "@/lib/trip-chat";
+import { listMessagesForBooking, isCustomerTripHistoryLocked } from "@/lib/trip-chat";
 import { isCustomerInactive } from "@/lib/customer-auth";
 
 export const dynamic = "force-dynamic";
@@ -76,17 +76,29 @@ export async function GET(
         /* closed */
       }
 
+      let historyLocked = false;
       try {
         const snapshot = await listMessagesForBooking(bookingId);
-        send("snapshot", snapshot);
+        historyLocked = isCustomerTripHistoryLocked(snapshot.status);
+        if (historyLocked) {
+          send("snapshot", {
+            threadId: snapshot.threadId,
+            messages: [],
+            canSend: false,
+            status: snapshot.status,
+          });
+        } else {
+          send("snapshot", snapshot);
+        }
       } catch {
         send("snapshot", { threadId: null, messages: [], canSend: false, status: "UNKNOWN" });
       }
 
       const onEvent = (event: ChatEvent) => {
+        if (historyLocked) return;
         send("message", event);
       };
-      cleanup = subscribeChat(bookingId, onEvent);
+      cleanup = historyLocked ? null : subscribeChat(bookingId, onEvent);
 
       const heartbeat = setInterval(() => {
         try {

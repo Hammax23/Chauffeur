@@ -13,8 +13,8 @@ import {
 import { notifyDriverTripReviewed } from "@/lib/driver-push";
 
 /**
- * POST — submit or update a trip review for a completed reservation.
- * Path id = bookingId.
+ * POST — submit a one-shot trip review for a completed reservation.
+ * Path id = bookingId. Edits after submit are not allowed.
  */
 export async function POST(
   req: NextRequest,
@@ -80,25 +80,29 @@ export async function POST(
       where: { reservationId: reservation.id },
       select: { id: true },
     });
+    if (existing) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "You have already reviewed this trip. Reviews cannot be changed.",
+          code: "REVIEW_ALREADY_SUBMITTED",
+        },
+        { status: 409 }
+      );
+    }
 
     let review;
-    let wasUpdate = !!existing;
     try {
-      review = existing
-        ? await prisma.tripReview.update({
-            where: { reservationId: reservation.id },
-            data: { stars, comment },
-          })
-        : await prisma.tripReview.create({
-            data: {
-              reservationId: reservation.id,
-              bookingId: reservation.bookingId,
-              customerId: auth.customer.id,
-              driverId: reservation.assignedDriverId,
-              stars,
-              comment,
-            },
-          });
+      review = await prisma.tripReview.create({
+        data: {
+          reservationId: reservation.id,
+          bookingId: reservation.bookingId,
+          customerId: auth.customer.id,
+          driverId: reservation.assignedDriverId,
+          stars,
+          comment,
+        },
+      });
     } catch (err) {
       // Concurrent first submit — unique reservationId
       const code =
@@ -106,39 +110,38 @@ export async function POST(
           ? String((err as { code?: string }).code)
           : "";
       if (code === "P2002") {
-        review = await prisma.tripReview.update({
-          where: { reservationId: reservation.id },
-          data: { stars, comment },
-        });
-        wasUpdate = true;
-      } else {
-        throw err;
+        return NextResponse.json(
+          {
+            success: false,
+            error: "You have already reviewed this trip. Reviews cannot be changed.",
+            code: "REVIEW_ALREADY_SUBMITTED",
+          },
+          { status: 409 }
+        );
       }
+      throw err;
     }
 
     const driverRating = await recomputeDriverRating(reservation.assignedDriverId);
 
-    if (!wasUpdate) {
-      const customer = await prisma.customer.findUnique({
-        where: { id: auth.customer.id },
-        select: { firstName: true, lastName: true },
-      });
-      const customerName =
-        [customer?.firstName, customer?.lastName].filter(Boolean).join(" ").trim() ||
-        "A customer";
-      void notifyDriverTripReviewed({
-        driverId: reservation.assignedDriverId,
-        bookingId: reservation.bookingId,
-        customerName,
-        stars,
-      }).catch((e) => console.error("[trip-review-push]", e));
-    }
+    const customer = await prisma.customer.findUnique({
+      where: { id: auth.customer.id },
+      select: { firstName: true, lastName: true },
+    });
+    const customerName =
+      [customer?.firstName, customer?.lastName].filter(Boolean).join(" ").trim() ||
+      "A customer";
+    void notifyDriverTripReviewed({
+      driverId: reservation.assignedDriverId,
+      bookingId: reservation.bookingId,
+      customerName,
+      stars,
+    }).catch((e) => console.error("[trip-review-push]", e));
 
     return NextResponse.json({
       success: true,
       review: formatReviewPayload(review),
       driverRating,
-      updated: wasUpdate,
     });
   } catch (error) {
     console.error("[trip-review]", error instanceof Error ? error.message : error);

@@ -92,32 +92,41 @@ export default function RateDriverScreen() {
   }, [bookingId]);
 
   const alreadyReviewed = !!reservation?.review;
-  const canSubmit = stars >= 1 && stars <= 5 && !submitting;
+  const canSubmit = !alreadyReviewed && stars >= 1 && stars <= 5 && !submitting;
 
-  const starHint = useMemo(
-    () => (stars > 0 ? STAR_LABELS[stars] || "" : "Tap a star to rate"),
-    [stars]
-  );
+  const starHint = useMemo(() => {
+    if (alreadyReviewed) return STAR_LABELS[stars] || "";
+    return stars > 0 ? STAR_LABELS[stars] || "" : "Tap a star to rate";
+  }, [alreadyReviewed, stars]);
 
   const handleSubmit = async () => {
-    if (!bookingId || !canSubmit) return;
+    if (!bookingId || !canSubmit || alreadyReviewed) return;
     setSubmitting(true);
     try {
       const result = await submitTripReview(bookingId, {
         stars,
         comment: comment.trim() || undefined,
       });
-      if (!result.success) {
+      if (!result.success || !result.review) {
         Alert.alert("Review", result.error || "Could not save your review.");
         return;
       }
-      Alert.alert(
-        "Thank you",
-        alreadyReviewed
-          ? "Your review has been updated."
-          : "Your review has been shared with your chauffeur.",
-        [{ text: "Done", onPress: () => router.back() }]
+      setReservation((prev) =>
+        prev
+          ? {
+              ...prev,
+              review: {
+                stars: result.review!.stars,
+                comment: result.review!.comment,
+                createdAt: result.review!.createdAt,
+              },
+              canReview: false,
+            }
+          : prev
       );
+      Alert.alert("Thank you", "Your review has been shared with your chauffeur.", [
+        { text: "Done", onPress: () => router.back() },
+      ]);
     } catch (e) {
       Alert.alert("Error", e instanceof Error ? e.message : "Could not save your review.");
     } finally {
@@ -152,7 +161,9 @@ export default function RateDriverScreen() {
             <Ionicons name="chevron-back" size={20} color="#0f172a" />
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Rate chauffeur</Text>
+          <Text style={styles.headerTitle}>
+            {alreadyReviewed ? "Your review" : "Rate chauffeur"}
+          </Text>
           <View style={{ width: 56 }} />
         </View>
 
@@ -162,9 +173,13 @@ export default function RateDriverScreen() {
           showsVerticalScrollIndicator={false}
         >
           <Text style={styles.eyebrow}>TRIP COMPLETE</Text>
-          <Text style={styles.title}>How was your experience?</Text>
+          <Text style={styles.title}>
+            {alreadyReviewed ? "Your review" : "How was your experience?"}
+          </Text>
           <Text style={styles.subtitle}>
-            Your feedback helps SARJ maintain a professional standard of service.
+            {alreadyReviewed
+              ? "Reviews are final and cannot be changed."
+              : "Your feedback helps SARJ maintain a professional standard of service."}
           </Text>
 
           <View style={styles.driverCard}>
@@ -185,54 +200,75 @@ export default function RateDriverScreen() {
 
           <View style={styles.starsBlock}>
             <View style={styles.starsRow}>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <TouchableOpacity
-                  key={n}
-                  onPress={() => setStars(n)}
-                  activeOpacity={0.85}
-                  accessibilityLabel={`${n} star${n === 1 ? "" : "s"}`}
-                  hitSlop={6}
-                >
-                  <Ionicons
-                    name={n <= stars ? "star" : "star-outline"}
-                    size={40}
-                    color={n <= stars ? GOLD : "#cbd5e1"}
-                  />
-                </TouchableOpacity>
-              ))}
+              {[1, 2, 3, 4, 5].map((n) =>
+                alreadyReviewed ? (
+                  <View key={n} accessibilityLabel={`${n} star${n === 1 ? "" : "s"}`}>
+                    <Ionicons
+                      name={n <= stars ? "star" : "star-outline"}
+                      size={40}
+                      color={n <= stars ? GOLD : "#cbd5e1"}
+                    />
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    key={n}
+                    onPress={() => setStars(n)}
+                    activeOpacity={0.85}
+                    accessibilityLabel={`${n} star${n === 1 ? "" : "s"}`}
+                    hitSlop={6}
+                  >
+                    <Ionicons
+                      name={n <= stars ? "star" : "star-outline"}
+                      size={40}
+                      color={n <= stars ? GOLD : "#cbd5e1"}
+                    />
+                  </TouchableOpacity>
+                )
+              )}
             </View>
             <Text style={styles.starHint}>{starHint}</Text>
           </View>
 
-          <Text style={styles.inputLabel}>Comment (optional)</Text>
-          <TextInput
-            style={styles.commentInput}
-            value={comment}
-            onChangeText={(t) => setComment(t.slice(0, COMMENT_MAX))}
-            placeholder="Share details about punctuality, professionalism, or the vehicle…"
-            placeholderTextColor="#94a3b8"
-            multiline
-            textAlignVertical="top"
-            maxLength={COMMENT_MAX}
-          />
-          <Text style={styles.charCount}>
-            {comment.length}/{COMMENT_MAX}
-          </Text>
-
-          <TouchableOpacity
-            style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}
-            onPress={handleSubmit}
-            disabled={!canSubmit}
-            activeOpacity={0.9}
-          >
-            {submitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.submitBtnText}>
-                {alreadyReviewed ? "Update review" : "Submit review"}
+          {alreadyReviewed ? (
+            comment ? (
+              <View style={styles.readOnlyComment}>
+                <Text style={styles.inputLabel}>Your comment</Text>
+                <Text style={styles.readOnlyCommentText}>{comment}</Text>
+              </View>
+            ) : null
+          ) : (
+            <>
+              <Text style={styles.inputLabel}>Comment (optional)</Text>
+              <TextInput
+                style={styles.commentInput}
+                value={comment}
+                onChangeText={(t) => setComment(t.slice(0, COMMENT_MAX))}
+                placeholder="Share details about punctuality, professionalism, or the vehicle…"
+                placeholderTextColor="#94a3b8"
+                multiline
+                textAlignVertical="top"
+                maxLength={COMMENT_MAX}
+              />
+              <Text style={styles.charCount}>
+                {comment.length}/{COMMENT_MAX}
               </Text>
-            )}
-          </TouchableOpacity>
+            </>
+          )}
+
+          {!alreadyReviewed ? (
+            <TouchableOpacity
+              style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}
+              onPress={handleSubmit}
+              disabled={!canSubmit}
+              activeOpacity={0.9}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.submitBtnText}>Submit review</Text>
+              )}
+            </TouchableOpacity>
+          ) : null}
 
           <TouchableOpacity style={styles.skipBtn} onPress={() => router.back()} activeOpacity={0.8}>
             <Text style={styles.skipText}>{alreadyReviewed ? "Close" : "Maybe later"}</Text>
@@ -316,6 +352,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#0f172a",
     backgroundColor: "#fafafa",
+  },
+  readOnlyComment: {
+    marginBottom: 8,
+  },
+  readOnlyCommentText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: "#334155",
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 12,
+    padding: 14,
   },
   charCount: {
     alignSelf: "flex-end",

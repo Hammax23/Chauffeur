@@ -11,6 +11,11 @@ export const CHAT_OPEN_STATUSES = [
   "STOP",
 ] as const;
 
+/** Completed / cancelled — customer history is view-only (no phone, no chat). */
+export function isCustomerTripHistoryLocked(status: string): boolean {
+  return status === "DONE" || status === "CANCELLED" || status === "CANCELED";
+}
+
 const DEFAULT_MESSAGE_LIMIT = 200;
 const MAX_MESSAGE_LIMIT = 500;
 

@@ -16,6 +16,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import MapView, { Marker, PROVIDER_DEFAULT, type Region } from "react-native-maps";
 import * as Location from "expo-location";
 import { useAuth } from "../../../contexts/AuthContext";
@@ -637,27 +638,70 @@ export default function CustomerHomeScreen() {
             <Pressable
               onPress={openRide}
               style={({ pressed }) => [
-                styles.rideTile,
-                layout.isCompact && { minHeight: 132, padding: 12 },
-                pressed && styles.pressed,
+                styles.rideTileOuter,
+                pressed && styles.rideTilePressed,
               ]}
             >
-              <LinearGradient
-                colors={["#1C1710", "#0E0C0A"]}
-                style={StyleSheet.absoluteFill}
-              />
-              <View style={styles.rideIcon}>
-                <Ionicons name="car-sport" size={22} color={ACCENT} />
-              </View>
-              <Text style={[styles.rideTitle, layout.isCompact && { fontSize: 15 }]}>
-                Book a Ride
-              </Text>
-              <Text style={styles.rideSub} numberOfLines={1}>
-                Airport · hourly · city
-              </Text>
-              <View style={styles.rideCta}>
-                <Text style={styles.rideCtaText}>Reserve</Text>
-                <Ionicons name="arrow-forward" size={14} color="#1A1208" />
+              <View
+                style={[
+                  styles.rideTile,
+                  layout.isCompact && { minHeight: 132, padding: 12 },
+                ]}
+              >
+                <LinearGradient
+                  colors={["#2C2418", "#1A1510", "#0C0B09"]}
+                  locations={[0, 0.45, 1]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                <LinearGradient
+                  colors={["rgba(212,160,74,0.22)", "rgba(212,160,74,0.04)", "transparent"]}
+                  locations={[0, 0.35, 1]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0.85 }}
+                  style={StyleSheet.absoluteFill}
+                  pointerEvents="none"
+                />
+                <LinearGradient
+                  colors={["rgba(255,255,255,0.18)", "rgba(255,255,255,0.04)", "transparent"]}
+                  locations={[0, 0.12, 0.35]}
+                  style={styles.rideRim}
+                  pointerEvents="none"
+                />
+                <View style={styles.rideHairline} pointerEvents="none" />
+
+                <View style={styles.rideIconWrap}>
+                  {Platform.OS === "ios" ? (
+                    <BlurView intensity={28} tint="dark" style={StyleSheet.absoluteFill} />
+                  ) : null}
+                  <LinearGradient
+                    colors={["rgba(232,192,120,0.28)", "rgba(212,160,74,0.12)"]}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <Ionicons name="car-sport" size={22} color={ACCENT} />
+                </View>
+
+                <View style={styles.rideCopy}>
+                  <Text style={[styles.rideTitle, layout.isCompact && { fontSize: 15 }]}>
+                    Book a Ride
+                  </Text>
+                  <Text style={styles.rideSub} numberOfLines={1}>
+                    Airport · hourly · city
+                  </Text>
+                </View>
+
+                <View style={styles.rideCta}>
+                  <LinearGradient
+                    colors={["#E8C078", ACCENT, "#B8862E"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.rideCtaGrad}
+                  >
+                    <Text style={styles.rideCtaText}>Reserve</Text>
+                    <Ionicons name="arrow-forward" size={13} color="#1A1208" />
+                  </LinearGradient>
+                </View>
               </View>
             </Pressable>
 
@@ -1130,50 +1174,96 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 12,
   },
-  rideTile: {
+  rideTileOuter: {
     flex: 1.15,
     minWidth: 0,
+    borderRadius: 22,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#0A0806",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.28,
+        shadowRadius: 18,
+      },
+      android: { elevation: 6 },
+    }),
+  },
+  rideTile: {
     minHeight: 148,
-    borderRadius: 20,
+    borderRadius: 22,
     overflow: "hidden",
     padding: 14,
     justifyContent: "space-between",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.14)",
   },
-  rideIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "rgba(212,160,74,0.18)",
+  rideTilePressed: {
+    opacity: 0.94,
+    transform: [{ scale: 0.985 }],
+  },
+  rideRim: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  rideHairline: {
+    position: "absolute",
+    top: 0,
+    left: 12,
+    right: 12,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(255,255,255,0.28)",
+  },
+  rideIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(232,192,120,0.35)",
+  },
+  rideCopy: {
+    marginTop: 10,
+    marginBottom: 10,
   },
   rideTitle: {
-    marginTop: 12,
     fontSize: 17,
     fontWeight: "800",
     color: "#FFF",
-    letterSpacing: -0.3,
+    letterSpacing: -0.35,
   },
   rideSub: {
     marginTop: 4,
     fontSize: 12,
-    color: "rgba(255,255,255,0.6)",
-    marginBottom: 12,
+    color: "rgba(255,255,255,0.58)",
+    letterSpacing: -0.1,
   },
   rideCta: {
     alignSelf: "flex-start",
+    borderRadius: 999,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: ACCENT,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.35,
+        shadowRadius: 8,
+      },
+      android: { elevation: 2 },
+    }),
+  },
+  rideCtaGrad: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: ACCENT,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 10,
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   rideCtaText: {
     fontSize: 12,
     fontWeight: "800",
     color: "#1A1208",
+    letterSpacing: -0.1,
   },
   parcelTile: {
     flex: 0.95,

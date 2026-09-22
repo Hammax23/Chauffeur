@@ -18,7 +18,7 @@ export type ReservationLiveEventType =
 
 export interface ReservationLiveDriver {
   name: string;
-  phone: string;
+  phone: string | null;
   photo: string | null;
   vehicle: string | null;
   vehiclePlate: string | null;

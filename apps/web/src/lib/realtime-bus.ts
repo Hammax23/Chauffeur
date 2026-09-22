@@ -28,7 +28,7 @@ export type ReservationEventType =
 
 export interface ReservationLiveDriver {
   name: string;
-  phone: string;
+  phone: string | null;
   photo: string | null;
   vehicle: string | null;
   vehiclePlate: string | null;
@@ -173,7 +173,10 @@ export function mapReservationLiveData(r: {
     driver: r.assignedDriver
       ? {
           name: r.assignedDriver.name,
-          phone: r.assignedDriver.phone,
+          // Hide chauffeur phone once the trip is in customer history.
+          phone: ["DONE", "CANCELLED", "CANCELED"].includes(r.status)
+            ? null
+            : r.assignedDriver.phone,
           photo: r.assignedDriver.photo,
           vehicle: r.assignedDriver.vehicle ?? null,
           vehiclePlate: r.assignedDriver.vehiclePlate ?? null,

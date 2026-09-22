@@ -161,7 +161,7 @@ export default function HistoryScreen() {
                     style={({ pressed }) => [styles.cardWrap, pressed && styles.pressed]}
                     onPress={() =>
                       router.push({
-                        pathname: "/customer/track-ride",
+                        pathname: "/customer/trip-detail",
                         params: { bookingId: reservation.bookingId },
                       })
                     }

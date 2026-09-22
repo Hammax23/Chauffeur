@@ -20,7 +20,7 @@
       "supportsTablet": true,
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.sarjworldwide.chauffeur",
-      "buildNumber": "45",
+      "buildNumber": "49",
       "entitlements": {
         "com.apple.developer.applesignin": [
           "Default"
@@ -45,6 +45,7 @@
       "package": "com.sarjworldwide.chauffeur",
       "versionCode": 1,
       "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "resize",
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.RECEIVE_BOOT_COMPLETED",

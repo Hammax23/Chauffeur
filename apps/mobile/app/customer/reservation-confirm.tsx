@@ -31,8 +31,14 @@ import {
 
 const SITE = "https://sarjworldwide.ca";
 
-/** App card checkout via Stripe PaymentSheet (saved cards + Apple Pay when available). */
-const APP_PAYMENTS_ENABLED = true;
+/**
+ * App card checkout via Stripe PaymentSheet (saved cards + Apple Pay when available).
+ *
+ * TEMP (user request): payment validation DISABLED so reservations can complete without paying.
+ * Set back to `true` when user asks to re-enable payment (uncomment / restore checkout).
+ * Search: APP_PAYMENTS_ENABLED
+ */
+const APP_PAYMENTS_ENABLED = false; // was: true
 
 export default function ReservationConfirmScreen() {
   const insets = useSafeAreaInsets();

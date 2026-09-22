@@ -58,7 +58,9 @@ export async function GET(req: NextRequest) {
       driver: r.assignedDriver
         ? {
             name: r.assignedDriver.name,
-            phone: r.assignedDriver.phone,
+            phone: ["DONE", "CANCELLED", "CANCELED"].includes(r.status)
+              ? null
+              : r.assignedDriver.phone,
             photo: r.assignedDriver.photo,
             vehicle: r.assignedDriver.vehicle,
             vehiclePlate: r.assignedDriver.vehiclePlate,

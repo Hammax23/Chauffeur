@@ -37,18 +37,24 @@ function shortLoc(s?: string | null) {
 }
 
 function mergeLiveIntoReservation(prev: Reservation, live: ReservationLiveData): Reservation {
+  const status = live.status;
+  const historyLocked =
+    status === "DONE" || status === "CANCELLED" || status === "CANCELED";
   const driver = live.driver
     ? {
         name: live.driver.name,
-        phone: live.driver.phone,
+        phone: historyLocked ? null : live.driver.phone,
         photo: live.driver.photo,
         vehicle: live.driver.vehicle ?? "",
         vehiclePlate: live.driver.vehiclePlate ?? "",
         rating: live.driver.rating ?? 0,
       }
     : null;
-  const nextDriver = driver ?? prev.driver;
-  const status = live.status;
+  const nextDriver = driver
+    ? driver
+    : prev.driver && historyLocked
+      ? { ...prev.driver, phone: null }
+      : prev.driver;
   return {
     ...prev,
     status,
@@ -472,19 +478,23 @@ export default function ReservationsScreen() {
                               {reservation.driver.vehiclePlate}
                             </Text>
                           </View>
-                          <Pressable
-                            style={({ pressed }) => [styles.callBtn, pressed && styles.pressed]}
-                            onPress={() => {
-                              const phone = reservation.driver?.phone?.replace(/[^0-9+]/g, "");
-                              if (!phone) {
-                                Alert.alert("Unavailable", "Driver phone number is not available.");
-                                return;
-                              }
-                              Linking.openURL(`tel:${phone}`).catch(() => {});
-                            }}
-                          >
-                            <Ionicons name="call" size={16} color="#fff" />
-                          </Pressable>
+                          {reservation.status !== "DONE" &&
+                          reservation.status !== "CANCELLED" &&
+                          reservation.status !== "CANCELED" ? (
+                            <Pressable
+                              style={({ pressed }) => [styles.callBtn, pressed && styles.pressed]}
+                              onPress={() => {
+                                const phone = reservation.driver?.phone?.replace(/[^0-9+]/g, "");
+                                if (!phone) {
+                                  Alert.alert("Unavailable", "Driver phone number is not available.");
+                                  return;
+                                }
+                                Linking.openURL(`tel:${phone}`).catch(() => {});
+                              }}
+                            >
+                              <Ionicons name="call" size={16} color="#fff" />
+                            </Pressable>
+                          ) : null}
                         </View>
                       </View>
                     ) : null}
@@ -505,17 +515,6 @@ export default function ReservationsScreen() {
                           <Text style={[styles.reviewedText, { color: palette.muted }]}>
                             You rated this trip
                           </Text>
-                          <Pressable
-                            onPress={() =>
-                              router.push({
-                                pathname: "/customer/rate-driver",
-                                params: { bookingId: reservation.bookingId },
-                              })
-                            }
-                            hitSlop={8}
-                          >
-                            <Text style={styles.reviewedEdit}>Edit</Text>
-                          </Pressable>
                         </View>
                       ) : (
                         <Pressable
@@ -572,6 +571,27 @@ export default function ReservationsScreen() {
                             {reservation.status === "ACCEPTED" ? "View Trip" : "Track Ride"}
                           </Text>
                         </LinearGradient>
+                      </Pressable>
+                    ) : null}
+
+                    {COMPLETED_STATUSES.has(reservation.status) ? (
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.detailsBtn,
+                          { borderColor: palette.border, backgroundColor: palette.metaChipBg },
+                          pressed && styles.pressed,
+                        ]}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/customer/trip-detail",
+                            params: { bookingId: reservation.bookingId },
+                          })
+                        }
+                      >
+                        <Ionicons name="document-text-outline" size={16} color={GOLD} />
+                        <Text style={[styles.detailsBtnText, { color: palette.text }]}>
+                          View details
+                        </Text>
                       </Pressable>
                     ) : null}
                   </BlurView>
@@ -847,6 +867,20 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#1A1208",
   },
+  detailsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 14,
+    paddingVertical: 13,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: 4,
+  },
+  detailsBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
   rateBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -877,11 +911,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     fontWeight: "500",
-  },
-  reviewedEdit: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: GOLD,
   },
   emptyState: {
     alignItems: "center",

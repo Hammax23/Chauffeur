@@ -77,7 +77,9 @@ export async function GET(
         driver: reservation.assignedDriver
           ? {
               name: reservation.assignedDriver.name,
-              phone: reservation.assignedDriver.phone,
+              phone: ["DONE", "CANCELLED", "CANCELED"].includes(reservation.status)
+                ? null
+                : reservation.assignedDriver.phone,
               photo: reservation.assignedDriver.photo,
               vehicle: reservation.assignedDriver.vehicle,
               vehiclePlate: reservation.assignedDriver.vehiclePlate,

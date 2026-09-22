@@ -419,7 +419,7 @@ export async function resolveBootDestination(): Promise<
 
 export interface ReservationDriver {
   name: string;
-  phone: string;
+  phone: string | null;
   photo: string | null;
   vehicle: string;
   vehiclePlate: string;
@@ -1009,8 +1009,8 @@ export async function submitTripReview(
     success: boolean;
     review?: { stars: number; comment: string | null; createdAt: string };
     driverRating?: number;
-    updated?: boolean;
     error?: string;
+    code?: string;
   }>(`/customer/reservations/${bookingId}/review`, {
     method: "POST",
     body: JSON.stringify(params),

@@ -237,10 +237,13 @@ export default function TrackRideScreen() {
     if (!live.data) return;
     setReservation((prev) => {
       if (!prev) return prev;
+      const status = live.data?.status ?? prev.status;
+      const historyLocked =
+        status === "DONE" || status === "CANCELLED" || status === "CANCELED";
       const driverFromLive = live.data?.driver
         ? {
             name: live.data.driver.name,
-            phone: live.data.driver.phone,
+            phone: historyLocked ? null : live.data.driver.phone,
             photo: live.data.driver.photo,
             vehicle: live.data.driver.vehicle ?? "",
             vehiclePlate: live.data.driver.vehiclePlate ?? "",
@@ -249,10 +252,14 @@ export default function TrackRideScreen() {
         : null;
       return {
         ...prev,
-        status: live.data?.status ?? prev.status,
+        status,
         statusUpdatedAt: live.data?.statusUpdatedAt ?? prev.statusUpdatedAt,
         completedAt: live.data?.completedAt ?? prev.completedAt,
-        driver: driverFromLive ?? prev.driver,
+        driver: driverFromLive
+          ? driverFromLive
+          : prev.driver && historyLocked
+            ? { ...prev.driver, phone: null }
+            : prev.driver,
       };
     });
   }, [live.data]);
@@ -354,10 +361,17 @@ export default function TrackRideScreen() {
   }, [backScale]);
 
   const handleCallDriver = useCallback(() => {
+    if (
+      reservation?.status === "DONE" ||
+      reservation?.status === "CANCELLED" ||
+      reservation?.status === "CANCELED"
+    ) {
+      return;
+    }
     const phone = reservation?.driver?.phone?.replace(/[^0-9+]/g, "");
     if (!phone) return;
     Linking.openURL(`tel:${phone}`).catch(() => {});
-  }, [reservation?.driver?.phone]);
+  }, [reservation?.status, reservation?.driver?.phone]);
 
   const shareTrackLink = useCallback(async () => {
     const id =
@@ -646,18 +660,20 @@ export default function TrackRideScreen() {
                   ) : null}
                 </View>
               </View>
-              <TouchableOpacity
-                style={[styles.callBtn, !reservation?.driver?.phone && styles.callBtnDisabled]}
-                disabled={!reservation?.driver?.phone}
-                activeOpacity={0.85}
-                onPress={handleCallDriver}
-              >
-                <Ionicons name="call" size={16} color="#fff" />
-              </TouchableOpacity>
+              {reservation?.status !== "DONE" &&
+              reservation?.status !== "CANCELLED" &&
+              reservation?.status !== "CANCELED" ? (
+                <TouchableOpacity
+                  style={[styles.callBtn, !reservation?.driver?.phone && styles.callBtnDisabled]}
+                  disabled={!reservation?.driver?.phone}
+                  activeOpacity={0.85}
+                  onPress={handleCallDriver}
+                >
+                  <Ionicons name="call" size={16} color="#fff" />
+                </TouchableOpacity>
+              ) : null}
               {reservation &&
-              ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP", "DONE", "CANCELLED"].includes(
-                reservation.status
-              ) &&
+              ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP"].includes(reservation.status) &&
               reservation.driver ? (
                 <TouchableOpacity
                   style={styles.chatBtn}
@@ -861,16 +877,7 @@ export default function TrackRideScreen() {
           {reservation?.status === "DONE" && reservation.driver ? (
             <View style={styles.section}>
               {reservation.review ? (
-                <TouchableOpacity
-                  style={styles.ratedCta}
-                  activeOpacity={0.9}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/customer/rate-driver",
-                      params: { bookingId: reservation.bookingId },
-                    })
-                  }
-                >
+                <View style={styles.ratedCta}>
                   <View style={styles.ratedStars}>
                     {[1, 2, 3, 4, 5].map((n) => (
                       <Ionicons
@@ -881,9 +888,8 @@ export default function TrackRideScreen() {
                       />
                     ))}
                   </View>
-                  <Text style={styles.ratedCtaText}>You rated this trip · Edit</Text>
-                  <Ionicons name="chevron-forward" size={16} color={ACCENT_DARK} />
-                </TouchableOpacity>
+                  <Text style={styles.ratedCtaText}>You rated this trip</Text>
+                </View>
               ) : (
                 <TouchableOpacity
                   style={styles.rateCta}

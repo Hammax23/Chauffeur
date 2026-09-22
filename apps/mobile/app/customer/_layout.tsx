@@ -64,6 +64,7 @@ export default function CustomerLayout() {
           <Stack.Screen name="edit-profile" />
           <Stack.Screen name="payment-methods" />
           <Stack.Screen name="track-ride" />
+          <Stack.Screen name="trip-detail" />
           <Stack.Screen name="rate-driver" />
           <Stack.Screen name="chat" />
         </Stack>
