@@ -43,3 +43,7 @@ credentials.json
 # generated native folders
 /ios
 /android
+
+# local temp scripts
+.tmp*
+*.tmp*

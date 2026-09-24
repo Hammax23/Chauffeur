@@ -1,6 +1,19 @@
 
+# dependencies
+node_modules/
+
+# Next.js
 .next
 .next/
 
 # Local secrets (never commit)
+.env
 .env.local
+.env*.local
+
+# debug / temp
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.tmp*
+.tmp*
