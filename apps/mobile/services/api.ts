@@ -641,6 +641,45 @@ export async function deactivateCustomerAccount() {
   });
 }
 
+/** In-app Contact Us / support ticket. */
+export async function submitSupportTicket(input: {
+  type: string;
+  message: string;
+  subject?: string;
+}) {
+  return apiRequestWithResponse<{
+    success: boolean;
+    message?: string;
+    error?: string;
+    ticket?: {
+      id: string;
+      ticketId: string;
+      type: string;
+      subject: string | null;
+      status: string;
+      createdAt: string;
+    };
+  }>("/customer/support", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+/** Dynamic legal pages (privacy | terms | refund) from admin. */
+export async function fetchLegalDocument(slug: "privacy" | "terms" | "refund") {
+  return apiRequestWithResponse<{
+    success: boolean;
+    error?: string;
+    document?: {
+      slug: string;
+      title: string;
+      contentHtml: string;
+      customCss: string;
+      updatedAt: string;
+    };
+  }>(`/legal-docs/${slug}`, { method: "GET" });
+}
+
 export async function reactivateCustomerAccount(email: string, password: string) {
   const res = await apiRequestWithResponse<{
     success: boolean;
@@ -845,7 +884,7 @@ export async function updateProfile(params: {
   return data;
 }
 
-/** Authenticated phone OTP (OAuth / incomplete profile). Static OTP 1234 for now. */
+/** Authenticated phone OTP (OAuth / incomplete profile). */
 export async function sendCustomerPhoneOtp(phone: string) {
   return apiRequestWithResponse<{
     success: boolean;
@@ -993,6 +1032,46 @@ export async function getReservations() {
   return apiRequest<{ success: boolean; reservations: Reservation[] }>(
     "/customer/reservations"
   );
+}
+
+/** Paginated past trips for History tab. */
+export async function getHistoryReservations(params?: {
+  page?: number;
+  limit?: number;
+  q?: string;
+  status?: "ALL" | "DONE" | "CANCELLED";
+}) {
+  const page = params?.page ?? 1;
+  const limit = params?.limit ?? 20;
+  const qs = new URLSearchParams({
+    scope: "history",
+    page: String(page),
+    limit: String(limit),
+  });
+  if (params?.q?.trim()) qs.set("q", params.q.trim());
+  if (params?.status && params.status !== "ALL") qs.set("status", params.status);
+
+  return apiRequest<{
+    success: boolean;
+    reservations: Reservation[];
+    pagination?: { page: number; limit: number; total: number; hasMore: boolean };
+  }>(`/customer/reservations?${qs.toString()}`);
+}
+
+/** Soft-remove a past trip from History (kept in admin / billing records). */
+export async function hideReservationFromHistory(bookingId: string) {
+  return apiRequestWithResponse<{
+    success: boolean;
+    error?: string;
+    code?: string;
+    message?: string;
+    alreadyHidden?: boolean;
+    bookingId?: string;
+    hiddenAt?: string | null;
+  }>(`/customer/reservations/${encodeURIComponent(bookingId)}/hide-from-history`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
 }
 
 export async function getReservationById(bookingId: string) {

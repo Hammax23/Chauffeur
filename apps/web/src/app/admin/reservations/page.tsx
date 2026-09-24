@@ -91,11 +91,14 @@ interface Reservation {
 export default function ReservationsPage() {
   const searchParams = useSearchParams();
   const qFromUrl = searchParams.get("q")?.trim() || "";
+  const statusFromUrl = searchParams.get("status")?.trim().toUpperCase() || "";
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState(qFromUrl);
-  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState(
+    statusFromUrl && STATUS_OPTIONS.includes(statusFromUrl) ? statusFromUrl : "ALL"
+  );
   const [serviceFilter, setServiceFilter] = useState<"ALL" | "RIDES" | "PARCEL">("ALL");
   const [expandedRow, setExpandedRow] = useState<string | null>(qFromUrl || null);
 
@@ -104,6 +107,11 @@ export default function ReservationsPage() {
     setSearchQuery(qFromUrl);
     setExpandedRow(qFromUrl);
   }, [qFromUrl]);
+
+  useEffect(() => {
+    if (!statusFromUrl || !STATUS_OPTIONS.includes(statusFromUrl)) return;
+    setStatusFilter(statusFromUrl);
+  }, [statusFromUrl]);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);

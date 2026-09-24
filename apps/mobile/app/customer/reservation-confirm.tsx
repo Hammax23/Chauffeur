@@ -8,7 +8,6 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
-  Linking,
   Modal,
   Pressable,
 } from "react-native";
@@ -28,8 +27,6 @@ import {
   encodeParcelRequirements,
   isParcelServiceType,
 } from "../../utils/parcel";
-
-const SITE = "https://sarjworldwide.ca";
 
 /**
  * App card checkout via Stripe PaymentSheet (saved cards + Apple Pay when available).
@@ -696,17 +693,29 @@ export default function ReservationConfirmScreen() {
           </View>
           <Text style={styles.termsText}>
             I agree to the{" "}
-            <Text style={styles.termsLink} onPress={() => Linking.openURL(`${SITE}/terms-of-service`)}>
+            <Text
+              style={styles.termsLink}
+              onPress={() =>
+                router.push({ pathname: "/legal-doc", params: { doc: "terms" } })
+              }
+            >
               Terms of Service
             </Text>
             ,{" "}
-            <Text style={styles.termsLink} onPress={() => Linking.openURL(`${SITE}/privacy-policy`)}>
+            <Text
+              style={styles.termsLink}
+              onPress={() =>
+                router.push({ pathname: "/legal-doc", params: { doc: "privacy" } })
+              }
+            >
               Privacy Policy
             </Text>{" "}
             &{" "}
             <Text
               style={styles.termsLink}
-              onPress={() => Linking.openURL(`${SITE}/privacy-policy#cancellation`)}
+              onPress={() =>
+                router.push({ pathname: "/legal-doc", params: { doc: "refund" } })
+              }
             >
               Cancellation Policy
             </Text>

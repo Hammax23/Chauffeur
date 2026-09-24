@@ -12,11 +12,26 @@ export async function generateMetadata(): Promise<Metadata> {
   });
 }
 
-export default function TermsOfServicePage() {
+export default async function TermsOfServicePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ embed?: string }>;
+}) {
+  const { embed } = await searchParams;
+  const isEmbed = embed === "1" || embed === "true";
+
   return (
     <>
-      <TopNav />
-      <Navbar />
+      {!isEmbed ? (
+        <>
+          <div data-site-chrome="1">
+            <TopNav />
+          </div>
+          <div data-site-chrome="1">
+            <Navbar />
+          </div>
+        </>
+      ) : null}
 
       <section className="relative bg-gradient-to-b from-gray-50 to-white min-h-screen">
         {/* Hero */}
@@ -400,7 +415,11 @@ export default function TermsOfServicePage() {
         </div>
       </section>
 
-      <Footer />
+      {!isEmbed ? (
+        <div data-site-chrome="1">
+          <Footer />
+        </div>
+      ) : null}
     </>
   );
 }

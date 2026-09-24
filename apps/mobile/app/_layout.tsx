@@ -22,6 +22,10 @@ export default function RootLayout() {
             <Stack.Screen name="driver" />
             <Stack.Screen name="customer" />
             <Stack.Screen name="concierge" />
+            <Stack.Screen
+              name="legal-doc"
+              options={{ animation: "slide_from_right", presentation: "card" }}
+            />
           </Stack>
         </ConciergeAuthProvider>
       </DriverAuthProvider>

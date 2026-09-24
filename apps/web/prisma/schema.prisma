@@ -60,12 +60,16 @@ model Reservation {
   assignmentChannel     String?
   customerId            String?
   assignedDriverId      String?
+  /// Soft-hide from customer History (record kept for admin / billing / disputes).
+  customerHistoryHiddenAt DateTime?
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
   chatThread            ChatThread?
   tripReview            TripReview?
   assignedDriver        Driver?     @relation(fields: [assignedDriverId], references: [id])
   customer              Customer?   @relation(fields: [customerId], references: [id])
+
+  @@index([customerId, customerHistoryHiddenAt])
 }
 
 model Driver {
@@ -198,11 +202,46 @@ model Customer {
   updatedAt          DateTime      @updatedAt
   reservations       Reservation[]
   tripReviews        TripReview[]
+  supportTickets     SupportTicket[]
 
   @@unique([oauthProvider, oauthSub])
   @@index([pushToken])
   @@index([accountStatus])
   @@index([registrationSource])
+}
+
+/// In-app Contact Us / support messages from the customer mobile app.
+model SupportTicket {
+  id          String    @id @default(cuid())
+  ticketId    String    @unique
+  customerId  String
+  type        String
+  subject     String?
+  message     String
+  status      String    @default("NEW")
+  adminNote   String?
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([customerId])
+  @@index([type])
+}
+
+/// App legal pages (privacy / terms / refund) — editable from admin, rendered in-app.
+model LegalDocument {
+  id          String   @id @default(cuid())
+  /// privacy | terms | refund
+  slug        String   @unique
+  title       String
+  /// Sanitized HTML body from TipTap / admin editor
+  contentHtml String   @db.Text
+  /// Optional extra CSS (line-height, spacing, colors) applied in the app WebView
+  customCss   String?  @db.Text
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
 }
 
 model DriverInvite {

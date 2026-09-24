@@ -24,8 +24,13 @@ import {
 } from "../services/api";
 import { customerNeedsPhone } from "../utils/customer-phone";
 import {
-  normalizeNanpNationalNumber,
-  validateUsCanadaPhone,
+  authPhoneCountryMeta,
+  digitsOnly,
+  formatAuthPhoneDisplay,
+  formatAuthPhoneE164,
+  isAuthPhoneReady,
+  normalizeAuthPhoneInput,
+  validateAuthPhone,
 } from "../utils/phone-us-ca";
 
 type Step = "phone" | "otp";
@@ -33,14 +38,17 @@ type Step = "phone" | "otp";
 const OTP_LENGTH = 4;
 const RESEND_SECONDS = 30;
 
-function formatPhoneDisplay(national: string): string {
-  if (national.length !== 10) return `+1 ${national}`;
-  return `+1 (${national.slice(0, 3)}) ${national.slice(3, 6)}-${national.slice(6)}`;
+function phoneInputDisplay(stored: string): string {
+  const meta = authPhoneCountryMeta(stored);
+  if (meta.isIntlTest && stored.startsWith("+")) {
+    return digitsOnly(stored).slice(meta.dial.replace("+", "").length);
+  }
+  return stored;
 }
 
 /**
- * Uber-style post-social onboarding: require a verified US/CA mobile before app use.
- * OTP is static "1234" until SMS is wired.
+ * Uber-style post-social onboarding: require a verified mobile before app use.
+ * OTP via Twilio SMS (test allow-list may include non-+1 numbers).
  */
 export default function CompletePhoneScreen() {
   const { user, isLoading: authLoading, refreshProfile, logout } = useAuth();
@@ -73,15 +81,20 @@ export default function CompletePhoneScreen() {
   }, [step, resendTimer]);
 
   async function handleContinuePhone() {
-    const phoneError = validateUsCanadaPhone(phoneNumber);
+    const phoneError = validateAuthPhone(phoneNumber);
     if (phoneError) {
       Alert.alert("Invalid phone", phoneError);
+      return;
+    }
+    const e164 = formatAuthPhoneE164(phoneNumber);
+    if (!e164) {
+      Alert.alert("Invalid phone", "Enter a valid phone number.");
       return;
     }
 
     setIsLoading(true);
     try {
-      const res = await sendCustomerPhoneOtp(phoneNumber);
+      const res = await sendCustomerPhoneOtp(e164);
       if (!res.ok || !res.data.success) {
         Alert.alert("Error", res.data.error || "Unable to send verification code.");
         return;
@@ -106,10 +119,16 @@ export default function CompletePhoneScreen() {
         return;
       }
 
+      const e164 = formatAuthPhoneE164(phoneNumber);
+      if (!e164) {
+        setOtpError("Invalid phone number.");
+        return;
+      }
+
       setOtpError("");
       setIsLoading(true);
       try {
-        const res = await verifyCustomerPhoneOtp(phoneNumber, value);
+        const res = await verifyCustomerPhoneOtp(e164, value);
         if (!res.ok || !res.data.success || !res.data.customer) {
           setOtpError(res.data.error || "Invalid code. Please try again.");
           return;
@@ -161,10 +180,15 @@ export default function CompletePhoneScreen() {
 
   async function handleResendOtp() {
     if (resendTimer > 0 || isLoading) return;
+    const e164 = formatAuthPhoneE164(phoneNumber);
+    if (!e164) {
+      setOtpError("Invalid phone number.");
+      return;
+    }
     setIsLoading(true);
     setOtpError("");
     try {
-      const res = await sendCustomerPhoneOtp(phoneNumber);
+      const res = await sendCustomerPhoneOtp(e164);
       if (!res.ok || !res.data.success) {
         setOtpError(res.data.error || "Unable to resend code.");
         return;
@@ -183,6 +207,8 @@ export default function CompletePhoneScreen() {
     await logout();
     router.replace("/login");
   }
+
+  const phoneMeta = authPhoneCountryMeta(phoneNumber);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
@@ -218,7 +244,7 @@ export default function CompletePhoneScreen() {
           <Text style={styles.subtitle}>
             {step === "phone"
               ? "Confirm a phone number so we can reach you about your rides."
-              : `Enter the 4-digit code sent to ${formatPhoneDisplay(phoneNumber)}`}
+              : `Enter the 4-digit code sent to ${formatAuthPhoneDisplay(phoneNumber)}`}
           </Text>
 
           {step === "phone" ? (
@@ -228,17 +254,24 @@ export default function CompletePhoneScreen() {
               </Text>
               <View style={styles.phoneContainer}>
                 <View style={styles.countryCode}>
-                  <Text style={styles.flag}>🇨🇦</Text>
-                  <Text style={styles.countryCodeText}>+1</Text>
+                  <Text style={styles.flag}>{phoneMeta.flag}</Text>
+                  <Text style={styles.countryCodeText}>{phoneMeta.dial}</Text>
                 </View>
                 <TextInput
                   style={styles.phoneInput}
-                  placeholder="10-digit number"
+                  placeholder="Phone number"
                   placeholderTextColor="#999"
-                  value={phoneNumber}
-                  onChangeText={(t) => setPhoneNumber(normalizeNanpNationalNumber(t))}
+                  value={phoneInputDisplay(phoneNumber)}
+                  onChangeText={(text) => {
+                    const meta = authPhoneCountryMeta(phoneNumber);
+                    const raw =
+                      meta.isIntlTest && !text.trim().startsWith("+") && !text.startsWith("03")
+                        ? `${meta.dial}${digitsOnly(text)}`
+                        : text;
+                    setPhoneNumber(normalizeAuthPhoneInput(raw));
+                  }}
                   keyboardType="phone-pad"
-                  maxLength={10}
+                  maxLength={16}
                   editable={!isLoading}
                   returnKeyType="done"
                   onSubmitEditing={handleContinuePhone}
@@ -248,9 +281,9 @@ export default function CompletePhoneScreen() {
               <TouchableOpacity
                 style={[
                   styles.primaryBtn,
-                  (isLoading || phoneNumber.length < 10) && styles.primaryBtnDisabled,
+                  (isLoading || !isAuthPhoneReady(phoneNumber)) && styles.primaryBtnDisabled,
                 ]}
-                disabled={isLoading || phoneNumber.length < 10}
+                disabled={isLoading || !isAuthPhoneReady(phoneNumber)}
                 onPress={handleContinuePhone}
                 activeOpacity={0.9}
               >
@@ -350,55 +383,68 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: -8,
-    marginBottom: 8,
+    marginBottom: 12,
+    backgroundColor: "#f3f3f3",
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "700",
-    color: "#000",
+    color: "#111",
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 15,
     color: "#666",
-    marginBottom: 28,
     lineHeight: 22,
+    marginBottom: 28,
   },
   label: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#000",
-    marginBottom: 10,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 8,
   },
-  required: { color: "#e53935" },
+  required: { color: "#c62828" },
   phoneContainer: {
     flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: "#e0e0e0",
-    borderRadius: 8,
-    minHeight: 48,
+    borderRadius: 12,
     overflow: "hidden",
-    marginBottom: 24,
+    marginBottom: 20,
   },
   countryCode: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    backgroundColor: "#f7f7f7",
     borderRightWidth: 1,
     borderRightColor: "#e0e0e0",
-    gap: 6,
   },
-  flag: { fontSize: 20 },
-  countryCodeText: { fontSize: 15, color: "#000" },
+  flag: { fontSize: 16 },
+  countryCodeText: { fontSize: 15, fontWeight: "600", color: "#111" },
   phoneInput: {
     flex: 1,
-    paddingHorizontal: 16,
-    fontSize: 15,
-    color: "#000",
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === "ios" ? 14 : 12,
+    fontSize: 16,
+    color: "#111",
   },
+  primaryBtn: {
+    backgroundColor: "#111",
+    borderRadius: 12,
+    height: 52,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryBtnDisabled: { opacity: 0.45 },
+  primaryBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
   otpContainer: {
     flexDirection: "row",
+    justifyContent: "space-between",
     gap: 10,
     marginBottom: 12,
   },
@@ -411,55 +457,14 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 22,
     fontWeight: "700",
-    color: "#000",
-    backgroundColor: "#fafafa",
+    color: "#111",
   },
-  otpInputFilled: {
-    borderColor: "#C9A063",
-    backgroundColor: "#fff",
-  },
-  otpInputError: { borderColor: "#ef4444" },
-  otpErrorText: {
-    color: "#c62828",
-    fontSize: 13,
-    marginBottom: 12,
-  },
-  primaryBtn: {
-    backgroundColor: "#C9A063",
-    borderRadius: 10,
-    paddingVertical: 16,
-    alignItems: "center",
-    minHeight: 52,
-    justifyContent: "center",
-  },
-  primaryBtnDisabled: { opacity: 0.55 },
-  primaryBtnText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  resendBtn: {
-    alignItems: "center",
-    marginTop: 16,
-    paddingVertical: 8,
-  },
-  resendText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#C9A063",
-  },
-  resendTextDisabled: {
-    color: "#999",
-    fontWeight: "500",
-  },
-  signOutBtn: {
-    alignItems: "center",
-    marginTop: 28,
-    paddingVertical: 10,
-  },
-  signOutText: {
-    fontSize: 14,
-    color: "#666",
-    textDecorationLine: "underline",
-  },
+  otpInputFilled: { borderColor: "#111" },
+  otpInputError: { borderColor: "#c62828" },
+  otpErrorText: { color: "#c62828", fontSize: 13, marginBottom: 12 },
+  resendBtn: { alignItems: "center", marginTop: 16, padding: 8 },
+  resendText: { fontSize: 14, color: "#111", fontWeight: "600" },
+  resendTextDisabled: { color: "#999" },
+  signOutBtn: { alignItems: "center", marginTop: 28, padding: 8 },
+  signOutText: { fontSize: 14, color: "#888" },
 });

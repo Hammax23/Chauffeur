@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import prisma from "@/lib/prisma";
 import {
-  formatUsCanadaE164,
+  formatAuthPhoneE164,
   phoneLookupVariants,
-  validateUsCanadaPhone,
+  validateAuthPhone,
 } from "@/lib/phone-us-ca";
-import { PHONE_OTP_LENGTH, STATIC_PHONE_OTP } from "@/lib/phone-otp";
+import { consumePhoneOtp, PHONE_OTP_LENGTH } from "@/lib/phone-otp";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
@@ -16,15 +16,15 @@ export async function POST(req: NextRequest) {
     const phone = typeof body?.phone === "string" ? body.phone : "";
     const otp = typeof body?.otp === "string" ? body.otp.trim() : "";
 
-    const phoneError = validateUsCanadaPhone(phone);
+    const phoneError = validateAuthPhone(phone);
     if (phoneError) {
       return NextResponse.json({ success: false, error: phoneError }, { status: 400 });
     }
 
-    const e164 = formatUsCanadaE164(phone);
+    const e164 = formatAuthPhoneE164(phone);
     if (!e164) {
       return NextResponse.json(
-        { success: false, error: "Enter a valid US or Canada (+1) phone number." },
+        { success: false, error: "Enter a valid phone number." },
         { status: 400 }
       );
     }
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (otp !== STATIC_PHONE_OTP) {
+    if (!consumePhoneOtp(e164, otp)) {
       return NextResponse.json(
         { success: false, error: "Invalid code. Please try again." },
         { status: 400 }

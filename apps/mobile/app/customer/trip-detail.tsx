@@ -15,7 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { getReservationById, type Reservation } from "../../services/api";
+import { getReservationById, hideReservationFromHistory, type Reservation } from "../../services/api";
 import { useCustomerTheme } from "../../contexts/CustomerThemeContext";
 import { SlimSpinner } from "../../components/SlimSpinner";
 import { GOLD } from "../../theme/driver-theme";
@@ -46,6 +46,7 @@ export default function TripDetailScreen() {
 
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hiding, setHiding] = useState(false);
 
   const load = useCallback(async () => {
     if (!bookingId) {
@@ -88,6 +89,45 @@ export default function TripDetailScreen() {
   const isDone = reservation?.status === "DONE";
   const isCancelled =
     reservation?.status === "CANCELLED" || reservation?.status === "CANCELED";
+  const canHideFromHistory = Boolean(isDone || isCancelled);
+
+  const confirmHideFromHistory = () => {
+    if (!reservation || hiding) return;
+    Alert.alert(
+      "Remove from History?",
+      "This hides the trip from your History list only. It does not delete the booking from SARJ records (needed for receipts, billing, and support).",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              setHiding(true);
+              try {
+                const res = await hideReservationFromHistory(reservation.bookingId);
+                if (!res.ok || !res.data.success) {
+                  Alert.alert("Unable to remove", res.data.error || "Please try again.");
+                  return;
+                }
+                Alert.alert("Removed", "This trip no longer appears in your History.", [
+                  { text: "OK", onPress: () => router.replace("/customer/history") },
+                ]);
+              } catch (e) {
+                Alert.alert(
+                  "Unable to remove",
+                  e instanceof Error ? e.message : "Please try again."
+                );
+              } finally {
+                setHiding(false);
+              }
+            })();
+          },
+        },
+      ]
+    );
+  };
+
   const stops = (reservation?.stops || "")
     .split("|")
     .map((s) => s.trim())
@@ -433,6 +473,25 @@ export default function TripDetailScreen() {
               ) : null
             ) : null}
 
+            {canHideFromHistory ? (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.hideHistoryBtn,
+                  { borderColor: "rgba(255,69,58,0.35)" },
+                  pressed && styles.pressed,
+                ]}
+                onPress={confirmHideFromHistory}
+                disabled={hiding}
+              >
+                {hiding ? (
+                  <SlimSpinner size={18} stroke={2} color="#FF453A" />
+                ) : (
+                  <Ionicons name="trash-outline" size={18} color="#FF453A" />
+                )}
+                <Text style={styles.hideHistoryText}>Remove from History</Text>
+              </Pressable>
+            ) : null}
+
             <View style={{ height: 40 }} />
           </ScrollView>
         )}
@@ -568,5 +627,21 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   rateBtnText: { fontSize: 14, fontWeight: "800", color: "#1A1208" },
+  hideHistoryBtn: {
+    marginTop: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 14,
+    paddingVertical: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(255,69,58,0.08)",
+  },
+  hideHistoryText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FF453A",
+  },
   pressed: { opacity: 0.85, transform: [{ scale: 0.985 }] },
 });

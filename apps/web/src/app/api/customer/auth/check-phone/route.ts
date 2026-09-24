@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import {
-  formatUsCanadaE164,
+  formatAuthPhoneE164,
   phoneLookupVariants,
-  validateUsCanadaPhone,
+  validateAuthPhone,
 } from "@/lib/phone-us-ca";
 
 export async function POST(req: NextRequest) {
@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const phone = typeof body?.phone === "string" ? body.phone : "";
 
-    const phoneError = validateUsCanadaPhone(phone);
+    const phoneError = validateAuthPhone(phone);
     if (phoneError) {
       return NextResponse.json(
         { success: false, available: false, error: phoneError },
@@ -19,13 +19,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const e164 = formatUsCanadaE164(phone);
+    const e164 = formatAuthPhoneE164(phone);
     if (!e164) {
       return NextResponse.json(
         {
           success: false,
           available: false,
-          error: "Enter a valid US or Canada (+1) phone number.",
+          error: "Enter a valid phone number.",
         },
         { status: 400 }
       );

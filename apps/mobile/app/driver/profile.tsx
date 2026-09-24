@@ -279,7 +279,9 @@ export default function DriverProfileScreen() {
             <MenuRow
               label="Privacy Policy"
               icon="shield-checkmark-outline"
-              onPress={() => openUrl(`${SITE}/privacy-policy`)}
+              onPress={() =>
+                router.push({ pathname: "/legal-doc", params: { doc: "privacy" } })
+              }
               chevronColor={palette.menuChevron}
               textColor={palette.text}
               borderColor={palette.border}
@@ -290,7 +292,9 @@ export default function DriverProfileScreen() {
             <MenuRow
               label="Terms & Conditions"
               icon="document-outline"
-              onPress={() => openUrl(`${SITE}/terms-of-service`)}
+              onPress={() =>
+                router.push({ pathname: "/legal-doc", params: { doc: "terms" } })
+              }
               chevronColor={palette.menuChevron}
               textColor={palette.text}
               borderColor={palette.border}

@@ -11,6 +11,7 @@ import {
 const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 // GET - Get customer's reservations
+// Optional: ?scope=history&page=1&limit=20&q=search&status=DONE|CANCELLED|ALL
 export async function GET(req: NextRequest) {
   try {
     const auth = await getActiveCustomerFromRequest(req);
@@ -20,11 +21,54 @@ export async function GET(req: NextRequest) {
     }
     const tokenData = auth.customer;
 
-    const reservations = await prisma.reservation.findMany({
-      where: { customerId: tokenData.id },
-      orderBy: { createdAt: "desc" },
-      include: { assignedDriver: true, tripReview: true },
-    });
+    const { searchParams } = new URL(req.url);
+    const scope = (searchParams.get("scope") || "").toLowerCase();
+    const q = (searchParams.get("q") || "").trim();
+    const statusFilter = (searchParams.get("status") || "ALL").toUpperCase();
+    const pageRaw = parseInt(searchParams.get("page") || "", 10);
+    const limitRaw = parseInt(searchParams.get("limit") || "", 10);
+    const paginate = Number.isFinite(pageRaw) && pageRaw >= 1 && Number.isFinite(limitRaw) && limitRaw >= 1;
+    const page = paginate ? pageRaw : 1;
+    const limit = paginate ? Math.min(50, limitRaw) : undefined;
+
+    const historyStatuses = ["DONE", "CANCELLED", "CANCELED"] as const;
+    const where: Record<string, unknown> = {
+      customerId: tokenData.id,
+      // Soft-hidden past trips never appear in customer lists
+      customerHistoryHiddenAt: null,
+    };
+
+    if (scope === "history") {
+      if (statusFilter === "DONE") {
+        where.status = "DONE";
+      } else if (statusFilter === "CANCELLED" || statusFilter === "CANCELED") {
+        where.status = { in: ["CANCELLED", "CANCELED"] };
+      } else {
+        where.status = { in: [...historyStatuses] };
+      }
+    }
+
+    if (q) {
+      where.OR = [
+        { bookingId: { contains: q, mode: "insensitive" } },
+        { pickupLocation: { contains: q, mode: "insensitive" } },
+        { dropoffLocation: { contains: q, mode: "insensitive" } },
+        { vehicle: { contains: q, mode: "insensitive" } },
+        { serviceDate: { contains: q, mode: "insensitive" } },
+      ];
+    }
+
+    const [total, reservations] = await Promise.all([
+      paginate
+        ? prisma.reservation.count({ where: where as never })
+        : Promise.resolve(0),
+      prisma.reservation.findMany({
+        where: where as never,
+        orderBy: { createdAt: "desc" },
+        include: { assignedDriver: true, tripReview: true },
+        ...(paginate ? { skip: (page - 1) * (limit as number), take: limit } : {}),
+      }),
+    ]);
 
     const formatted = reservations.map((r: (typeof reservations)[number]) => ({
       id: r.id,
@@ -78,7 +122,21 @@ export async function GET(req: NextRequest) {
         r.status === "DONE" && !!r.assignedDriverId && !r.tripReview,
     }));
 
-    return NextResponse.json({ success: true, reservations: formatted });
+    if (!paginate) {
+      return NextResponse.json({ success: true, reservations: formatted });
+    }
+
+    const hasMore = page * (limit as number) < total;
+    return NextResponse.json({
+      success: true,
+      reservations: formatted,
+      pagination: {
+        page,
+        limit,
+        total,
+        hasMore,
+      },
+    });
   } catch (error) {
     console.error("Reservations fetch error:", error);
     return NextResponse.json(

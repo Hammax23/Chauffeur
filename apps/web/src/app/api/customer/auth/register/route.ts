@@ -3,7 +3,11 @@ import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { validatePassword } from "@/lib/password-policy";
-import { formatUsCanadaE164, phoneLookupVariants, validateUsCanadaPhone } from "@/lib/phone-us-ca";
+import {
+  formatAuthPhoneE164,
+  phoneLookupVariants,
+  validateAuthPhone,
+} from "@/lib/phone-us-ca";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
@@ -35,7 +39,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const phoneError = validateUsCanadaPhone(phone);
+    const phoneError = validateAuthPhone(phone);
     if (phoneError) {
       return NextResponse.json(
         { success: false, error: phoneError },
@@ -43,10 +47,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const normalizedPhone = formatUsCanadaE164(String(phone));
+    const normalizedPhone = formatAuthPhoneE164(String(phone));
     if (!normalizedPhone) {
       return NextResponse.json(
-        { success: false, error: "Enter a valid US or Canada (+1) phone number." },
+        { success: false, error: "Enter a valid phone number." },
         { status: 400 }
       );
     }

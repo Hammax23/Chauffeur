@@ -5,15 +5,14 @@ import {
   customerAuthFailurePayload,
 } from "@/lib/customer-auth";
 import {
-  formatUsCanadaE164,
+  formatAuthPhoneE164,
   phoneLookupVariants,
-  validateUsCanadaPhone,
+  validateAuthPhone,
 } from "@/lib/phone-us-ca";
-import { PHONE_OTP_LENGTH } from "@/lib/phone-otp";
+import { issueAndSmsPhoneOtp, PHONE_OTP_LENGTH } from "@/lib/phone-otp";
 
 /**
  * Authenticated: send phone OTP to complete / link a mobile number (OAuth onboarding).
- * Static OTP for now — see verify-otp.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -27,15 +26,15 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const phone = typeof body?.phone === "string" ? body.phone : "";
 
-    const phoneError = validateUsCanadaPhone(phone);
+    const phoneError = validateAuthPhone(phone);
     if (phoneError) {
       return NextResponse.json({ success: false, error: phoneError }, { status: 400 });
     }
 
-    const e164 = formatUsCanadaE164(phone);
+    const e164 = formatAuthPhoneE164(phone);
     if (!e164) {
       return NextResponse.json(
-        { success: false, error: "Enter a valid US or Canada (+1) phone number." },
+        { success: false, error: "Enter a valid phone number." },
         { status: 400 }
       );
     }
@@ -55,7 +54,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // TODO: SMS provider. Static OTP accepted in verify-otp ("1234").
+    const sent = await issueAndSmsPhoneOtp(e164);
+    if (!sent.ok) {
+      return NextResponse.json(
+        { success: false, error: sent.error || "Unable to send verification code" },
+        { status: 502 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
       message: "Verification code sent",

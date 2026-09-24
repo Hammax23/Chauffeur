@@ -20,9 +20,13 @@ import { useAuth } from "../contexts/AuthContext";
 import { checkPhoneAvailable, sendPhoneOtp, verifyPhoneOtp } from "../services/api";
 import { validatePassword } from "../utils/password-policy";
 import {
-  formatUsCanadaE164,
-  normalizeNanpNationalNumber,
-  validateUsCanadaPhone,
+  authPhoneCountryMeta,
+  digitsOnly,
+  formatAuthPhoneDisplay,
+  formatAuthPhoneE164,
+  isAuthPhoneReady,
+  normalizeAuthPhoneInput,
+  validateAuthPhone,
 } from "../utils/phone-us-ca";
 
 type Step = "phone" | "otp" | "details";
@@ -31,9 +35,13 @@ type PhoneCheckStatus = "idle" | "checking" | "available" | "taken" | "invalid";
 const OTP_LENGTH = 4;
 const RESEND_SECONDS = 30;
 
-function formatPhoneDisplay(national: string): string {
-  if (national.length !== 10) return `+1 ${national}`;
-  return `+1 (${national.slice(0, 3)}) ${national.slice(3, 6)}-${national.slice(6)}`;
+/** Field display: national digits for +1; rest of E.164 for allow-list. */
+function phoneInputDisplay(stored: string): string {
+  const meta = authPhoneCountryMeta(stored);
+  if (meta.isIntlTest && stored.startsWith("+")) {
+    return digitsOnly(stored).slice(meta.dial.replace("+", "").length);
+  }
+  return stored;
 }
 
 export default function RegisterScreen() {
@@ -62,16 +70,23 @@ export default function RegisterScreen() {
   const otpRefs = useRef<(TextInput | null)[]>([]);
 
   useEffect(() => {
-    if (phoneNumber.length < 10) {
+    if (!isAuthPhoneReady(phoneNumber)) {
       setPhoneCheckStatus("idle");
       setPhoneCheckMessage("");
       return;
     }
 
-    const formatError = validateUsCanadaPhone(phoneNumber);
+    const formatError = validateAuthPhone(phoneNumber);
     if (formatError) {
       setPhoneCheckStatus("invalid");
       setPhoneCheckMessage(formatError);
+      return;
+    }
+
+    const e164 = formatAuthPhoneE164(phoneNumber);
+    if (!e164) {
+      setPhoneCheckStatus("invalid");
+      setPhoneCheckMessage("Enter a valid phone number.");
       return;
     }
 
@@ -81,7 +96,7 @@ export default function RegisterScreen() {
 
     const timer = setTimeout(async () => {
       try {
-        const res = await checkPhoneAvailable(phoneNumber);
+        const res = await checkPhoneAvailable(e164);
         if (seq !== phoneCheckSeq.current) return;
 
         if (res.data.available) {
@@ -123,9 +138,14 @@ export default function RegisterScreen() {
   }
 
   async function handleContinuePhone() {
-    const phoneError = validateUsCanadaPhone(phoneNumber);
+    const phoneError = validateAuthPhone(phoneNumber);
     if (phoneError) {
       Alert.alert("Invalid phone", phoneError);
+      return;
+    }
+    const e164 = formatAuthPhoneE164(phoneNumber);
+    if (!e164) {
+      Alert.alert("Invalid phone", "Enter a valid phone number.");
       return;
     }
     if (phoneCheckStatus === "taken") {
@@ -139,7 +159,7 @@ export default function RegisterScreen() {
 
     setIsLoading(true);
     try {
-      const res = await sendPhoneOtp(phoneNumber);
+      const res = await sendPhoneOtp(e164);
       if (!res.ok || !res.data.success) {
         Alert.alert("Error", res.data.error || "Unable to send verification code.");
         return;
@@ -168,7 +188,12 @@ export default function RegisterScreen() {
       setOtpError("");
       setIsLoading(true);
       try {
-        const res = await verifyPhoneOtp(phoneNumber, value);
+        const e164 = formatAuthPhoneE164(phoneNumber);
+        if (!e164) {
+          setOtpError("Invalid phone number.");
+          return;
+        }
+        const res = await verifyPhoneOtp(e164, value);
         if (!res.ok || !res.data.success || !res.data.phoneVerificationToken) {
           setOtpError(res.data.error || "Invalid code. Please try again.");
           return;
@@ -222,7 +247,12 @@ export default function RegisterScreen() {
     setIsLoading(true);
     setOtpError("");
     try {
-      const res = await sendPhoneOtp(phoneNumber);
+      const e164 = formatAuthPhoneE164(phoneNumber);
+      if (!e164) {
+        setOtpError("Invalid phone number.");
+        return;
+      }
+      const res = await sendPhoneOtp(e164);
       if (!res.ok || !res.data.success) {
         setOtpError(res.data.error || "Unable to resend code.");
         return;
@@ -251,9 +281,9 @@ export default function RegisterScreen() {
       setStep("phone");
       return;
     }
-    const normalizedPhone = formatUsCanadaE164(phoneNumber);
+    const normalizedPhone = formatAuthPhoneE164(phoneNumber);
     if (!normalizedPhone) {
-      Alert.alert("Invalid phone", "Enter a valid US or Canada (+1) phone number.");
+      Alert.alert("Invalid phone", "Enter a valid phone number.");
       setStep("phone");
       return;
     }
@@ -297,7 +327,7 @@ export default function RegisterScreen() {
     step === "phone"
       ? "We’ll text you a verification code."
       : step === "otp"
-        ? `Enter the 4-digit code sent to ${formatPhoneDisplay(phoneNumber)}`
+        ? `Enter the 4-digit code sent to ${formatAuthPhoneDisplay(phoneNumber)}`
         : "Add your details to finish signing up.";
 
   return (
@@ -339,22 +369,29 @@ export default function RegisterScreen() {
                 </Text>
                 <View style={styles.phoneContainer}>
                   <View style={styles.countryCode}>
-                    <Text style={styles.flag}>🇨🇦</Text>
-                    <Text style={styles.countryCodeText}>+1</Text>
+                    <Text style={styles.flag}>{authPhoneCountryMeta(phoneNumber).flag}</Text>
+                    <Text style={styles.countryCodeText}>
+                      {authPhoneCountryMeta(phoneNumber).dial}
+                    </Text>
                   </View>
                   <TextInput
                     style={styles.phoneInput}
-                    placeholder="10-digit number"
+                    placeholder="Phone number"
                     placeholderTextColor="#999"
-                    value={phoneNumber}
+                    value={phoneInputDisplay(phoneNumber)}
                     onChangeText={(text) => {
-                      setPhoneNumber(normalizeNanpNationalNumber(text));
+                      const meta = authPhoneCountryMeta(phoneNumber);
+                      const raw =
+                        meta.isIntlTest && !text.trim().startsWith("+") && !text.startsWith("03")
+                          ? `${meta.dial}${digitsOnly(text)}`
+                          : text;
+                      setPhoneNumber(normalizeAuthPhoneInput(raw));
                       setPhoneVerificationToken("");
                     }}
                     keyboardType="phone-pad"
                     autoComplete="tel"
                     textContentType="telephoneNumber"
-                    maxLength={10}
+                    maxLength={16}
                     editable={!isLoading}
                     returnKeyType="done"
                     onSubmitEditing={handleContinuePhone}
@@ -401,14 +438,14 @@ export default function RegisterScreen() {
                 style={[
                   styles.registerButton,
                   (isLoading ||
-                    phoneNumber.length < 10 ||
+                    !isAuthPhoneReady(phoneNumber) ||
                     phoneCheckStatus === "taken" ||
                     phoneCheckStatus === "checking") &&
                     styles.registerButtonDisabled,
                 ]}
                 disabled={
                   isLoading ||
-                  phoneNumber.length < 10 ||
+                  !isAuthPhoneReady(phoneNumber) ||
                   phoneCheckStatus === "taken" ||
                   phoneCheckStatus === "checking"
                 }
@@ -498,7 +535,7 @@ export default function RegisterScreen() {
               <View style={styles.verifiedPhoneBanner}>
                 <Ionicons name="checkmark-circle" size={18} color="#2e7d32" />
                 <Text style={styles.verifiedPhoneText}>
-                  Verified {formatPhoneDisplay(phoneNumber)}
+                  Verified {formatAuthPhoneDisplay(phoneNumber)}
                 </Text>
               </View>
 

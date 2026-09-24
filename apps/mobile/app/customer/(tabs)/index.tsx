@@ -645,48 +645,89 @@ export default function CustomerHomeScreen() {
               <View
                 style={[
                   styles.rideTile,
+                  {
+                    borderColor: isDark
+                      ? "rgba(255,255,255,0.22)"
+                      : "rgba(255,255,255,0.85)",
+                    backgroundColor: isDark
+                      ? "rgba(255,255,255,0.06)"
+                      : "rgba(255,255,255,0.38)",
+                  },
                   layout.isCompact && { minHeight: 132, padding: 12 },
                 ]}
               >
+                {Platform.OS === "ios" ? (
+                  <BlurView
+                    intensity={isDark ? 42 : 64}
+                    tint={isDark ? "dark" : "light"}
+                    style={StyleSheet.absoluteFill}
+                  />
+                ) : null}
                 <LinearGradient
-                  colors={["#2C2418", "#1A1510", "#0C0B09"]}
+                  colors={
+                    isDark
+                      ? [
+                          "rgba(232,192,120,0.18)",
+                          "rgba(255,255,255,0.04)",
+                          "rgba(255,255,255,0.02)",
+                        ]
+                      : [
+                          "rgba(255,255,255,0.72)",
+                          "rgba(255,248,238,0.42)",
+                          "rgba(212,160,74,0.10)",
+                        ]
+                  }
                   locations={[0, 0.45, 1]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={StyleSheet.absoluteFill}
-                />
-                <LinearGradient
-                  colors={["rgba(212,160,74,0.22)", "rgba(212,160,74,0.04)", "transparent"]}
-                  locations={[0, 0.35, 1]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0.85 }}
-                  style={StyleSheet.absoluteFill}
                   pointerEvents="none"
                 />
-                <LinearGradient
-                  colors={["rgba(255,255,255,0.18)", "rgba(255,255,255,0.04)", "transparent"]}
-                  locations={[0, 0.12, 0.35]}
-                  style={styles.rideRim}
+                <View
+                  style={[
+                    styles.rideSpeculum,
+                    {
+                      backgroundColor: isDark
+                        ? "rgba(255,255,255,0.10)"
+                        : "rgba(255,255,255,0.55)",
+                    },
+                  ]}
                   pointerEvents="none"
                 />
-                <View style={styles.rideHairline} pointerEvents="none" />
 
-                <View style={styles.rideIconWrap}>
-                  {Platform.OS === "ios" ? (
-                    <BlurView intensity={28} tint="dark" style={StyleSheet.absoluteFill} />
-                  ) : null}
-                  <LinearGradient
-                    colors={["rgba(232,192,120,0.28)", "rgba(212,160,74,0.12)"]}
-                    style={StyleSheet.absoluteFill}
-                  />
+                <View
+                  style={[
+                    styles.rideIconWrap,
+                    {
+                      backgroundColor: isDark
+                        ? "rgba(255,255,255,0.10)"
+                        : "rgba(255,255,255,0.55)",
+                      borderColor: isDark
+                        ? "rgba(232,192,120,0.35)"
+                        : "rgba(212,160,74,0.28)",
+                    },
+                  ]}
+                >
                   <Ionicons name="car-sport" size={22} color={ACCENT} />
                 </View>
 
                 <View style={styles.rideCopy}>
-                  <Text style={[styles.rideTitle, layout.isCompact && { fontSize: 15 }]}>
+                  <Text
+                    style={[
+                      styles.rideTitle,
+                      { color: isDark ? "#FFF" : "#1A1510" },
+                      layout.isCompact && { fontSize: 15 },
+                    ]}
+                  >
                     Book a Ride
                   </Text>
-                  <Text style={styles.rideSub} numberOfLines={1}>
+                  <Text
+                    style={[
+                      styles.rideSub,
+                      { color: isDark ? "rgba(255,255,255,0.58)" : "rgba(28,22,16,0.52)" },
+                    ]}
+                    numberOfLines={1}
+                  >
                     Airport · hourly · city
                   </Text>
                 </View>
@@ -1180,12 +1221,12 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     ...Platform.select({
       ios: {
-        shadowColor: "#0A0806",
+        shadowColor: "#8B7355",
         shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.28,
-        shadowRadius: 18,
+        shadowOpacity: 0.16,
+        shadowRadius: 20,
       },
-      android: { elevation: 6 },
+      android: { elevation: 3 },
     }),
   },
   rideTile: {
@@ -1194,23 +1235,20 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     padding: 14,
     justifyContent: "space-between",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1.5,
   },
   rideTilePressed: {
     opacity: 0.94,
     transform: [{ scale: 0.985 }],
   },
-  rideRim: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  rideHairline: {
+  rideSpeculum: {
     position: "absolute",
     top: 0,
-    left: 12,
-    right: 12,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: "rgba(255,255,255,0.28)",
+    left: 0,
+    right: 0,
+    height: "38%",
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
   },
   rideIconWrap: {
     width: 42,
@@ -1220,7 +1258,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(232,192,120,0.35)",
   },
   rideCopy: {
     marginTop: 10,
@@ -1229,13 +1266,11 @@ const styles = StyleSheet.create({
   rideTitle: {
     fontSize: 17,
     fontWeight: "800",
-    color: "#FFF",
     letterSpacing: -0.35,
   },
   rideSub: {
     marginTop: 4,
     fontSize: 12,
-    color: "rgba(255,255,255,0.58)",
     letterSpacing: -0.1,
   },
   rideCta: {

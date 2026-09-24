@@ -6,7 +6,6 @@ import {
   StatusBar,
   Image,
   Alert,
-  Linking,
   Pressable,
   Platform,
 } from "react-native";
@@ -20,9 +19,6 @@ import { useAuth } from "../../../contexts/AuthContext";
 import { useCustomerTheme } from "../../../contexts/CustomerThemeContext";
 import { deactivateCustomerAccount } from "../../../services/api";
 import { GOLD } from "../../../theme/driver-theme";
-
-const SITE = "https://sarjworldwide.ca";
-const SUPPORT_EMAIL = "mailto:reserve@sarjworldwide.ca";
 
 type MenuRowProps = {
   label: string;
@@ -123,12 +119,6 @@ export default function CustomerProfileScreen() {
         },
       },
     ]);
-  };
-
-  const openUrl = (url: string) => {
-    Linking.openURL(url).catch(() => {
-      Alert.alert("Unable to open", "Please try again later.");
-    });
   };
 
   const handleDeactivate = () => {
@@ -284,28 +274,34 @@ export default function CustomerProfileScreen() {
             <MenuRow
               label="Contact Us"
               icon="mail-outline"
-              onPress={() => openUrl(SUPPORT_EMAIL)}
+              onPress={() => router.push("/customer/contact-us")}
               showDivider
               {...rowCommon}
             />
             <MenuRow
               label="Refund Policy"
               icon="card-outline"
-              onPress={() => openUrl(`${SITE}/refund-policy`)}
+              onPress={() =>
+                router.push({ pathname: "/legal-doc", params: { doc: "refund" } })
+              }
               showDivider
               {...rowCommon}
             />
             <MenuRow
               label="Privacy Policy"
               icon="shield-checkmark-outline"
-              onPress={() => openUrl(`${SITE}/privacy-policy`)}
+              onPress={() =>
+                router.push({ pathname: "/legal-doc", params: { doc: "privacy" } })
+              }
               showDivider
               {...rowCommon}
             />
             <MenuRow
               label="Terms & Conditions"
               icon="document-outline"
-              onPress={() => openUrl(`${SITE}/terms-of-service`)}
+              onPress={() =>
+                router.push({ pathname: "/legal-doc", params: { doc: "terms" } })
+              }
               {...rowCommon}
             />
           </MenuGroup>

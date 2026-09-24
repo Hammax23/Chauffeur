@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,9 @@ import {
   Linking,
   Pressable,
   Platform,
+  useWindowDimensions,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -26,10 +29,9 @@ import { SlimSpinner } from "../../../components/SlimSpinner";
 import { GOLD } from "../../../theme/driver-theme";
 import { isParcelServiceType } from "../../../utils/parcel";
 
-const tabs = ["Pending", "In-progress", "Completed"] as const;
+const tabs = ["Pending", "In-progress"] as const;
 
 const IN_PROGRESS_STATUSES = new Set(["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP"]);
-const COMPLETED_STATUSES = new Set(["DONE", "CANCELLED"]);
 
 function shortLoc(s?: string | null) {
   if (!s?.trim()) return "—";
@@ -92,12 +94,34 @@ export default function ReservationsScreen() {
   const blurIntensity = Platform.OS === "ios" ? 48 : 28;
   const cardBlur = Platform.OS === "ios" ? 36 : 22;
 
+  const { width: pageWidth } = useWindowDimensions();
+  const pagerRef = useRef<ScrollView>(null);
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Pending");
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [recentlyChanged, setRecentlyChanged] = useState<Set<string>>(new Set());
+
+  const selectTab = useCallback(
+    (tab: (typeof tabs)[number], animated = true) => {
+      setActiveTab(tab);
+      const index = tabs.indexOf(tab);
+      if (index >= 0) {
+        pagerRef.current?.scrollTo({ x: index * pageWidth, animated });
+      }
+    },
+    [pageWidth]
+  );
+
+  const onPagerScrollEnd = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const page = Math.round(e.nativeEvent.contentOffset.x / pageWidth);
+      const next = tabs[page];
+      if (next) setActiveTab(next);
+    },
+    [pageWidth]
+  );
 
   const fetchReservations = useCallback(async () => {
     try {
@@ -175,6 +199,13 @@ export default function ReservationsScreen() {
     return () => clearTimeout(t);
   }, [recentlyChanged]);
 
+  useEffect(() => {
+    const index = tabs.indexOf(activeTab);
+    if (index >= 0) {
+      pagerRef.current?.scrollTo({ x: index * pageWidth, animated: false });
+    }
+  }, [pageWidth, activeTab]);
+
   const handleCancel = async (bookingId: string) => {
     Alert.alert("Cancel Reservation", "Are you sure you want to cancel this reservation?", [
       { text: "No", style: "cancel" },
@@ -198,91 +229,43 @@ export default function ReservationsScreen() {
     ]);
   };
 
-  const filteredReservations = reservations.filter((res) => {
-    if (activeTab === "Pending") return res.status === "PENDING";
-    if (activeTab === "In-progress") return IN_PROGRESS_STATUSES.has(res.status);
-    if (activeTab === "Completed") return COMPLETED_STATUSES.has(res.status);
-    return true;
-  });
+  const reservationsForTab = (tab: (typeof tabs)[number]) =>
+    reservations.filter((res) => {
+      if (tab === "Pending") return res.status === "PENDING";
+      if (tab === "In-progress") return IN_PROGRESS_STATUSES.has(res.status);
+      return false;
+    });
 
   const tabCounts = {
     Pending: reservations.filter((r) => r.status === "PENDING").length,
     "In-progress": reservations.filter((r) => IN_PROGRESS_STATUSES.has(r.status)).length,
-    Completed: reservations.filter((r) => COMPLETED_STATUSES.has(r.status)).length,
   } as const;
 
   const isInProgress = (status: string) => IN_PROGRESS_STATUSES.has(status);
   const friendlyStatus = (status: string) => (status === "ACCEPTED" ? "DRIVER ASSIGNED" : status);
 
-  return (
-    <View style={[styles.root, { backgroundColor: palette.root }]}>
-      <StatusBar barStyle={palette.statusBar} backgroundColor={palette.root} />
-      <LinearGradient colors={[...palette.bg]} style={StyleSheet.absoluteFill} />
-      <View style={styles.ambientGlow} pointerEvents="none">
-        <LinearGradient
-          colors={[...palette.glow]}
-          style={StyleSheet.absoluteFill}
-          start={{ x: 0.2, y: 0 }}
-          end={{ x: 0.85, y: 0.5 }}
-        />
-      </View>
+  const refreshControl = (
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={() => {
+        setRefreshing(true);
+        fetchReservations();
+      }}
+      tintColor={GOLD}
+      colors={[GOLD]}
+    />
+  );
 
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        {/* Header */}
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.headerEyebrow}>YOUR TRIPS</Text>
-            <Text style={[styles.headerTitle, { color: palette.text }]}>Bookings</Text>
-          </View>
-        </View>
-
-        {/* Tabs */}
-        <BlurView
-          intensity={blurIntensity}
-          tint={palette.blurTint}
-          style={[styles.tabShell, { borderColor: palette.border }]}
-        >
-          {tabs.map((tab) => {
-            const count = tabCounts[tab];
-            const active = activeTab === tab;
-            return (
-              <Pressable
-                key={tab}
-                style={[
-                  styles.tab,
-                  active && { backgroundColor: palette.tabActive },
-                ]}
-                onPress={() => setActiveTab(tab)}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    { color: active ? palette.tabTextActive : palette.tabText },
-                  ]}
-                >
-                  {tab}
-                  {count > 0 ? ` · ${count}` : ""}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </BlurView>
-
+  const renderTabPage = (tab: (typeof tabs)[number]) => {
+    const list = reservationsForTab(tab);
+    return (
+      <View key={tab} style={{ width: pageWidth }}>
         <ScrollView
           style={styles.container}
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => {
-                setRefreshing(true);
-                fetchReservations();
-              }}
-              tintColor={GOLD}
-              colors={[GOLD]}
-            />
-          }
+          nestedScrollEnabled
+          refreshControl={refreshControl}
         >
           {isLoading ? (
             <View style={styles.emptyState}>
@@ -315,7 +298,7 @@ export default function ReservationsScreen() {
                 </LinearGradient>
               </Pressable>
             </BlurView>
-          ) : filteredReservations.length === 0 ? (
+          ) : list.length === 0 ? (
             <BlurView
               intensity={cardBlur}
               tint={palette.blurTint}
@@ -326,11 +309,18 @@ export default function ReservationsScreen() {
               </View>
               <Text style={[styles.emptyTitle, { color: palette.text }]}>No reservations</Text>
               <Text style={[styles.emptySubtext, { color: palette.muted }]}>
-                No {activeTab.toLowerCase()} reservations found
+                No {tab.toLowerCase()} bookings right now.
+                {"\n"}Past trips live in History.
               </Text>
+              <Pressable
+                onPress={() => router.push("/customer/history")}
+                style={({ pressed }) => [styles.emptyHistoryBtn, pressed && styles.pressed]}
+              >
+                <Text style={styles.emptyHistoryBtnText}>Open History</Text>
+              </Pressable>
             </BlurView>
           ) : (
-            filteredReservations.map((reservation) => {
+            list.map((reservation) => {
               const chip = statusColors(reservation.status);
               const changed = recentlyChanged.has(reservation.bookingId);
               return (
@@ -573,27 +563,6 @@ export default function ReservationsScreen() {
                         </LinearGradient>
                       </Pressable>
                     ) : null}
-
-                    {COMPLETED_STATUSES.has(reservation.status) ? (
-                      <Pressable
-                        style={({ pressed }) => [
-                          styles.detailsBtn,
-                          { borderColor: palette.border, backgroundColor: palette.metaChipBg },
-                          pressed && styles.pressed,
-                        ]}
-                        onPress={() =>
-                          router.push({
-                            pathname: "/customer/trip-detail",
-                            params: { bookingId: reservation.bookingId },
-                          })
-                        }
-                      >
-                        <Ionicons name="document-text-outline" size={16} color={GOLD} />
-                        <Text style={[styles.detailsBtnText, { color: palette.text }]}>
-                          View details
-                        </Text>
-                      </Pressable>
-                    ) : null}
                   </BlurView>
                 </View>
               );
@@ -601,6 +570,80 @@ export default function ReservationsScreen() {
           )}
 
           <View style={{ height: 110 }} />
+        </ScrollView>
+      </View>
+    );
+  };
+
+  return (
+    <View style={[styles.root, { backgroundColor: palette.root }]}>
+      <StatusBar barStyle={palette.statusBar} backgroundColor={palette.root} />
+      <LinearGradient colors={[...palette.bg]} style={StyleSheet.absoluteFill} />
+      <View style={styles.ambientGlow} pointerEvents="none">
+        <LinearGradient
+          colors={[...palette.glow]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.2, y: 0 }}
+          end={{ x: 0.85, y: 0.5 }}
+        />
+      </View>
+
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        {/* Header */}
+        <View style={styles.headerRow}>
+          <View style={styles.headerCopy}>
+            <Text style={styles.headerEyebrow}>YOUR TRIPS</Text>
+            <Text style={[styles.headerTitle, { color: palette.text }]}>Bookings</Text>
+            <Text style={[styles.headerSub, { color: palette.muted }]}>
+              Active trips only
+            </Text>
+          </View>
+        </View>
+
+        {/* Tabs */}
+        <BlurView
+          intensity={blurIntensity}
+          tint={palette.blurTint}
+          style={[styles.tabShell, { borderColor: palette.border }]}
+        >
+          {tabs.map((tab) => {
+            const count = tabCounts[tab];
+            const active = activeTab === tab;
+            return (
+              <Pressable
+                key={tab}
+                style={[
+                  styles.tab,
+                  active && { backgroundColor: palette.tabActive },
+                ]}
+                onPress={() => selectTab(tab)}
+              >
+                <Text
+                  style={[
+                    styles.tabText,
+                    { color: active ? palette.tabTextActive : palette.tabText },
+                  ]}
+                >
+                  {tab}
+                  {count > 0 ? ` · ${count}` : ""}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </BlurView>
+
+        <ScrollView
+          ref={pagerRef}
+          horizontal
+          pagingEnabled
+          bounces={false}
+          decelerationRate="fast"
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={onPagerScrollEnd}
+          style={styles.container}
+          keyboardShouldPersistTaps="handled"
+        >
+          {tabs.map((tab) => renderTabPage(tab))}
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -627,7 +670,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingTop: 8,
     paddingBottom: 14,
+    gap: 12,
   },
+  headerCopy: { flex: 1, minWidth: 0 },
   headerEyebrow: {
     fontSize: 11,
     fontWeight: "800",
@@ -639,6 +684,11 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "700",
     letterSpacing: -0.5,
+  },
+  headerSub: {
+    fontSize: 13,
+    marginTop: 3,
+    fontWeight: "500",
   },
   tabShell: {
     flexDirection: "row",
@@ -944,6 +994,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
     lineHeight: 20,
+  },
+  emptyHistoryBtn: {
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(212,160,74,0.16)",
+  },
+  emptyHistoryBtnText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: GOLD,
   },
   retryBtn: {
     marginTop: 10,

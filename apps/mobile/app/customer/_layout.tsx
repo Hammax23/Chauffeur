@@ -62,6 +62,7 @@ export default function CustomerLayout() {
           <Stack.Screen name="reservation-confirm" />
           <Stack.Screen name="reservation-pending" />
           <Stack.Screen name="edit-profile" />
+          <Stack.Screen name="contact-us" />
           <Stack.Screen name="payment-methods" />
           <Stack.Screen name="track-ride" />
           <Stack.Screen name="trip-detail" />
