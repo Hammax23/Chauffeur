@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PATCH - Update customer profile
+// PATCH - Update customer profile (name / city / photo only — phone requires OTP)
 export async function PATCH(req: NextRequest) {
   try {
     const tokenData = getCustomerFromToken(req);
@@ -102,14 +102,30 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { firstName, lastName, phone, city, photo } = body;
+    const { firstName, lastName, city, photo } = body;
+    // Intentionally ignore `phone` on this endpoint (even if a stale client sends it).
+    // Phone is identity-sensitive and may only change via /customer/phone/verify-otp.
 
-    const updateData: Record<string, string> = {};
-    if (firstName) updateData.firstName = firstName;
-    if (lastName) updateData.lastName = lastName;
-    if (phone) updateData.phone = phone;
-    if (city !== undefined) updateData.city = city;
-    if (photo !== undefined) updateData.photo = photo;
+    const updateData: Record<string, string | null> = {};
+    if (typeof firstName === "string" && firstName.trim()) {
+      updateData.firstName = firstName.trim();
+    }
+    if (typeof lastName === "string" && lastName.trim()) {
+      updateData.lastName = lastName.trim();
+    }
+    if (city !== undefined) {
+      updateData.city = typeof city === "string" ? city.trim() || null : null;
+    }
+    if (photo !== undefined) {
+      updateData.photo = typeof photo === "string" ? photo || null : null;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(
+        { success: false, error: "No profile fields to update." },
+        { status: 400 }
+      );
+    }
 
     const customer = await prisma.customer.update({
       where: { id: tokenData.id },

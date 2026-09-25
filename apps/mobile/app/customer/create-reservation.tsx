@@ -361,8 +361,8 @@ export default function CreateReservationScreen() {
       } else if (next === "child") {
         setFirstName("");
         setLastName("");
-        // Prefill guardian with account phone as digits only — chip already shows 🇨🇦 +1
-        setPhoneNumber(normalizeNanpNationalNumber(user?.phone || ""));
+        // Guardian phone must be entered fresh — do not prefill account phone
+        setPhoneNumber("");
         setEmail(user?.email || "");
         setChildAge("");
         setChildSeatCount((n) => (n > 0 ? n : 1));
@@ -374,7 +374,7 @@ export default function CreateReservationScreen() {
         setChildAge("");
       }
     },
-    [rideFor, applyAccountContact, user?.email, user?.phone]
+    [rideFor, applyAccountContact, user?.email]
   );
 
   // Parcel bookings cannot use "Child" — reset if service type flips.

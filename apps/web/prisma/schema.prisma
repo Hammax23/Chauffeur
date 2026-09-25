@@ -38,6 +38,9 @@ model Reservation {
   subtotal              Float       @default(0)
   hst                   Float       @default(0)
   gratuity              Float       @default(0)
+  /// Promo discount applied to subtotal (before HST).
+  discountAmount        Float       @default(0)
+  promoCode             String?
   total                 Float       @default(0)
   specialRequirements   String?
   driverLink            String?
@@ -66,10 +69,12 @@ model Reservation {
   updatedAt             DateTime    @updatedAt
   chatThread            ChatThread?
   tripReview            TripReview?
+  promoRedemption       PromotionRedemption?
   assignedDriver        Driver?     @relation(fields: [assignedDriverId], references: [id])
   customer              Customer?   @relation(fields: [customerId], references: [id])
 
   @@index([customerId, customerHistoryHiddenAt])
+  @@index([promoCode])
 }
 
 model Driver {
@@ -200,9 +205,10 @@ model Customer {
   pushToken          String?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
-  reservations       Reservation[]
-  tripReviews        TripReview[]
-  supportTickets     SupportTicket[]
+  reservations         Reservation[]
+  tripReviews          TripReview[]
+  supportTickets       SupportTicket[]
+  promotionRedemptions PromotionRedemption[]
 
   @@unique([oauthProvider, oauthSub])
   @@index([pushToken])
@@ -715,4 +721,43 @@ model ConciergeRating {
 
   @@unique([rideId, fromRole, fromId])
   @@index([rideId])
+}
+
+/// App-only promo codes (admin-managed). Applied on mobile checkout.
+model Promotion {
+  id              String                @id @default(cuid())
+  /// Stored uppercase; unique.
+  code            String                @unique
+  /// PERCENT | FIXED
+  type            String
+  value           Float
+  isActive        Boolean               @default(true)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  maxRedemptions  Int?
+  redeemedCount   Int                   @default(0)
+  /// Default 1 per customer. Null = unlimited.
+  maxPerCustomer  Int?                  @default(1)
+  minSubtotal     Float?
+  /// Optional admin note / campaign label.
+  label           String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  redemptions     PromotionRedemption[]
+
+  @@index([isActive, startsAt, endsAt])
+}
+
+model PromotionRedemption {
+  id            String      @id @default(cuid())
+  promotionId   String
+  customerId    String
+  reservationId String      @unique
+  createdAt     DateTime    @default(now())
+  promotion     Promotion   @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  customer      Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  reservation   Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+
+  @@index([promotionId, customerId])
+  @@index([customerId])
 }

@@ -14,6 +14,7 @@ import {
   getProfile,
   API_BASE_URL,
   updateProfile as apiUpdateProfile,
+  persistCustomerProfile,
   onUnauthorized,
 } from "../services/api";
 import { registerCustomerPushToken } from "../services/notifications";
@@ -56,6 +57,8 @@ interface AuthContextType {
   }) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  /** Persist + set local auth user (e.g. after phone OTP verify). */
+  applyCustomerProfile: (customer: CustomerProfile) => Promise<void>;
   updateProfile: (params: {
     firstName?: string;
     lastName?: string;
@@ -237,12 +240,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const data = await getProfile();
       if (data.success && data.customer) {
-        setUser(data.customer);
+        setUser((prev) => {
+          const next = data.customer!;
+          // Don't let a lagging GET wipe a phone we just verified via OTP.
+          const merged =
+            prev?.phone?.trim() && !next.phone?.trim()
+              ? { ...next, phone: prev.phone }
+              : next;
+          void persistCustomerProfile(merged);
+          return merged;
+        });
       }
     } catch {
       const stillHasToken = await getCustomerToken();
       if (!stillHasToken) setUser(null);
     }
+  }, []);
+
+  const applyCustomerProfile = useCallback(async (customer: CustomerProfile) => {
+    await persistCustomerProfile(customer);
+    setUser(customer);
   }, []);
 
   const updateProfile = useCallback(async (params: {
@@ -258,7 +275,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(data.customer);
         return { success: true };
       }
-      return { success: false, error: "Update failed" };
+      return {
+        success: false,
+        error: data.error || "Update failed",
+      };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Update failed";
       return { success: false, error: message };
@@ -278,6 +298,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         register,
         logout,
         refreshProfile,
+        applyCustomerProfile,
         updateProfile,
       }}
     >

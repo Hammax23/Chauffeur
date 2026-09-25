@@ -18,7 +18,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
 import {
   getStoredCustomer,
-  persistCustomerProfile,
   sendCustomerPhoneOtp,
   verifyCustomerPhoneOtp,
 } from "../services/api";
@@ -51,7 +50,7 @@ function phoneInputDisplay(stored: string): string {
  * OTP via Twilio SMS (test allow-list may include non-+1 numbers).
  */
 export default function CompletePhoneScreen() {
-  const { user, isLoading: authLoading, refreshProfile, logout } = useAuth();
+  const { user, isLoading: authLoading, refreshProfile, applyCustomerProfile, logout } = useAuth();
   const [step, setStep] = useState<Step>("phone");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -133,8 +132,8 @@ export default function CompletePhoneScreen() {
           setOtpError(res.data.error || "Invalid code. Please try again.");
           return;
         }
-        await persistCustomerProfile(res.data.customer);
-        await refreshProfile();
+        await applyCustomerProfile(res.data.customer);
+        void refreshProfile();
         router.replace("/customer");
       } catch (e) {
         setOtpError(e instanceof Error ? e.message : "Verification failed.");
@@ -142,7 +141,7 @@ export default function CompletePhoneScreen() {
         setIsLoading(false);
       }
     },
-    [otp, phoneNumber, refreshProfile]
+    [otp, phoneNumber, refreshProfile, applyCustomerProfile]
   );
 
   function handleOtpChange(value: string, index: number) {

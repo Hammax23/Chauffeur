@@ -32,7 +32,37 @@ export type AppFareResult = {
   total: number;
   km: number;
   hours?: number;
+  discountAmount?: number;
+  promoCode?: string | null;
 };
+
+function roundMoney(n: number): number {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+/**
+ * Apply promo discount to an existing fare (mirrors server promotions.ts).
+ * Discount off subtotal; HST on discounted amount; tip stays on original subtotal.
+ */
+export function applyPromoDiscount(
+  fare: AppFareResult,
+  discountAmount: number,
+  promoCode?: string | null
+): AppFareResult {
+  const discount = roundMoney(
+    Math.min(Math.max(0, discountAmount), fare.subtotal)
+  );
+  const taxable = roundMoney(Math.max(0, fare.subtotal - discount));
+  const hst = roundMoney(taxable * HST_RATE);
+  const total = roundMoney(taxable + hst + fare.gratuity);
+  return {
+    ...fare,
+    hst,
+    total,
+    discountAmount: discount,
+    promoCode: discount > 0 ? promoCode || null : null,
+  };
+}
 
 /** Detect airport pickup from address / IATA code (any airport). */
 export function isAirportPickupLocation(location?: string | null): boolean {

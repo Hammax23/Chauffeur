@@ -1,6 +1,7 @@
 import "server-only";
 
 import prisma from "@/lib/prisma";
+import { serializeCustomerDriver } from "@/lib/customer-visible-driver";
 import {
   publishCrossBus,
   subscribeCrossBus,
@@ -148,6 +149,7 @@ export function publishDriverLocationEvent(params: {
 export function mapReservationLiveData(r: {
   bookingId: string;
   status: string;
+  driverResponse?: string | null;
   statusUpdatedAt: Date | null;
   driverOnTheWayAt: Date | null;
   driverStopPeriodsJson: string | null;
@@ -170,19 +172,8 @@ export function mapReservationLiveData(r: {
     driverStopPeriodsJson: r.driverStopPeriodsJson ?? null,
     completedAt: r.completedAt?.toISOString() ?? null,
     customerId: r.customerId ?? null,
-    driver: r.assignedDriver
-      ? {
-          name: r.assignedDriver.name,
-          // Hide chauffeur phone once the trip is in customer history.
-          phone: ["DONE", "CANCELLED", "CANCELED"].includes(r.status)
-            ? null
-            : r.assignedDriver.phone,
-          photo: r.assignedDriver.photo,
-          vehicle: r.assignedDriver.vehicle ?? null,
-          vehiclePlate: r.assignedDriver.vehiclePlate ?? null,
-          rating: r.assignedDriver.rating ?? null,
-        }
-      : null,
+    // Customers only receive chauffeur details after accept (or web auto-accept).
+    driver: serializeCustomerDriver(r.status, r.assignedDriver, r.driverResponse),
   };
 }
 

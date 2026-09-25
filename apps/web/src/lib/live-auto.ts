@@ -642,8 +642,12 @@ export async function declineLiveOffer(
         driverResponse: "REJECTED",
         driverRespondedAt: new Date(),
         rejectedDriverIds: appendRejected(reservation.rejectedDriverIds),
-        // Keep booking PENDING so ops can reassign
-        status: reservation.status === "ACCEPTED" ? "PENDING" : reservation.status,
+        // Any active trip status rolls back so ops can reassign cleanly.
+        status: ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP"].includes(
+          reservation.status
+        )
+          ? "PENDING"
+          : reservation.status,
       },
     });
 

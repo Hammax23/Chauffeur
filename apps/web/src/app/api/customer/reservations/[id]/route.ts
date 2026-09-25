@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { publishReservationFromDb } from "@/lib/realtime-bus";
+import { serializeCustomerDriver } from "@/lib/customer-visible-driver";
 import {
   getActiveCustomerFromRequest,
   customerAuthFailurePayload,
@@ -74,18 +75,11 @@ export async function GET(
         statusUpdatedAt: reservation.statusUpdatedAt?.toISOString() || null,
         completedAt: reservation.completedAt?.toISOString() || null,
         createdAt: reservation.createdAt.toISOString(),
-        driver: reservation.assignedDriver
-          ? {
-              name: reservation.assignedDriver.name,
-              phone: ["DONE", "CANCELLED", "CANCELED"].includes(reservation.status)
-                ? null
-                : reservation.assignedDriver.phone,
-              photo: reservation.assignedDriver.photo,
-              vehicle: reservation.assignedDriver.vehicle,
-              vehiclePlate: reservation.assignedDriver.vehiclePlate,
-              rating: reservation.assignedDriver.rating,
-            }
-          : null,
+        driver: serializeCustomerDriver(
+          reservation.status,
+          reservation.assignedDriver,
+          reservation.driverResponse
+        ),
         review: reservation.tripReview
           ? {
               stars: reservation.tripReview.stars,

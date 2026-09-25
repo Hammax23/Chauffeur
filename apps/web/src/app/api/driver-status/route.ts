@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getReservationById, updateReservationStatus } from "@/lib/data-store";
+import { isDriverVisibleToCustomer } from "@/lib/customer-visible-driver";
 
 // Check if link is expired (5 minutes after completion)
 function isLinkExpired(completedAt: Date | null): boolean {
@@ -28,14 +29,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, expired: true, error: "This link has expired" }, { status: 410 });
     }
 
-    // Include assigned driver details if available
-    const driverInfo = reservation.assignedDriver ? {
-      chauffeurName: reservation.assignedDriver.name,
-      chauffeurPhone: reservation.assignedDriver.phone,
-      chauffeurVehicle: reservation.assignedDriver.vehicle,
-      chauffeurPlate: reservation.assignedDriver.vehiclePlate,
-      chauffeurPhoto: reservation.assignedDriver.photo,
-    } : null;
+    // Only expose chauffeur after accept (or web auto-accept).
+    const showDriver =
+      !!reservation.assignedDriver &&
+      isDriverVisibleToCustomer({
+        status: reservation.status,
+        driverResponse: reservation.driverResponse,
+      });
+    const driverInfo = showDriver
+      ? {
+          chauffeurName: reservation.assignedDriver!.name,
+          chauffeurPhone: reservation.assignedDriver!.phone,
+          chauffeurVehicle: reservation.assignedDriver!.vehicle,
+          chauffeurPlate: reservation.assignedDriver!.vehiclePlate,
+          chauffeurPhoto: reservation.assignedDriver!.photo,
+        }
+      : null;
 
     // Calculate if status can still be edited (5 minute window)
     const statusUpdatedAt = reservation.statusUpdatedAt;

@@ -35,6 +35,8 @@ export interface ReservationData {
   meetGreetCharge?: number;
   bouquetCharge?: number;
   subtotal?: number;
+  discountAmount?: number;
+  promoCode?: string;
   hst?: number;
   gratuity?: number;
   total?: number;
@@ -191,16 +193,36 @@ export async function addReservation(data: ReservationData) {
 // Update reservation status
 export async function updateReservationStatus(bookingId: string, status: string) {
   try {
-    const updateData: { status: string; completedAt?: Date; statusUpdatedAt: Date } = { 
+    const now = new Date();
+    const updateData: {
+      status: string;
+      completedAt?: Date;
+      statusUpdatedAt: Date;
+      driverResponse?: string;
+      driverRespondedAt?: Date;
+    } = {
       status,
-      statusUpdatedAt: new Date(),
+      statusUpdatedAt: now,
     };
-    
+
     // Set completedAt timestamp when ride is marked as DONE
     if (status === "DONE") {
-      updateData.completedAt = new Date();
+      updateData.completedAt = now;
     }
-    
+
+    // Progressed trip statuses imply the assignee is accepted for customer visibility.
+    const acceptedLike = ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP", "DONE"];
+    if (acceptedLike.includes(status)) {
+      const row = await prisma.reservation.findUnique({
+        where: { bookingId },
+        select: { assignedDriverId: true, driverResponse: true },
+      });
+      if (row?.assignedDriverId && row.driverResponse !== "ACCEPTED") {
+        updateData.driverResponse = "ACCEPTED";
+        updateData.driverRespondedAt = now;
+      }
+    }
+
     await prisma.reservation.update({
       where: { bookingId },
       data: updateData,
@@ -329,7 +351,21 @@ export async function assignDriverToReservation(
               driverStopPeriodsJson: null,
               statusUpdatedAt: now,
             }
-          : {}),
+          : channel === "app" && existing.status !== "PENDING"
+            ? {
+                // New app assignee must accept again — don't leave prior ACCEPTED/ON THE WAY.
+                status: "PENDING",
+                driverOnTheWayAt: null,
+                driverStopPeriodsJson: null,
+                statusUpdatedAt: now,
+              }
+            : channel === "web" && existing.status === "PENDING"
+              ? {
+                  // Web dispatch auto-accepts the assignment.
+                  status: "ACCEPTED",
+                  statusUpdatedAt: now,
+                }
+              : {}),
       },
     });
     return { ok: true };
@@ -341,9 +377,25 @@ export async function assignDriverToReservation(
 // Update reservation
 export async function updateReservation(bookingId: string, updates: Partial<ReservationData>) {
   try {
+    const data: Record<string, unknown> = { ...updates };
+    const status = typeof updates.status === "string" ? updates.status : null;
+    const acceptedLike = ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP", "DONE"];
+
+    if (status && acceptedLike.includes(status)) {
+      const row = await prisma.reservation.findUnique({
+        where: { bookingId },
+        select: { assignedDriverId: true, driverResponse: true },
+      });
+      // Admin progressing a trip with an assignee ⇒ treat as accepted for customers.
+      if (row?.assignedDriverId && row.driverResponse !== "ACCEPTED") {
+        data.driverResponse = "ACCEPTED";
+        data.driverRespondedAt = new Date();
+      }
+    }
+
     await prisma.reservation.update({
       where: { bookingId },
-      data: updates,
+      data,
     });
     return true;
   } catch {

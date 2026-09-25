@@ -4,9 +4,11 @@ import {
   getActiveCustomerFromRequest,
   customerAuthFailurePayload,
 } from "@/lib/customer-auth";
+import { evaluateCustomerLocationSharing, CUSTOMER_LOCATION_LEAD_MINUTES } from "@/lib/customer-driver-location";
 
 /**
- * Live chauffeur location for an in-progress booking owned by this customer.
+ * Live chauffeur GPS for a booking owned by this customer.
+ * Gated: accepted driver + (T-10min before pickup OR status ARRIVED/CIC/STOP).
  */
 export async function GET(
   req: NextRequest,
@@ -28,6 +30,9 @@ export async function GET(
       where: { bookingId, customerId: auth.customer.id },
       select: {
         status: true,
+        driverResponse: true,
+        serviceDate: true,
+        serviceTime: true,
         assignedDriver: {
           select: {
             name: true,
@@ -43,16 +48,31 @@ export async function GET(
       return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
     }
 
+    const sharing = evaluateCustomerLocationSharing({
+      status: reservation.status,
+      serviceDate: reservation.serviceDate,
+      serviceTime: reservation.serviceTime,
+      driverResponse: reservation.driverResponse,
+    });
+
     const driver = reservation.assignedDriver;
-    if (
-      !driver ||
-      driver.lastLatitude == null ||
-      driver.lastLongitude == null
-    ) {
+    const coordsReady =
+      !!driver &&
+      driver.lastLatitude != null &&
+      driver.lastLongitude != null;
+
+    if (!sharing.unlocked || !coordsReady) {
       return NextResponse.json({
         success: true,
-        location: null,
         status: reservation.status,
+        location: null,
+        locationSharing: {
+          unlocked: sharing.unlocked,
+          unlockAt: sharing.unlockAt,
+          serviceAt: sharing.serviceAt,
+          reason: sharing.reason,
+          leadMinutes: CUSTOMER_LOCATION_LEAD_MINUTES,
+        },
       });
     }
 
@@ -60,10 +80,17 @@ export async function GET(
       success: true,
       status: reservation.status,
       location: {
-        lat: driver.lastLatitude,
-        lng: driver.lastLongitude,
-        updatedAt: driver.lastLocationUpdatedAt?.toISOString() ?? null,
-        driverName: driver.name,
+        lat: driver!.lastLatitude,
+        lng: driver!.lastLongitude,
+        updatedAt: driver!.lastLocationUpdatedAt?.toISOString() ?? null,
+        driverName: driver!.name,
+      },
+      locationSharing: {
+        unlocked: true,
+        unlockAt: sharing.unlockAt,
+        serviceAt: sharing.serviceAt,
+        reason: sharing.reason,
+        leadMinutes: CUSTOMER_LOCATION_LEAD_MINUTES,
       },
     });
   } catch (error) {

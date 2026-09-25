@@ -137,6 +137,54 @@ function formatRelative(iso: string | null | undefined): string | null {
   return `${Math.floor(diffSec / 86400)}d ago`;
 }
 
+/** Statuses that may eventually share GPS (after T-10 / arrived). */
+const LOCATION_ELIGIBLE_STATUSES = new Set([
+  "ACCEPTED",
+  "ON THE WAY",
+  "ARRIVED",
+  "CIC",
+  "STOP",
+]);
+
+const LOCATION_ALWAYS_STATUSES = new Set(["ARRIVED", "CIC", "STOP"]);
+
+type LocationSharingInfo = {
+  unlocked: boolean;
+  unlockAt: string | null;
+  serviceAt: string | null;
+  reason: string;
+  leadMinutes: number;
+};
+
+function isLocationUnlockedClient(
+  status: string | undefined,
+  sharing: LocationSharingInfo | null
+): boolean {
+  if (!status || !LOCATION_ELIGIBLE_STATUSES.has(status)) return false;
+  // Trust server flag first (clock-skew safe).
+  if (sharing?.unlocked) return true;
+  if (LOCATION_ALWAYS_STATUSES.has(status)) return true;
+  // Local timer wake-up: unlockAt reached but poll not yet refreshed.
+  if (sharing?.unlockAt) {
+    const t = new Date(sharing.unlockAt).getTime();
+    if (!Number.isNaN(t) && Date.now() >= t) return true;
+  }
+  return false;
+}
+
+function formatUnlockCountdown(unlockAt: string | null): string | null {
+  if (!unlockAt) return null;
+  const t = new Date(unlockAt).getTime();
+  if (Number.isNaN(t)) return null;
+  const ms = t - Date.now();
+  if (ms <= 0) return null;
+  const mins = Math.ceil(ms / 60_000);
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
 export default function TrackRideScreen() {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const [reservation, setReservation] = useState<Reservation | null>(null);
@@ -148,6 +196,8 @@ export default function TrackRideScreen() {
     updatedAt: string | null;
     driverName: string;
   } | null>(null);
+  const [locationSharing, setLocationSharing] = useState<LocationSharingInfo | null>(null);
+  const [locTick, setLocTick] = useState(0);
 
   const reload = useCallback(async () => {
     if (!bookingId) {
@@ -192,45 +242,81 @@ export default function TrackRideScreen() {
   const liveBookingId = typeof bookingId === "string" ? bookingId : null;
   const live = useReservationStream(liveBookingId);
 
-  // Apply live GPS from SSE immediately
+  const locationUnlocked = isLocationUnlockedClient(reservation?.status, locationSharing);
+
+  // Wake up when the T-10 unlock instant arrives so map appears without pull-to-refresh.
+  useEffect(() => {
+    if (locationUnlocked || !locationSharing?.unlockAt) return;
+    const t = new Date(locationSharing.unlockAt).getTime();
+    if (Number.isNaN(t)) return;
+    const delay = Math.max(500, t - Date.now() + 250);
+    if (delay > 6 * 60 * 60 * 1000) return; // ignore absurd far-future
+    const id = setTimeout(() => setLocTick((n) => n + 1), delay);
+    return () => clearTimeout(id);
+  }, [locationSharing?.unlockAt, locationUnlocked]);
+
+  // Apply live GPS from SSE only when the sharing window is open.
   useEffect(() => {
     if (!live.location || !reservation) return;
-    const active = ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP"].includes(reservation.status);
-    if (!active) return;
+    if (!isLocationUnlockedClient(reservation.status, locationSharing)) {
+      setDriverLoc(null);
+      return;
+    }
     setDriverLoc({
       lat: live.location.latitude,
       lng: live.location.longitude,
       updatedAt: live.location.updatedAt,
       driverName: reservation.driver?.name || "Driver",
     });
-  }, [live.location, reservation?.status, reservation?.driver?.name]);
+  }, [live.location, reservation?.status, reservation?.driver?.name, locationSharing, locTick]);
 
-  // Poll driver GPS while trip is active — slow safety net when SSE is healthy
+  // Poll driver GPS while eligible — server enforces the T-10 gate.
   useEffect(() => {
     if (!bookingId || !reservation) return;
-    const active = ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP"].includes(reservation.status);
-    if (!active) {
+    const eligible = LOCATION_ELIGIBLE_STATUSES.has(reservation.status);
+    if (!eligible) {
       setDriverLoc(null);
+      setLocationSharing(null);
       return;
     }
     let cancelled = false;
     const tick = async () => {
       try {
         const res = await getDriverLiveLocation(bookingId);
-        if (!cancelled && res.success && res.location) setDriverLoc(res.location);
+        if (cancelled) return;
+        if (res.locationSharing) {
+          setLocationSharing({
+            unlocked: res.locationSharing.unlocked,
+            unlockAt: res.locationSharing.unlockAt,
+            serviceAt: res.locationSharing.serviceAt,
+            reason: res.locationSharing.reason,
+            leadMinutes: res.locationSharing.leadMinutes ?? 10,
+          });
+        }
+        if (res.success && res.location) {
+          setDriverLoc(res.location);
+        } else {
+          // Unlocked with no coords yet, or still locked — don't keep a stale pin.
+          setDriverLoc(null);
+        }
       } catch {
         /* ignore */
       }
     };
     void tick();
-    // SSE is primary; poll slower when live, faster when reconnecting
-    const pollMs = live.status === "open" ? 40_000 : 8_000;
+    // Before unlock: poll every 30s to pick up the window. After: follow SSE health.
+    const unlocked = isLocationUnlockedClient(reservation.status, locationSharing);
+    const pollMs = unlocked
+      ? live.status === "open"
+        ? 40_000
+        : 8_000
+      : 30_000;
     const id = setInterval(tick, pollMs);
     return () => {
       cancelled = true;
       clearInterval(id);
     };
-  }, [bookingId, reservation?.status, live.status]);
+  }, [bookingId, reservation?.status, live.status, locTick, locationUnlocked]);
 
   // Merge live data into the existing reservation snapshot (status, driver, etc.).
   useEffect(() => {
@@ -259,7 +345,7 @@ export default function TrackRideScreen() {
           ? driverFromLive
           : prev.driver && historyLocked
             ? { ...prev.driver, phone: null }
-            : prev.driver,
+            : null,
       };
     });
   }, [live.data]);
@@ -608,8 +694,8 @@ export default function TrackRideScreen() {
             </Pressable>
           ) : null}
 
-          {/* Live location map */}
-          {driverLoc && mapUrl ? (
+          {/* Live location map — only after T-10 / arrived */}
+          {locationUnlocked && driverLoc && mapUrl ? (
             <View style={styles.section}>
               <Text style={styles.sectionEyebrow}>LIVE LOCATION</Text>
               <TouchableOpacity
@@ -626,6 +712,44 @@ export default function TrackRideScreen() {
                   {formatRelative(driverLoc.updatedAt) || "updating"}
                 </Text>
               </TouchableOpacity>
+            </View>
+          ) : locationUnlocked && reservation?.driver ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionEyebrow}>LIVE LOCATION</Text>
+              <View style={styles.locationLockedCard}>
+                <View style={styles.locationLockedIcon}>
+                  <Ionicons name="radio-outline" size={22} color={ACCENT_DARK} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.locationLockedTitle}>Acquiring signal</Text>
+                  <Text style={styles.locationLockedBody}>
+                    Live tracking is on — waiting for your chauffeur's GPS.
+                  </Text>
+                </View>
+              </View>
+            </View>
+          ) : reservation?.driver &&
+            LOCATION_ELIGIBLE_STATUSES.has(reservation.status) &&
+            !LOCATION_ALWAYS_STATUSES.has(reservation.status) &&
+            locationSharing?.unlocked !== true ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionEyebrow}>LIVE LOCATION</Text>
+              <View style={styles.locationLockedCard}>
+                <View style={styles.locationLockedIcon}>
+                  <Ionicons name="navigate-circle-outline" size={22} color={ACCENT_DARK} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.locationLockedTitle}>Tracking starts soon</Text>
+                  <Text style={styles.locationLockedBody}>
+                    Your chauffeur's live location unlocks{" "}
+                    {locationSharing?.leadMinutes ?? 10} minutes before pickup
+                    {formatUnlockCountdown(locationSharing?.unlockAt ?? null)
+                      ? ` · in ${formatUnlockCountdown(locationSharing?.unlockAt ?? null)}`
+                      : ""}
+                    .
+                  </Text>
+                </View>
+              </View>
             </View>
           ) : null}
 
@@ -1174,6 +1298,35 @@ const styles = StyleSheet.create({
     color: SLATE_400,
     letterSpacing: 2,
     marginBottom: 10,
+  },
+  locationLockedCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: "rgba(201,160,99,0.08)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(201,160,99,0.28)",
+  },
+  locationLockedIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(201,160,99,0.14)",
+  },
+  locationLockedTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: SLATE_900,
+    marginBottom: 4,
+  },
+  locationLockedBody: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: SLATE_600,
   },
 
   /* ───── driver card ───── */

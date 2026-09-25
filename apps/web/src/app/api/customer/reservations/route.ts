@@ -3,10 +3,12 @@ import Stripe from "stripe";
 import prisma from "@/lib/prisma";
 import { getActiveCustomerFromRequest, customerAuthFailurePayload } from "@/lib/customer-auth";
 import { publishReservationFromDb } from "@/lib/realtime-bus";
+import { serializeCustomerDriver } from "@/lib/customer-visible-driver";
 import {
   fareTotalCents,
   resolveAppReservationFare,
 } from "@/lib/app-reservation-fare";
+import { recordPromotionRedemption } from "@/lib/promotions";
 
 const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -99,18 +101,7 @@ export async function GET(req: NextRequest) {
       statusUpdatedAt: r.statusUpdatedAt?.toISOString() || null,
       completedAt: r.completedAt?.toISOString() || null,
       createdAt: r.createdAt.toISOString(),
-      driver: r.assignedDriver
-        ? {
-            name: r.assignedDriver.name,
-            phone: ["DONE", "CANCELLED", "CANCELED"].includes(r.status)
-              ? null
-              : r.assignedDriver.phone,
-            photo: r.assignedDriver.photo,
-            vehicle: r.assignedDriver.vehicle,
-            vehiclePlate: r.assignedDriver.vehiclePlate,
-            rating: r.assignedDriver.rating,
-          }
-        : null,
+      driver: serializeCustomerDriver(r.status, r.assignedDriver, r.driverResponse),
       review: r.tripReview
         ? {
             stars: r.tripReview.stars,
@@ -188,6 +179,7 @@ export async function POST(req: NextRequest) {
       cardLast4,
       bookingMode: rawBookingMode,
       hourlyDuration: rawHourlyDuration,
+      promoCode: rawPromoCode,
     } = body;
 
     const bookingMode =
@@ -226,6 +218,8 @@ export async function POST(req: NextRequest) {
       pickupLocation,
       bookingMode,
       hourlyDuration,
+      promoCode: rawPromoCode,
+      customerId: tokenData.id,
     });
     if ("error" in fare) {
       return NextResponse.json({ success: false, error: fare.error }, { status: 400 });
@@ -363,6 +357,8 @@ export async function POST(req: NextRequest) {
           stopCharge: pricing.stopCharge,
           childSeatCharge: pricing.childSeatCharge,
           subtotal: pricing.subtotal,
+          discountAmount: pricing.discountAmount || 0,
+          promoCode: pricing.promoCode || null,
           hst: pricing.hst,
           gratuity: pricing.gratuity,
           total: pricing.total,
@@ -375,6 +371,18 @@ export async function POST(req: NextRequest) {
           paymentStatus,
         },
       });
+
+      if (pricing.promotionId && pricing.discountAmount > 0) {
+        try {
+          await recordPromotionRedemption({
+            promotionId: pricing.promotionId,
+            customerId: tokenData.id,
+            reservationId: reservation.id,
+          });
+        } catch (redeemErr) {
+          console.error("[app-reservation] promo redemption failed:", redeemErr);
+        }
+      }
 
       try {
         await stripe.paymentIntents.update(paymentIntentId, {
@@ -403,6 +411,8 @@ export async function POST(req: NextRequest) {
           stopCharge: pricing.stopCharge,
           childSeatCharge: pricing.childSeatCharge,
           subtotal: pricing.subtotal,
+          discountAmount: pricing.discountAmount,
+          promoCode: pricing.promoCode,
           hst: pricing.hst,
           gratuity: pricing.gratuity,
           gratuityPercent: pricing.gratuityPercent,
@@ -456,6 +466,8 @@ export async function POST(req: NextRequest) {
         stopCharge: pricing.stopCharge,
         childSeatCharge: pricing.childSeatCharge,
         subtotal: pricing.subtotal,
+        discountAmount: pricing.discountAmount || 0,
+        promoCode: pricing.promoCode || null,
         hst: pricing.hst,
         gratuity: pricing.gratuity,
         total: pricing.total,
@@ -468,6 +480,29 @@ export async function POST(req: NextRequest) {
         paymentStatus: "PENDING",
       },
     });
+
+    if (pricing.promotionId && pricing.discountAmount > 0) {
+      try {
+        await recordPromotionRedemption({
+          promotionId: pricing.promotionId,
+          customerId: tokenData.id,
+          reservationId: reservation.id,
+        });
+      } catch (redeemErr) {
+        console.error("[app-reservation] promo redemption failed:", redeemErr);
+        // Unpaid booking — roll back so limits cannot be bypassed
+        try {
+          await prisma.reservation.delete({ where: { id: reservation.id } });
+        } catch {
+          /* ignore */
+        }
+        const msg =
+          redeemErr instanceof Error && redeemErr.message
+            ? redeemErr.message
+            : "This promo code could not be applied. Please try again.";
+        return NextResponse.json({ success: false, error: msg }, { status: 400 });
+      }
+    }
 
     await publishReservationFromDb(reservation.bookingId, "reservation_created");
 
@@ -485,6 +520,8 @@ export async function POST(req: NextRequest) {
         stopCharge: pricing.stopCharge,
         childSeatCharge: pricing.childSeatCharge,
         subtotal: pricing.subtotal,
+        discountAmount: pricing.discountAmount,
+        promoCode: pricing.promoCode,
         hst: pricing.hst,
         gratuity: pricing.gratuity,
         gratuityPercent: pricing.gratuityPercent,

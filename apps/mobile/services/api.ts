@@ -865,16 +865,20 @@ export async function getProfile() {
 export async function updateProfile(params: {
   firstName?: string;
   lastName?: string;
+  /** @deprecated Phone changes must use sendCustomerPhoneOtp + verifyCustomerPhoneOtp */
   phone?: string;
   city?: string;
   photo?: string;
 }) {
+  const { phone: _ignoredPhone, ...safeParams } = params;
   const data = await apiRequest<{
     success: boolean;
     customer: CustomerProfile;
+    error?: string;
+    code?: string;
   }>("/customer/profile", {
     method: "PATCH",
-    body: JSON.stringify(params),
+    body: JSON.stringify(safeParams),
   });
 
   if (data.success && data.customer) {
@@ -1135,6 +1139,7 @@ export async function createReservation(params: {
   stripeCustomerId?: string;
   cardType?: string;
   cardLast4?: string;
+  promoCode?: string;
 }) {
   return apiRequest<{
     success: boolean;
@@ -1158,6 +1163,7 @@ export async function createCustomerPaymentIntent(params: {
   email?: string;
   bookingMode?: "distance" | "hourly";
   hourlyDuration?: number;
+  promoCode?: string;
 }) {
   return apiRequest<{
     success: boolean;
@@ -1168,6 +1174,41 @@ export async function createCustomerPaymentIntent(params: {
     amountCents: number;
     error?: string;
   }>("/customer/create-payment-intent", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export async function validatePromoCode(params: {
+  code: string;
+  vehicle: string;
+  vehicleId?: string;
+  childSeats?: number;
+  pickupLocation: string;
+  stops?: string;
+  distanceMeters?: number;
+  gratuityPercent: number;
+  bookingMode?: "distance" | "hourly";
+  hourlyDuration?: number;
+}) {
+  return apiRequest<{
+    success: boolean;
+    promoCode?: string | null;
+    discountAmount?: number;
+    pricing?: {
+      rideFare: number;
+      stopCharge: number;
+      childSeatCharge: number;
+      airportPickupFee?: number;
+      subtotal: number;
+      discountAmount: number;
+      hst: number;
+      gratuity: number;
+      gratuityPercent: number;
+      total: number;
+    };
+    error?: string;
+  }>("/customer/promotions/validate", {
     method: "POST",
     body: JSON.stringify(params),
   });
@@ -1221,6 +1262,13 @@ export async function getDriverLiveLocation(bookingId: string) {
       updatedAt: string | null;
       driverName: string;
     } | null;
+    locationSharing?: {
+      unlocked: boolean;
+      unlockAt: string | null;
+      serviceAt: string | null;
+      reason: string;
+      leadMinutes: number;
+    };
   }>(`/customer/reservations/${bookingId}/driver-location`);
 }
 

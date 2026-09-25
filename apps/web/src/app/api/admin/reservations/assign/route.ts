@@ -4,7 +4,6 @@ import {
   type AssignmentChannel,
 } from "@/lib/data-store";
 import { verifyAdminAuth } from "@/lib/admin-auth";
-import { publishReservationFromDb } from "@/lib/realtime-bus";
 import { revokeOffersForBooking } from "@/lib/live-auto";
 
 function parseChannel(raw: unknown): AssignmentChannel {
@@ -55,7 +54,22 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      await publishReservationFromDb(bookingId, "driver_assigned");
+      // Live payload gates chauffeur until accept. For app-channel assign,
+      // publish as driver_unassigned when not yet customer-visible so any
+      // previously shown chauffeur is cleared (reject / reassign).
+      const { loadReservationLiveData, publishReservationData } = await import(
+        "@/lib/realtime-bus"
+      );
+      const live = await loadReservationLiveData(bookingId);
+      if (live) {
+        if (live.driver) {
+          publishReservationData(bookingId, "driver_assigned", live);
+        } else if (channel === "app") {
+          publishReservationData(bookingId, "driver_unassigned", live);
+        } else {
+          publishReservationData(bookingId, "driver_assigned", live);
+        }
+      }
 
       if (channel === "web") {
         void import("@/lib/web-dispatch")
@@ -63,6 +77,10 @@ export async function POST(request: NextRequest) {
             notifyWebDispatchAssignment(bookingId, driverId)
           )
           .catch((err) => console.error("[assign] web-dispatch", err));
+        // Web channel auto-accepts — notify customer once chauffeur is visible.
+        void import("@/lib/customer-push")
+          .then(({ notifyCustomerDriverAssigned }) => notifyCustomerDriverAssigned(bookingId))
+          .catch((err) => console.error("[assign] customer notify", err));
       } else {
         const { notifyDriverOfManualAssignment } = await import("@/lib/live-auto");
         const { notifyDriverReservationAssigned } = await import("@/lib/driver-push");
@@ -73,9 +91,7 @@ export async function POST(request: NextRequest) {
         void import("@/lib/driver-sms")
           .then(({ notifyDriverAssignmentSms }) => notifyDriverAssignmentSms(bookingId, driverId))
           .catch((err) => console.error("[assign] driver sms", err));
-        void import("@/lib/customer-push")
-          .then(({ notifyCustomerDriverAssigned }) => notifyCustomerDriverAssigned(bookingId))
-          .catch((err) => console.error("[assign] customer notify", err));
+        // Do NOT notify customer on app assign — wait until driver accepts.
       }
     } catch (err) {
       console.error("[assign] post-assign notify", err);

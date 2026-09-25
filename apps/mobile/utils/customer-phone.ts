@@ -1,7 +1,10 @@
-import { validateUsCanadaPhone } from "./phone-us-ca";
+import { validateAuthPhone } from "./phone-us-ca";
 
-/** True when the customer must complete Uber-style phone OTP before using the app. */
+/**
+ * True when the customer must complete phone OTP before using the app.
+ * Accepts US/Canada (+1) and OTP test allow-list numbers (same rules as send/verify OTP).
+ */
 export function customerNeedsPhone(phone?: string | null): boolean {
   if (!phone || !String(phone).trim()) return true;
-  return validateUsCanadaPhone(phone) !== null;
+  return validateAuthPhone(phone) !== null;
 }

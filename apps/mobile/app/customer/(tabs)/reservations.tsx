@@ -52,11 +52,13 @@ function mergeLiveIntoReservation(prev: Reservation, live: ReservationLiveData):
         rating: live.driver.rating ?? 0,
       }
     : null;
+  // Trust live payload: null means clear (reject / reassign before accept).
+  // Only keep a stripped prior driver when the trip is already in history.
   const nextDriver = driver
     ? driver
     : prev.driver && historyLocked
       ? { ...prev.driver, phone: null }
-      : prev.driver;
+      : null;
   return {
     ...prev,
     status,

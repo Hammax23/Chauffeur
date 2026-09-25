@@ -66,7 +66,11 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const fare = await resolveAppReservationFare(body);
+    const fare = await resolveAppReservationFare({
+      ...body,
+      customerId: tokenData.id,
+      promoCode: body?.promoCode,
+    });
     if ("error" in fare) {
       return NextResponse.json({ success: false, error: fare.error }, { status: 400 });
     }
@@ -111,6 +115,8 @@ export async function POST(req: NextRequest) {
           Math.max(3, Math.floor(Number(body.hourlyDuration) || 3))
         ),
         gratuityPercent: String(fare.pricing.gratuityPercent),
+        promoCode: fare.pricing.promoCode || "",
+        discountAmount: String(fare.pricing.discountAmount || 0),
       },
     });
 
@@ -121,6 +127,14 @@ export async function POST(req: NextRequest) {
       customerId: stripeCustomerId,
       ephemeralKeySecret,
       amountCents,
+      pricing: {
+        subtotal: fare.pricing.subtotal,
+        discountAmount: fare.pricing.discountAmount,
+        hst: fare.pricing.hst,
+        gratuity: fare.pricing.gratuity,
+        total: fare.pricing.total,
+        promoCode: fare.pricing.promoCode,
+      },
     });
   } catch (error) {
     console.error("[app-payment-intent]", error instanceof Error ? error.message : error);

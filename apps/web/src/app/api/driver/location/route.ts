@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyDriverToken } from "@/lib/driver-auth";
-import { TERMINAL_RESERVATION_STATUSES } from "@/lib/reservation-driver-assignment";
 import { publishDriverLocationEvent } from "@/lib/realtime-bus";
+import {
+  CUSTOMER_LOCATION_ELIGIBLE_STATUSES,
+  isCustomerDriverLocationUnlocked,
+} from "@/lib/customer-driver-location";
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,18 +41,35 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Fan out to customers tracking this driver's active ride(s)
+    // Fan out GPS only for bookings whose customer location window is open.
     try {
       const active = await prisma.reservation.findMany({
         where: {
           assignedDriverId: tokenData.id,
-          status: { notIn: [...TERMINAL_RESERVATION_STATUSES, "PENDING"] },
+          status: { in: [...CUSTOMER_LOCATION_ELIGIBLE_STATUSES] },
         },
-        select: { bookingId: true },
+        select: {
+          bookingId: true,
+          status: true,
+          serviceDate: true,
+          serviceTime: true,
+          driverResponse: true,
+        },
         take: 5,
         orderBy: { statusUpdatedAt: "desc" },
       });
+
       for (const row of active) {
+        if (
+          !isCustomerDriverLocationUnlocked({
+            status: row.status,
+            serviceDate: row.serviceDate,
+            serviceTime: row.serviceTime,
+            driverResponse: row.driverResponse,
+          })
+        ) {
+          continue;
+        }
         publishDriverLocationEvent({
           bookingId: row.bookingId,
           latitude,

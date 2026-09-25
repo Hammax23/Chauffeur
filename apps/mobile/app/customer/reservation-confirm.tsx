@@ -10,16 +10,22 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  TextInput,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { usePaymentSheet } from "@stripe/stripe-react-native";
-import { createReservation, createCustomerPaymentIntent } from "../../services/api";
+import {
+  createReservation,
+  createCustomerPaymentIntent,
+  validatePromoCode,
+} from "../../services/api";
 import { clearBookingDraft, loadBookingDraft, type BookingDraft } from "../../services/booking-draft";
 import {
   APP_DEFAULT_GRATUITY_PERCENT,
   APP_GRATUITY_PERCENTS,
+  applyPromoDiscount,
   calculateAppDistanceFare,
   calculateAppHourlyFare,
 } from "../../utils/app-fare";
@@ -45,6 +51,11 @@ export default function ReservationConfirmScreen() {
   const [tipModalOpen, setTipModalOpen] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [promoInput, setPromoInput] = useState("");
+  const [appliedPromoCode, setAppliedPromoCode] = useState<string | null>(null);
+  const [promoDiscount, setPromoDiscount] = useState(0);
+  const [promoBusy, setPromoBusy] = useState(false);
+  const [promoError, setPromoError] = useState("");
   const fareErrorShownRef = useRef(false);
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
 
@@ -91,8 +102,9 @@ export default function ReservationConfirmScreen() {
 
   const fare = useMemo(() => {
     if (!draft) return null;
+    let base = null;
     if (isHourly) {
-      return calculateAppHourlyFare({
+      base = calculateAppHourlyFare({
         hours: hourlyDuration,
         hourlyRate,
         hasStop,
@@ -100,18 +112,24 @@ export default function ReservationConfirmScreen() {
         gratuityPercent,
         pickupLocation: draft.pickupAddress,
       });
+    } else {
+      base = calculateAppDistanceFare({
+        distanceMeters,
+        hourlyRate,
+        pricePerKm,
+        baseDistanceKm,
+        extraKmRate,
+        hasStop,
+        childSeatCount: childSeats,
+        gratuityPercent,
+        pickupLocation: draft.pickupAddress,
+      });
     }
-    return calculateAppDistanceFare({
-      distanceMeters,
-      hourlyRate,
-      pricePerKm,
-      baseDistanceKm,
-      extraKmRate,
-      hasStop,
-      childSeatCount: childSeats,
-      gratuityPercent,
-      pickupLocation: draft.pickupAddress,
-    });
+    if (!base) return null;
+    if (appliedPromoCode && promoDiscount > 0) {
+      return applyPromoDiscount(base, promoDiscount, appliedPromoCode);
+    }
+    return base;
   }, [
     draft,
     isHourly,
@@ -124,6 +142,8 @@ export default function ReservationConfirmScreen() {
     hasStop,
     childSeats,
     gratuityPercent,
+    appliedPromoCode,
+    promoDiscount,
   ]);
 
   useEffect(() => {
@@ -144,6 +164,52 @@ export default function ReservationConfirmScreen() {
     draft?.dropoffAddress?.trim() || (isHourly ? "As directed" : "—");
   const isAsDirected =
     isHourly && dropoffDisplay.toLowerCase() === "as directed";
+
+  const handleApplyPromo = async () => {
+    if (!draft || !fare) return;
+    const code = promoInput.trim().toUpperCase();
+    if (!code) {
+      setPromoError("Enter a promo code.");
+      return;
+    }
+    setPromoBusy(true);
+    setPromoError("");
+    try {
+      const res = await validatePromoCode({
+        code,
+        vehicle: draft.vehicle,
+        vehicleId: draft.vehicleId,
+        childSeats,
+        pickupLocation: draft.pickupAddress,
+        stops: hasStop ? draft.stopAddress : undefined,
+        distanceMeters: isHourly ? undefined : distanceMeters,
+        gratuityPercent,
+        bookingMode: isHourly ? "hourly" : "distance",
+        hourlyDuration: isHourly ? hourlyDuration : undefined,
+      });
+      if (!res.success || !res.promoCode || !(res.discountAmount && res.discountAmount > 0)) {
+        setAppliedPromoCode(null);
+        setPromoDiscount(0);
+        setPromoError(res.error || "This promo code is not valid.");
+        return;
+      }
+      setAppliedPromoCode(res.promoCode);
+      setPromoDiscount(res.discountAmount);
+      setPromoInput(res.promoCode);
+      setPromoError("");
+    } catch (e) {
+      setPromoError(e instanceof Error ? e.message : "Could not apply promo code.");
+    } finally {
+      setPromoBusy(false);
+    }
+  };
+
+  const handleClearPromo = () => {
+    setAppliedPromoCode(null);
+    setPromoDiscount(0);
+    setPromoInput("");
+    setPromoError("");
+  };
 
   const handleSubmit = async () => {
     if (!draft || !fare) return;
@@ -202,6 +268,7 @@ export default function ReservationConfirmScreen() {
           email: draft.email,
           bookingMode: isHourly ? "hourly" : "distance",
           hourlyDuration: isHourly ? hourlyDuration : undefined,
+          promoCode: appliedPromoCode || undefined,
         });
 
         if (
@@ -278,6 +345,7 @@ export default function ReservationConfirmScreen() {
         phone: draft.phoneNumber,
         email: draft.email,
         stripePaymentIntentId,
+        promoCode: appliedPromoCode || undefined,
       });
       if (result.success && result.bookingId) {
         await clearBookingDraft();
@@ -540,6 +608,61 @@ export default function ReservationConfirmScreen() {
             <Text style={styles.fareLabel}>Subtotal</Text>
             <Text style={styles.fareValue}>${fare.subtotal.toFixed(2)}</Text>
           </View>
+
+          <View style={styles.promoBlock}>
+            <Text style={styles.promoLabel}>Promo code</Text>
+            {appliedPromoCode ? (
+              <View style={styles.promoAppliedRow}>
+                <View style={styles.promoChip}>
+                  <Ionicons name="pricetag" size={14} color="#166534" />
+                  <Text style={styles.promoChipText}>{appliedPromoCode}</Text>
+                </View>
+                <TouchableOpacity onPress={handleClearPromo} hitSlop={10}>
+                  <Text style={styles.promoRemove}>Remove</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.promoInputRow}>
+                <TextInput
+                  style={styles.promoInput}
+                  value={promoInput}
+                  onChangeText={(t) => {
+                    setPromoInput(t.toUpperCase());
+                    if (promoError) setPromoError("");
+                  }}
+                  placeholder="Enter code"
+                  placeholderTextColor="#94a3b8"
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  editable={!promoBusy}
+                />
+                <TouchableOpacity
+                  style={[styles.promoApplyBtn, promoBusy && { opacity: 0.6 }]}
+                  onPress={() => void handleApplyPromo()}
+                  disabled={promoBusy}
+                >
+                  {promoBusy ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.promoApplyText}>Apply</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+            {promoError ? <Text style={styles.promoError}>{promoError}</Text> : null}
+          </View>
+
+          {(fare.discountAmount || 0) > 0 ? (
+            <View style={styles.fareRow}>
+              <Text style={[styles.fareLabel, { color: "#166534" }]}>
+                Discount{appliedPromoCode ? ` (${appliedPromoCode})` : ""}
+              </Text>
+              <Text style={[styles.fareValue, { color: "#166534" }]}>
+                −${(fare.discountAmount || 0).toFixed(2)}
+              </Text>
+            </View>
+          ) : null}
+
           <View style={styles.fareRow}>
             <Text style={styles.fareLabel}>HST (13%)</Text>
             <Text style={styles.fareValue}>${fare.hst.toFixed(2)}</Text>
@@ -961,6 +1084,64 @@ const styles = StyleSheet.create({
   },
   fareLabel: { fontSize: 13, color: "#64748b" },
   fareValue: { fontSize: 13, fontWeight: "600", color: "#0f172a" },
+  promoBlock: {
+    marginTop: 4,
+    marginBottom: 8,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#e2e8f0",
+  },
+  promoLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748b",
+    marginBottom: 8,
+  },
+  promoInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  promoInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === "ios" ? 11 : 8,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#0f172a",
+    letterSpacing: 0.6,
+    backgroundColor: "#f8fafc",
+  },
+  promoApplyBtn: {
+    backgroundColor: "#0f172a",
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    minWidth: 72,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  promoApplyText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  promoAppliedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  promoChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#dcfce7",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  promoChipText: { fontSize: 13, fontWeight: "700", color: "#166534" },
+  promoRemove: { fontSize: 13, fontWeight: "600", color: "#64748b" },
+  promoError: { marginTop: 6, fontSize: 12, color: "#b91c1c" },
   fareTotalRow: {
     marginTop: 8,
     paddingTop: 10,

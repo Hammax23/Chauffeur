@@ -8,6 +8,7 @@ import {
   formatAuthPhoneE164,
   phoneLookupVariants,
   validateAuthPhone,
+  normalizeE164,
 } from "@/lib/phone-us-ca";
 import { issueAndSmsPhoneOtp, PHONE_OTP_LENGTH } from "@/lib/phone-otp";
 
@@ -35,6 +36,23 @@ export async function POST(req: NextRequest) {
     if (!e164) {
       return NextResponse.json(
         { success: false, error: "Enter a valid phone number." },
+        { status: 400 }
+      );
+    }
+
+    const me = await prisma.customer.findUnique({
+      where: { id: tokenData.id },
+      select: { phone: true },
+    });
+    const current =
+      formatAuthPhoneE164(me?.phone || "") || normalizeE164(me?.phone || "");
+    if (current && current === e164) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "This is already your verified phone number.",
+          code: "PHONE_UNCHANGED",
+        },
         { status: 400 }
       );
     }

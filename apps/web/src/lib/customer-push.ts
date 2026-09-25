@@ -8,6 +8,8 @@ export async function notifyCustomerDriverAssigned(bookingId: string): Promise<v
       where: { bookingId },
       select: {
         bookingId: true,
+        status: true,
+        driverResponse: true,
         pickupLocation: true,
         serviceDate: true,
         serviceTime: true,
@@ -17,9 +19,20 @@ export async function notifyCustomerDriverAssigned(bookingId: string): Promise<v
     });
 
     const token = reservation?.customer?.pushToken;
-    if (!token || !reservation) return;
+    if (!token || !reservation?.assignedDriver) return;
 
-    const driverName = reservation.assignedDriver?.name || "your chauffeur";
+    const { isDriverVisibleToCustomer } = await import("@/lib/customer-visible-driver");
+    // Never push chauffeur details before accept (defense in depth).
+    if (
+      !isDriverVisibleToCustomer({
+        status: reservation.status,
+        driverResponse: reservation.driverResponse,
+      })
+    ) {
+      return;
+    }
+
+    const driverName = reservation.assignedDriver.name || "your chauffeur";
     await sendPushNotification(
       token,
       "Driver assigned",

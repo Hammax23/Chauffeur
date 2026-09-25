@@ -5,6 +5,13 @@ import {
   calculateAppHourlyFare,
   type ReservationPricingResult,
 } from "@/lib/reservation-pricing";
+import {
+  applyDiscountToPricing,
+  computeDiscountAmount,
+  findEligiblePromotion,
+  normalizePromoCode,
+  type AppFareWithPromo,
+} from "@/lib/promotions";
 
 export type AppReservationFareInput = {
   vehicleId?: unknown;
@@ -16,14 +23,21 @@ export type AppReservationFareInput = {
   pickupLocation?: unknown;
   bookingMode?: unknown;
   hourlyDuration?: unknown;
+  /** Optional promo code (mobile checkout). */
+  promoCode?: unknown;
+  /** Required when applying a promo (eligibility / per-customer limits). */
+  customerId?: unknown;
 };
+
+export type { AppFareWithPromo };
 
 export async function resolveAppReservationFare(
   input: AppReservationFareInput
-): Promise<{ pricing: ReservationPricingResult } | { error: string }> {
-  const bookingMode = String(input.bookingMode || "distance").toLowerCase() === "hourly"
-    ? "hourly"
-    : "distance";
+): Promise<{ pricing: AppFareWithPromo } | { error: string }> {
+  const bookingMode =
+    String(input.bookingMode || "distance").toLowerCase() === "hourly"
+      ? "hourly"
+      : "distance";
 
   const vehicleId = typeof input.vehicleId === "string" ? input.vehicleId.trim() : "";
   const vehicleTitle = typeof input.vehicle === "string" ? input.vehicle.trim() : "";
@@ -83,12 +97,14 @@ export async function resolveAppReservationFare(
   })();
   const childSeatCount = Number(input.childSeats) || 0;
 
+  let basePricing: ReservationPricingResult | null = null;
+
   if (bookingMode === "hourly") {
     if (hourlyRate <= 0) {
       return { error: "This vehicle is not available for hourly booking" };
     }
     const hours = Math.max(3, Math.floor(Number(input.hourlyDuration) || 3));
-    const pricing = calculateAppHourlyFare({
+    basePricing = calculateAppHourlyFare({
       hours,
       hourlyRate,
       hasStop,
@@ -96,34 +112,66 @@ export async function resolveAppReservationFare(
       gratuityPercent,
       pickupLocation,
     });
-    if (!pricing) {
+    if (!basePricing) {
       return { error: "Unable to calculate hourly fare" };
     }
-    return { pricing };
+  } else {
+    const meters = Number(input.distanceMeters) || 0;
+    if (meters <= 0) {
+      return { error: "Valid trip distance is required" };
+    }
+
+    basePricing = calculateAppDistanceFare({
+      distanceMeters: meters,
+      hourlyRate,
+      pricePerKm,
+      baseDistanceKm: vehicleBaseKm,
+      extraKmRate: vehicleExtraRate,
+      hasStop,
+      childSeatCount,
+      gratuityPercent,
+      pickupLocation,
+    });
+
+    if (!basePricing) {
+      return { error: "Unable to calculate fare" };
+    }
   }
 
-  const meters = Number(input.distanceMeters) || 0;
-  if (meters <= 0) {
-    return { error: "Valid trip distance is required" };
+  const rawCode = normalizePromoCode(input.promoCode);
+  if (!rawCode) {
+    return {
+      pricing: applyDiscountToPricing(basePricing, 0, null, null),
+    };
   }
 
-  const pricing = calculateAppDistanceFare({
-    distanceMeters: meters,
-    hourlyRate,
-    pricePerKm,
-    baseDistanceKm: vehicleBaseKm,
-    extraKmRate: vehicleExtraRate,
-    hasStop,
-    childSeatCount,
-    gratuityPercent,
-    pickupLocation,
+  const customerId =
+    typeof input.customerId === "string" ? input.customerId.trim() : "";
+  if (!customerId) {
+    return { error: "Sign in to apply a promo code." };
+  }
+
+  const eligible = await findEligiblePromotion({
+    code: rawCode,
+    customerId,
+    subtotal: basePricing.subtotal,
   });
-
-  if (!pricing) {
-    return { error: "Unable to calculate fare" };
+  if (!eligible.ok) {
+    return { error: eligible.message };
   }
 
-  return { pricing };
+  const discountAmount = computeDiscountAmount(
+    eligible.promotion,
+    basePricing.subtotal
+  );
+  return {
+    pricing: applyDiscountToPricing(
+      basePricing,
+      discountAmount,
+      eligible.promotion.code,
+      eligible.promotion.id
+    ),
+  };
 }
 
 export function fareTotalCents(total: number): number {

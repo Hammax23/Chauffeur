@@ -63,6 +63,8 @@ interface Reservation {
   stopCharge: number;
   childSeatCharge: number;
   subtotal: number;
+  discountAmount?: number;
+  promoCode?: string | null;
   hst: number;
   gratuity: number;
   total: number;
@@ -695,6 +697,14 @@ export default function ReservationsPage() {
                             {r.stopCharge > 0 && <p><span className="text-gray-500">Stops:</span> ${Number(r.stopCharge).toFixed(2)}</p>}
                             {r.childSeatCharge > 0 && <p><span className="text-gray-500">Child Seats:</span> ${Number(r.childSeatCharge).toFixed(2)}</p>}
                             <p><span className="text-gray-500">Subtotal:</span> ${Number(r.subtotal || 0).toFixed(2)}</p>
+                            {Number(r.discountAmount || 0) > 0 ? (
+                              <p>
+                                <span className="text-gray-500">
+                                  Discount{r.promoCode ? ` (${r.promoCode})` : ""}:
+                                </span>{" "}
+                                −${Number(r.discountAmount || 0).toFixed(2)}
+                              </p>
+                            ) : null}
                             <p><span className="text-gray-500">HST (13%):</span> ${Number(r.hst || 0).toFixed(2)}</p>
                             <p><span className="text-gray-500">Gratuity:</span> ${Number(r.gratuity || 0).toFixed(2)}</p>
                             <p className="font-bold text-[#C9A063] text-base pt-1 border-t border-gray-200">
