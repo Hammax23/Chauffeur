@@ -26,11 +26,18 @@ import {
   Reservation,
   getAppFleetVehicles,
   type AppFleetVehicleDto,
+  getActiveAppPromotions,
+  type ActiveAppPromotion,
 } from "../../../services/api";
 import { useReservationStream } from "../../../hooks/useReservationStream";
 import { SlimSpinner } from "../../../components/SlimSpinner";
 import { GOLD } from "../../../theme/driver-theme";
 import { isParcelServiceType } from "../../../utils/parcel";
+import {
+  dismissHomePromo,
+  isHomePromoDismissed,
+  setPendingPromoCode,
+} from "../../../utils/pending-promo";
 
 const ACCENT = GOLD;
 const ACCENT_DARK = "#A87830";
@@ -146,6 +153,7 @@ export default function CustomerHomeScreen() {
   const [activeRideCount, setActiveRideCount] = useState(0);
   const [fleetPreview, setFleetPreview] = useState<AppFleetVehicleDto[]>([]);
   const [fleetLoading, setFleetLoading] = useState(true);
+  const [homePromo, setHomePromo] = useState<ActiveAppPromotion | null>(null);
 
   const fullName = displayFullName(user?.firstName, user?.lastName);
 
@@ -253,10 +261,31 @@ export default function CustomerHomeScreen() {
     }
   }, []);
 
+  const loadHomePromo = useCallback(async () => {
+    try {
+      const data = await getActiveAppPromotions();
+      if (!data.success || !data.promotions?.length) {
+        setHomePromo(null);
+        return;
+      }
+      for (const p of data.promotions) {
+        const dismissed = await isHomePromoDismissed(p.id, p.updatedAt);
+        if (!dismissed) {
+          setHomePromo(p);
+          return;
+        }
+      }
+      setHomePromo(null);
+    } catch {
+      setHomePromo(null);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       void resolveLocationIfNeeded();
       void loadFleetPreview();
+      void loadHomePromo();
       (async () => {
         try {
           const data = await getReservations();
@@ -269,7 +298,7 @@ export default function CustomerHomeScreen() {
           setActiveRide(null);
         }
       })();
-    }, [resolveLocationIfNeeded, loadFleetPreview])
+    }, [resolveLocationIfNeeded, loadFleetPreview, loadHomePromo])
   );
 
   const liveBookingId = activeRide?.bookingId ?? null;
@@ -336,6 +365,21 @@ export default function CustomerHomeScreen() {
       }),
     [bookingParams]
   );
+
+  const useHomePromo = useCallback(async () => {
+    if (!homePromo) return;
+    await setPendingPromoCode(homePromo.code);
+    router.push({
+      pathname: "/customer/create-reservation",
+      params: bookingParams(),
+    });
+  }, [homePromo, bookingParams]);
+
+  const dismissPromoBanner = useCallback(async () => {
+    if (!homePromo) return;
+    await dismissHomePromo(homePromo.id, homePromo.updatedAt);
+    setHomePromo(null);
+  }, [homePromo]);
 
   const recenter = useCallback(() => {
     const ratio = mapTopRatioRef.current;
@@ -599,6 +643,77 @@ export default function CustomerHomeScreen() {
               </Text>
             </Pressable>
           </View>
+
+          {homePromo ? (
+            <View
+              style={[
+                styles.promoBanner,
+                {
+                  backgroundColor: isDark ? "rgba(201,160,99,0.12)" : "#FBF6EE",
+                  borderColor: isDark ? "rgba(201,160,99,0.26)" : "rgba(168,120,48,0.2)",
+                },
+              ]}
+              accessibilityRole="summary"
+            >
+              <Pressable
+                onPress={() => void useHomePromo()}
+                accessibilityRole="button"
+                accessibilityLabel={`Use promo ${homePromo.code}. ${homePromo.bannerTitle}`}
+                style={({ pressed }) => [
+                  styles.promoBannerMain,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <View style={styles.promoBannerIcon}>
+                  <Ionicons name="pricetag" size={15} color={ACCENT_DARK} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text
+                    style={[styles.promoBannerTitle, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]}
+                    numberOfLines={1}
+                  >
+                    {homePromo.bannerTitle}
+                  </Text>
+                  {homePromo.bannerMessage ? (
+                    <Text
+                      style={[styles.promoBannerSub, { color: isDark ? "#A8A29A" : "#6B6560" }]}
+                      numberOfLines={1}
+                    >
+                      {homePromo.bannerMessage}
+                    </Text>
+                  ) : null}
+                  <View style={styles.promoCodeRow}>
+                    <Text
+                      style={[
+                        styles.promoCodeChip,
+                        {
+                          color: ACCENT_DARK,
+                          backgroundColor: isDark
+                            ? "rgba(201,160,99,0.2)"
+                            : "rgba(201,160,99,0.18)",
+                        },
+                      ]}
+                    >
+                      {homePromo.code}
+                    </Text>
+                    <Text style={[styles.promoBannerSub, { color: isDark ? "#A8A29A" : "#6B6560" }]}>
+                      Tap to apply at checkout
+                    </Text>
+                  </View>
+                </View>
+                <Text style={[styles.promoBannerCta, { color: ACCENT_DARK }]}>Use</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => void dismissPromoBanner()}
+                hitSlop={12}
+                style={styles.promoBannerClose}
+                accessibilityRole="button"
+                accessibilityLabel="Dismiss offer"
+              >
+                <Ionicons name="close" size={16} color={isDark ? "#A8A29A" : "#8A847C"} />
+              </Pressable>
+            </View>
+          ) : null}
 
           {/* Live trip */}
           {activeRide ? (
@@ -1125,6 +1240,66 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     marginBottom: 14,
+  },
+  promoBanner: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 14,
+    overflow: "hidden",
+  },
+  promoBannerMain: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 12,
+    paddingLeft: 12,
+    paddingRight: 4,
+  },
+  promoBannerIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "rgba(201,160,99,0.22)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  promoBannerTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+  },
+  promoBannerSub: {
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  promoCodeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 6,
+    flexWrap: "wrap",
+  },
+  promoCodeChip: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    overflow: "hidden",
+  },
+  promoBannerCta: {
+    fontSize: 13,
+    fontWeight: "700",
+    paddingHorizontal: 6,
+  },
+  promoBannerClose: {
+    justifyContent: "center",
+    paddingHorizontal: 10,
   },
   brandMark: {
     fontSize: 10,

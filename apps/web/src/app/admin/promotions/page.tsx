@@ -27,6 +27,9 @@ type Promotion = {
   maxPerCustomer: number | null;
   minSubtotal: number | null;
   label: string | null;
+  showInApp: boolean;
+  bannerTitle: string | null;
+  bannerMessage: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -42,6 +45,9 @@ type FormState = {
   maxPerCustomer: string;
   minSubtotal: string;
   label: string;
+  showInApp: boolean;
+  bannerTitle: string;
+  bannerMessage: string;
 };
 
 const emptyForm: FormState = {
@@ -55,6 +61,9 @@ const emptyForm: FormState = {
   maxPerCustomer: "1",
   minSubtotal: "",
   label: "",
+  showInApp: true,
+  bannerTitle: "",
+  bannerMessage: "",
 };
 
 const fieldClass =
@@ -92,6 +101,9 @@ function promoToForm(p: Promotion): FormState {
     maxPerCustomer: p.maxPerCustomer != null ? String(p.maxPerCustomer) : "",
     minSubtotal: p.minSubtotal != null ? String(p.minSubtotal) : "",
     label: p.label || "",
+    showInApp: !!p.showInApp,
+    bannerTitle: p.bannerTitle || "",
+    bannerMessage: p.bannerMessage || "",
   };
 }
 
@@ -166,6 +178,9 @@ export default function AdminPromotionsPage() {
         : null,
       minSubtotal: form.minSubtotal.trim() ? Number(form.minSubtotal) : null,
       label: form.label.trim() || null,
+      showInApp: form.showInApp,
+      bannerTitle: form.bannerTitle.trim() || null,
+      bannerMessage: form.bannerMessage.trim() || null,
     };
   };
 
@@ -425,6 +440,43 @@ export default function AdminPromotionsPage() {
               />
               Active
             </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700 pt-6 sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={form.showInApp}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, showInApp: e.target.checked }))
+                }
+                className="rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063]"
+              />
+              Show on customer Home (in-app banner)
+            </label>
+            <label className="block text-sm sm:col-span-2">
+              <span className="mb-1 block text-gray-600">Banner title</span>
+              <input
+                className={fieldClass}
+                value={form.bannerTitle}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, bannerTitle: e.target.value }))
+                }
+                placeholder="20% off this week"
+                maxLength={80}
+                disabled={!form.showInApp}
+              />
+            </label>
+            <label className="block text-sm sm:col-span-2">
+              <span className="mb-1 block text-gray-600">Banner message</span>
+              <input
+                className={fieldClass}
+                value={form.bannerMessage}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, bannerMessage: e.target.value }))
+                }
+                placeholder="Use code at checkout · limited time"
+                maxLength={160}
+                disabled={!form.showInApp}
+              />
+            </label>
           </div>
           <div className="mt-5 flex justify-end gap-2">
             <button
@@ -470,6 +522,7 @@ export default function AdminPromotionsPage() {
                   <th className="px-4 py-3 font-medium">Discount</th>
                   <th className="px-4 py-3 font-medium">Uses</th>
                   <th className="px-4 py-3 font-medium">Window</th>
+                  <th className="px-4 py-3 font-medium">In-app</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium text-right">Actions</th>
                 </tr>
@@ -504,6 +557,13 @@ export default function AdminPromotionsPage() {
                         </>
                       ) : (
                         "Always"
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-600">
+                      {p.showInApp ? (
+                        <span className="text-emerald-700 font-medium">Banner</span>
+                      ) : (
+                        <span className="text-gray-400">Hidden</span>
                       )}
                     </td>
                     <td className="px-4 py-3">

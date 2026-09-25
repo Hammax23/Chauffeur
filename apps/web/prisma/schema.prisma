@@ -741,11 +741,17 @@ model Promotion {
   minSubtotal     Float?
   /// Optional admin note / campaign label.
   label           String?
+  /// Show soft banner on customer Home when eligible.
+  showInApp       Boolean               @default(false)
+  /// Short headline for in-app banner (e.g. "20% off this week").
+  bannerTitle     String?
+  /// Optional supporting line under the title.
+  bannerMessage   String?
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
   redemptions     PromotionRedemption[]
 
-  @@index([isActive, startsAt, endsAt])
+  @@index([isActive, showInApp, startsAt, endsAt])
 }
 
 model PromotionRedemption {

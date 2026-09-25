@@ -40,6 +40,9 @@ function serializePromo(p: {
   maxPerCustomer: number | null;
   minSubtotal: number | null;
   label: string | null;
+  showInApp: boolean;
+  bannerTitle: string | null;
+  bannerMessage: string | null;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -56,6 +59,9 @@ function serializePromo(p: {
     maxPerCustomer: p.maxPerCustomer,
     minSubtotal: p.minSubtotal,
     label: p.label,
+    showInApp: p.showInApp,
+    bannerTitle: p.bannerTitle,
+    bannerMessage: p.bannerMessage,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };
@@ -163,6 +169,15 @@ export async function POST(request: NextRequest) {
         label:
           typeof body?.label === "string" && body.label.trim()
             ? body.label.trim().slice(0, 200)
+            : null,
+        showInApp: body?.showInApp === true,
+        bannerTitle:
+          typeof body?.bannerTitle === "string" && body.bannerTitle.trim()
+            ? body.bannerTitle.trim().slice(0, 80)
+            : null,
+        bannerMessage:
+          typeof body?.bannerMessage === "string" && body.bannerMessage.trim()
+            ? body.bannerMessage.trim().slice(0, 160)
             : null,
       },
     });

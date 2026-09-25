@@ -1214,6 +1214,25 @@ export async function validatePromoCode(params: {
   });
 }
 
+export type ActiveAppPromotion = {
+  id: string;
+  code: string;
+  type: string;
+  value: number;
+  bannerTitle: string;
+  bannerMessage: string | null;
+  endsAt: string | null;
+  updatedAt?: string;
+};
+
+export async function getActiveAppPromotions() {
+  return apiRequest<{
+    success: boolean;
+    promotions: ActiveAppPromotion[];
+    error?: string;
+  }>("/customer/promotions/active");
+}
+
 export type SavedPaymentMethod = {
   id: string;
   brand: string;

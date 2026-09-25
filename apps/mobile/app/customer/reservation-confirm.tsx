@@ -20,6 +20,7 @@ import {
   createReservation,
   createCustomerPaymentIntent,
   validatePromoCode,
+  getActiveAppPromotions,
 } from "../../services/api";
 import { clearBookingDraft, loadBookingDraft, type BookingDraft } from "../../services/booking-draft";
 import {
@@ -33,6 +34,10 @@ import {
   encodeParcelRequirements,
   isParcelServiceType,
 } from "../../utils/parcel";
+import {
+  clearPendingPromoCode,
+  getPendingPromoCode,
+} from "../../utils/pending-promo";
 
 /**
  * App card checkout via Stripe PaymentSheet (saved cards + Apple Pay when available).
@@ -56,7 +61,9 @@ export default function ReservationConfirmScreen() {
   const [promoDiscount, setPromoDiscount] = useState(0);
   const [promoBusy, setPromoBusy] = useState(false);
   const [promoError, setPromoError] = useState("");
+  const [promoHint, setPromoHint] = useState("");
   const fareErrorShownRef = useRef(false);
+  const pendingPromoTriedRef = useRef(false);
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
 
   useEffect(() => {
@@ -165,9 +172,9 @@ export default function ReservationConfirmScreen() {
   const isAsDirected =
     isHourly && dropoffDisplay.toLowerCase() === "as directed";
 
-  const handleApplyPromo = async () => {
+  const handleApplyPromo = async (codeOverride?: string) => {
     if (!draft || !fare) return;
-    const code = promoInput.trim().toUpperCase();
+    const code = (codeOverride ?? promoInput).trim().toUpperCase();
     if (!code) {
       setPromoError("Enter a promo code.");
       return;
@@ -197,6 +204,8 @@ export default function ReservationConfirmScreen() {
       setPromoDiscount(res.discountAmount);
       setPromoInput(res.promoCode);
       setPromoError("");
+      setPromoHint("");
+      await clearPendingPromoCode();
     } catch (e) {
       setPromoError(e instanceof Error ? e.message : "Could not apply promo code.");
     } finally {
@@ -210,6 +219,60 @@ export default function ReservationConfirmScreen() {
     setPromoInput("");
     setPromoError("");
   };
+
+  // Pending code from Home banner + soft "promo available" hint
+  useEffect(() => {
+    if (!ready || !draft || !fare || pendingPromoTriedRef.current) return;
+    pendingPromoTriedRef.current = true;
+    void (async () => {
+      const pending = await getPendingPromoCode();
+      if (pending) {
+        setPromoInput(pending);
+        setPromoBusy(true);
+        try {
+          const res = await validatePromoCode({
+            code: pending,
+            vehicle: draft.vehicle,
+            vehicleId: draft.vehicleId,
+            childSeats,
+            pickupLocation: draft.pickupAddress,
+            stops: hasStop ? draft.stopAddress : undefined,
+            distanceMeters: isHourly ? undefined : distanceMeters,
+            gratuityPercent,
+            bookingMode: isHourly ? "hourly" : "distance",
+            hourlyDuration: isHourly ? hourlyDuration : undefined,
+          });
+          if (res.success && res.promoCode && res.discountAmount && res.discountAmount > 0) {
+            setAppliedPromoCode(res.promoCode);
+            setPromoDiscount(res.discountAmount);
+            setPromoInput(res.promoCode);
+            setPromoError("");
+            setPromoHint("");
+            await clearPendingPromoCode();
+          } else {
+            setPromoError(res.error || "This promo code could not be applied.");
+            await clearPendingPromoCode();
+          }
+        } catch (e) {
+          setPromoError(e instanceof Error ? e.message : "Could not apply promo code.");
+          await clearPendingPromoCode();
+        } finally {
+          setPromoBusy(false);
+        }
+        return;
+      }
+      try {
+        const data = await getActiveAppPromotions();
+        if (data.success && data.promotions?.length) {
+          const first = data.promotions[0];
+          setPromoHint(`Offer available — use ${first.code} below`);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once when fare first ready
+  }, [ready, draft, fare]);
 
   const handleSubmit = async () => {
     if (!draft || !fare) return;
@@ -611,6 +674,9 @@ export default function ReservationConfirmScreen() {
 
           <View style={styles.promoBlock}>
             <Text style={styles.promoLabel}>Promo code</Text>
+            {promoHint && !appliedPromoCode ? (
+              <Text style={styles.promoHint}>{promoHint}</Text>
+            ) : null}
             {appliedPromoCode ? (
               <View style={styles.promoAppliedRow}>
                 <View style={styles.promoChip}>
@@ -1096,6 +1162,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#64748b",
     marginBottom: 8,
+  },
+  promoHint: {
+    fontSize: 12,
+    color: "#A87830",
+    marginBottom: 8,
+    lineHeight: 16,
   },
   promoInputRow: {
     flexDirection: "row",

@@ -174,6 +174,65 @@ export async function findEligiblePromotion(opts: {
   return { ok: true, promotion: promo };
 }
 
+/** Active, in-window promos marked showInApp (for Home banner / Confirm hint). */
+export async function listActiveAppBannerPromotions(limit = 5): Promise<
+  {
+    id: string;
+    code: string;
+    type: string;
+    value: number;
+    bannerTitle: string;
+    bannerMessage: string | null;
+    endsAt: string | null;
+    updatedAt: string;
+  }[]
+> {
+  const now = new Date();
+  let rows: Awaited<ReturnType<typeof prisma.promotion.findMany>>;
+  try {
+    rows = await prisma.promotion.findMany({
+      where: {
+        isActive: true,
+        showInApp: true,
+        AND: [
+          { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+          { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+        ],
+      },
+      orderBy: [{ endsAt: "asc" }, { createdAt: "desc" }],
+      take: Math.max(1, Math.min(10, limit)),
+    });
+  } catch (err) {
+    // Schema/client not migrated yet — fail soft so Home does not 500.
+    console.error("[promotions] listActiveAppBannerPromotions", err);
+    return [];
+  }
+
+  return rows
+    .filter((p) => {
+      if (p.maxRedemptions != null && p.redeemedCount >= p.maxRedemptions) return false;
+      if (p.type !== "PERCENT" && p.type !== "FIXED") return false;
+      if (!Number.isFinite(p.value) || p.value <= 0) return false;
+      return true;
+    })
+    .map((p) => {
+      const fallbackTitle =
+        p.type === "PERCENT"
+          ? `${p.value}% off your ride`
+          : `$${Number(p.value).toFixed(0)} off your ride`;
+      return {
+        id: p.id,
+        code: p.code,
+        type: p.type,
+        value: p.value,
+        bannerTitle: (p.bannerTitle || "").trim() || fallbackTitle,
+        bannerMessage: (p.bannerMessage || "").trim() || null,
+        endsAt: p.endsAt?.toISOString() ?? null,
+        updatedAt: p.updatedAt.toISOString(),
+      };
+    });
+}
+
 /** Persist redemption + bump redeemedCount after reservation create. */
 export async function recordPromotionRedemption(opts: {
   promotionId: string;
