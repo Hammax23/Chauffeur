@@ -2,12 +2,17 @@ import { Stack, router } from "expo-router";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { StripeProvider } from "@stripe/stripe-react-native";
+import * as Notifications from "expo-notifications";
 import { useAuth } from "../../contexts/AuthContext";
 import { CustomerThemeProvider } from "../../contexts/CustomerThemeContext";
 import { getCustomerToken } from "../../services/api";
 import { SlimSpinner } from "../../components/SlimSpinner";
 import { GOLD } from "../../theme/driver-theme";
 import { customerNeedsPhone } from "../../utils/customer-phone";
+import {
+  routeCustomerLastNotificationResponse,
+  routeCustomerNotificationResponse,
+} from "../../services/customer-notification-deep-link";
 
 const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || "";
 
@@ -34,6 +39,15 @@ export default function CustomerLayout() {
       }
     })();
   }, [isLoading, isAuthenticated, user?.phone]);
+
+  useEffect(() => {
+    if (!tokenOk) return;
+    const sub = Notifications.addNotificationResponseReceivedListener((res) => {
+      void routeCustomerNotificationResponse(res);
+    });
+    void routeCustomerLastNotificationResponse();
+    return () => sub.remove();
+  }, [tokenOk]);
 
   if (isLoading || tokenOk === null) {
     return (

@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import {
   isCustomerTripHistoryLocked,
   listMessagesForBooking,
+  markChatReadForViewer,
   postChatMessage,
 } from "@/lib/trip-chat";
 import {
@@ -31,7 +32,12 @@ export async function GET(
     }
 
     const since = req.nextUrl.searchParams.get("since") ?? undefined;
-    const data = await listMessagesForBooking(bookingId, { since });
+    const markRead = req.nextUrl.searchParams.get("markRead") === "1";
+    const data = await listMessagesForBooking(bookingId, {
+      since,
+      viewerType: "CUSTOMER",
+      markRead,
+    });
     // History: do not expose prior chat transcript to the customer.
     if (isCustomerTripHistoryLocked(data.status)) {
       return NextResponse.json({
@@ -40,6 +46,7 @@ export async function GET(
         messages: [],
         canSend: false,
         status: data.status,
+        unreadCount: 0,
       });
     }
     return NextResponse.json({ success: true, ...data });
@@ -100,5 +107,35 @@ export async function POST(
     }
     console.error("Customer chat POST error:", error);
     return NextResponse.json({ success: false, error: "Failed to send message" }, { status: 500 });
+  }
+}
+
+/** Mark peer messages as read (opened thread / received while viewing). */
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const auth = await getActiveCustomerFromRequest(req);
+    if (!auth.ok) {
+      const fail = customerAuthFailurePayload(auth.reason);
+      return NextResponse.json(fail.body, { status: fail.status });
+    }
+    const { id: bookingId } = await params;
+    const ride = await prisma.reservation.findFirst({
+      where: { bookingId, customerId: auth.customer.id },
+      select: { bookingId: true },
+    });
+    if (!ride) {
+      return NextResponse.json({ success: false, error: "Reservation not found" }, { status: 404 });
+    }
+    const marked = await markChatReadForViewer({
+      bookingId,
+      viewerType: "CUSTOMER",
+    });
+    return NextResponse.json({ success: true, marked });
+  } catch (error) {
+    console.error("Customer chat PATCH error:", error);
+    return NextResponse.json({ success: false, error: "Failed to mark read" }, { status: 500 });
   }
 }

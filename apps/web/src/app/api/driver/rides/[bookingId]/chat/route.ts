@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import prisma from "@/lib/prisma";
-import { listMessagesForBooking, postChatMessage } from "@/lib/trip-chat";
+import { listMessagesForBooking, markChatReadForViewer, postChatMessage } from "@/lib/trip-chat";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
@@ -38,7 +38,12 @@ export async function GET(
     }
 
     const since = req.nextUrl.searchParams.get("since") ?? undefined;
-    const data = await listMessagesForBooking(bookingId, { since });
+    const markRead = req.nextUrl.searchParams.get("markRead") === "1";
+    const data = await listMessagesForBooking(bookingId, {
+      since,
+      viewerType: "DRIVER",
+      markRead,
+    });
     return NextResponse.json({ success: true, ...data });
   } catch (error) {
     if (error instanceof Error && error.message === "NOT_FOUND") {
@@ -96,5 +101,33 @@ export async function POST(
     }
     console.error("Driver chat POST error:", error);
     return NextResponse.json({ success: false, error: "Failed to send message" }, { status: 500 });
+  }
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ bookingId: string }> }
+) {
+  try {
+    const tokenData = getDriverFromToken(req);
+    if (!tokenData) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const { bookingId } = await params;
+    const ride = await prisma.reservation.findFirst({
+      where: { bookingId, assignedDriverId: tokenData.id },
+      select: { bookingId: true },
+    });
+    if (!ride) {
+      return NextResponse.json({ success: false, error: "Ride not found" }, { status: 404 });
+    }
+    const marked = await markChatReadForViewer({
+      bookingId,
+      viewerType: "DRIVER",
+    });
+    return NextResponse.json({ success: true, marked });
+  } catch (error) {
+    console.error("Driver chat PATCH error:", error);
+    return NextResponse.json({ success: false, error: "Failed to mark read" }, { status: 500 });
   }
 }

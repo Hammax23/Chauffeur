@@ -12,6 +12,7 @@ import {
   Pressable,
   Easing,
   Keyboard,
+  Vibration,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
@@ -23,6 +24,8 @@ import {
   ChatMessage,
   getCustomerChat,
   getDriverChat,
+  markCustomerChatRead,
+  markDriverChatRead,
   sendCustomerChatMessage,
   sendDriverChatMessage,
 } from "../services/api";
@@ -289,12 +292,22 @@ export default function TripChatScreen({ bookingId, role, title }: Props) {
       knownIds.current.add(message.id);
       lastMessageAt.current = message.createdAt;
       markFresh([message.id]);
+      if (message.senderType !== mine) {
+        if (Platform.OS === "ios") {
+          Vibration.vibrate(40);
+        } else {
+          Vibration.vibrate(60);
+        }
+        void (role === "driver"
+          ? markDriverChatRead(bookingId)
+          : markCustomerChatRead(bookingId));
+      }
       setMessages((prev) => {
         if (prev.some((m) => m.id === message.id)) return prev;
         return uniqueById([...prev, message]);
       });
     },
-    [markFresh]
+    [markFresh, mine, role, bookingId]
   );
 
   const fetchHttp = useCallback(
@@ -304,8 +317,8 @@ export default function TripChatScreen({ bookingId, role, title }: Props) {
         const since = incremental ? lastMessageAt.current ?? undefined : undefined;
         const res =
           role === "driver"
-            ? await getDriverChat(bookingId, since)
-            : await getCustomerChat(bookingId, since);
+            ? await getDriverChat(bookingId, since, { markRead: !incremental })
+            : await getCustomerChat(bookingId, since, { markRead: !incremental });
         if (res.success) {
           applySnapshot(res.messages || [], !!res.canSend);
         } else if (!sseReady.current) {

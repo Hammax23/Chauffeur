@@ -14,7 +14,6 @@ import { useCallback, useState, type ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
-import * as Clipboard from "expo-clipboard";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../../contexts/AuthContext";
@@ -107,7 +106,18 @@ export default function CustomerProfileScreen() {
   const { palette, isDark } = useCustomerTheme();
   const [showAccountOptions, setShowAccountOptions] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
-  const [referral, setReferral] = useState<ReferralProgress | null>(null);
+  const [referral, setReferral] = useState<ReferralProgress | null>({
+    referralCode: "",
+    qualifyNeeded: 2,
+    qualifiedCount: 0,
+    pendingCount: 0,
+    rewardAmount: 20,
+    rewardStatus: null,
+    rewardAvailable: false,
+    shareUrl: "https://sarjworldwide.ca",
+    deepLink: "sarjworldwide://",
+  });
+  const [referralLoading, setReferralLoading] = useState(true);
   const cardBlur = Platform.OS === "ios" ? 40 : 24;
 
   const fullName =
@@ -117,11 +127,16 @@ export default function CustomerProfileScreen() {
   useFocusEffect(
     useCallback(() => {
       void (async () => {
+        setReferralLoading(true);
         try {
           const data = await getReferralStatus();
-          if (data.success && data.referral) setReferral(data.referral);
+          if (data.success && data.referral) {
+            setReferral(data.referral);
+          }
         } catch {
-          /* ignore */
+          /* keep soft card fallback */
+        } finally {
+          setReferralLoading(false);
         }
       })();
     }, [])
@@ -129,9 +144,13 @@ export default function CustomerProfileScreen() {
 
   const shareReferral = useCallback(async () => {
     if (!referral) return;
+    const link = referral.shareUrl || "https://sarjworldwide.ca";
+    const code = referral.referralCode?.trim();
     try {
       await Share.share({
-        message: `Join me on SARJ Worldwide for luxury chauffeur rides. ${referral.shareUrl}`,
+        message: code
+          ? `Join me on SARJ Worldwide for luxury chauffeur rides. ${link}`
+          : `Join me on SARJ Worldwide for luxury chauffeur rides. ${link}`,
       });
     } catch {
       /* ignore */
@@ -139,10 +158,15 @@ export default function CustomerProfileScreen() {
   }, [referral]);
 
   const copyReferralCode = useCallback(async () => {
-    if (!referral?.referralCode) return;
+    if (!referral?.referralCode) {
+      Alert.alert(
+        "Invite code",
+        "Your personal code isn’t ready yet. Make sure the app can reach the server, then open Profile again."
+      );
+      return;
+    }
     try {
-      await Clipboard.setStringAsync(referral.referralCode);
-      Alert.alert("Copied", `${referral.referralCode} is on your clipboard.`);
+      await Share.share({ message: referral.referralCode });
     } catch {
       Alert.alert("Your code", referral.referralCode);
     }
@@ -343,18 +367,27 @@ export default function CustomerProfileScreen() {
                 ) : null}
               </View>
               <View style={styles.referralCodeRow}>
-                <Text style={[styles.referralCode, { color: GOLD }]}>{referral.referralCode}</Text>
-                <Pressable
-                  onPress={() => void copyReferralCode()}
-                  hitSlop={8}
-                  style={({ pressed }) => [styles.referralCopyBtn, pressed && styles.pressed]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Copy referral code"
-                >
-                  <Ionicons name="copy-outline" size={15} color={GOLD} />
-                  <Text style={[styles.referralCopyText, { color: GOLD }]}>Copy</Text>
-                </Pressable>
+                <Text style={[styles.referralCode, { color: GOLD }]}>
+                  {referral.referralCode || (referralLoading ? "Loading…" : "Code unavailable")}
+                </Text>
+                {referral.referralCode ? (
+                  <Pressable
+                    onPress={() => void copyReferralCode()}
+                    hitSlop={8}
+                    style={({ pressed }) => [styles.referralCopyBtn, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Copy referral code"
+                  >
+                    <Ionicons name="copy-outline" size={15} color={GOLD} />
+                    <Text style={[styles.referralCopyText, { color: GOLD }]}>Copy</Text>
+                  </Pressable>
+                ) : null}
               </View>
+              {!referral.referralCode && !referralLoading ? (
+                <Text style={[styles.referralBody, { color: palette.muted, marginBottom: 10 }]}>
+                  Personal code will appear after the referral update is applied on the server.
+                </Text>
+              ) : null}
               <Pressable
                 onPress={() => void shareReferral()}
                 style={({ pressed }) => [styles.referralShareBtn, pressed && styles.pressed]}

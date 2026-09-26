@@ -19,7 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { getReservationById, getDriverLiveLocation, Reservation, API_BASE_URL } from "../../services/api";
+import { getReservationById, getDriverLiveLocation, getCustomerChat, Reservation, API_BASE_URL } from "../../services/api";
 import { useReservationStream } from "../../hooks/useReservationStream";
 import type { ReservationStreamStatus } from "../../services/reservation-stream";
 import { isParcelServiceType } from "../../utils/parcel";
@@ -189,6 +189,7 @@ export default function TrackRideScreen() {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [chatUnread, setChatUnread] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [driverLoc, setDriverLoc] = useState<{
     lat: number;
@@ -233,6 +234,14 @@ export default function TrackRideScreen() {
           if (data.success && data.reservation) setReservation(data.reservation);
         } catch {
           /* keep current snapshot */
+        }
+      })();
+      void (async () => {
+        try {
+          const chat = await getCustomerChat(String(bookingId));
+          if (chat.success) setChatUnread(chat.unreadCount || 0);
+        } catch {
+          /* ignore */
         }
       })();
     }, [bookingId])
@@ -802,17 +811,25 @@ export default function TrackRideScreen() {
                 <TouchableOpacity
                   style={styles.chatBtn}
                   activeOpacity={0.85}
-                  onPress={() =>
+                  onPress={() => {
+                    setChatUnread(0);
                     router.push({
                       pathname: "/customer/chat",
                       params: {
                         bookingId: reservation.bookingId,
                         name: reservation.driver?.name || "Driver",
                       },
-                    })
-                  }
+                    });
+                  }}
                 >
                   <Ionicons name="chatbubble-ellipses" size={16} color="#fff" />
+                  {chatUnread > 0 ? (
+                    <View style={styles.chatBadge}>
+                      <Text style={styles.chatBadgeText}>
+                        {chatUnread > 9 ? "9+" : String(chatUnread)}
+                      </Text>
+                    </View>
+                  ) : null}
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -1434,6 +1451,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#1C1C1E",
     justifyContent: "center",
     alignItems: "center",
+  },
+  chatBadge: {
+    position: "absolute",
+    top: -3,
+    right: -3,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    backgroundColor: "#DC2626",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#fff",
+  },
+  chatBadgeText: {
+    color: "#fff",
+    fontSize: 9,
+    fontWeight: "800",
   },
 
   /* ───── trip card ───── */

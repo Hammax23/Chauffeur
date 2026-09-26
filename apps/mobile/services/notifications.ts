@@ -10,12 +10,23 @@ Notifications.setNotificationHandler({
     // Custom in-app banner handles SARJ assignment/live offers while foregrounded —
     // don't also dump a duplicate into the notification tray.
     const isRideAlert = type === "new_assignment" || type === "live_offer";
+    const isChat = type === "chat";
     return {
       shouldShowAlert: !isRideAlert,
       shouldShowBanner: !isRideAlert,
       shouldShowList: !isRideAlert,
       shouldPlaySound: true,
       shouldSetBadge: !isRideAlert,
+      // Chat should interrupt politely while the app is open
+      ...(isChat
+        ? {
+            shouldShowAlert: true,
+            shouldShowBanner: true,
+            shouldShowList: true,
+            shouldPlaySound: true,
+            shouldSetBadge: true,
+          }
+        : {}),
     };
   },
 });
@@ -29,6 +40,18 @@ async function ensureNotificationChannels() {
     importance: Notifications.AndroidImportance.MAX,
     vibrationPattern: [0, 250, 120, 250],
     lightColor: "#D4A04A",
+    sound: "default",
+    enableVibrate: true,
+    showBadge: true,
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+  });
+
+  await Notifications.setNotificationChannelAsync("chat", {
+    name: "Trip messages",
+    description: "Messages between you and your chauffeur or passenger",
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 180, 100, 180],
+    lightColor: "#C9A063",
     sound: "default",
     enableVibrate: true,
     showBadge: true,

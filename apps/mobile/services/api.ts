@@ -788,12 +788,30 @@ export type ReferralProgress = {
   deepLink: string;
 };
 
+let referralStatusWarned = false;
+
 export async function getReferralStatus() {
-  return apiRequest<{
-    success: boolean;
-    referral: ReferralProgress;
-    error?: string;
-  }>("/customer/referral");
+  try {
+    return await apiRequest<{
+      success: boolean;
+      referral: ReferralProgress;
+      error?: string;
+    }>("/customer/referral");
+  } catch (e) {
+    if (__DEV__ && !referralStatusWarned) {
+      referralStatusWarned = true;
+      console.warn(
+        "[referral] status failed (once):",
+        e instanceof Error ? e.message : e,
+        "— run prisma generate + db push on apps/web after stopping npm run dev"
+      );
+    }
+    return {
+      success: false as const,
+      referral: null as unknown as ReferralProgress,
+      error: e instanceof Error ? e.message : "Could not load referral status.",
+    };
+  }
 }
 
 export async function attachReferralCode(referralCode: string) {
@@ -1484,11 +1502,19 @@ export type ChatThreadPayload = {
   messages: ChatMessage[];
   canSend: boolean;
   status: string;
+  unreadCount?: number;
   error?: string;
 };
 
-export async function getDriverChat(bookingId: string, since?: string) {
-  const qs = since ? `?since=${encodeURIComponent(since)}` : "";
+export async function getDriverChat(
+  bookingId: string,
+  since?: string,
+  opts?: { markRead?: boolean }
+) {
+  const params = new URLSearchParams();
+  if (since) params.set("since", since);
+  if (opts?.markRead) params.set("markRead", "1");
+  const qs = params.toString() ? `?${params.toString()}` : "";
   return apiRequest<ChatThreadPayload>(`/driver/rides/${bookingId}/chat${qs}`);
 }
 
@@ -1499,8 +1525,15 @@ export async function sendDriverChatMessage(bookingId: string, body: string) {
   );
 }
 
-export async function getCustomerChat(bookingId: string, since?: string) {
-  const qs = since ? `?since=${encodeURIComponent(since)}` : "";
+export async function getCustomerChat(
+  bookingId: string,
+  since?: string,
+  opts?: { markRead?: boolean }
+) {
+  const params = new URLSearchParams();
+  if (since) params.set("since", since);
+  if (opts?.markRead) params.set("markRead", "1");
+  const qs = params.toString() ? `?${params.toString()}` : "";
   return apiRequest<ChatThreadPayload>(`/customer/reservations/${bookingId}/chat${qs}`);
 }
 
@@ -1508,6 +1541,20 @@ export async function sendCustomerChatMessage(bookingId: string, body: string) {
   return apiRequest<{ success: boolean; message: ChatMessage; error?: string }>(
     `/customer/reservations/${bookingId}/chat`,
     { method: "POST", body: JSON.stringify({ body }) }
+  );
+}
+
+export async function markCustomerChatRead(bookingId: string) {
+  return apiRequest<{ success: boolean; marked?: number; error?: string }>(
+    `/customer/reservations/${bookingId}/chat`,
+    { method: "PATCH" }
+  );
+}
+
+export async function markDriverChatRead(bookingId: string) {
+  return apiRequest<{ success: boolean; marked?: number; error?: string }>(
+    `/driver/rides/${bookingId}/chat`,
+    { method: "PATCH" }
   );
 }
 

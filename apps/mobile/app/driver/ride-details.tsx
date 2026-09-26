@@ -17,7 +17,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { getDriverRideDetail, updateRideStatus, DriverRide } from "../../services/api";
+import { getDriverRideDetail, updateRideStatus, getDriverChat, DriverRide } from "../../services/api";
 import { syncDriverLiveTracking } from "../../services/driver-live-session";
 import { dismissPresentedForEntity } from "../../services/notification-deep-link";
 import { SlimSpinner } from "../../components/SlimSpinner";
@@ -137,6 +137,7 @@ export default function RideDetailsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [tick, setTick] = useState(0);
+  const [chatUnread, setChatUnread] = useState(0);
 
   const fadeIn = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(28)).current;
@@ -218,7 +219,16 @@ export default function RideDetailsScreen() {
     useCallback(() => {
       syncDriverLiveTracking().catch(() => {});
       refreshRide();
-    }, [refreshRide])
+      if (!id) return;
+      void (async () => {
+        try {
+          const chat = await getDriverChat(id);
+          if (chat.success) setChatUnread(chat.unreadCount || 0);
+        } catch {
+          /* ignore */
+        }
+      })();
+    }, [refreshRide, id])
   );
 
   useEffect(() => {
@@ -771,15 +781,23 @@ export default function RideDetailsScreen() {
                   <TouchableOpacity
                     style={styles.messageBtn}
                     activeOpacity={0.88}
-                    onPress={() =>
+                    onPress={() => {
+                      setChatUnread(0);
                       router.push({
                         pathname: "/driver/chat",
                         params: { bookingId: id, name: ride?.customerName || "Customer" },
-                      })
-                    }
+                      });
+                    }}
                   >
                     <Ionicons name="chatbubble-ellipses" size={16} color="#fff" />
                     <Text style={styles.messageBtnText}>Message customer</Text>
+                    {chatUnread > 0 ? (
+                      <View style={styles.messageBadge}>
+                        <Text style={styles.messageBadgeText}>
+                          {chatUnread > 9 ? "9+" : String(chatUnread)}
+                        </Text>
+                      </View>
+                    ) : null}
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -1353,6 +1371,20 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   messageBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  messageBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    backgroundColor: "#DC2626",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  messageBadgeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "800",
+  },
   routeRow: { flexDirection: "row", gap: 12 },
   routeRail: { width: 14, alignItems: "center", paddingTop: 4 },
   routeDot: { width: 10, height: 10, borderRadius: 5 },

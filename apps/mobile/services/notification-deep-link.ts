@@ -256,6 +256,18 @@ export async function routeDriverNotificationResponse(
       return { kind: "navigated" as const };
     }
 
+    if (type === "chat") {
+      const bookingId = String(data.bookingId || "").trim();
+      await clearBadgeSafely();
+      if (!bookingId) return { kind: "ignored" as const };
+      await dismissPresentedForEntity({ bookingId });
+      router.push({
+        pathname: "/driver/chat",
+        params: { bookingId },
+      });
+      return { kind: "navigated" as const, bookingId };
+    }
+
     if (type !== "new_assignment" && type !== "live_offer") {
       return { kind: "ignored" as const };
     }

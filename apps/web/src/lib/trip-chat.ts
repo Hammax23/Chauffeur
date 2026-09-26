@@ -52,6 +52,12 @@ export function serializeMessage(m: {
   };
 }
 
+function previewBody(body: string, max = 100): string {
+  const t = body.replace(/\s+/g, " ").trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max - 1)}…`;
+}
+
 export async function getOrCreateThread(reservationId: string, bookingId: string) {
   return prisma.chatThread.upsert({
     where: { bookingId },
@@ -60,14 +66,62 @@ export async function getOrCreateThread(reservationId: string, bookingId: string
   });
 }
 
+/** Mark peer messages as read when the viewer opens the thread. */
+export async function markChatReadForViewer(opts: {
+  bookingId: string;
+  viewerType: "CUSTOMER" | "DRIVER";
+}): Promise<number> {
+  const thread = await prisma.chatThread.findUnique({
+    where: { bookingId: opts.bookingId },
+    select: { id: true },
+  });
+  if (!thread) return 0;
+
+  const peerType = opts.viewerType === "CUSTOMER" ? "DRIVER" : "CUSTOMER";
+  const result = await prisma.chatMessage.updateMany({
+    where: {
+      threadId: thread.id,
+      senderType: peerType,
+      readAt: null,
+    },
+    data: { readAt: new Date() },
+  });
+  return result.count;
+}
+
+export async function countUnreadForViewer(opts: {
+  bookingId: string;
+  viewerType: "CUSTOMER" | "DRIVER";
+}): Promise<number> {
+  const thread = await prisma.chatThread.findUnique({
+    where: { bookingId: opts.bookingId },
+    select: { id: true },
+  });
+  if (!thread) return 0;
+  const peerType = opts.viewerType === "CUSTOMER" ? "DRIVER" : "CUSTOMER";
+  return prisma.chatMessage.count({
+    where: {
+      threadId: thread.id,
+      senderType: peerType,
+      readAt: null,
+    },
+  });
+}
+
 export async function listMessagesForBooking(
   bookingId: string,
-  options?: { since?: string; limit?: number }
+  options?: {
+    since?: string;
+    limit?: number;
+    viewerType?: "CUSTOMER" | "DRIVER";
+    markRead?: boolean;
+  }
 ): Promise<{
   threadId: string | null;
   messages: ChatMessageDto[];
   canSend: boolean;
   status: string;
+  unreadCount: number;
 }> {
   const limit = Math.min(options?.limit ?? DEFAULT_MESSAGE_LIMIT, MAX_MESSAGE_LIMIT);
   let sinceDate: Date | undefined;
@@ -76,6 +130,13 @@ export async function listMessagesForBooking(
     if (!Number.isNaN(parsed.getTime())) {
       sinceDate = parsed;
     }
+  }
+
+  if (options?.markRead && options.viewerType) {
+    await markChatReadForViewer({
+      bookingId,
+      viewerType: options.viewerType,
+    });
   }
 
   const reservation = await prisma.reservation.findUnique({
@@ -110,18 +171,33 @@ export async function listMessagesForBooking(
 
   const canSend = isChatOpen(reservation.status);
   if (!reservation.chatThread) {
-    return { threadId: null, messages: [], canSend, status: reservation.status };
+    return {
+      threadId: null,
+      messages: [],
+      canSend,
+      status: reservation.status,
+      unreadCount: 0,
+    };
   }
 
   const raw = reservation.chatThread.messages;
   const ordered = sinceDate ? raw : [...raw].reverse();
   const messages = ordered.map(serializeMessage);
 
+  let unreadCount = 0;
+  if (options?.viewerType) {
+    unreadCount = await countUnreadForViewer({
+      bookingId,
+      viewerType: options.viewerType,
+    });
+  }
+
   return {
     threadId: reservation.chatThread.id,
     messages,
     canSend,
     status: reservation.status,
+    unreadCount,
   };
 }
 
@@ -147,7 +223,11 @@ export async function postChatMessage(params: {
       status: true,
       customerId: true,
       assignedDriverId: true,
-      assignedDriver: { select: { id: true, pushToken: true } },
+      firstName: true,
+      lastName: true,
+      assignedDriver: {
+        select: { id: true, pushToken: true, name: true },
+      },
     },
   });
   if (!reservation) {
@@ -181,14 +261,26 @@ export async function postChatMessage(params: {
     message: dto,
   });
 
+  const preview = previewBody(body);
+
   if (params.senderType === "CUSTOMER" && reservation.assignedDriver?.pushToken) {
-    const preview = body.length > 80 ? `${body.slice(0, 77)}…` : body;
+    const guestName =
+      [reservation.firstName, reservation.lastName].filter(Boolean).join(" ").trim() ||
+      "Passenger";
     void sendPushNotification(
       reservation.assignedDriver.pushToken,
-      "New message",
+      `Message from ${guestName}`,
       preview,
-      { type: "chat", bookingId: reservation.bookingId }
-    );
+      {
+        type: "chat",
+        bookingId: reservation.bookingId,
+        messageId: message.id,
+        channelId: "chat",
+        collapseId: `chat:${reservation.bookingId}`,
+        eventId: `chat:${message.id}`,
+        screen: "driver/chat",
+      }
+    ).catch((err) => console.error("[chat] driver push failed", err));
   }
 
   if (params.senderType === "DRIVER" && reservation.customerId) {
@@ -198,17 +290,27 @@ export async function postChatMessage(params: {
           where: { id: reservation.customerId! },
           select: { pushToken: true },
         });
-        if (customer?.pushToken) {
-          const preview = body.length > 80 ? `${body.slice(0, 77)}…` : body;
-          await sendPushNotification(
-            customer.pushToken,
-            "New message from chauffeur",
-            preview,
-            { type: "chat", bookingId: reservation.bookingId }
-          );
-        }
-      } catch {
-        /* non-fatal */
+        if (!customer?.pushToken) return;
+
+        const chauffeurName =
+          reservation.assignedDriver?.name?.trim() || "Your chauffeur";
+
+        await sendPushNotification(
+          customer.pushToken,
+          `Message from ${chauffeurName}`,
+          preview,
+          {
+            type: "chat",
+            bookingId: reservation.bookingId,
+            messageId: message.id,
+            channelId: "chat",
+            collapseId: `chat:${reservation.bookingId}`,
+            eventId: `chat:${message.id}`,
+            screen: "customer/chat",
+          }
+        );
+      } catch (err) {
+        console.error("[chat] customer push failed", err);
       }
     })();
   }
