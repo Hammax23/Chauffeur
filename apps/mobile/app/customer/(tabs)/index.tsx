@@ -28,6 +28,8 @@ import {
   type AppFleetVehicleDto,
   getActiveAppPromotions,
   type ActiveAppPromotion,
+  getReferralStatus,
+  type ReferralProgress,
 } from "../../../services/api";
 import { useReservationStream } from "../../../hooks/useReservationStream";
 import { SlimSpinner } from "../../../components/SlimSpinner";
@@ -154,6 +156,7 @@ export default function CustomerHomeScreen() {
   const [fleetPreview, setFleetPreview] = useState<AppFleetVehicleDto[]>([]);
   const [fleetLoading, setFleetLoading] = useState(true);
   const [homePromo, setHomePromo] = useState<ActiveAppPromotion | null>(null);
+  const [homeReferral, setHomeReferral] = useState<ReferralProgress | null>(null);
 
   const fullName = displayFullName(user?.firstName, user?.lastName);
 
@@ -281,11 +284,25 @@ export default function CustomerHomeScreen() {
     }
   }, []);
 
+  const loadHomeReferral = useCallback(async () => {
+    try {
+      const data = await getReferralStatus();
+      if (data.success && data.referral && data.referral.rewardStatus !== "REDEEMED") {
+        setHomeReferral(data.referral);
+      } else {
+        setHomeReferral(null);
+      }
+    } catch {
+      setHomeReferral(null);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       void resolveLocationIfNeeded();
       void loadFleetPreview();
       void loadHomePromo();
+      void loadHomeReferral();
       (async () => {
         try {
           const data = await getReservations();
@@ -298,7 +315,7 @@ export default function CustomerHomeScreen() {
           setActiveRide(null);
         }
       })();
-    }, [resolveLocationIfNeeded, loadFleetPreview, loadHomePromo])
+    }, [resolveLocationIfNeeded, loadFleetPreview, loadHomePromo, loadHomeReferral])
   );
 
   const liveBookingId = activeRide?.bookingId ?? null;
@@ -713,6 +730,61 @@ export default function CustomerHomeScreen() {
                 <Ionicons name="close" size={16} color={isDark ? "#A8A29A" : "#8A847C"} />
               </Pressable>
             </View>
+          ) : null}
+
+          {homeReferral ? (
+            <Pressable
+              onPress={() =>
+                homeReferral.rewardAvailable
+                  ? router.push("/customer/create-reservation")
+                  : router.push("/customer/profile")
+              }
+              style={({ pressed }) => [
+                styles.promoBanner,
+                {
+                  backgroundColor: isDark ? "rgba(201,160,99,0.10)" : "#FBF8F3",
+                  borderColor: isDark ? "rgba(201,160,99,0.22)" : "rgba(168,120,48,0.16)",
+                },
+                pressed && styles.pressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={
+                homeReferral.rewardAvailable
+                  ? "Referral credit ready. Book a ride."
+                  : "Invite friends for referral reward"
+              }
+            >
+              <View style={styles.promoBannerMain}>
+                <View style={styles.promoBannerIcon}>
+                  <Ionicons
+                    name={homeReferral.rewardAvailable ? "gift" : "people-outline"}
+                    size={15}
+                    color={ACCENT_DARK}
+                  />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text
+                    style={[styles.promoBannerTitle, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]}
+                    numberOfLines={1}
+                  >
+                    {homeReferral.rewardAvailable
+                      ? `$${homeReferral.rewardAmount.toFixed(0)} referral credit ready`
+                      : "Invite 2 friends · unlock $20 once"}
+                  </Text>
+                  <Text
+                    style={[styles.promoBannerSub, { color: isDark ? "#A8A29A" : "#6B6560" }]}
+                    numberOfLines={1}
+                  >
+                    {homeReferral.rewardAvailable
+                      ? "Applied at checkout on your next booking"
+                      : `${Math.min(homeReferral.qualifiedCount, homeReferral.qualifyNeeded)}/${homeReferral.qualifyNeeded} friends qualified`}
+                  </Text>
+                </View>
+                <Text style={[styles.promoBannerCta, { color: ACCENT_DARK }]}>
+                  {homeReferral.rewardAvailable ? "Book" : "Invite"}
+                </Text>
+              </View>
+            </Pressable>
           ) : null}
 
           {/* Live trip */}
