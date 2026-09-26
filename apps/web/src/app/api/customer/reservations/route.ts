@@ -9,6 +9,7 @@ import {
   resolveAppReservationFare,
 } from "@/lib/app-reservation-fare";
 import { recordPromotionRedemption } from "@/lib/promotions";
+import { markReferralRewardRedeemed } from "@/lib/referrals";
 
 const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -180,6 +181,7 @@ export async function POST(req: NextRequest) {
       bookingMode: rawBookingMode,
       hourlyDuration: rawHourlyDuration,
       promoCode: rawPromoCode,
+      useReferralCredit: rawUseReferralCredit,
     } = body;
 
     const bookingMode =
@@ -219,6 +221,7 @@ export async function POST(req: NextRequest) {
       bookingMode,
       hourlyDuration,
       promoCode: rawPromoCode,
+      useReferralCredit: rawUseReferralCredit,
       customerId: tokenData.id,
     });
     if ("error" in fare) {
@@ -384,6 +387,17 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      if (pricing.referralRewardId && pricing.discountAmount > 0) {
+        try {
+          await markReferralRewardRedeemed({
+            rewardId: pricing.referralRewardId,
+            reservationId: reservation.id,
+          });
+        } catch (refErr) {
+          console.error("[app-reservation] referral redeem failed:", refErr);
+        }
+      }
+
       try {
         await stripe.paymentIntents.update(paymentIntentId, {
           metadata: {
@@ -501,6 +515,29 @@ export async function POST(req: NextRequest) {
             ? redeemErr.message
             : "This promo code could not be applied. Please try again.";
         return NextResponse.json({ success: false, error: msg }, { status: 400 });
+      }
+    }
+
+    if (pricing.referralRewardId && pricing.discountAmount > 0) {
+      try {
+        await markReferralRewardRedeemed({
+          rewardId: pricing.referralRewardId,
+          reservationId: reservation.id,
+        });
+      } catch (refErr) {
+        console.error("[app-reservation] referral redeem failed:", refErr);
+        try {
+          await prisma.reservation.delete({ where: { id: reservation.id } });
+        } catch {
+          /* ignore */
+        }
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Referral credit could not be applied. Please try again.",
+          },
+          { status: 400 }
+        );
       }
     }
 

@@ -757,6 +757,7 @@ export async function registerCustomer(params: {
   password: string;
   city?: string;
   phoneVerificationToken: string;
+  referralCode?: string;
 }) {
   const data = await apiRequest<{
     success: boolean;
@@ -773,6 +774,37 @@ export async function registerCustomer(params: {
   }
 
   return data;
+}
+
+export type ReferralProgress = {
+  referralCode: string;
+  qualifyNeeded: number;
+  qualifiedCount: number;
+  pendingCount: number;
+  rewardAmount: number;
+  rewardStatus: string | null;
+  rewardAvailable: boolean;
+  shareUrl: string;
+  deepLink: string;
+};
+
+export async function getReferralStatus() {
+  return apiRequest<{
+    success: boolean;
+    referral: ReferralProgress;
+    error?: string;
+  }>("/customer/referral");
+}
+
+export async function attachReferralCode(referralCode: string) {
+  return apiRequest<{
+    success: boolean;
+    message?: string;
+    error?: string;
+  }>("/customer/referral/attach", {
+    method: "POST",
+    body: JSON.stringify({ referralCode }),
+  });
 }
 
 export async function sendPhoneOtp(phone: string) {
@@ -1140,6 +1172,7 @@ export async function createReservation(params: {
   cardType?: string;
   cardLast4?: string;
   promoCode?: string;
+  useReferralCredit?: boolean;
 }) {
   return apiRequest<{
     success: boolean;
@@ -1164,6 +1197,7 @@ export async function createCustomerPaymentIntent(params: {
   bookingMode?: "distance" | "hourly";
   hourlyDuration?: number;
   promoCode?: string;
+  useReferralCredit?: boolean;
 }) {
   return apiRequest<{
     success: boolean;

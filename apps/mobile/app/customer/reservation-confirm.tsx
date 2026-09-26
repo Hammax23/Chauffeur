@@ -21,6 +21,7 @@ import {
   createCustomerPaymentIntent,
   validatePromoCode,
   getActiveAppPromotions,
+  getReferralStatus,
 } from "../../services/api";
 import { clearBookingDraft, loadBookingDraft, type BookingDraft } from "../../services/booking-draft";
 import {
@@ -62,6 +63,9 @@ export default function ReservationConfirmScreen() {
   const [promoBusy, setPromoBusy] = useState(false);
   const [promoError, setPromoError] = useState("");
   const [promoHint, setPromoHint] = useState("");
+  const [useReferralCredit, setUseReferralCredit] = useState(false);
+  const [referralAvailable, setReferralAvailable] = useState(false);
+  const [referralAmount, setReferralAmount] = useState(20);
   const fareErrorShownRef = useRef(false);
   const pendingPromoTriedRef = useRef(false);
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
@@ -133,6 +137,9 @@ export default function ReservationConfirmScreen() {
       });
     }
     if (!base) return null;
+    if (useReferralCredit && referralAvailable) {
+      return applyPromoDiscount(base, referralAmount, "REFERRAL");
+    }
     if (appliedPromoCode && promoDiscount > 0) {
       return applyPromoDiscount(base, promoDiscount, appliedPromoCode);
     }
@@ -151,6 +158,9 @@ export default function ReservationConfirmScreen() {
     gratuityPercent,
     appliedPromoCode,
     promoDiscount,
+    useReferralCredit,
+    referralAvailable,
+    referralAmount,
   ]);
 
   useEffect(() => {
@@ -174,6 +184,10 @@ export default function ReservationConfirmScreen() {
 
   const handleApplyPromo = async (codeOverride?: string) => {
     if (!draft || !fare) return;
+    if (useReferralCredit) {
+      setPromoError("Turn off referral credit to apply a promo code.");
+      return;
+    }
     const code = (codeOverride ?? promoInput).trim().toUpperCase();
     if (!code) {
       setPromoError("Enter a promo code.");
@@ -220,11 +234,40 @@ export default function ReservationConfirmScreen() {
     setPromoError("");
   };
 
-  // Pending code from Home banner + soft "promo available" hint
+  const enableReferralCredit = () => {
+    setUseReferralCredit(true);
+    setAppliedPromoCode(null);
+    setPromoDiscount(0);
+    setPromoInput("");
+    setPromoError("");
+    setPromoHint("");
+  };
+
+  const disableReferralCredit = () => {
+    setUseReferralCredit(false);
+  };
+
+  // Referral credit (preferred) + pending promo from Home banner + soft hint
   useEffect(() => {
     if (!ready || !draft || !fare || pendingPromoTriedRef.current) return;
     pendingPromoTriedRef.current = true;
     void (async () => {
+      let hasReferral = false;
+      try {
+        const ref = await getReferralStatus();
+        if (ref.success && ref.referral?.rewardAvailable) {
+          hasReferral = true;
+          setReferralAvailable(true);
+          setReferralAmount(ref.referral.rewardAmount || 20);
+          enableReferralCredit();
+        }
+      } catch {
+        /* ignore */
+      }
+      if (hasReferral) {
+        await clearPendingPromoCode();
+        return;
+      }
       const pending = await getPendingPromoCode();
       if (pending) {
         setPromoInput(pending);
@@ -331,7 +374,8 @@ export default function ReservationConfirmScreen() {
           email: draft.email,
           bookingMode: isHourly ? "hourly" : "distance",
           hourlyDuration: isHourly ? hourlyDuration : undefined,
-          promoCode: appliedPromoCode || undefined,
+          promoCode: useReferralCredit ? undefined : appliedPromoCode || undefined,
+          useReferralCredit: useReferralCredit || undefined,
         });
 
         if (
@@ -408,7 +452,8 @@ export default function ReservationConfirmScreen() {
         phone: draft.phoneNumber,
         email: draft.email,
         stripePaymentIntentId,
-        promoCode: appliedPromoCode || undefined,
+        promoCode: useReferralCredit ? undefined : appliedPromoCode || undefined,
+        useReferralCredit: useReferralCredit || undefined,
       });
       if (result.success && result.bookingId) {
         await clearBookingDraft();
@@ -672,56 +717,91 @@ export default function ReservationConfirmScreen() {
             <Text style={styles.fareValue}>${fare.subtotal.toFixed(2)}</Text>
           </View>
 
-          <View style={styles.promoBlock}>
-            <Text style={styles.promoLabel}>Promo code</Text>
-            {promoHint && !appliedPromoCode ? (
-              <Text style={styles.promoHint}>{promoHint}</Text>
-            ) : null}
-            {appliedPromoCode ? (
-              <View style={styles.promoAppliedRow}>
-                <View style={styles.promoChip}>
-                  <Ionicons name="pricetag" size={14} color="#166534" />
-                  <Text style={styles.promoChipText}>{appliedPromoCode}</Text>
+          {referralAvailable ? (
+            <View style={styles.promoBlock}>
+              <TouchableOpacity
+                style={styles.referralToggleRow}
+                onPress={() =>
+                  useReferralCredit ? disableReferralCredit() : enableReferralCredit()
+                }
+                activeOpacity={0.85}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.promoLabel}>Referral credit</Text>
+                  <Text style={styles.promoHint}>
+                    One-time −${referralAmount.toFixed(0)} (cannot combine with promo)
+                  </Text>
                 </View>
-                <TouchableOpacity onPress={handleClearPromo} hitSlop={10}>
-                  <Text style={styles.promoRemove}>Remove</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.promoInputRow}>
-                <TextInput
-                  style={styles.promoInput}
-                  value={promoInput}
-                  onChangeText={(t) => {
-                    setPromoInput(t.toUpperCase());
-                    if (promoError) setPromoError("");
-                  }}
-                  placeholder="Enter code"
-                  placeholderTextColor="#94a3b8"
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  editable={!promoBusy}
-                />
-                <TouchableOpacity
-                  style={[styles.promoApplyBtn, promoBusy && { opacity: 0.6 }]}
-                  onPress={() => void handleApplyPromo()}
-                  disabled={promoBusy}
+                <View
+                  style={[
+                    styles.referralToggle,
+                    useReferralCredit && styles.referralToggleOn,
+                  ]}
                 >
-                  {promoBusy ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={styles.promoApplyText}>Apply</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            )}
-            {promoError ? <Text style={styles.promoError}>{promoError}</Text> : null}
-          </View>
+                  <Ionicons
+                    name={useReferralCredit ? "checkmark" : "add"}
+                    size={16}
+                    color={useReferralCredit ? "#fff" : "#64748b"}
+                  />
+                </View>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {!useReferralCredit ? (
+            <View style={styles.promoBlock}>
+              <Text style={styles.promoLabel}>Promo code</Text>
+              {promoHint && !appliedPromoCode ? (
+                <Text style={styles.promoHint}>{promoHint}</Text>
+              ) : null}
+              {appliedPromoCode ? (
+                <View style={styles.promoAppliedRow}>
+                  <View style={styles.promoChip}>
+                    <Ionicons name="pricetag" size={14} color="#166534" />
+                    <Text style={styles.promoChipText}>{appliedPromoCode}</Text>
+                  </View>
+                  <TouchableOpacity onPress={handleClearPromo} hitSlop={10}>
+                    <Text style={styles.promoRemove}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.promoInputRow}>
+                  <TextInput
+                    style={styles.promoInput}
+                    value={promoInput}
+                    onChangeText={(t) => {
+                      setPromoInput(t.toUpperCase());
+                      if (promoError) setPromoError("");
+                    }}
+                    placeholder="Enter code"
+                    placeholderTextColor="#94a3b8"
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    editable={!promoBusy}
+                  />
+                  <TouchableOpacity
+                    style={[styles.promoApplyBtn, promoBusy && { opacity: 0.6 }]}
+                    onPress={() => void handleApplyPromo()}
+                    disabled={promoBusy}
+                  >
+                    {promoBusy ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.promoApplyText}>Apply</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+              {promoError ? <Text style={styles.promoError}>{promoError}</Text> : null}
+            </View>
+          ) : null}
 
           {(fare.discountAmount || 0) > 0 ? (
             <View style={styles.fareRow}>
               <Text style={[styles.fareLabel, { color: "#166534" }]}>
-                Discount{appliedPromoCode ? ` (${appliedPromoCode})` : ""}
+                {useReferralCredit
+                  ? "Referral credit"
+                  : `Discount${appliedPromoCode ? ` (${appliedPromoCode})` : ""}`}
               </Text>
               <Text style={[styles.fareValue, { color: "#166534" }]}>
                 −${(fare.discountAmount || 0).toFixed(2)}
@@ -1156,6 +1236,25 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "#e2e8f0",
+  },
+  referralToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  referralToggle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "#cbd5e1",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f8fafc",
+  },
+  referralToggleOn: {
+    backgroundColor: "#166534",
+    borderColor: "#166534",
   },
   promoLabel: {
     fontSize: 12,

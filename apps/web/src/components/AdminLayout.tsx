@@ -25,6 +25,7 @@ import {
   MessageSquareText,
   ScrollText,
   Tag,
+  Gift,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -36,6 +37,7 @@ const NAV_ITEMS = [
   { href: "/admin/fleet", label: "Fleet Pricing", icon: DollarSign },
   { href: "/admin/app-fleets", label: "App Fleets", icon: Smartphone },
   { href: "/admin/promotions", label: "App Promotions", icon: Tag },
+  { href: "/admin/referrals", label: "Referrals", icon: Gift },
   { href: "/admin/drivers", label: "Drivers", icon: Car },
   { href: "/admin/trip-reviews", label: "Trip Reviews", icon: Star },
   { href: "/admin/support-tickets", label: "Support Tickets", icon: MessageSquareText },

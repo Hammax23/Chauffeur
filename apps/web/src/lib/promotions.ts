@@ -22,6 +22,8 @@ export type AppFareWithPromo = ReservationPricingResult & {
   discountAmount: number;
   promoCode: string | null;
   promotionId: string | null;
+  /** When discount came from referral credit. */
+  referralRewardId?: string | null;
 };
 
 export function normalizePromoCode(input: unknown): string {
@@ -69,6 +71,7 @@ export function applyDiscountToPricing(
     discountAmount: discount,
     promoCode: discount > 0 ? promoCode : null,
     promotionId: discount > 0 ? promotionId : null,
+    referralRewardId: null,
   };
 }
 

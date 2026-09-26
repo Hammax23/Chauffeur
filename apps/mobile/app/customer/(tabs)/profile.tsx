@@ -8,16 +8,22 @@ import {
   Alert,
   Pressable,
   Platform,
+  Share,
 } from "react-native";
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
-import { router } from "expo-router";
+import * as Clipboard from "expo-clipboard";
+import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useCustomerTheme } from "../../../contexts/CustomerThemeContext";
-import { deactivateCustomerAccount } from "../../../services/api";
+import {
+  deactivateCustomerAccount,
+  getReferralStatus,
+  type ReferralProgress,
+} from "../../../services/api";
 import { GOLD } from "../../../theme/driver-theme";
 
 type MenuRowProps = {
@@ -101,11 +107,46 @@ export default function CustomerProfileScreen() {
   const { palette, isDark } = useCustomerTheme();
   const [showAccountOptions, setShowAccountOptions] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
+  const [referral, setReferral] = useState<ReferralProgress | null>(null);
   const cardBlur = Platform.OS === "ios" ? 40 : 24;
 
   const fullName =
     [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || "Customer";
   const initials = `${user?.firstName?.[0] || "C"}${user?.lastName?.[0] || ""}`;
+
+  useFocusEffect(
+    useCallback(() => {
+      void (async () => {
+        try {
+          const data = await getReferralStatus();
+          if (data.success && data.referral) setReferral(data.referral);
+        } catch {
+          /* ignore */
+        }
+      })();
+    }, [])
+  );
+
+  const shareReferral = useCallback(async () => {
+    if (!referral) return;
+    try {
+      await Share.share({
+        message: `Join me on SARJ Worldwide for luxury chauffeur rides. ${referral.shareUrl}`,
+      });
+    } catch {
+      /* ignore */
+    }
+  }, [referral]);
+
+  const copyReferralCode = useCallback(async () => {
+    if (!referral?.referralCode) return;
+    try {
+      await Clipboard.setStringAsync(referral.referralCode);
+      Alert.alert("Copied", `${referral.referralCode} is on your clipboard.`);
+    } catch {
+      Alert.alert("Your code", referral.referralCode);
+    }
+  }, [referral]);
 
   const handleLogout = async () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -268,6 +309,61 @@ export default function CustomerProfileScreen() {
               </LinearGradient>
             </Pressable>
           </BlurView>
+
+          {referral ? (
+            <View
+              style={[
+                styles.referralCard,
+                {
+                  borderColor: palette.border,
+                  backgroundColor: isDark ? "rgba(201,160,99,0.12)" : "#FBF6EE",
+                },
+              ]}
+            >
+              <View style={styles.referralTop}>
+                <Ionicons name="gift-outline" size={20} color={GOLD} />
+                <Text style={[styles.referralTitle, { color: palette.text }]}>
+                  Invite 2 friends
+                </Text>
+              </View>
+              <Text style={[styles.referralBody, { color: palette.muted }]}>
+                When two friends each complete their first paid ride, you unlock a one-time $
+                {referral.rewardAmount.toFixed(0)} off.
+              </Text>
+              <View style={styles.referralProgressRow}>
+                <Text style={[styles.referralProgress, { color: palette.text }]}>
+                  {Math.min(referral.qualifiedCount, referral.qualifyNeeded)}/
+                  {referral.qualifyNeeded} qualified
+                  {referral.pendingCount > 0 ? ` · ${referral.pendingCount} pending` : ""}
+                </Text>
+                {referral.rewardAvailable ? (
+                  <Text style={styles.referralReady}>$20 ready</Text>
+                ) : referral.rewardStatus === "REDEEMED" ? (
+                  <Text style={[styles.referralReady, { color: palette.muted }]}>Used</Text>
+                ) : null}
+              </View>
+              <View style={styles.referralCodeRow}>
+                <Text style={[styles.referralCode, { color: GOLD }]}>{referral.referralCode}</Text>
+                <Pressable
+                  onPress={() => void copyReferralCode()}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.referralCopyBtn, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Copy referral code"
+                >
+                  <Ionicons name="copy-outline" size={15} color={GOLD} />
+                  <Text style={[styles.referralCopyText, { color: GOLD }]}>Copy</Text>
+                </Pressable>
+              </View>
+              <Pressable
+                onPress={() => void shareReferral()}
+                style={({ pressed }) => [styles.referralShareBtn, pressed && styles.pressed]}
+              >
+                <Ionicons name="share-outline" size={16} color="#1A1208" />
+                <Text style={styles.referralShareText}>Share invite</Text>
+              </Pressable>
+            </View>
+          ) : null}
 
           <Text style={styles.sectionEyebrow}>SUPPORT</Text>
           <MenuGroup {...groupCommon}>
@@ -464,6 +560,81 @@ const styles = StyleSheet.create({
   },
   editBtnText: {
     fontSize: 14,
+    fontWeight: "800",
+    color: "#1A1208",
+  },
+  referralCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 20,
+  },
+  referralTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  referralTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  referralBody: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  referralProgressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  referralProgress: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  referralReady: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#166534",
+  },
+  referralCodeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    gap: 10,
+  },
+  referralCode: {
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: 1,
+    flex: 1,
+  },
+  referralCopyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  referralCopyText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  referralShareBtn: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: GOLD,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  referralShareText: {
+    fontSize: 13,
     fontWeight: "800",
     color: "#1A1208",
   },

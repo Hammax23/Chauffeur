@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
       ...body,
       customerId: tokenData.id,
       promoCode: body?.promoCode,
+      useReferralCredit: body?.useReferralCredit,
     });
     if ("error" in fare) {
       return NextResponse.json({ success: false, error: fare.error }, { status: 400 });

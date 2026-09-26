@@ -256,6 +256,20 @@ export async function PATCH(
       data: updateData,
     });
 
+    if (status === "DONE") {
+      try {
+        const { maybeQualifyReferralOnTripDone } = await import("@/lib/referrals");
+        await maybeQualifyReferralOnTripDone({
+          reservationId: reservation.id,
+          bookingId: reservation.bookingId,
+          customerId: reservation.customerId,
+          paymentStatus: reservation.paymentStatus,
+        });
+      } catch (refErr) {
+        console.error("[referral] qualify on DONE failed", refErr);
+      }
+    }
+
     await publishReservationFromDb(bookingId, "status_changed");
 
     return NextResponse.json({ success: true, message: `Status updated to ${status}` });

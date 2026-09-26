@@ -54,6 +54,7 @@ interface AuthContextType {
     password: string;
     city?: string;
     phoneVerificationToken: string;
+    referralCode?: string;
   }) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -213,6 +214,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string;
     city?: string;
     phoneVerificationToken: string;
+    referralCode?: string;
   }) => {
     try {
       const data = await registerCustomer(params);

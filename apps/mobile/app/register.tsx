@@ -28,6 +28,11 @@ import {
   normalizeAuthPhoneInput,
   validateAuthPhone,
 } from "../utils/phone-us-ca";
+import {
+  clearPendingReferralCode,
+  getPendingReferralCode,
+  normalizeReferralCodeClient,
+} from "../utils/pending-referral";
 
 type Step = "phone" | "otp" | "details";
 type PhoneCheckStatus = "idle" | "checking" | "available" | "taken" | "invalid";
@@ -67,6 +72,14 @@ export default function RegisterScreen() {
   const [otpError, setOtpError] = useState("");
   const [resendTimer, setResendTimer] = useState(0);
   const [phoneVerificationToken, setPhoneVerificationToken] = useState("");
+  const [referralCode, setReferralCode] = useState("");
+
+  useEffect(() => {
+    void (async () => {
+      const pending = await getPendingReferralCode();
+      if (pending) setReferralCode(pending);
+    })();
+  }, []);
   const otpRefs = useRef<(TextInput | null)[]>([]);
 
   useEffect(() => {
@@ -303,9 +316,18 @@ export default function RegisterScreen() {
         password,
         city: city.trim() || undefined,
         phoneVerificationToken,
+        referralCode: normalizeReferralCodeClient(referralCode) || undefined,
       });
       if (result.success) {
+        const hadInvite = Boolean(normalizeReferralCodeClient(referralCode));
+        await clearPendingReferralCode();
         router.replace("/customer");
+        if (hadInvite) {
+          Alert.alert(
+            "Invite linked",
+            "You’re signed up with a friend’s invite. Enjoy SARJ Worldwide."
+          );
+        }
       } else {
         Alert.alert("Registration Failed", result.error || "Something went wrong");
       }
@@ -605,6 +627,23 @@ export default function RegisterScreen() {
               </View>
 
               <View style={styles.inputGroup}>
+                <Text style={styles.label}>Invite code (optional)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Friend’s code e.g. SARJ-AB12CD"
+                  placeholderTextColor="#999"
+                  value={referralCode}
+                  onChangeText={(t) => setReferralCode(normalizeReferralCodeClient(t))}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  returnKeyType="next"
+                />
+                <Text style={styles.inviteHint}>
+                  From a friend’s invite link — optional, one per account.
+                </Text>
+              </View>
+
+              <View style={styles.inputGroup}>
                 <Text style={styles.label}>
                   Password<Text style={styles.required}>*</Text>
                 </Text>
@@ -741,6 +780,12 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: "#000",
     marginBottom: 10,
+  },
+  inviteHint: {
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 16,
+    color: "#888",
   },
   required: {
     color: "#e53935",

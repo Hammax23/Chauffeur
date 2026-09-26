@@ -20,6 +20,7 @@ import {
   getStoredCustomer,
   sendCustomerPhoneOtp,
   verifyCustomerPhoneOtp,
+  attachReferralCode,
 } from "../services/api";
 import { customerNeedsPhone } from "../utils/customer-phone";
 import {
@@ -31,6 +32,10 @@ import {
   normalizeAuthPhoneInput,
   validateAuthPhone,
 } from "../utils/phone-us-ca";
+import {
+  clearPendingReferralCode,
+  getPendingReferralCode,
+} from "../utils/pending-referral";
 
 type Step = "phone" | "otp";
 
@@ -134,6 +139,23 @@ export default function CompletePhoneScreen() {
         }
         await applyCustomerProfile(res.data.customer);
         void refreshProfile();
+        try {
+          const pending = await getPendingReferralCode();
+          if (pending) {
+            const attached = await attachReferralCode(pending);
+            if (attached.success) {
+              await clearPendingReferralCode();
+              router.replace("/customer");
+              Alert.alert(
+                "Invite linked",
+                "You’re signed up with a friend’s invite. Enjoy SARJ Worldwide."
+              );
+              return;
+            }
+          }
+        } catch {
+          /* non-blocking */
+        }
         router.replace("/customer");
       } catch (e) {
         setOtpError(e instanceof Error ? e.message : "Verification failed.");

@@ -12,6 +12,7 @@ import {
   normalizePromoCode,
   type AppFareWithPromo,
 } from "@/lib/promotions";
+import { applyReferralCreditToPricing } from "@/lib/referrals";
 
 export type AppReservationFareInput = {
   vehicleId?: unknown;
@@ -25,8 +26,10 @@ export type AppReservationFareInput = {
   hourlyDuration?: unknown;
   /** Optional promo code (mobile checkout). */
   promoCode?: unknown;
-  /** Required when applying a promo (eligibility / per-customer limits). */
+  /** Required when applying a promo or referral credit. */
   customerId?: unknown;
+  /** Apply one-time referral $20 credit (mutually exclusive with promoCode). */
+  useReferralCredit?: unknown;
 };
 
 export type { AppFareWithPromo };
@@ -47,8 +50,6 @@ export async function resolveAppReservationFare(
   let vehicleBaseKm = 0;
   let vehicleExtraRate = 0;
 
-  // AppFleetVehicle only stores pricePerKm + hourlyRate.
-  // baseDistanceKm / extraKmRate come from ReservationCharges (global).
   if (vehicleId) {
     const fleetRow = await prisma.appFleetVehicle.findFirst({
       where: {
@@ -138,15 +139,41 @@ export async function resolveAppReservationFare(
     }
   }
 
+  const useReferral =
+    input.useReferralCredit === true ||
+    input.useReferralCredit === "true" ||
+    input.useReferralCredit === 1 ||
+    input.useReferralCredit === "1";
   const rawCode = normalizePromoCode(input.promoCode);
+  const customerId =
+    typeof input.customerId === "string" ? input.customerId.trim() : "";
+
+  if (useReferral && rawCode) {
+    return {
+      error: "Use either a promo code or your referral credit, not both.",
+    };
+  }
+
+  if (useReferral) {
+    if (!customerId) {
+      return { error: "Sign in to apply referral credit." };
+    }
+    const applied = await applyReferralCreditToPricing(basePricing, customerId, true);
+    if ("error" in applied) return { error: applied.error };
+    return {
+      pricing: {
+        ...applied.pricing,
+        referralRewardId: applied.referralRewardId,
+      },
+    };
+  }
+
   if (!rawCode) {
     return {
       pricing: applyDiscountToPricing(basePricing, 0, null, null),
     };
   }
 
-  const customerId =
-    typeof input.customerId === "string" ? input.customerId.trim() : "";
   if (!customerId) {
     return { error: "Sign in to apply a promo code." };
   }

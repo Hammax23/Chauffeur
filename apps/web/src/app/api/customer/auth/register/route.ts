@@ -8,13 +8,18 @@ import {
   phoneLookupVariants,
   validateAuthPhone,
 } from "@/lib/phone-us-ca";
+import {
+  attributeReferral,
+  ensureCustomerReferralCode,
+  normalizeReferralCode,
+} from "@/lib/referrals";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { firstName, lastName, email, phone, password, city, source, phoneVerificationToken } =
+    const { firstName, lastName, email, phone, password, city, source, phoneVerificationToken, referralCode } =
       body;
 
     if (!firstName || !lastName || !email || !phone || !password) {
@@ -117,6 +122,24 @@ export async function POST(req: NextRequest) {
         registrationSource: source === "app" ? "app" : "web",
       },
     });
+
+    try {
+      await ensureCustomerReferralCode(customer.id);
+    } catch (e) {
+      console.error("[register] referral code allocate failed", e);
+    }
+
+    const inviteCode = normalizeReferralCode(referralCode);
+    if (inviteCode && source === "app") {
+      const attributed = await attributeReferral({
+        refereeId: customer.id,
+        referralCode: inviteCode,
+      });
+      if (!attributed.ok) {
+        // Non-blocking: account exists; client can show soft warning if needed
+        console.warn("[register] referral attribute:", attributed.error);
+      }
+    }
 
     // Generate JWT token
     const token = jwt.sign(

@@ -203,17 +203,27 @@ model Customer {
   /// Set when the customer self-deactivates (soft delete). Cleared on reactivate.
   deactivatedAt      DateTime?
   pushToken          String?
+  /// Unique share code for inviting friends (e.g. SARJ-AB12CD).
+  referralCode       String?       @unique
+  /// Who referred this customer (set once at signup / claim).
+  referredByCustomerId String?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
   reservations         Reservation[]
   tripReviews          TripReview[]
   supportTickets       SupportTicket[]
   promotionRedemptions PromotionRedemption[]
+  referredBy           Customer?   @relation("CustomerReferrals", fields: [referredByCustomerId], references: [id], onDelete: SetNull)
+  referralsMade        Customer[]  @relation("CustomerReferrals")
+  referralAttributionsAsReferrer ReferralAttribution[] @relation("ReferrerAttributions")
+  referralAttributionAsReferee   ReferralAttribution?  @relation("RefereeAttribution")
+  referralReward       ReferralReward?
 
   @@unique([oauthProvider, oauthSub])
   @@index([pushToken])
   @@index([accountStatus])
   @@index([registrationSource])
+  @@index([referredByCustomerId])
 }
 
 /// In-app Contact Us / support messages from the customer mobile app.
@@ -766,4 +776,42 @@ model PromotionRedemption {
 
   @@index([promotionId, customerId])
   @@index([customerId])
+}
+
+/// Friend signup attributed to a referrer (PENDING until first paid DONE trip).
+model ReferralAttribution {
+  id                   String    @id @default(cuid())
+  referrerId           String
+  refereeId            String    @unique
+  codeUsed             String
+  /// PENDING | QUALIFIED | REJECTED
+  status               String    @default("PENDING")
+  qualifiedAt          DateTime?
+  refereeFirstBookingId String?
+  adminNote            String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  referrer             Customer  @relation("ReferrerAttributions", fields: [referrerId], references: [id], onDelete: Cascade)
+  referee              Customer  @relation("RefereeAttribution", fields: [refereeId], references: [id], onDelete: Cascade)
+
+  @@index([referrerId, status])
+  @@index([status, createdAt])
+}
+
+/// One-time $20 booking credit for a referrer after 2 QUALIFIED friends.
+model ReferralReward {
+  id                    String    @id @default(cuid())
+  customerId            String    @unique
+  amount                Float     @default(20)
+  /// AVAILABLE | REDEEMED | VOID
+  status                String    @default("AVAILABLE")
+  redeemedReservationId String?   @unique
+  redeemedAt            DateTime?
+  voidedAt              DateTime?
+  voidReason            String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  customer              Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([status])
 }
