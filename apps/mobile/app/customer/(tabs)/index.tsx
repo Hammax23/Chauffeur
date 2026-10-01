@@ -1170,41 +1170,28 @@ export default function CustomerHomeScreen() {
                       resizeMode="contain"
                     />
                   </LinearGradient>
-                  <View style={styles.fleetMeta}>
-                    <View style={styles.fleetNameRow}>
-                      <Text
-                        style={[styles.fleetName, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]}
-                        numberOfLines={1}
-                      >
-                        {formatTierDisplayTitle(v.title)}
-                      </Text>
-                      <View style={styles.fleetCapacity}>
-                        <Ionicons
-                          name="person"
-                          size={12}
-                          color={isDark ? "#A1A1AA" : "#6B7280"}
-                        />
-                        <Text
-                          style={[
-                            styles.fleetCapacityText,
-                            { color: isDark ? "#A1A1AA" : "#6B7280" },
-                          ]}
-                        >
-                          {getTierCapacity(v)}
-                        </Text>
-                      </View>
-                    </View>
-                    {v.subtitle ? (
+                  <View style={styles.fleetNameRow}>
+                    <Text
+                      style={[styles.fleetName, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]}
+                      numberOfLines={1}
+                    >
+                      {formatTierDisplayTitle(v.title)}
+                    </Text>
+                    <View style={styles.fleetCapacity}>
+                      <Ionicons
+                        name="person"
+                        size={12}
+                        color={isDark ? "#A1A1AA" : "#6B7280"}
+                      />
                       <Text
                         style={[
-                          styles.fleetSubtitle,
+                          styles.fleetCapacityText,
                           { color: isDark ? "#A1A1AA" : "#6B7280" },
                         ]}
-                        numberOfLines={2}
                       >
-                        {v.subtitle}
+                        {getTierCapacity(v)}
                       </Text>
-                    ) : null}
+                    </View>
                   </View>
                 </Pressable>
               ))}
@@ -1892,9 +1879,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-  },
-  fleetMeta: {
-    gap: 3,
     paddingHorizontal: 2,
   },
   fleetName: {
@@ -1916,11 +1900,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     fontVariant: ["tabular-nums"],
-  },
-  fleetSubtitle: {
-    fontSize: 12,
-    fontWeight: "400",
-    lineHeight: 16,
   },
   pressed: {
     opacity: 0.92,

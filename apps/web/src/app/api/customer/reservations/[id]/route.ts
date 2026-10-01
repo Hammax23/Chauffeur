@@ -99,7 +99,7 @@ export async function GET(
   }
 }
 
-// DELETE - Cancel reservation (only if PENDING)
+// DELETE - Cancel reservation (PENDING or ACCEPTED before trip starts)
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -114,6 +114,14 @@ export async function DELETE(
 
     const { id } = await params;
 
+    let reason = "";
+    try {
+      const body = await req.json();
+      reason = String(body?.reason || "").trim().slice(0, 200);
+    } catch {
+      /* no body */
+    }
+
     const reservation = await prisma.reservation.findFirst({
       where: { bookingId: id, customerId: tokenData.id },
     });
@@ -122,16 +130,29 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: "Reservation not found" }, { status: 404 });
     }
 
-    if (reservation.status !== "PENDING") {
+    const cancellable = reservation.status === "PENDING" || reservation.status === "ACCEPTED";
+    if (!cancellable) {
       return NextResponse.json(
-        { success: false, error: "Only pending reservations can be cancelled" },
+        {
+          success: false,
+          error:
+            "This trip can no longer be cancelled in the app. Please contact support.",
+        },
         { status: 400 }
       );
     }
 
+    const noteBits = [
+      reservation.specialRequirements?.trim() || "",
+      reason ? `Cancel reason: ${reason}` : "",
+    ].filter(Boolean);
+
     await prisma.reservation.update({
       where: { id: reservation.id },
-      data: { status: "CANCELLED" },
+      data: {
+        status: "CANCELLED",
+        specialRequirements: noteBits.join("\n") || reservation.specialRequirements,
+      },
     });
 
     const { revokeOffersForBooking } = await import("@/lib/live-auto");

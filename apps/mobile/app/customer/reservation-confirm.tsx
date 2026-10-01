@@ -66,6 +66,7 @@ export default function ReservationConfirmScreen() {
   const [useReferralCredit, setUseReferralCredit] = useState(false);
   const [referralAvailable, setReferralAvailable] = useState(false);
   const [referralAmount, setReferralAmount] = useState(20);
+  const [fareSummaryOpen, setFareSummaryOpen] = useState(false);
   const fareErrorShownRef = useRef(false);
   const pendingPromoTriedRef = useRef(false);
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
@@ -674,177 +675,204 @@ export default function ReservationConfirmScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Fare summary</Text>
-          {isHourly ? (
-            <View style={styles.fareRow}>
-              <Text style={styles.fareLabel}>Hourly</Text>
-              <Text style={styles.fareValue}>
-                ${hourlyRate.toFixed(2)}/hr × {hourlyDuration}h
-              </Text>
-            </View>
-          ) : fare.km > 0 ? (
-            <View style={styles.fareRow}>
-              <Text style={styles.fareLabel}>Distance</Text>
-              <Text style={styles.fareValue}>
-                {draft.distanceText || `${fare.km.toFixed(2)} km`}
-              </Text>
-            </View>
-          ) : null}
-          <View style={styles.fareRow}>
-            <Text style={styles.fareLabel}>Ride fare</Text>
-            <Text style={styles.fareValue}>${fare.rideFare.toFixed(2)}</Text>
-          </View>
-          {fare.stopCharge > 0 ? (
-            <View style={styles.fareRow}>
-              <Text style={styles.fareLabel}>Stop charge</Text>
-              <Text style={styles.fareValue}>${fare.stopCharge.toFixed(2)}</Text>
-            </View>
-          ) : null}
-          {fare.childSeatCharge > 0 ? (
-            <View style={styles.fareRow}>
-              <Text style={styles.fareLabel}>Child seats</Text>
-              <Text style={styles.fareValue}>${fare.childSeatCharge.toFixed(2)}</Text>
-            </View>
-          ) : null}
-          {fare.airportPickupFee > 0 ? (
-            <View style={styles.fareRow}>
-              <Text style={styles.fareLabel}>Airport pickup fee</Text>
-              <Text style={styles.fareValue}>${fare.airportPickupFee.toFixed(2)}</Text>
-            </View>
-          ) : null}
-          <View style={styles.fareRow}>
-            <Text style={styles.fareLabel}>Subtotal</Text>
-            <Text style={styles.fareValue}>${fare.subtotal.toFixed(2)}</Text>
-          </View>
-
-          {referralAvailable ? (
-            <View style={styles.promoBlock}>
-              <TouchableOpacity
-                style={styles.referralToggleRow}
-                onPress={() =>
-                  useReferralCredit ? disableReferralCredit() : enableReferralCredit()
-                }
-                activeOpacity={0.85}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.promoLabel}>Referral credit</Text>
-                  <Text style={styles.promoHint}>
-                    One-time −${referralAmount.toFixed(0)} (cannot combine with promo)
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.referralToggle,
-                    useReferralCredit && styles.referralToggleOn,
-                  ]}
-                >
-                  <Ionicons
-                    name={useReferralCredit ? "checkmark" : "add"}
-                    size={16}
-                    color={useReferralCredit ? "#fff" : "#64748b"}
-                  />
-                </View>
-              </TouchableOpacity>
-            </View>
-          ) : null}
-
-          {!useReferralCredit ? (
-            <View style={styles.promoBlock}>
-              <Text style={styles.promoLabel}>Promo code</Text>
-              {promoHint && !appliedPromoCode ? (
-                <Text style={styles.promoHint}>{promoHint}</Text>
-              ) : null}
-              {appliedPromoCode ? (
-                <View style={styles.promoAppliedRow}>
-                  <View style={styles.promoChip}>
-                    <Ionicons name="pricetag" size={14} color="#166534" />
-                    <Text style={styles.promoChipText}>{appliedPromoCode}</Text>
-                  </View>
-                  <TouchableOpacity onPress={handleClearPromo} hitSlop={10}>
-                    <Text style={styles.promoRemove}>Remove</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={styles.promoInputRow}>
-                  <TextInput
-                    style={styles.promoInput}
-                    value={promoInput}
-                    onChangeText={(t) => {
-                      setPromoInput(t.toUpperCase());
-                      if (promoError) setPromoError("");
-                    }}
-                    placeholder="Enter code"
-                    placeholderTextColor="#94a3b8"
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                    editable={!promoBusy}
-                  />
-                  <TouchableOpacity
-                    style={[styles.promoApplyBtn, promoBusy && { opacity: 0.6 }]}
-                    onPress={() => void handleApplyPromo()}
-                    disabled={promoBusy}
-                  >
-                    {promoBusy ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text style={styles.promoApplyText}>Apply</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              )}
-              {promoError ? <Text style={styles.promoError}>{promoError}</Text> : null}
-            </View>
-          ) : null}
-
-          {(fare.discountAmount || 0) > 0 ? (
-            <View style={styles.fareRow}>
-              <Text style={[styles.fareLabel, { color: "#166534" }]}>
-                {useReferralCredit
-                  ? "Referral credit"
-                  : `Discount${appliedPromoCode ? ` (${appliedPromoCode})` : ""}`}
-              </Text>
-              <Text style={[styles.fareValue, { color: "#166534" }]}>
-                −${(fare.discountAmount || 0).toFixed(2)}
-              </Text>
-            </View>
-          ) : null}
-
-          <View style={styles.fareRow}>
-            <Text style={styles.fareLabel}>HST (13%)</Text>
-            <Text style={styles.fareValue}>${fare.hst.toFixed(2)}</Text>
-          </View>
-
           <TouchableOpacity
-            style={styles.tipEntryRow}
-            onPress={() => setTipModalOpen(true)}
+            style={styles.fareSummaryHeader}
+            onPress={() => setFareSummaryOpen((o) => !o)}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: fareSummaryOpen }}
+            accessibilityLabel="Fare summary"
           >
-            <View style={styles.tipEntryLeft}>
-              <View style={styles.tipEntryIcon}>
-                <Ionicons name="heart-outline" size={18} color="#0f172a" />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.tipEntryTitle}>Add tip</Text>
-                <Text style={styles.tipEntrySub} numberOfLines={1}>
-                  {gratuityPercent > 0
-                    ? `${gratuityPercent}%`
-                    : "Choose a tip for your chauffeur"}
-                </Text>
-              </View>
+            <View style={styles.fareSummaryHeaderLeft}>
+              <Text style={styles.fareSummaryHeaderTitle}>Fare summary</Text>
+              {!fareSummaryOpen ? (
+                <Text style={styles.fareSummaryHeaderHint}>Tap for breakdown</Text>
+              ) : null}
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+            <View style={styles.fareSummaryHeaderRight}>
+              <Text style={styles.fareSummaryHeaderTotal}>${fare.total.toFixed(2)}</Text>
+              <Ionicons
+                name={fareSummaryOpen ? "chevron-up" : "chevron-down"}
+                size={18}
+                color="#64748b"
+              />
+            </View>
           </TouchableOpacity>
 
-          {gratuityPercent > 0 ? (
-            <View style={styles.fareRow}>
-              <Text style={styles.fareLabel}>Tip ({gratuityPercent}%)</Text>
-              <Text style={styles.fareValue}>${fare.gratuity.toFixed(2)}</Text>
+          {fareSummaryOpen ? (
+            <View style={styles.fareSummaryBody}>
+              {isHourly ? (
+                <View style={styles.fareRow}>
+                  <Text style={styles.fareLabel}>Hourly</Text>
+                  <Text style={styles.fareValue}>
+                    ${hourlyRate.toFixed(2)}/hr × {hourlyDuration}h
+                  </Text>
+                </View>
+              ) : fare.km > 0 ? (
+                <View style={styles.fareRow}>
+                  <Text style={styles.fareLabel}>Distance</Text>
+                  <Text style={styles.fareValue}>
+                    {draft.distanceText || `${fare.km.toFixed(2)} km`}
+                  </Text>
+                </View>
+              ) : null}
+              <View style={styles.fareRow}>
+                <Text style={styles.fareLabel}>Ride fare</Text>
+                <Text style={styles.fareValue}>${fare.rideFare.toFixed(2)}</Text>
+              </View>
+              {fare.stopCharge > 0 ? (
+                <View style={styles.fareRow}>
+                  <Text style={styles.fareLabel}>Stop charge</Text>
+                  <Text style={styles.fareValue}>${fare.stopCharge.toFixed(2)}</Text>
+                </View>
+              ) : null}
+              {fare.childSeatCharge > 0 ? (
+                <View style={styles.fareRow}>
+                  <Text style={styles.fareLabel}>Child seats</Text>
+                  <Text style={styles.fareValue}>${fare.childSeatCharge.toFixed(2)}</Text>
+                </View>
+              ) : null}
+              {fare.airportPickupFee > 0 ? (
+                <View style={styles.fareRow}>
+                  <Text style={styles.fareLabel}>Airport pickup fee</Text>
+                  <Text style={styles.fareValue}>${fare.airportPickupFee.toFixed(2)}</Text>
+                </View>
+              ) : null}
+              <View style={styles.fareRow}>
+                <Text style={styles.fareLabel}>Subtotal</Text>
+                <Text style={styles.fareValue}>${fare.subtotal.toFixed(2)}</Text>
+              </View>
+
+              {referralAvailable ? (
+                <View style={styles.promoBlock}>
+                  <TouchableOpacity
+                    style={styles.referralToggleRow}
+                    onPress={() =>
+                      useReferralCredit ? disableReferralCredit() : enableReferralCredit()
+                    }
+                    activeOpacity={0.85}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.promoLabel}>Referral credit</Text>
+                      <Text style={styles.promoHint}>
+                        One-time −${referralAmount.toFixed(0)} (cannot combine with promo)
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.referralToggle,
+                        useReferralCredit && styles.referralToggleOn,
+                      ]}
+                    >
+                      <Ionicons
+                        name={useReferralCredit ? "checkmark" : "add"}
+                        size={16}
+                        color={useReferralCredit ? "#fff" : "#64748b"}
+                      />
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
+              {!useReferralCredit ? (
+                <View style={styles.promoBlock}>
+                  <Text style={styles.promoLabel}>Promo code</Text>
+                  {promoHint && !appliedPromoCode ? (
+                    <Text style={styles.promoHint}>{promoHint}</Text>
+                  ) : null}
+                  {appliedPromoCode ? (
+                    <View style={styles.promoAppliedRow}>
+                      <View style={styles.promoChip}>
+                        <Ionicons name="pricetag" size={14} color="#166534" />
+                        <Text style={styles.promoChipText}>{appliedPromoCode}</Text>
+                      </View>
+                      <TouchableOpacity onPress={handleClearPromo} hitSlop={10}>
+                        <Text style={styles.promoRemove}>Remove</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View style={styles.promoInputRow}>
+                      <TextInput
+                        style={styles.promoInput}
+                        value={promoInput}
+                        onChangeText={(t) => {
+                          setPromoInput(t.toUpperCase());
+                          if (promoError) setPromoError("");
+                        }}
+                        placeholder="Enter code"
+                        placeholderTextColor="#94a3b8"
+                        autoCapitalize="characters"
+                        autoCorrect={false}
+                        editable={!promoBusy}
+                      />
+                      <TouchableOpacity
+                        style={[styles.promoApplyBtn, promoBusy && { opacity: 0.6 }]}
+                        onPress={() => void handleApplyPromo()}
+                        disabled={promoBusy}
+                      >
+                        {promoBusy ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <Text style={styles.promoApplyText}>Apply</Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  {promoError ? <Text style={styles.promoError}>{promoError}</Text> : null}
+                </View>
+              ) : null}
+
+              {(fare.discountAmount || 0) > 0 ? (
+                <View style={styles.fareRow}>
+                  <Text style={[styles.fareLabel, { color: "#166534" }]}>
+                    {useReferralCredit
+                      ? "Referral credit"
+                      : `Discount${appliedPromoCode ? ` (${appliedPromoCode})` : ""}`}
+                  </Text>
+                  <Text style={[styles.fareValue, { color: "#166534" }]}>
+                    −${(fare.discountAmount || 0).toFixed(2)}
+                  </Text>
+                </View>
+              ) : null}
+
+              <View style={styles.fareRow}>
+                <Text style={styles.fareLabel}>HST (13%)</Text>
+                <Text style={styles.fareValue}>${fare.hst.toFixed(2)}</Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.tipEntryRow}
+                onPress={() => setTipModalOpen(true)}
+                activeOpacity={0.85}
+              >
+                <View style={styles.tipEntryLeft}>
+                  <View style={styles.tipEntryIcon}>
+                    <Ionicons name="heart-outline" size={18} color="#0f172a" />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.tipEntryTitle}>Add tip</Text>
+                    <Text style={styles.tipEntrySub} numberOfLines={1}>
+                      {gratuityPercent > 0
+                        ? `${gratuityPercent}%`
+                        : "Choose a tip for your chauffeur"}
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+              </TouchableOpacity>
+
+              {gratuityPercent > 0 ? (
+                <View style={styles.fareRow}>
+                  <Text style={styles.fareLabel}>Tip ({gratuityPercent}%)</Text>
+                  <Text style={styles.fareValue}>${fare.gratuity.toFixed(2)}</Text>
+                </View>
+              ) : null}
+              <View style={[styles.fareRow, styles.fareTotalRow]}>
+                <Text style={styles.fareTotalLabel}>Estimated total</Text>
+                <Text style={styles.fareTotalValue}>${fare.total.toFixed(2)}</Text>
+              </View>
             </View>
           ) : null}
-          <View style={[styles.fareRow, styles.fareTotalRow]}>
-            <Text style={styles.fareTotalLabel}>Estimated total</Text>
-            <Text style={styles.fareTotalValue}>${fare.total.toFixed(2)}</Text>
-          </View>
         </View>
 
         {(guestName || draft.email || draft.phoneNumber) && (
@@ -1227,6 +1255,46 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 8,
+  },
+  fareSummaryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    minHeight: 44,
+  },
+  fareSummaryHeaderLeft: {
+    flex: 1,
+    minWidth: 0,
+  },
+  fareSummaryHeaderTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0f172a",
+  },
+  fareSummaryHeaderHint: {
+    marginTop: 2,
+    fontSize: 12,
+    color: "#94a3b8",
+    fontWeight: "500",
+  },
+  fareSummaryHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
+  },
+  fareSummaryHeaderTotal: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0f172a",
+    fontVariant: ["tabular-nums"],
+  },
+  fareSummaryBody: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#e2e8f0",
   },
   fareLabel: { fontSize: 13, color: "#64748b" },
   fareValue: { fontSize: 13, fontWeight: "600", color: "#0f172a" },

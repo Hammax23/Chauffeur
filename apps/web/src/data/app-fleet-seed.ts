@@ -21,7 +21,7 @@ export type AppFleetSeedItem = {
 export const APP_FLEET_SEED: AppFleetSeedItem[] = [
   {
     tierId: "only-black-sedan",
-    title: "Premier Black Sedan",
+    title: "Black Sedan",
     subtitle: "Sedan only — no SUV swap",
     description: "Premier black sedan only. Guaranteed sedan class for up to 3 passengers.",
     group: "standard",
@@ -37,7 +37,7 @@ export const APP_FLEET_SEED: AppFleetSeedItem[] = [
   {
     tierId: "black-sedan",
     title: "Premier Black",
-    subtitle: "Sedan or SUV — whichever is available",
+    subtitle: "Any available Sedan / SUV",
     description: "Premier black car for up to 3. Sedan or SUV assigned based on availability.",
     group: "standard",
     category: "Sedan",
@@ -51,8 +51,8 @@ export const APP_FLEET_SEED: AppFleetSeedItem[] = [
   },
   {
     tierId: "black-suv",
-    title: "Premier Black SUV",
-    subtitle: "Luxury SUV for up to 6",
+    title: "Premier SUV",
+    subtitle: "Luxury SUV for 6",
     description: "Premier black SUV for up to 6 passengers with professional chauffeurs.",
     group: "standard",
     category: "SUV",
@@ -66,9 +66,9 @@ export const APP_FLEET_SEED: AppFleetSeedItem[] = [
   },
   {
     tierId: "cadillac-escalade",
-    title: "Cadillac Escalade",
-    subtitle: "Escalade guaranteed · top-rated chauffeurs",
-    description: "Cadillac Escalade guaranteed for up to 6 with top-rated chauffeurs.",
+    title: "Escalade",
+    subtitle: "Escalade only — premium SUV for 6",
+    description: "Cadillac Escalade guaranteed — flagship SUV for up to 6 with top-rated chauffeurs.",
     group: "standard",
     category: "SUV",
     seating: "6",
@@ -81,8 +81,8 @@ export const APP_FLEET_SEED: AppFleetSeedItem[] = [
   },
   {
     tierId: "mercedes-s-class",
-    title: "Mercedes-Benz S-Class",
-    subtitle: "S-Class guaranteed · top-rated chauffeurs",
+    title: "S-Class",
+    subtitle: "S-Class guaranteed",
     description: "Mercedes-Benz S-Class guaranteed for up to 3 with top-rated chauffeurs.",
     group: "executive",
     category: "Executive",
@@ -127,7 +127,7 @@ export const APP_FLEET_SEED: AppFleetSeedItem[] = [
   {
     tierId: "electric-black-3",
     title: "Electric",
-    subtitle: "Zero-emission vehicles",
+    subtitle: "Zero-emission ride",
     description: "Electric black car for up to 3 — zero-emission travel.",
     group: "standard",
     category: "Sedan",

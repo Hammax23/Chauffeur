@@ -9,7 +9,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
-import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { fetchLegalDocument } from "../services/api";
@@ -24,17 +23,107 @@ const FALLBACK_TITLE: Record<DocKey, string> = {
   refund: "Refund Policy",
 };
 
-const FALLBACK_CSS = `
-html, body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-.legal-body { font-family: inherit; color: #1C1C1E; font-size: 15px; line-height: 1.65; }
-.legal-body h2 { font-size: 1.2em; font-weight: 800; margin: 1.35em 0 0.55em; line-height: 1.3; }
-.legal-body p { margin: 0 0 0.85em; line-height: 1.65; }
-.legal-body ul, .legal-body ol { margin: 0 0 1em; padding-left: 1.25em; }
-.legal-body li { margin: 0.35em 0; line-height: 1.55; }
-.legal-body table { width: 100%; border-collapse: collapse; margin: 0.75em 0 1em; }
-.legal-body th, .legal-body td { border: 1px solid #E5E7EB; padding: 10px 12px; text-align: left; }
-.legal-body th { background: #F3F4F6; font-weight: 700; }
-.legal-body .legal-callout { background: rgba(201,160,99,0.12); border: 1px solid rgba(201,160,99,0.28); border-radius: 14px; padding: 14px 16px; margin: 0 0 1.25em; }
+/** Clean in-app typography — no web-doc chrome. */
+const APP_LEGAL_CSS = `
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #FFFFFF;
+    -webkit-text-size-adjust: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .legal-body {
+    color: #1C1C1E;
+    font-size: 16px;
+    line-height: 1.65;
+    letter-spacing: -0.015em;
+    padding: 8px 4px 40px;
+  }
+  .legal-body h1,
+  .legal-body h2,
+  .legal-body h3,
+  .legal-body h4 {
+    color: #111827;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.3;
+    margin: 1.6em 0 0.5em;
+  }
+  .legal-body h1 { font-size: 1.28em; margin-top: 0.4em; }
+  .legal-body h2 { font-size: 1.08em; }
+  .legal-body h3 { font-size: 1em; color: #374151; }
+  .legal-body p {
+    margin: 0 0 0.95em;
+    color: #4B5563;
+  }
+  .legal-body strong { color: #111827; font-weight: 650; }
+  .legal-body ul,
+  .legal-body ol {
+    margin: 0 0 1.1em;
+    padding-left: 1.2em;
+  }
+  .legal-body li {
+    margin: 0.4em 0;
+    color: #4B5563;
+  }
+  .legal-body li::marker { color: #C9A063; }
+  .legal-body a {
+    color: #A87830;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .legal-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.85em 0 1.2em;
+    font-size: 0.94em;
+  }
+  .legal-body th,
+  .legal-body td {
+    border-bottom: 1px solid #F0EBE3;
+    padding: 12px 4px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .legal-body th {
+    font-weight: 700;
+    color: #111827;
+    border-bottom-color: #E5E0D8;
+  }
+  .legal-body td { color: #4B5563; }
+  .legal-body .legal-callout {
+    background: #FAF7F2;
+    border-radius: 14px;
+    padding: 16px;
+    margin: 0 0 1.4em;
+  }
+  .legal-body .legal-callout h1,
+  .legal-body .legal-callout h2 {
+    margin: 0 0 0.35em;
+    font-size: 1.12em;
+    color: #111827;
+  }
+  .legal-body .legal-callout p {
+    margin: 0;
+    color: #6B7280;
+    font-size: 0.94em;
+  }
+  .legal-body blockquote {
+    border-left: 2px solid #C9A063;
+    margin: 0.9em 0;
+    padding: 0.2em 0 0.2em 0.85em;
+    color: #6B7280;
+  }
+  .legal-body img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 10px;
+  }
+  .legal-body hr {
+    border: none;
+    border-top: 1px solid #EFEAE3;
+    margin: 1.5em 0;
+  }
 `;
 
 function resolveDoc(raw: string | string[] | undefined): DocKey {
@@ -44,21 +133,27 @@ function resolveDoc(raw: string | string[] | undefined): DocKey {
   return "privacy";
 }
 
-function buildHtml(body: string, css: string) {
+function formatUpdatedAt(iso?: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function buildHtml(body: string) {
   return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
-<style>
-html,body{margin:0;padding:0;background:#F5F5F7;-webkit-text-size-adjust:100%;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
-${css || FALLBACK_CSS}
-</style>
+<style>${APP_LEGAL_CSS}</style>
 </head>
 <body>
-  <div style="padding:4px 16px 28px">
-    <div class="legal-body">${body}</div>
-  </div>
+  <div class="legal-body">${body}</div>
 </body>
 </html>`;
 }
@@ -68,6 +163,7 @@ export default function LegalDocScreen() {
   const docKey = resolveDoc(params.doc);
   const [title, setTitle] = useState(FALLBACK_TITLE[docKey]);
   const [htmlDoc, setHtmlDoc] = useState("");
+  const [updatedAt, setUpdatedAt] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -79,195 +175,194 @@ export default function LegalDocScreen() {
       if (res.ok && res.data.success && res.data.document) {
         const d = res.data.document;
         setTitle(d.title || FALLBACK_TITLE[docKey]);
-        setHtmlDoc(buildHtml(d.contentHtml, d.customCss));
+        setUpdatedAt(formatUpdatedAt(d.updatedAt));
+        setHtmlDoc(buildHtml(d.contentHtml));
       } else {
         setError(res.data?.error || "Unable to load content");
-        setHtmlDoc(buildHtml("<p>Content could not be loaded. Please try again.</p>", FALLBACK_CSS));
+        setHtmlDoc(buildHtml("<p>Content could not be loaded. Please try again.</p>"));
       }
     } catch {
       setError("Unable to load content");
-      setHtmlDoc(buildHtml("<p>Content could not be loaded. Please try again.</p>", FALLBACK_CSS));
+      setHtmlDoc(buildHtml("<p>Content could not be loaded. Please try again.</p>"));
     } finally {
       setLoading(false);
     }
   }, [docKey]);
 
   useEffect(() => {
+    setTitle(FALLBACK_TITLE[docKey]);
+    setUpdatedAt("");
     void load();
-  }, [load]);
+  }, [docKey, load]);
 
   const source = useMemo(() => ({ html: htmlDoc }), [htmlDoc]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <StatusBar barStyle="dark-content" />
+
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}
           style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
-          hitSlop={10}
+          hitSlop={12}
+          accessibilityLabel="Back"
         >
-          <Ionicons name="chevron-back" size={22} color="#1C1C1E" />
+          <Ionicons name="chevron-back" size={24} color="#111827" />
         </Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {title}
-        </Text>
-        <Pressable
-          onPress={() => void load()}
-          style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
-          hitSlop={10}
-        >
-          <Ionicons name="refresh" size={18} color="#1C1C1E" />
-        </Pressable>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {title}
+          </Text>
+          {updatedAt ? (
+            <Text style={styles.headerMeta}>Updated {updatedAt}</Text>
+          ) : null}
+        </View>
+        <View style={styles.headerSpacer} />
       </View>
 
-      <View style={styles.body}>
-        {!loading ? (
-          <View style={styles.hero}>
-            <Text style={styles.heroTitle}>{title}</Text>
-            <Text style={styles.heroBrand}>SARJ Worldwide</Text>
-          </View>
-        ) : null}
-        {loading ? (
-          <View style={styles.loading}>
-            <SlimSpinner size={28} stroke={2} color={GOLD} />
-            <Text style={styles.loadingText}>Loading…</Text>
-          </View>
-        ) : (
-          <WebView
-            originWhitelist={["*"]}
-            source={source}
-            style={styles.webview}
-            setSupportMultipleWindows={false}
-            showsVerticalScrollIndicator={false}
-            decelerationRate={Platform.OS === "ios" ? "normal" : undefined}
-          />
-        )}
+      <View style={styles.brandLine}>
+        <View style={styles.brandDot} />
+        <Text style={styles.brandText}>SARJ Worldwide</Text>
       </View>
+
+      {loading ? (
+        <View style={styles.loading}>
+          <SlimSpinner size={26} stroke={2} color={GOLD} />
+        </View>
+      ) : (
+        <WebView
+          originWhitelist={["*"]}
+          source={source}
+          style={styles.webview}
+          setSupportMultipleWindows={false}
+          showsVerticalScrollIndicator={false}
+          decelerationRate={Platform.OS === "ios" ? "normal" : undefined}
+          containerStyle={styles.webviewContainer}
+        />
+      )}
 
       {error && !loading ? (
-        <Text style={styles.errorHint}>{error}</Text>
+        <Pressable onPress={() => void load()} style={styles.retryRow}>
+          <Text style={styles.errorHint}>{error}</Text>
+          <Text style={styles.retryText}>Try again</Text>
+        </Pressable>
       ) : null}
 
-      <View style={styles.contactBar}>
-        <Text style={styles.contactLead}>
-          Questions? Message our team from Contact Us in the app.
-        </Text>
-        <Pressable
-          onPress={() => router.push("/customer/contact-us")}
-          style={({ pressed }) => [styles.contactCtaWrap, pressed && styles.pressed]}
-        >
-          <LinearGradient
-            colors={["#E8C078", GOLD, "#B8862E"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.contactCta}
-          >
-            <Ionicons name="mail-outline" size={16} color="#1A1208" />
-            <Text style={styles.contactCtaText}>Open Contact Us</Text>
-            <Ionicons name="chevron-forward" size={16} color="#1A1208" />
-          </LinearGradient>
-        </Pressable>
-      </View>
+      <Pressable
+        onPress={() => router.push("/customer/contact-us")}
+        style={({ pressed }) => [styles.helpRow, pressed && styles.pressed]}
+      >
+        <Text style={styles.helpText}>Questions? Contact support</Text>
+        <Ionicons name="chevron-forward" size={16} color="#A87830" />
+      </Pressable>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#F5F5F7" },
+  safe: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(0,0,0,0.08)",
-    backgroundColor: "rgba(255,255,255,0.95)",
+    paddingHorizontal: 8,
+    paddingTop: 4,
+    paddingBottom: 10,
   },
   backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.04)",
   },
-  pressed: { opacity: 0.7 },
-  headerTitle: {
+  headerCenter: {
     flex: 1,
-    textAlign: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  headerTitle: {
     fontSize: 17,
     fontWeight: "700",
+    color: "#111827",
     letterSpacing: -0.3,
-    color: "#1C1C1E",
   },
-  body: { flex: 1, backgroundColor: "#F5F5F7" },
-  hero: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 4,
-    backgroundColor: "#1C1C1E",
-    borderRadius: 18,
-    paddingHorizontal: 18,
-    paddingVertical: 18,
-  },
-  heroTitle: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    letterSpacing: -0.4,
-    marginBottom: 6,
-  },
-  heroBrand: {
+  headerMeta: {
+    marginTop: 2,
     fontSize: 12,
     fontWeight: "500",
-    color: "rgba(255,255,255,0.4)",
-    letterSpacing: -0.1,
+    color: "#9CA3AF",
   },
-  webview: { flex: 1, backgroundColor: "transparent" },
+  headerSpacer: {
+    width: 44,
+  },
+  brandLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#F0EBE3",
+  },
+  brandDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: GOLD,
+  },
+  brandText: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: "#9CA3AF",
+  },
+  webviewContainer: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 16,
+  },
+  webview: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+  },
   loading: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
   },
-  loadingText: { fontSize: 13, color: "#8E8E93", fontWeight: "500" },
+  retryRow: {
+    alignItems: "center",
+    paddingVertical: 10,
+    gap: 4,
+  },
   errorHint: {
-    textAlign: "center",
-    fontSize: 12,
-    color: "#DC2626",
-    paddingHorizontal: 16,
-    paddingBottom: 4,
-  },
-  contactBar: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(0,0,0,0.08)",
-    backgroundColor: "#FFF",
-  },
-  contactLead: {
     fontSize: 13,
-    color: "#6B7280",
-    textAlign: "center",
-    marginBottom: 10,
-    lineHeight: 18,
+    color: "#DC2626",
   },
-  contactCtaWrap: { borderRadius: 14, overflow: "hidden" },
-  contactCta: {
+  retryText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#A87830",
+  },
+  helpRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    paddingVertical: 13,
-    paddingHorizontal: 16,
+    gap: 4,
+    paddingVertical: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#F0EBE3",
   },
-  contactCtaText: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#1A1208",
-    letterSpacing: -0.2,
+  helpText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#A87830",
+  },
+  pressed: {
+    opacity: 0.7,
   },
 });

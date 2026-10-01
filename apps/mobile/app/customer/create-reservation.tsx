@@ -67,9 +67,24 @@ const DEFAULT_SERVICE_TYPE = "Point-to-Point transportation";
 const HOURLY_SERVICE_TYPE = "Hourly ride";
 const AS_DIRECTED_DROPOFF = "As directed";
 
+/** Earliest allowed pick-up (now + small lead so past times can't be chosen). */
+function earliestPickupAt(from: Date = new Date()): Date {
+  const d = new Date(from.getTime() + 5 * 60 * 1000);
+  d.setSeconds(0, 0);
+  return d;
+}
+
+function clampPickupAt(date: Date): Date {
+  const min = earliestPickupAt();
+  return date.getTime() < min.getTime() ? min : date;
+}
+
 function defaultPickupDate(): Date {
-  const d = new Date();
+  const d = earliestPickupAt();
   d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0);
+  if (d.getTime() < earliestPickupAt().getTime()) {
+    d.setMinutes(d.getMinutes() + 15);
+  }
   return d;
 }
 
@@ -262,6 +277,14 @@ export default function CreateReservationScreen() {
   const [showStopField, setShowStopField] = useState(false);
   const [pickupAt, setPickupAt] = useState<Date>(defaultPickupDate);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [pickerMinDate, setPickerMinDate] = useState(() => earliestPickupAt());
+
+  const openPickupTimePicker = useCallback(() => {
+    const min = earliestPickupAt();
+    setPickerMinDate(min);
+    setPickupAt((prev) => (prev.getTime() < min.getTime() ? min : prev));
+    setShowDatePicker(true);
+  }, []);
   const [passengersCount, setPassengersCount] = useState(1);
   const [recipientName, setRecipientName] = useState("");
   const [recipientPhone, setRecipientPhone] = useState("");
@@ -307,6 +330,7 @@ export default function CreateReservationScreen() {
   const [routeError, setRouteError] = useState<string | null>(null);
   const [childSeatCount, setChildSeatCount] = useState(0);
   const [rideFor, setRideFor] = useState<"me" | "someone" | "child">("me");
+  const [showRideForMenu, setShowRideForMenu] = useState(false);
   const [childAge, setChildAge] = useState("");
   const [firstName, setFirstName] = useState(user?.firstName || "");
   const [lastName, setLastName] = useState(user?.lastName || "");
@@ -355,8 +379,12 @@ export default function CreateReservationScreen() {
 
   const selectRideFor = useCallback(
     (next: "me" | "someone" | "child") => {
-      if (next === rideFor) return;
+      if (next === rideFor) {
+        setShowRideForMenu(false);
+        return;
+      }
       setRideFor(next);
+      setShowRideForMenu(false);
       if (next === "me") {
         applyAccountContact();
         setChildAge("");
@@ -378,6 +406,26 @@ export default function CreateReservationScreen() {
     },
     [rideFor, applyAccountContact, user?.email]
   );
+
+  const rideForLabel = useMemo(() => {
+    if (isParcel) {
+      if (rideFor === "someone") return "Someone else";
+      return "Me";
+    }
+    if (rideFor === "child") return "Child";
+    if (rideFor === "someone") return "Someone else";
+    const name = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
+    return name || "Me";
+  }, [isParcel, rideFor, user?.firstName, user?.lastName]);
+
+  const rideForInitials = useMemo(() => {
+    if (rideFor === "me" && user?.firstName) {
+      return `${(user.firstName[0] || "Y").toUpperCase()}${(user.lastName?.[0] || "").toUpperCase()}`;
+    }
+    if (rideFor === "child") return "CH";
+    if (rideFor === "someone") return "SE";
+    return "ME";
+  }, [rideFor, user?.firstName, user?.lastName]);
 
   // Parcel bookings cannot use "Child" — reset if service type flips.
   useEffect(() => {
@@ -689,9 +737,9 @@ export default function CreateReservationScreen() {
   );
 
   useEffect(() => {
-    setPassengersCount((n) => Math.min(n, maxPassengers));
-    setChildSeatCount((n) => Math.min(n, passengersCount, maxPassengers));
-  }, [maxPassengers, passengersCount]);
+    setPassengersCount((n) => Math.min(Math.max(n, 1), maxPassengers));
+    setChildSeatCount((n) => Math.min(n, maxPassengers));
+  }, [maxPassengers]);
 
   /** Per-tier ride fare for the list (Uber-style price on the right). */
   const tierFareById = useMemo(() => {
@@ -744,8 +792,13 @@ export default function CreateReservationScreen() {
     if (event.type === "dismissed") {
       return;
     }
-    if (date) setPickupAt(date);
+    if (date) setPickupAt(clampPickupAt(date));
   };
+
+  const confirmPickupTime = useCallback(() => {
+    setPickupAt((prev) => clampPickupAt(prev));
+    setShowDatePicker(false);
+  }, []);
 
   const continueDisabled =
     fleetLoading ||
@@ -773,6 +826,15 @@ export default function CreateReservationScreen() {
   const continueToConfirm = async () => {
     if (!pickupAddress.trim()) {
       Alert.alert("Missing info", "Please enter a pickup address.");
+      return;
+    }
+    const minPickup = earliestPickupAt();
+    if (pickupAt.getTime() < minPickup.getTime()) {
+      setPickupAt(minPickup);
+      Alert.alert(
+        "Pick-up time",
+        "Please choose a future pick-up time. Past dates and times aren’t allowed."
+      );
       return;
     }
     if (showDropoff && !dropoffAddress.trim()) {
@@ -856,8 +918,11 @@ export default function CreateReservationScreen() {
         );
         return;
       }
-      if (childSeatCount > passengersCount) {
-        Alert.alert("Child seats", "Child seats cannot exceed the passenger count.");
+      if (childSeatCount > maxPassengers) {
+        Alert.alert(
+          "Child seats",
+          `This vehicle allows up to ${maxPassengers} child seats.`
+        );
         return;
       }
       if (rideFor === "child" && childSeatCount < 1) {
@@ -912,7 +977,7 @@ export default function CreateReservationScreen() {
       serviceDate: serviceDateStr,
       serviceTime: serviceTimeStr,
       pickupTimeDisplay,
-      passengers: isParcel ? "1" : String(passengersCount),
+      passengers: isParcel ? "1" : String(Math.max(passengersCount, seats, 1)),
       vehicle: selectedTier!.title,
       vehicleId: selectedTier!.id,
       vehicleSubtitle: selectedTier!.subtitle,
@@ -975,17 +1040,133 @@ export default function CreateReservationScreen() {
         onScroll={onScrollViewScroll}
         scrollEventThrottle={16}
       >
-        {/* Header */}
+        {/* Header — Uber-style rider switcher on the right */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={20} color="#1a1a1a" />
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
             {isParcel ? "Send a Parcel" : isHourly ? "Hourly Reservation" : "Create Reservation"}
           </Text>
-          <View style={{ width: 60 }} />
+          <TouchableOpacity
+            style={styles.riderHeaderBtn}
+            onPress={() => setShowRideForMenu(true)}
+            activeOpacity={0.85}
+            accessibilityLabel={`Riding for ${rideForLabel}. Change who is riding.`}
+            accessibilityRole="button"
+          >
+            {rideFor === "me" && user?.photo ? (
+              <Image
+                source={{ uri: user.photo }}
+                style={styles.riderHeaderAvatar}
+                resizeMode="cover"
+              />
+            ) : (
+              <View
+                style={[
+                  styles.riderHeaderAvatar,
+                  rideFor === "child" && styles.riderHeaderAvatarChild,
+                  rideFor === "someone" && styles.riderHeaderAvatarSomeone,
+                ]}
+              >
+                {rideFor === "me" ? (
+                  <Text style={styles.riderHeaderInitials}>{rideForInitials}</Text>
+                ) : (
+                  <Ionicons
+                    name={rideFor === "child" ? "happy-outline" : "people-outline"}
+                    size={18}
+                    color="#fff"
+                  />
+                )}
+              </View>
+            )}
+            <Ionicons name="chevron-down" size={12} color="#6B7280" />
+          </TouchableOpacity>
         </View>
+
+        <Modal
+          visible={showRideForMenu}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowRideForMenu(false)}
+        >
+          <View style={styles.riderMenuOverlay}>
+            <Pressable
+              style={StyleSheet.absoluteFillObject}
+              onPress={() => setShowRideForMenu(false)}
+            />
+            <View style={styles.riderMenuCard}>
+              <Text style={styles.riderMenuTitle}>
+                {isParcel ? "Who is sending?" : "Who is riding?"}
+              </Text>
+
+              <TouchableOpacity
+                style={[styles.riderMenuItem, rideFor === "me" && styles.riderMenuItemOn]}
+                onPress={() => selectRideFor("me")}
+                activeOpacity={0.85}
+              >
+                <View style={styles.riderMenuIcon}>
+                  {user?.photo ? (
+                    <Image source={{ uri: user.photo }} style={styles.riderMenuIconImg} />
+                  ) : (
+                    <Ionicons name="person" size={18} color="#111827" />
+                  )}
+                </View>
+                <View style={styles.riderMenuCopy}>
+                  <Text style={styles.riderMenuItemTitle}>
+                    {isParcel ? "For me" : "Me"}
+                  </Text>
+                  <Text style={styles.riderMenuItemSub} numberOfLines={1}>
+                    {[user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
+                      "Your account"}
+                  </Text>
+                </View>
+                {rideFor === "me" ? (
+                  <Ionicons name="checkmark-circle" size={22} color="#111827" />
+                ) : null}
+              </TouchableOpacity>
+
+              {!isParcel ? (
+                <TouchableOpacity
+                  style={[styles.riderMenuItem, rideFor === "child" && styles.riderMenuItemOn]}
+                  onPress={() => selectRideFor("child")}
+                  activeOpacity={0.85}
+                >
+                  <View style={[styles.riderMenuIcon, styles.riderMenuIconChild]}>
+                    <Ionicons name="happy-outline" size={18} color="#8B6914" />
+                  </View>
+                  <View style={styles.riderMenuCopy}>
+                    <Text style={styles.riderMenuItemTitle}>Child</Text>
+                    <Text style={styles.riderMenuItemSub}>Book a ride for your child</Text>
+                  </View>
+                  {rideFor === "child" ? (
+                    <Ionicons name="checkmark-circle" size={22} color="#111827" />
+                  ) : null}
+                </TouchableOpacity>
+              ) : null}
+
+              <TouchableOpacity
+                style={[styles.riderMenuItem, rideFor === "someone" && styles.riderMenuItemOn]}
+                onPress={() => selectRideFor("someone")}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.riderMenuIcon, styles.riderMenuIconSomeone]}>
+                  <Ionicons name="people-outline" size={18} color="#374151" />
+                </View>
+                <View style={styles.riderMenuCopy}>
+                  <Text style={styles.riderMenuItemTitle}>Someone else</Text>
+                  <Text style={styles.riderMenuItemSub}>
+                    {isParcel ? "Send for another person" : "Ride for a guest"}
+                  </Text>
+                </View>
+                {rideFor === "someone" ? (
+                  <Ionicons name="checkmark-circle" size={22} color="#111827" />
+                ) : null}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
         {/* Step Indicator */}
         <View style={styles.stepIndicator}>
@@ -1170,7 +1351,7 @@ export default function CreateReservationScreen() {
           <Text style={styles.inputLabel}>Pick-up Time</Text>
           <TouchableOpacity
             style={styles.inputWithIcon}
-            onPress={() => setShowDatePicker(true)}
+            onPress={openPickupTimePicker}
             activeOpacity={0.85}
           >
             <Text style={[styles.inputField, { flex: 1 }]}>{pickupTimeDisplay}</Text>
@@ -1179,10 +1360,10 @@ export default function CreateReservationScreen() {
 
           {Platform.OS === "android" && showDatePicker ? (
             <DateTimePicker
-              value={pickupAt}
+              value={pickupAt.getTime() < pickerMinDate.getTime() ? pickerMinDate : pickupAt}
               mode="datetime"
               display="default"
-              minimumDate={new Date()}
+              minimumDate={pickerMinDate}
               onChange={onDateChange}
             />
           ) : null}
@@ -1201,18 +1382,18 @@ export default function CreateReservationScreen() {
                       <Text style={styles.dateModalBtn}>Cancel</Text>
                     </TouchableOpacity>
                     <Text style={styles.dateModalTitle}>Pick-up</Text>
-                    <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                    <TouchableOpacity onPress={confirmPickupTime}>
                       <Text style={[styles.dateModalBtn, styles.dateModalDone]}>Done</Text>
                     </TouchableOpacity>
                   </View>
                   <DateTimePicker
-                    value={pickupAt}
+                    value={pickupAt.getTime() < pickerMinDate.getTime() ? pickerMinDate : pickupAt}
                     mode="datetime"
                     display="spinner"
-                    minimumDate={new Date()}
+                    minimumDate={pickerMinDate}
                     themeVariant="light"
                     onChange={(_e, d) => {
-                      if (d) setPickupAt(d);
+                      if (d) setPickupAt(clampPickupAt(d));
                     }}
                     style={styles.iosPicker}
                   />
@@ -1263,16 +1444,14 @@ export default function CreateReservationScreen() {
                 disabled={isParcel || vehicleTiers.length <= 1}
                 activeOpacity={isParcel || vehicleTiers.length <= 1 ? 1 : 0.85}
               >
-                <View style={styles.carThumbWrap}>
-                  <Image
-                    source={{ uri: selectedTier.imageUrl }}
-                    style={styles.carThumb}
-                    resizeMode="contain"
-                  />
-                </View>
+                <Image
+                  source={{ uri: selectedTier.imageUrl }}
+                  style={styles.carThumb}
+                  resizeMode="contain"
+                />
                 <View style={styles.carSelectorCopy}>
                   <View style={styles.carTitleRow}>
-                    <Text style={styles.carName} numberOfLines={1}>
+                    <Text style={styles.carName} numberOfLines={2}>
                       {formatTierDisplayTitle(selectedTier.title)}
                     </Text>
                     <View style={styles.capacityInline} accessibilityLabel={`${getTierCapacity(selectedTier)} passengers`}>
@@ -1291,15 +1470,15 @@ export default function CreateReservationScreen() {
                 <View style={styles.carSelectorTrailing}>
                   {tierFareById[selectedTier.id] != null ? (
                     <Text style={styles.carPriceText} numberOfLines={1}>
-                      ${tierFareById[selectedTier.id].toFixed(2)}
+                      ${tierFareById[selectedTier.id].toFixed(0)}
                     </Text>
                   ) : (
                     <Text style={styles.carPriceText} numberOfLines={1}>
                       {selectedTier.hourlyRate > 0
                         ? isHourly
                           ? `$${selectedTier.hourlyRate.toFixed(0)}/hr`
-                          : `From $${selectedTier.hourlyRate.toFixed(0)}`
-                        : `$${selectedTier.pricePerKm.toFixed(2)}/km`}
+                          : `$${selectedTier.hourlyRate.toFixed(0)}`
+                        : `$${selectedTier.pricePerKm.toFixed(2)}`}
                     </Text>
                   )}
                   {vehicleTiers.length > 1 ? (
@@ -1345,13 +1524,11 @@ export default function CreateReservationScreen() {
                               }}
                               activeOpacity={0.85}
                             >
-                              <View style={styles.carDropdownThumbWrap}>
-                                <Image
-                                  source={{ uri: tier.imageUrl }}
-                                  style={styles.carDropdownThumb}
-                                  resizeMode="contain"
-                                />
-                              </View>
+                              <Image
+                                source={{ uri: tier.imageUrl }}
+                                style={styles.carDropdownThumb}
+                                resizeMode="contain"
+                              />
                               <View style={styles.carDropdownCopy}>
                                 <View style={styles.carTitleRow}>
                                   <Text
@@ -1359,7 +1536,7 @@ export default function CreateReservationScreen() {
                                       styles.carDropdownName,
                                       selected && styles.carDropdownNameActive,
                                     ]}
-                                    numberOfLines={1}
+                                    numberOfLines={2}
                                   >
                                     {formatTierDisplayTitle(tier.title)}
                                   </Text>
@@ -1382,21 +1559,21 @@ export default function CreateReservationScreen() {
                                     </Text>
                                   </View>
                                 </View>
-                                {tier.subtitle || tier.description ? (
+                                {tier.subtitle ? (
                                   <Text style={styles.tierDropdownSubtitle} numberOfLines={2}>
-                                    {tier.subtitle || tier.description}
+                                    {tier.subtitle}
                                   </Text>
                                 ) : null}
                               </View>
                               <View style={styles.carDropdownPriceCol}>
-                                <Text style={styles.carDropdownPrice} numberOfLines={2}>
+                                <Text style={styles.carDropdownPrice} numberOfLines={1}>
                                   {tierFare != null
-                                    ? `$${tierFare.toFixed(2)}`
+                                    ? `$${tierFare.toFixed(0)}`
                                     : tier.hourlyRate > 0
                                       ? isHourly
                                         ? `$${tier.hourlyRate.toFixed(0)}/hr`
-                                        : `From $${tier.hourlyRate.toFixed(0)}`
-                                      : `$${tier.pricePerKm.toFixed(2)}/km`}
+                                        : `$${tier.hourlyRate.toFixed(0)}`
+                                      : `$${tier.pricePerKm.toFixed(2)}`}
                                 </Text>
                                 <View
                                   style={[
@@ -1426,36 +1603,14 @@ export default function CreateReservationScreen() {
             </Text>
           )}
 
-          {/* Passengers + Child Seat — rides only */}
+          {/* Child Seat — rides only */}
           {!isParcel ? (
           <View style={styles.dualCounterRow}>
-            <View style={styles.dualCounterCard}>
-              <Text style={styles.dualCounterTitle}>Passengers</Text>
-              <Text style={styles.dualCounterSub}>Guests</Text>
-              <View style={styles.dualCounterControls}>
-                <TouchableOpacity
-                  style={styles.counterBtn}
-                  onPress={() => setPassengersCount(Math.max(1, passengersCount - 1))}
-                  hitSlop={6}
-                >
-                  <Ionicons name="remove" size={16} color="#1a1a1a" />
-                </TouchableOpacity>
-                <Text style={styles.dualCounterValue}>{passengersCount}</Text>
-                <TouchableOpacity
-                  style={[styles.counterBtn, styles.counterBtnAdd]}
-                  onPress={() => setPassengersCount(Math.min(maxPassengers, passengersCount + 1))}
-                  hitSlop={6}
-                >
-                  <Ionicons name="add" size={16} color="#fff" />
-                </TouchableOpacity>
+            <View style={[styles.dualCounterCard, styles.dualCounterCardFull]}>
+              <View style={styles.dualCounterTextCol}>
+                <Text style={styles.dualCounterTitle}>Child Seat</Text>
+                <Text style={styles.dualCounterSub}>$25 each</Text>
               </View>
-            </View>
-
-            <View style={styles.dualCounterDivider} />
-
-            <View style={styles.dualCounterCard}>
-              <Text style={styles.dualCounterTitle}>Child Seat</Text>
-              <Text style={styles.dualCounterSub}>$25 each</Text>
               <View style={styles.dualCounterControls}>
                 <TouchableOpacity
                   style={styles.counterBtn}
@@ -1468,7 +1623,7 @@ export default function CreateReservationScreen() {
                 <TouchableOpacity
                   style={[styles.counterBtn, styles.counterBtnAdd]}
                   onPress={() =>
-                    setChildSeatCount(Math.min(passengersCount, childSeatCount + 1))
+                    setChildSeatCount(Math.min(maxPassengers, childSeatCount + 1))
                   }
                   hitSlop={6}
                 >
@@ -1632,146 +1787,89 @@ export default function CreateReservationScreen() {
         </View>
         ) : null}
 
-        {/* Contact / Who is riding — same UI for Ride & Parcel */}
+        {/* Contact details — rider chosen from header menu */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            {isParcel ? "Contact Info" : "Who is riding?"}
-          </Text>
-
-          <View style={styles.rideForTrack}>
-            <Pressable
-              onPress={() => selectRideFor("me")}
-              style={({ pressed }) => [
-                styles.rideForSeg,
-                rideFor === "me" && styles.rideForSegOn,
-                pressed && { opacity: 0.92 },
-              ]}
-            >
-              <Text
-                style={[styles.rideForSegText, rideFor === "me" && styles.rideForSegTextOn]}
-              >
-                For me
-              </Text>
-            </Pressable>
-            {!isParcel ? (
-              <Pressable
-                onPress={() => selectRideFor("child")}
-                style={({ pressed }) => [
-                  styles.rideForSeg,
-                  rideFor === "child" && styles.rideForSegOn,
-                  pressed && { opacity: 0.92 },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.rideForSegText,
-                    rideFor === "child" && styles.rideForSegTextOn,
-                  ]}
-                >
-                  Child
-                </Text>
-              </Pressable>
-            ) : null}
-            <Pressable
-              onPress={() => selectRideFor("someone")}
-              style={({ pressed }) => [
-                styles.rideForSeg,
-                rideFor === "someone" && styles.rideForSegOn,
-                pressed && { opacity: 0.92 },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.rideForSegText,
-                  rideFor === "someone" && styles.rideForSegTextOn,
-                ]}
-              >
-                Someone else
-              </Text>
-            </Pressable>
-          </View>
-
           {rideFor === "me" ? (
             user?.firstName && user?.lastName ? (
-              <View style={styles.forMeCard}>
-                <View style={styles.forMeCardTop}>
-                  <View style={styles.forMeAvatar}>
-                    {user.photo ? (
-                      <Image
-                        source={{ uri: user.photo }}
-                        style={styles.forMeAvatarImage}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <Text style={styles.forMeInitials}>
-                        {`${(user.firstName[0] || "Y").toUpperCase()}${(user.lastName[0] || "").toUpperCase()}`}
-                      </Text>
-                    )}
-                  </View>
-                  <View style={styles.forMeCopy}>
-                    <Text style={styles.forMeName} numberOfLines={1}>
-                      {[firstName, lastName].filter(Boolean).join(" ") || "You"}
+              <View style={styles.forMeChip}>
+                <View style={styles.forMeChipAvatar}>
+                  {user.photo ? (
+                    <Image
+                      source={{ uri: user.photo }}
+                      style={styles.forMeAvatarImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <Text style={styles.riderHeaderInitials}>
+                      {`${(user.firstName[0] || "Y").toUpperCase()}${(user.lastName[0] || "").toUpperCase()}`}
                     </Text>
-                    <Text style={styles.forMeMeta} numberOfLines={1}>
-                      {isParcel
-                        ? "Sending with your account"
-                        : "Booking with your account"}
-                    </Text>
-                  </View>
-                  <View style={styles.forMeVerified}>
-                    <Ionicons name="shield-checkmark" size={14} color="#2e7d32" />
-                    <Text style={styles.forMeVerifiedText}>Verified</Text>
-                  </View>
+                  )}
                 </View>
-                {user?.email?.trim() ? (
-                  <View style={styles.forMeFooter}>
-                    <Ionicons name="mail-outline" size={14} color="#9ca3af" />
-                    <Text style={styles.forMeEmail} numberOfLines={1}>
-                      {user.email}
-                    </Text>
-                  </View>
-                ) : null}
+                <View style={styles.forMeCopy}>
+                  <Text style={styles.forMeName} numberOfLines={1}>
+                    {[firstName, lastName].filter(Boolean).join(" ") || "You"}
+                  </Text>
+                  <Text style={styles.forMeMeta} numberOfLines={1}>
+                    {isParcel ? "Sending with your account" : "Booking with your account"}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setShowRideForMenu(true)}
+                  hitSlop={8}
+                  style={styles.forMeChangeBtn}
+                >
+                  <Text style={styles.forMeChangeText}>Switch</Text>
+                </TouchableOpacity>
               </View>
             ) : (
-              <View style={styles.forMeCard}>
-                <Text style={styles.forMeIncompleteTitle}>Complete your name</Text>
-                <Text style={styles.forMeIncompleteHint}>
-                  We’ll save this to your booking details.
-                </Text>
-                <View style={[styles.nameRow, { marginTop: 12 }]}>
-                  <View style={styles.nameField}>
-                    <Text style={styles.inputLabel}>First Name*</Text>
-                    <View style={styles.inputBox}>
-                      <TextInput
-                        style={styles.textInput}
-                        value={firstName}
-                        onChangeText={setFirstName}
-                        placeholder="First name"
-                        placeholderTextColor="#999"
-                        autoCapitalize="words"
-                        onFocus={onFormFieldFocus}
-                      />
+              <>
+                <Text style={styles.sectionTitle}>Your details</Text>
+                <View style={styles.forMeCard}>
+                  <Text style={styles.forMeIncompleteTitle}>Complete your name</Text>
+                  <Text style={styles.forMeIncompleteHint}>
+                    We’ll save this to your booking details.
+                  </Text>
+                  <View style={[styles.nameRow, { marginTop: 12 }]}>
+                    <View style={styles.nameField}>
+                      <Text style={styles.inputLabel}>First Name*</Text>
+                      <View style={styles.inputBox}>
+                        <TextInput
+                          style={styles.textInput}
+                          value={firstName}
+                          onChangeText={setFirstName}
+                          placeholder="First name"
+                          placeholderTextColor="#999"
+                          autoCapitalize="words"
+                          onFocus={onFormFieldFocus}
+                        />
+                      </View>
                     </View>
-                  </View>
-                  <View style={styles.nameField}>
-                    <Text style={styles.inputLabel}>Last Name*</Text>
-                    <View style={styles.inputBox}>
-                      <TextInput
-                        style={styles.textInput}
-                        value={lastName}
-                        onChangeText={setLastName}
-                        placeholder="Last name"
-                        placeholderTextColor="#999"
-                        autoCapitalize="words"
-                        onFocus={onFormFieldFocus}
-                      />
+                    <View style={styles.nameField}>
+                      <Text style={styles.inputLabel}>Last Name*</Text>
+                      <View style={styles.inputBox}>
+                        <TextInput
+                          style={styles.textInput}
+                          value={lastName}
+                          onChangeText={setLastName}
+                          placeholder="Last name"
+                          placeholderTextColor="#999"
+                          autoCapitalize="words"
+                          onFocus={onFormFieldFocus}
+                        />
+                      </View>
                     </View>
                   </View>
                 </View>
-              </View>
+              </>
             )
           ) : rideFor === "child" ? (
             <>
+              <View style={styles.riderSectionHead}>
+                <Text style={[styles.sectionTitle, styles.riderSectionHeadTitle]}>Child details</Text>
+                <TouchableOpacity onPress={() => setShowRideForMenu(true)} hitSlop={8}>
+                  <Text style={styles.forMeChangeText}>Switch</Text>
+                </TouchableOpacity>
+              </View>
               <View style={styles.childSafetyBanner}>
                 <Ionicons name="shield-checkmark-outline" size={18} color="#A67C32" />
                 <Text style={styles.childSafetyText}>
@@ -1852,6 +1950,14 @@ export default function CreateReservationScreen() {
             </>
           ) : (
             <>
+              <View style={styles.riderSectionHead}>
+                <Text style={[styles.sectionTitle, styles.riderSectionHeadTitle]}>
+                  {isParcel ? "Sender details" : "Guest details"}
+                </Text>
+                <TouchableOpacity onPress={() => setShowRideForMenu(true)} hitSlop={8}>
+                  <Text style={styles.forMeChangeText}>Switch</Text>
+                </TouchableOpacity>
+              </View>
               <View style={styles.nameRow}>
                 <View style={styles.nameField}>
                   <Text style={styles.inputLabel}>First Name*</Text>
@@ -1941,11 +2047,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 16,
+    paddingVertical: 12,
+    gap: 4,
   },
   backBtn: {
     flexDirection: "row",
     alignItems: "center",
+    minWidth: 56,
   },
   backText: {
     fontSize: 15,
@@ -1953,9 +2061,155 @@ const styles = StyleSheet.create({
     marginLeft: 2,
   },
   headerTitle: {
+    flex: 1,
     fontSize: 17,
     fontWeight: "600",
     color: "#1a1a1a",
+    textAlign: "center",
+    paddingHorizontal: 8,
+  },
+  riderHeaderBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    minWidth: 56,
+    justifyContent: "flex-end",
+  },
+  riderHeaderAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#111827",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  riderHeaderAvatarChild: {
+    backgroundColor: "#C9A063",
+  },
+  riderHeaderAvatarSomeone: {
+    backgroundColor: "#4B5563",
+  },
+  riderHeaderInitials: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#fff",
+    letterSpacing: 0.2,
+  },
+  riderMenuOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15,23,42,0.35)",
+    justifyContent: "flex-start",
+    paddingTop: Platform.OS === "ios" ? 100 : 72,
+    paddingHorizontal: 16,
+  },
+  riderMenuCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    paddingTop: 16,
+    paddingBottom: 10,
+    paddingHorizontal: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.18,
+        shadowRadius: 24,
+      },
+      android: { elevation: 10 },
+    }),
+  },
+  riderMenuTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#9CA3AF",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    paddingHorizontal: 10,
+    marginBottom: 8,
+  },
+  riderMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+  },
+  riderMenuItemOn: {
+    backgroundColor: "#F3F4F6",
+  },
+  riderMenuIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#E5E7EB",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  riderMenuIconImg: {
+    width: 40,
+    height: 40,
+  },
+  riderMenuIconChild: {
+    backgroundColor: "rgba(201,160,99,0.22)",
+  },
+  riderMenuIconSomeone: {
+    backgroundColor: "#E5E7EB",
+  },
+  riderMenuCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  riderMenuItemTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+    letterSpacing: -0.2,
+  },
+  riderMenuItemSub: {
+    marginTop: 2,
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  riderSectionHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  riderSectionHeadTitle: {
+    marginBottom: 0,
+  },
+  forMeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#EEF0F3",
+  },
+  forMeChipAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#111827",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  forMeChangeBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  forMeChangeText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#A67C32",
   },
   stepIndicator: {
     flexDirection: "row",
@@ -2008,44 +2262,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#D4A04A",
     marginBottom: 16,
-  },
-  rideForTrack: {
-    flexDirection: "row",
-    gap: 4,
-    padding: 4,
-    borderRadius: 12,
-    backgroundColor: "#F3F4F6",
-    marginBottom: 14,
-    marginTop: 4,
-  },
-  rideForSeg: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  rideForSegOn: {
-    backgroundColor: "#fff",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.08,
-        shadowRadius: 3,
-      },
-      android: { elevation: 1 },
-    }),
-  },
-  rideForSegText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#9CA3AF",
-    textAlign: "center",
-  },
-  rideForSegTextOn: {
-    color: "#111827",
-    fontWeight: "700",
   },
   childSafetyBanner: {
     flexDirection: "row",
@@ -2651,10 +2867,11 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "#e5e7eb",
     borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
+    paddingLeft: 6,
+    paddingRight: 10,
+    paddingVertical: 12,
     backgroundColor: "#FFFFFF",
-    gap: 10,
+    gap: 8,
     minHeight: 88,
   },
   carSelectorLocked: {
@@ -2662,19 +2879,16 @@ const styles = StyleSheet.create({
     borderColor: "#eceff3",
   },
   carThumbWrap: {
-    width: 72,
-    height: 56,
-    borderRadius: 10,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
+    width: 96,
+    height: 70,
+    backgroundColor: "transparent",
     flexShrink: 0,
-    overflow: "hidden",
-    marginTop: 2,
   },
   carThumb: {
-    width: 68,
-    height: 52,
+    width: 96,
+    height: 70,
+    backgroundColor: "transparent",
+    flexShrink: 0,
   },
   carSelectorCopy: {
     flex: 1,
@@ -2685,7 +2899,7 @@ const styles = StyleSheet.create({
   },
   carTitleRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 6,
     flexWrap: "nowrap",
   },
@@ -2694,6 +2908,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 2,
     flexShrink: 0,
+    marginTop: 2,
   },
   capacityInlineText: {
     fontSize: 13,
@@ -2706,7 +2921,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     justifyContent: "flex-start",
     gap: 8,
-    minWidth: 72,
+    minWidth: 64,
     paddingTop: 2,
   },
   carChevronWrap: {
@@ -2718,12 +2933,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   carName: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 16,
     fontWeight: "700",
     color: "#111827",
     lineHeight: 21,
     letterSpacing: -0.2,
-    flexShrink: 1,
   },
   carCategory: {
     fontSize: 13,
@@ -2783,7 +2999,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   carPriceText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
     color: "#111827",
     textAlign: "right",
@@ -2803,9 +3019,10 @@ const styles = StyleSheet.create({
     color: "#111827",
     letterSpacing: -0.2,
     textTransform: "none",
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 4,
+    paddingLeft: 8,
+    paddingRight: 12,
+    paddingTop: 14,
+    paddingBottom: 2,
   },
   tierDropdownSubtitle: {
     marginTop: 4,
@@ -2817,12 +3034,13 @@ const styles = StyleSheet.create({
   carDropdownItem: {
     flexDirection: "row",
     alignItems: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-    gap: 10,
-    minHeight: 88,
-    marginHorizontal: 6,
-    marginBottom: 4,
+    paddingLeft: 4,
+    paddingRight: 8,
+    paddingVertical: 10,
+    gap: 6,
+    minHeight: 80,
+    marginHorizontal: 0,
+    marginBottom: 2,
     borderRadius: 12,
     backgroundColor: "transparent",
     borderWidth: 1.5,
@@ -2836,33 +3054,31 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
   },
   carDropdownThumbWrap: {
-    width: 72,
-    height: 56,
-    borderRadius: 10,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
+    width: 100,
+    height: 74,
+    backgroundColor: "transparent",
     flexShrink: 0,
-    overflow: "hidden",
-    marginTop: 2,
   },
   carDropdownThumb: {
-    width: 68,
-    height: 52,
+    width: 100,
+    height: 74,
+    backgroundColor: "transparent",
+    flexShrink: 0,
   },
   carDropdownCopy: {
     flex: 1,
     minWidth: 0,
     justifyContent: "flex-start",
-    paddingTop: 1,
+    paddingTop: 2,
   },
   carDropdownName: {
-    fontSize: 16,
+    flex: 1,
+    minWidth: 0,
+    fontSize: 15,
     fontWeight: "700",
     color: "#111827",
-    lineHeight: 21,
+    lineHeight: 20,
     letterSpacing: -0.2,
-    flexShrink: 1,
   },
   carDropdownNameActive: {
     color: "#111827",
@@ -2870,18 +3086,18 @@ const styles = StyleSheet.create({
   },
   carDropdownPriceCol: {
     flexShrink: 0,
-    minWidth: 68,
+    width: 64,
     alignItems: "flex-end",
     justifyContent: "flex-start",
-    gap: 10,
+    gap: 8,
     paddingTop: 2,
   },
   carDropdownPrice: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "700",
     color: "#111827",
     textAlign: "right",
-    lineHeight: 20,
+    lineHeight: 18,
   },
   carRadio: {
     width: 22,
@@ -2937,28 +3153,41 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     alignItems: "center",
   },
+  dualCounterCardFull: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  dualCounterTextCol: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 12,
+  },
   dualCounterDivider: {
     width: StyleSheet.hairlineWidth,
     backgroundColor: "#e2e8f0",
     alignSelf: "stretch",
   },
   dualCounterTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "700",
     color: "#0f172a",
     letterSpacing: 0.2,
   },
   dualCounterSub: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#94a3b8",
     fontWeight: "500",
     marginTop: 2,
-    marginBottom: 10,
+    marginBottom: 0,
   },
   dualCounterControls: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
+    flexShrink: 0,
   },
   dualCounterValue: {
     fontSize: 16,

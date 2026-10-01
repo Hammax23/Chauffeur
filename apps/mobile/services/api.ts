@@ -1343,10 +1343,16 @@ export async function getDriverLiveLocation(bookingId: string) {
   }>(`/customer/reservations/${bookingId}/driver-location`);
 }
 
-export async function cancelReservation(bookingId: string) {
-  return apiRequest<{ success: boolean; message: string }>(
+export async function cancelReservation(
+  bookingId: string,
+  opts?: { reason?: string }
+) {
+  return apiRequest<{ success: boolean; message: string; error?: string }>(
     `/customer/reservations/${bookingId}`,
-    { method: "DELETE" }
+    {
+      method: "DELETE",
+      body: opts?.reason ? JSON.stringify({ reason: opts.reason }) : undefined,
+    }
   );
 }
 
