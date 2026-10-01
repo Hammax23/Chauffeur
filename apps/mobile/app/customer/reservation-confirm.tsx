@@ -13,7 +13,7 @@ import {
   TextInput,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { usePaymentSheet } from "@stripe/stripe-react-native";
 import {
@@ -24,6 +24,7 @@ import {
   getReferralStatus,
 } from "../../services/api";
 import { clearBookingDraft, loadBookingDraft, type BookingDraft } from "../../services/booking-draft";
+import { resetToReservationConfirmed } from "../../utils/booking-nav-reset";
 import {
   APP_DEFAULT_GRATUITY_PERCENT,
   APP_GRATUITY_PERCENTS,
@@ -50,6 +51,7 @@ import {
 const APP_PAYMENTS_ENABLED = false; // was: true
 
 export default function ReservationConfirmScreen() {
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<BookingDraft | null>(null);
   const [ready, setReady] = useState(false);
@@ -458,10 +460,7 @@ export default function ReservationConfirmScreen() {
       });
       if (result.success && result.bookingId) {
         await clearBookingDraft();
-        router.replace({
-          pathname: "/customer/reservation-pending",
-          params: { bookingId: result.bookingId },
-        });
+        resetToReservationConfirmed(navigation, result.bookingId);
       } else {
         const serverError =
           typeof (result as { error?: string }).error === "string"

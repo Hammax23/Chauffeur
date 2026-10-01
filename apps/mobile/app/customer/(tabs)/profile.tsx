@@ -8,7 +8,6 @@ import {
   Alert,
   Pressable,
   Platform,
-  Share,
 } from "react-native";
 import { useCallback, useState, type ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -117,60 +116,27 @@ export default function CustomerProfileScreen() {
     shareUrl: "https://sarjworldwide.ca",
     deepLink: "sarjworldwide://",
   });
-  const [referralLoading, setReferralLoading] = useState(true);
   const cardBlur = Platform.OS === "ios" ? 40 : 24;
 
   const fullName =
     [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || "Customer";
   const initials = `${user?.firstName?.[0] || "C"}${user?.lastName?.[0] || ""}`;
+  const rewardAmount = referral?.rewardAmount ?? 20;
 
   useFocusEffect(
     useCallback(() => {
       void (async () => {
-        setReferralLoading(true);
         try {
           const data = await getReferralStatus();
           if (data.success && data.referral) {
             setReferral(data.referral);
           }
         } catch {
-          /* keep soft card fallback */
-        } finally {
-          setReferralLoading(false);
+          /* keep soft fallback */
         }
       })();
     }, [])
   );
-
-  const shareReferral = useCallback(async () => {
-    if (!referral) return;
-    const link = referral.shareUrl || "https://sarjworldwide.ca";
-    const code = referral.referralCode?.trim();
-    try {
-      await Share.share({
-        message: code
-          ? `Join me on SARJ Worldwide for luxury chauffeur rides. ${link}`
-          : `Join me on SARJ Worldwide for luxury chauffeur rides. ${link}`,
-      });
-    } catch {
-      /* ignore */
-    }
-  }, [referral]);
-
-  const copyReferralCode = useCallback(async () => {
-    if (!referral?.referralCode) {
-      Alert.alert(
-        "Invite code",
-        "Your personal code isn’t ready yet. Make sure the app can reach the server, then open Profile again."
-      );
-      return;
-    }
-    try {
-      await Share.share({ message: referral.referralCode });
-    } catch {
-      Alert.alert("Your code", referral.referralCode);
-    }
-  }, [referral]);
 
   const handleLogout = async () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -334,69 +300,34 @@ export default function CustomerProfileScreen() {
             </Pressable>
           </BlurView>
 
-          {referral ? (
-            <View
+          <Pressable
+            onPress={() => router.push("/customer/refer-a-friend")}
+            style={({ pressed }) => [pressed && styles.pressed]}
+          >
+            <BlurView
+              intensity={cardBlur}
+              tint={palette.blurTint}
               style={[
-                styles.referralCard,
+                styles.referRow,
                 {
                   borderColor: palette.border,
-                  backgroundColor: isDark ? "rgba(201,160,99,0.12)" : "#FBF6EE",
+                  backgroundColor:
+                    Platform.OS === "android" ? palette.cardAndroid : "transparent",
                 },
               ]}
             >
-              <View style={styles.referralTop}>
-                <Ionicons name="gift-outline" size={20} color={GOLD} />
-                <Text style={[styles.referralTitle, { color: palette.text }]}>
-                  Invite 2 friends
+              <View style={styles.referIcon}>
+                <Text style={styles.referLetter}>R</Text>
+              </View>
+              <View style={styles.referCopy}>
+                <Text style={[styles.referTitle, { color: palette.text }]}>Refer a friend</Text>
+                <Text style={[styles.referSub, { color: palette.muted }]}>
+                  Give ${rewardAmount.toFixed(0)}, get ${rewardAmount.toFixed(0)}
                 </Text>
               </View>
-              <Text style={[styles.referralBody, { color: palette.muted }]}>
-                When two friends each complete their first paid ride, you unlock a one-time $
-                {referral.rewardAmount.toFixed(0)} off.
-              </Text>
-              <View style={styles.referralProgressRow}>
-                <Text style={[styles.referralProgress, { color: palette.text }]}>
-                  {Math.min(referral.qualifiedCount, referral.qualifyNeeded)}/
-                  {referral.qualifyNeeded} qualified
-                  {referral.pendingCount > 0 ? ` · ${referral.pendingCount} pending` : ""}
-                </Text>
-                {referral.rewardAvailable ? (
-                  <Text style={styles.referralReady}>$20 ready</Text>
-                ) : referral.rewardStatus === "REDEEMED" ? (
-                  <Text style={[styles.referralReady, { color: palette.muted }]}>Used</Text>
-                ) : null}
-              </View>
-              <View style={styles.referralCodeRow}>
-                <Text style={[styles.referralCode, { color: GOLD }]}>
-                  {referral.referralCode || (referralLoading ? "Loading…" : "Code unavailable")}
-                </Text>
-                {referral.referralCode ? (
-                  <Pressable
-                    onPress={() => void copyReferralCode()}
-                    hitSlop={8}
-                    style={({ pressed }) => [styles.referralCopyBtn, pressed && styles.pressed]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Copy referral code"
-                  >
-                    <Ionicons name="copy-outline" size={15} color={GOLD} />
-                    <Text style={[styles.referralCopyText, { color: GOLD }]}>Copy</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-              {!referral.referralCode && !referralLoading ? (
-                <Text style={[styles.referralBody, { color: palette.muted, marginBottom: 10 }]}>
-                  Personal code will appear after the referral update is applied on the server.
-                </Text>
-              ) : null}
-              <Pressable
-                onPress={() => void shareReferral()}
-                style={({ pressed }) => [styles.referralShareBtn, pressed && styles.pressed]}
-              >
-                <Ionicons name="share-outline" size={16} color="#1A1208" />
-                <Text style={styles.referralShareText}>Share invite</Text>
-              </Pressable>
-            </View>
-          ) : null}
+              <Ionicons name="chevron-forward" size={16} color={palette.menuChevron} />
+            </BlurView>
+          </Pressable>
 
           <Text style={styles.sectionEyebrow}>SUPPORT</Text>
           <MenuGroup {...groupCommon}>
@@ -596,80 +527,43 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#1A1208",
   },
-  referralCard: {
-    borderRadius: 18,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 20,
-  },
-  referralTop: {
+  referRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 8,
+    gap: 12,
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    marginBottom: 20,
+    overflow: "hidden",
   },
-  referralTitle: {
+  referIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(212,160,74,0.16)",
+  },
+  referLetter: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: GOLD,
+  },
+  referCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  referTitle: {
     fontSize: 16,
     fontWeight: "700",
+    letterSpacing: -0.2,
   },
-  referralBody: {
+  referSub: {
     fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 10,
-  },
-  referralProgressRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  referralProgress: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  referralReady: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#166534",
-  },
-  referralCodeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-    gap: 10,
-  },
-  referralCode: {
-    fontSize: 18,
-    fontWeight: "800",
-    letterSpacing: 1,
-    flex: 1,
-  },
-  referralCopyBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-  },
-  referralCopyText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  referralShareBtn: {
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: GOLD,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  referralShareText: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#1A1208",
+    fontWeight: "500",
   },
   sectionEyebrow: {
     fontSize: 11,

@@ -28,8 +28,6 @@ import {
   type AppFleetVehicleDto,
   getActiveAppPromotions,
   type ActiveAppPromotion,
-  getReferralStatus,
-  type ReferralProgress,
 } from "../../../services/api";
 import { useReservationStream } from "../../../hooks/useReservationStream";
 import { SlimSpinner } from "../../../components/SlimSpinner";
@@ -55,19 +53,6 @@ const DEFAULT_REGION: Region = {
 };
 const MAP_LAT_DELTA = 0.028;
 const MAP_LNG_DELTA = 0.02;
-
-/** Soft Home invite card when API is down / schema not migrated yet. */
-const HOME_REFERRAL_FALLBACK: ReferralProgress = {
-  referralCode: "",
-  qualifyNeeded: 2,
-  qualifiedCount: 0,
-  pendingCount: 0,
-  rewardAmount: 20,
-  rewardStatus: null,
-  rewardAvailable: false,
-  shareUrl: "https://sarjworldwide.ca",
-  deepLink: "sarjworldwide://",
-};
 
 /** Center pin in the visible map band above the bottom sheet (not mid full-screen). */
 function regionForVisibleMap(lat: number, lng: number, mapTopRatio: number): Region {
@@ -173,10 +158,6 @@ export default function CustomerHomeScreen() {
   const [fleetPreview, setFleetPreview] = useState<AppFleetVehicleDto[]>([]);
   const [fleetLoading, setFleetLoading] = useState(true);
   const [homePromo, setHomePromo] = useState<ActiveAppPromotion | null>(null);
-  const [homeReferral, setHomeReferral] = useState<ReferralProgress | null>(
-    HOME_REFERRAL_FALLBACK
-  );
-  const invitePressScale = useRef(new Animated.Value(1)).current;
 
   const fullName = displayFullName(user?.firstName, user?.lastName);
 
@@ -304,35 +285,11 @@ export default function CustomerHomeScreen() {
     }
   }, []);
 
-  const loadHomeReferral = useCallback(async () => {
-    try {
-      const data = await getReferralStatus();
-      if (data.success && data.referral) {
-        if (data.referral.rewardStatus === "REDEEMED") {
-          setHomeReferral(null);
-        } else {
-          setHomeReferral(data.referral);
-        }
-        return;
-      }
-    } catch (e) {
-      if (__DEV__) {
-        console.warn(
-          "[home] referral soft card fallback:",
-          e instanceof Error ? e.message : e
-        );
-      }
-    }
-    // Keep discovery card visible even if API/schema isn't ready yet
-    setHomeReferral(HOME_REFERRAL_FALLBACK);
-  }, []);
-
   useFocusEffect(
     useCallback(() => {
       void resolveLocationIfNeeded();
       void loadFleetPreview();
       void loadHomePromo();
-      void loadHomeReferral();
       (async () => {
         try {
           const data = await getReservations();
@@ -345,7 +302,7 @@ export default function CustomerHomeScreen() {
           setActiveRide(null);
         }
       })();
-    }, [resolveLocationIfNeeded, loadFleetPreview, loadHomePromo, loadHomeReferral])
+    }, [resolveLocationIfNeeded, loadFleetPreview, loadHomePromo])
   );
 
   const liveBookingId = activeRide?.bookingId ?? null;
@@ -761,167 +718,6 @@ export default function CustomerHomeScreen() {
             </View>
           ) : null}
 
-          {homeReferral ? (
-            <Animated.View
-              style={[
-                styles.inviteRibbonWrap,
-                { transform: [{ scale: invitePressScale }] },
-              ]}
-            >
-              <Pressable
-                onPressIn={() => {
-                  Animated.spring(invitePressScale, {
-                    toValue: 0.975,
-                    friction: 7,
-                    tension: 140,
-                    useNativeDriver: true,
-                  }).start();
-                }}
-                onPressOut={() => {
-                  Animated.spring(invitePressScale, {
-                    toValue: 1,
-                    friction: 6,
-                    tension: 120,
-                    useNativeDriver: true,
-                  }).start();
-                }}
-                onPress={() =>
-                  homeReferral.rewardAvailable
-                    ? router.push("/customer/create-reservation")
-                    : router.push("/customer/profile")
-                }
-                accessibilityRole="button"
-                accessibilityLabel={
-                  homeReferral.rewardAvailable
-                    ? "Referral credit ready. Book a ride."
-                    : "Invite friends for referral reward"
-                }
-              >
-                {Platform.OS === "ios" ? (
-                  <BlurView
-                    intensity={homeReferral.rewardAvailable ? 55 : 50}
-                    tint="systemUltraThinMaterialDark"
-                    style={styles.inviteRibbon}
-                  >
-                    <LinearGradient
-                      colors={
-                        homeReferral.rewardAvailable
-                          ? ["rgba(28,22,14,0.88)", "rgba(18,14,10,0.82)", "rgba(12,10,8,0.9)"]
-                          : ["rgba(16,12,10,0.9)", "rgba(10,8,6,0.86)", "rgba(8,6,5,0.92)"]
-                      }
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={StyleSheet.absoluteFillObject}
-                    />
-                    <View style={styles.inviteGlassHighlight} pointerEvents="none" />
-                    <View style={styles.inviteGoldEdge} />
-                    <View style={styles.inviteRibbonBody}>
-                      <Text style={styles.inviteEyebrow}>
-                        {homeReferral.rewardAvailable ? "YOUR REWARD" : "INVITE & EARN"}
-                      </Text>
-                      <Text style={styles.inviteTitle} numberOfLines={2}>
-                        {homeReferral.rewardAvailable
-                          ? `$${homeReferral.rewardAmount.toFixed(0)} off your next ride`
-                          : `Two friends ride · you get $${homeReferral.rewardAmount.toFixed(0)}`}
-                      </Text>
-                      {homeReferral.rewardAvailable ? (
-                        <Text style={styles.inviteSub}>Ready at checkout — one time only</Text>
-                      ) : (
-                        <View style={styles.inviteTrack}>
-                          {Array.from({ length: homeReferral.qualifyNeeded }).map((_, i) => {
-                            const filled = i < homeReferral.qualifiedCount;
-                            return (
-                              <View
-                                key={i}
-                                style={[
-                                  styles.inviteTrackSeg,
-                                  filled && styles.inviteTrackSegOn,
-                                ]}
-                              />
-                            );
-                          })}
-                          <Text style={styles.inviteTrackLabel}>
-                            {Math.min(homeReferral.qualifiedCount, homeReferral.qualifyNeeded)} of{" "}
-                            {homeReferral.qualifyNeeded} complete
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                    <View
-                      style={[
-                        styles.inviteCta,
-                        homeReferral.rewardAvailable && styles.inviteCtaReady,
-                      ]}
-                    >
-                      <Text style={styles.inviteCtaText}>
-                        {homeReferral.rewardAvailable ? "Book" : "Share"}
-                      </Text>
-                      <Ionicons name="arrow-forward" size={13} color="#1A1208" />
-                    </View>
-                  </BlurView>
-                ) : (
-                  <LinearGradient
-                    colors={
-                      homeReferral.rewardAvailable
-                        ? ["#1A1510", "#14100C", "#0E0C0A"]
-                        : isDark
-                          ? ["#0E0C0A", "#12100E"]
-                          : ["#0C0A08", "#14110E"]
-                    }
-                    start={{ x: 0, y: 0.5 }}
-                    end={{ x: 1, y: 0.5 }}
-                    style={styles.inviteRibbon}
-                  >
-                    <View style={styles.inviteGoldEdge} />
-                    <View style={styles.inviteRibbonBody}>
-                      <Text style={styles.inviteEyebrow}>
-                        {homeReferral.rewardAvailable ? "YOUR REWARD" : "INVITE & EARN"}
-                      </Text>
-                      <Text style={styles.inviteTitle} numberOfLines={2}>
-                        {homeReferral.rewardAvailable
-                          ? `$${homeReferral.rewardAmount.toFixed(0)} off your next ride`
-                          : `Two friends ride · you get $${homeReferral.rewardAmount.toFixed(0)}`}
-                      </Text>
-                      {homeReferral.rewardAvailable ? (
-                        <Text style={styles.inviteSub}>Ready at checkout — one time only</Text>
-                      ) : (
-                        <View style={styles.inviteTrack}>
-                          {Array.from({ length: homeReferral.qualifyNeeded }).map((_, i) => {
-                            const filled = i < homeReferral.qualifiedCount;
-                            return (
-                              <View
-                                key={i}
-                                style={[
-                                  styles.inviteTrackSeg,
-                                  filled && styles.inviteTrackSegOn,
-                                ]}
-                              />
-                            );
-                          })}
-                          <Text style={styles.inviteTrackLabel}>
-                            {Math.min(homeReferral.qualifiedCount, homeReferral.qualifyNeeded)} of{" "}
-                            {homeReferral.qualifyNeeded} complete
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                    <View
-                      style={[
-                        styles.inviteCta,
-                        homeReferral.rewardAvailable && styles.inviteCtaReady,
-                      ]}
-                    >
-                      <Text style={styles.inviteCtaText}>
-                        {homeReferral.rewardAvailable ? "Book" : "Share"}
-                      </Text>
-                      <Ionicons name="arrow-forward" size={13} color="#1A1208" />
-                    </View>
-                  </LinearGradient>
-                )}
-              </Pressable>
-            </Animated.View>
-          ) : null}
-
           {/* Live trip */}
           {activeRide ? (
             <Pressable
@@ -955,7 +751,7 @@ export default function CustomerHomeScreen() {
             </Pressable>
           ) : null}
 
-          {/* Service tiles — Ride primary, Parcel secondary */}
+          {/* Service tiles */}
           <View style={[styles.serviceGrid, layout.isCompact && { gap: 8 }]}>
             <Pressable
               onPress={openRide}
@@ -1071,34 +867,112 @@ export default function CustomerHomeScreen() {
             <Pressable
               onPress={openParcel}
               style={({ pressed }) => [
-                styles.parcelTile,
-                {
-                  backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "#FFF",
-                  borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
-                },
-                layout.isCompact && { minHeight: 132, padding: 12 },
-                pressed && styles.pressed,
+                styles.rideTileOuter,
+                pressed && styles.rideTilePressed,
               ]}
             >
-              <View style={styles.parcelIcon}>
-                <Ionicons name="cube-outline" size={20} color={ACCENT} />
-              </View>
-              <Text
+              <View
                 style={[
-                  styles.parcelTitle,
-                  { color: isDark ? "#F5F5F7" : "#1C1C1E" },
-                  layout.isCompact && { fontSize: 14 },
+                  styles.rideTile,
+                  {
+                    borderColor: isDark
+                      ? "rgba(255,255,255,0.22)"
+                      : "rgba(255,255,255,0.85)",
+                    backgroundColor: isDark
+                      ? "rgba(255,255,255,0.06)"
+                      : "rgba(255,255,255,0.38)",
+                  },
+                  layout.isCompact && { minHeight: 132, padding: 12 },
                 ]}
-                numberOfLines={2}
               >
-                Send a Parcel
-              </Text>
-              <Text
-                style={[styles.parcelSub, { color: isDark ? "#A1A1AA" : "#64748b" }]}
-                numberOfLines={2}
-              >
-                Same-day chauffeur delivery
-              </Text>
+                {Platform.OS === "ios" ? (
+                  <BlurView
+                    intensity={isDark ? 42 : 64}
+                    tint={isDark ? "dark" : "light"}
+                    style={StyleSheet.absoluteFill}
+                  />
+                ) : null}
+                <LinearGradient
+                  colors={
+                    isDark
+                      ? [
+                          "rgba(232,192,120,0.18)",
+                          "rgba(255,255,255,0.04)",
+                          "rgba(255,255,255,0.02)",
+                        ]
+                      : [
+                          "rgba(255,255,255,0.72)",
+                          "rgba(255,248,238,0.42)",
+                          "rgba(212,160,74,0.10)",
+                        ]
+                  }
+                  locations={[0, 0.45, 1]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                  pointerEvents="none"
+                />
+                <View
+                  style={[
+                    styles.rideSpeculum,
+                    {
+                      backgroundColor: isDark
+                        ? "rgba(255,255,255,0.10)"
+                        : "rgba(255,255,255,0.55)",
+                    },
+                  ]}
+                  pointerEvents="none"
+                />
+
+                <View
+                  style={[
+                    styles.rideIconWrap,
+                    {
+                      backgroundColor: isDark
+                        ? "rgba(255,255,255,0.10)"
+                        : "rgba(255,255,255,0.55)",
+                      borderColor: isDark
+                        ? "rgba(232,192,120,0.35)"
+                        : "rgba(212,160,74,0.28)",
+                    },
+                  ]}
+                >
+                  <Ionicons name="cube" size={22} color={ACCENT} />
+                </View>
+
+                <View style={styles.rideCopy}>
+                  <Text
+                    style={[
+                      styles.rideTitle,
+                      { color: isDark ? "#FFF" : "#1A1510" },
+                      layout.isCompact && { fontSize: 15 },
+                    ]}
+                  >
+                    Send a Parcel
+                  </Text>
+                  <Text
+                    style={[
+                      styles.rideSub,
+                      { color: isDark ? "rgba(255,255,255,0.58)" : "rgba(28,22,16,0.52)" },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    Same-day chauffeur delivery
+                  </Text>
+                </View>
+
+                <View style={styles.rideCta}>
+                  <LinearGradient
+                    colors={["#E8C078", ACCENT, "#B8862E"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.rideCtaGrad}
+                  >
+                    <Text style={styles.rideCtaText}>Reserve</Text>
+                    <Ionicons name="arrow-forward" size={13} color="#1A1208" />
+                  </LinearGradient>
+                </View>
+              </View>
             </Pressable>
           </View>
 
@@ -1504,118 +1378,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 10,
   },
-  inviteRibbonWrap: {
-    marginBottom: 16,
-    borderRadius: 18,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.22,
-        shadowRadius: 18,
-      },
-      android: { elevation: 6 },
-    }),
-  },
-  inviteRibbon: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 18,
-    overflow: "hidden",
-    minHeight: 92,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.14)",
-  },
-  inviteGlassHighlight: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: "40%",
-    backgroundColor: "rgba(255,255,255,0.03)",
-  },
-  inviteGoldEdge: {
-    width: 3,
-    alignSelf: "stretch",
-    backgroundColor: GOLD,
-    zIndex: 1,
-  },
-  inviteRibbonBody: {
-    flex: 1,
-    minWidth: 0,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    gap: 4,
-    zIndex: 1,
-  },
-  inviteEyebrow: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1.6,
-    color: GOLD,
-  },
-  inviteTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#F7F1E8",
-    letterSpacing: -0.2,
-    lineHeight: 21,
-  },
-  inviteSub: {
-    marginTop: 2,
-    fontSize: 12,
-    fontWeight: "500",
-    color: "rgba(247,241,232,0.55)",
-  },
-  inviteTrack: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 8,
-  },
-  inviteTrackSeg: {
-    width: 28,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: "rgba(247,241,232,0.18)",
-  },
-  inviteTrackSegOn: {
-    backgroundColor: GOLD,
-  },
-  inviteTrackLabel: {
-    marginLeft: 4,
-    fontSize: 11,
-    fontWeight: "600",
-    color: "rgba(247,241,232,0.5)",
-  },
-  inviteCta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginRight: 12,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: GOLD,
-    zIndex: 1,
-    ...Platform.select({
-      ios: {
-        shadowColor: GOLD,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.35,
-        shadowRadius: 8,
-      },
-      android: { elevation: 2 },
-    }),
-  },
-  inviteCtaReady: {
-    backgroundColor: "#E8C078",
-  },
-  inviteCtaText: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#1A1208",
-  },
   brandMark: {
     fontSize: 10,
     fontWeight: "800",
@@ -1706,7 +1468,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   rideTileOuter: {
-    flex: 1.15,
+    flex: 1,
     minWidth: 0,
     borderRadius: 22,
     ...Platform.select({
@@ -1789,34 +1551,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#1A1208",
     letterSpacing: -0.1,
-  },
-  parcelTile: {
-    flex: 0.95,
-    minWidth: 0,
-    minHeight: 148,
-    borderRadius: 20,
-    padding: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    justifyContent: "flex-start",
-  },
-  parcelIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "rgba(212,160,74,0.14)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 12,
-  },
-  parcelTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    letterSpacing: -0.2,
-  },
-  parcelSub: {
-    marginTop: 6,
-    fontSize: 12,
-    lineHeight: 16,
   },
   fleetHeader: {
     flexDirection: "row",

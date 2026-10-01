@@ -9,14 +9,15 @@ import {
   Pressable,
   Platform,
   TextInput,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { getHistoryReservations, hideReservationFromHistory, type Reservation } from "../../../services/api";
+import {
+  getHistoryReservations,
+  type Reservation,
+} from "../../../services/api";
 import { useCustomerTheme } from "../../../contexts/CustomerThemeContext";
 import { SlimSpinner } from "../../../components/SlimSpinner";
 import { GOLD } from "../../../theme/driver-theme";
@@ -31,153 +32,215 @@ function shortLoc(s?: string | null) {
   return s.split(",")[0]?.trim() || s.trim();
 }
 
+function formatHistoryWhen(serviceDate: string, serviceTime: string): string {
+  const time = (serviceTime || "").trim() || "—";
+  const raw = (serviceDate || "").trim();
+  if (!raw) return time;
+
+  const parsed = new Date(raw.includes("T") ? raw : `${raw}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    return `${raw} · ${time}`;
+  }
+
+  const weekday = parsed.toLocaleDateString(undefined, { weekday: "short" });
+  const day = parsed.getDate();
+  const month = parsed.toLocaleDateString(undefined, { month: "short" });
+  return `${weekday}, ${day} ${month} · ${time}`;
+}
+
+function dropoffLine(r: Reservation): string {
+  if (isParcelServiceType(r.serviceType)) {
+    return shortLoc(r.dropoffLocation);
+  }
+  const drop = (r.dropoffLocation || "").trim();
+  const dur = (r.duration || "").trim();
+  const hourly =
+    /hour/i.test(dur) ||
+    /hourly/i.test(r.serviceType || "") ||
+    /^as directed$/i.test(drop);
+  if (hourly) {
+    const hours = dur.match(/(\d+)\s*h/i)?.[1] || dur.match(/(\d+)/)?.[1];
+    return hours ? `By the hour · ${hours} hrs` : "By the hour";
+  }
+  return shortLoc(drop || "—");
+}
+
+function openTripDetail(bookingId: string) {
+  router.push({
+    pathname: "/customer/trip-detail",
+    params: { bookingId },
+  });
+}
+
 function HistoryCard({
   reservation,
   palette,
-  cardBlur,
-  removing,
-  onRemove,
+  isDark,
 }: {
   reservation: Reservation;
   palette: ReturnType<typeof useCustomerTheme>["palette"];
-  cardBlur: number;
-  removing?: boolean;
-  onRemove: (bookingId: string) => void;
+  isDark: boolean;
 }) {
   const isDone = reservation.status === "DONE";
+  const isCancelled =
+    reservation.status === "CANCELLED" || reservation.status === "CANCELED";
+  const stars = reservation.review?.stars ?? 0;
+  const total = Number(reservation.total || 0);
+  const priceLabel =
+    isCancelled && total <= 0 ? "No charge" : `$${total.toFixed(2)}`;
+
+  const onRebook = () => {
+    router.push({
+      pathname: "/customer/create-reservation",
+      params: {
+        pickup: reservation.pickupLocation || "",
+        dropoff: reservation.dropoffLocation || "",
+      },
+    });
+  };
+
+  const onReceipt = () => {
+    openTripDetail(reservation.bookingId);
+  };
+
   return (
     <Pressable
-      style={({ pressed }) => [styles.cardWrap, pressed && styles.pressed]}
-      onPress={() =>
-        router.push({
-          pathname: "/customer/trip-detail",
-          params: { bookingId: reservation.bookingId },
-        })
-      }
-      disabled={removing}
+      style={({ pressed }) => [
+        styles.card,
+        {
+          backgroundColor: isDark
+            ? "rgba(28,28,30,0.92)"
+            : "rgba(255,255,255,0.92)",
+          borderColor: palette.border,
+        },
+        pressed && styles.pressed,
+      ]}
+      onPress={() => openTripDetail(reservation.bookingId)}
     >
-      <BlurView
-        intensity={cardBlur}
-        tint={palette.blurTint}
-        style={[
-          styles.card,
-          {
-            borderColor: palette.border,
-            backgroundColor: Platform.OS === "android" ? palette.cardAndroid : "transparent",
-            opacity: removing ? 0.55 : 1,
-          },
-        ]}
-      >
-        <View style={styles.rowBetween}>
-          <Text style={styles.bookingId}>{reservation.bookingId}</Text>
-          <View style={styles.topActions}>
-            <View
-              style={[
-                styles.statusPill,
-                {
-                  backgroundColor: isDone ? "rgba(52,199,89,0.14)" : "rgba(255,69,58,0.12)",
-                  borderColor: isDone ? "rgba(52,199,89,0.4)" : "rgba(255,69,58,0.35)",
-                },
-              ]}
-            >
-              <Text style={[styles.statusText, { color: isDone ? "#34C759" : "#FF453A" }]}>
-                {isDone ? "COMPLETED" : "CANCELLED"}
-              </Text>
-            </View>
-            <Pressable
-              hitSlop={10}
-              onPress={() => onRemove(reservation.bookingId)}
-              style={({ pressed }) => [styles.removeBtn, pressed && { opacity: 0.7 }]}
-              accessibilityLabel="Remove from History"
-            >
-              {removing ? (
-                <SlimSpinner size={16} stroke={2} color="#FF453A" />
-              ) : (
-                <Ionicons name="trash-outline" size={18} color="#FF453A" />
-              )}
-            </Pressable>
-          </View>
-        </View>
-
-        {reservation.vehicle ? (
-          <Text style={[styles.vehicleName, { color: palette.text }]} numberOfLines={1}>
-            {reservation.vehicle}
-          </Text>
-        ) : null}
-
-        <View style={styles.chipRow}>
-          <View
-            style={[
-              styles.metaChip,
-              { backgroundColor: palette.metaChipBg, borderColor: palette.border },
-            ]}
-          >
-            <Ionicons name="calendar-outline" size={13} color={GOLD} />
-            <Text style={[styles.metaChipText, { color: palette.metaText }]}>
-              {reservation.serviceDate} · {reservation.serviceTime}
-            </Text>
-          </View>
-          <View
-            style={[
-              styles.metaChip,
-              { backgroundColor: palette.metaChipBg, borderColor: palette.border },
-            ]}
-          >
-            <Ionicons
-              name={isParcelServiceType(reservation.serviceType) ? "cube-outline" : "people-outline"}
-              size={13}
-              color={GOLD}
-            />
-            <Text style={[styles.metaChipText, { color: palette.metaText }]}>
-              {isParcelServiceType(reservation.serviceType)
-                ? "Parcel"
-                : `${reservation.passengers} pax`}
-            </Text>
-          </View>
-        </View>
-
+      <View style={styles.cardTop}>
+        <Text style={[styles.whenText, { color: palette.text }]} numberOfLines={1}>
+          {formatHistoryWhen(reservation.serviceDate, reservation.serviceTime)}
+        </Text>
         <View
           style={[
-            styles.routeCard,
-            { backgroundColor: palette.routeBg, borderColor: palette.border },
+            styles.statusPill,
+            {
+              backgroundColor: isDone
+                ? isDark
+                  ? "rgba(52,199,89,0.16)"
+                  : "rgba(22,163,74,0.12)"
+                : isDark
+                  ? "rgba(255,69,58,0.14)"
+                  : "rgba(220,38,38,0.1)",
+              borderColor: isDone
+                ? isDark
+                  ? "rgba(52,199,89,0.35)"
+                  : "rgba(22,163,74,0.28)"
+                : isDark
+                  ? "rgba(255,69,58,0.35)"
+                  : "rgba(220,38,38,0.28)",
+            },
           ]}
         >
-          <View style={styles.routeRail}>
-            <View style={[styles.routeDot, { backgroundColor: "#34C759" }]} />
-            <View style={[styles.routeLine, { backgroundColor: palette.routeLine }]} />
-            <View style={[styles.routeDot, { backgroundColor: "#FF453A" }]} />
-          </View>
-          <View style={styles.routeCopy}>
-            <View style={styles.routeBlock}>
-              <Text style={[styles.routeLabel, { color: palette.muted }]}>PICKUP</Text>
-              <Text style={[styles.locationText, { color: palette.location }]} numberOfLines={2}>
-                {shortLoc(reservation.pickupLocation)}
+          <Text
+            style={[
+              styles.statusPillText,
+              {
+                color: isDone
+                  ? isDark
+                    ? "#34C759"
+                    : "#15803D"
+                  : isDark
+                    ? "#FF453A"
+                    : "#DC2626",
+              },
+            ]}
+          >
+            {isDone ? "Completed" : "Cancelled"}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.routeRow}>
+        <View style={[styles.routeDot, { backgroundColor: isDark ? "#F5F5F7" : "#1C1C1E" }]} />
+        <Text style={[styles.routeText, { color: palette.location }]} numberOfLines={1}>
+          {shortLoc(reservation.pickupLocation)}
+        </Text>
+        <Text style={[styles.routeArrow, { color: palette.muted }]}>→</Text>
+        <Text style={[styles.routeText, { color: palette.location, flex: 1 }]} numberOfLines={1}>
+          {dropoffLine(reservation)}
+        </Text>
+      </View>
+
+      <View style={[styles.divider, { backgroundColor: palette.border }]} />
+
+      <View style={styles.cardFooter}>
+        <View style={styles.metaCol}>
+          <Text style={[styles.metaLine, { color: palette.muted }]} numberOfLines={1}>
+            {reservation.vehicle || "Vehicle"}
+            <Text style={{ color: GOLD }}> · {priceLabel}</Text>
+          </Text>
+          {isDone && reservation.review ? (
+            <View style={styles.ratingRow}>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <Ionicons
+                  key={n}
+                  name={n <= stars ? "star" : "star-outline"}
+                  size={12}
+                  color={n <= stars ? GOLD : palette.muted}
+                />
+              ))}
+              <Text style={[styles.ratingCopy, { color: palette.muted }]}>
+                You rated {stars}
               </Text>
             </View>
-            <View style={styles.routeBlock}>
-              <Text style={[styles.routeLabel, { color: palette.muted }]}>DROPOFF</Text>
-              <Text style={[styles.locationText, { color: palette.location }]} numberOfLines={2}>
-                {shortLoc(reservation.dropoffLocation)}
-              </Text>
-            </View>
-          </View>
+          ) : null}
         </View>
 
-        <View style={styles.footerRow}>
-          <Text style={styles.totalText}>${Number(reservation.total || 0).toFixed(2)} CAD</Text>
-          <View style={styles.ctaRow}>
-            <Text style={[styles.ctaText, { color: palette.text }]}>View</Text>
-            <Ionicons name="chevron-forward" size={16} color={palette.icon} />
-          </View>
+        <View style={styles.actions}>
+          <Pressable
+            onPress={(e) => {
+              e?.stopPropagation?.();
+              onReceipt();
+            }}
+            style={({ pressed }) => [
+              styles.receiptBtn,
+              {
+                borderColor: palette.border,
+                backgroundColor: palette.metaChipBg,
+              },
+              pressed && styles.pressed,
+            ]}
+            hitSlop={4}
+          >
+            <Text style={[styles.receiptBtnText, { color: palette.text }]}>Receipt</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={(e) => {
+              e?.stopPropagation?.();
+              onRebook();
+            }}
+            style={({ pressed }) => [styles.rebookBtn, pressed && styles.pressed]}
+            hitSlop={4}
+          >
+            <LinearGradient
+              colors={["#E8C078", GOLD, "#B8862E"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.rebookGradient}
+            >
+              <Text style={styles.rebookBtnText}>Rebook</Text>
+            </LinearGradient>
+          </Pressable>
         </View>
-      </BlurView>
+      </View>
     </Pressable>
   );
 }
 
 export default function HistoryScreen() {
-  const { palette } = useCustomerTheme();
-  const cardBlur = Platform.OS === "ios" ? 36 : 22;
+  const { palette, isDark } = useCustomerTheme();
 
   const [items, setItems] = useState<Reservation[]>([]);
   const [page, setPage] = useState(1);
@@ -190,7 +253,6 @@ export default function HistoryScreen() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [search, setSearch] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
-  const [removingId, setRemovingId] = useState<string | null>(null);
   const fetchGen = useRef(0);
 
   useEffect(() => {
@@ -253,44 +315,6 @@ export default function HistoryScreen() {
     void fetchPage(page + 1, "append");
   };
 
-  const confirmRemove = useCallback((bookingId: string) => {
-    Alert.alert(
-      "Remove from History?",
-      "This hides the trip from your History list only. It does not delete the booking from SARJ records (needed for receipts, billing, and support).",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: () => {
-            void (async () => {
-              setRemovingId(bookingId);
-              try {
-                const res = await hideReservationFromHistory(bookingId);
-                if (!res.ok || !res.data.success) {
-                  Alert.alert(
-                    "Unable to remove",
-                    res.data.error || "Please try again."
-                  );
-                  return;
-                }
-                setItems((prev) => prev.filter((r) => r.bookingId !== bookingId));
-                setTotal((t) => Math.max(0, t - 1));
-              } catch (e) {
-                Alert.alert(
-                  "Unable to remove",
-                  e instanceof Error ? e.message : "Please try again."
-                );
-              } finally {
-                setRemovingId(null);
-              }
-            })();
-          },
-        },
-      ]
-    );
-  }, []);
-
   const filters: { id: StatusFilter; label: string }[] = [
     { id: "ALL", label: "All" },
     { id: "DONE", label: "Completed" },
@@ -327,7 +351,9 @@ export default function HistoryScreen() {
             style={[
               styles.searchWrap,
               {
-                backgroundColor: Platform.OS === "android" ? palette.cardAndroid : "rgba(255,255,255,0.55)",
+                backgroundColor: isDark
+                  ? "rgba(28,28,30,0.85)"
+                  : "rgba(255,255,255,0.85)",
                 borderColor: palette.border,
               },
             ]}
@@ -360,7 +386,11 @@ export default function HistoryScreen() {
                   style={({ pressed }) => [
                     styles.filterChip,
                     {
-                      backgroundColor: active ? GOLD : "rgba(255,255,255,0.45)",
+                      backgroundColor: active
+                        ? GOLD
+                        : isDark
+                          ? "rgba(255,255,255,0.06)"
+                          : "rgba(0,0,0,0.045)",
                       borderColor: active ? GOLD : palette.border,
                     },
                     pressed && styles.pressed,
@@ -386,10 +416,11 @@ export default function HistoryScreen() {
           </View>
         ) : loadError ? (
           <View style={styles.padded}>
-            <BlurView
-              intensity={cardBlur}
-              tint={palette.blurTint}
-              style={[styles.emptyCard, { borderColor: palette.border }]}
+            <View
+              style={[
+                styles.emptyCard,
+                { backgroundColor: palette.cardAndroid, borderColor: palette.border },
+              ]}
             >
               <View style={styles.emptyIconWrap}>
                 <Ionicons name="cloud-offline-outline" size={26} color={GOLD} />
@@ -411,7 +442,7 @@ export default function HistoryScreen() {
                   <Text style={styles.retryText}>Retry</Text>
                 </LinearGradient>
               </Pressable>
-            </BlurView>
+            </View>
           </View>
         ) : (
           <FlatList
@@ -430,10 +461,11 @@ export default function HistoryScreen() {
             onEndReached={onEndReached}
             onEndReachedThreshold={0.35}
             ListEmptyComponent={
-              <BlurView
-                intensity={cardBlur}
-                tint={palette.blurTint}
-                style={[styles.emptyCard, { borderColor: palette.border }]}
+              <View
+                style={[
+                  styles.emptyCard,
+                  { backgroundColor: palette.cardAndroid, borderColor: palette.border },
+                ]}
               >
                 <View style={styles.emptyIconWrap}>
                   <Ionicons name="time-outline" size={26} color={GOLD} />
@@ -446,7 +478,7 @@ export default function HistoryScreen() {
                     ? "Try a different search or filter."
                     : "Completed rides will appear here."}
                 </Text>
-              </BlurView>
+              </View>
             }
             ListFooterComponent={
               loadingMore ? (
@@ -464,12 +496,10 @@ export default function HistoryScreen() {
               <HistoryCard
                 reservation={item}
                 palette={palette}
-                cardBlur={cardBlur}
-                removing={removingId === item.bookingId}
-                onRemove={confirmRemove}
+                isDark={isDark}
               />
             )}
-            ItemSeparatorComponent={() => <View style={{ height: 14 }} />}
+            ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
           />
         )}
       </SafeAreaView>
@@ -537,145 +567,144 @@ const styles = StyleSheet.create({
   },
   filterText: { fontSize: 13, fontWeight: "700" },
   contentContainer: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     paddingBottom: 110,
     flexGrow: 1,
   },
-  padded: { paddingHorizontal: 18 },
-  cardWrap: {
-    borderRadius: 22,
+  padded: { paddingHorizontal: 16 },
+  card: {
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 14,
+    borderWidth: StyleSheet.hairlineWidth,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.28,
-        shadowRadius: 18,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.18,
+        shadowRadius: 16,
       },
-      android: { elevation: 5 },
+      android: { elevation: 3 },
     }),
   },
-  card: {
-    borderRadius: 22,
-    overflow: "hidden",
-    padding: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  rowBetween: {
+  cardTop: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "center",
-    gap: 10,
+    gap: 12,
+    marginBottom: 10,
   },
-  bookingId: {
+  whenText: {
     flex: 1,
-    fontSize: 13,
-    color: GOLD,
-    fontWeight: "700",
-  },
-  topActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  removeBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,69,58,0.1)",
-  },
-  statusPill: {
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.4,
-  },
-  vehicleName: {
-    marginTop: 8,
     fontSize: 16,
     fontWeight: "700",
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
   },
-  chipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 12,
-  },
-  metaChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
+  statusPill: {
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
+    flexShrink: 0,
   },
-  metaChipText: {
-    fontSize: 12,
-    fontWeight: "500",
+  statusPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: -0.1,
   },
-  routeCard: {
+  routeRow: {
     flexDirection: "row",
-    gap: 12,
-    borderRadius: 16,
-    padding: 14,
-    marginTop: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  routeRail: {
-    width: 14,
     alignItems: "center",
-    paddingVertical: 4,
+    gap: 7,
+    marginBottom: 12,
+    minWidth: 0,
   },
   routeDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    flexShrink: 0,
   },
-  routeLine: {
-    flex: 1,
-    width: 2,
-    marginVertical: 4,
-    borderRadius: 1,
+  routeText: {
+    fontSize: 14,
+    fontWeight: "600",
+    letterSpacing: -0.15,
+    flexShrink: 1,
   },
-  routeCopy: { flex: 1, gap: 12 },
-  routeBlock: { gap: 3 },
-  routeLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1.1,
-  },
-  locationText: {
+  routeArrow: {
     fontSize: 14,
     fontWeight: "500",
-    lineHeight: 19,
+    flexShrink: 0,
   },
-  footerRow: {
-    marginTop: 14,
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginBottom: 12,
+  },
+  cardFooter: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
   },
-  totalText: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: GOLD,
+  metaCol: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4,
   },
-  ctaRow: {
+  metaLine: {
+    fontSize: 13,
+    fontWeight: "500",
+    letterSpacing: -0.1,
+  },
+  ratingRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 2,
+    flexWrap: "wrap",
   },
-  ctaText: {
+  ratingCopy: {
+    fontSize: 11,
+    fontWeight: "500",
+    marginLeft: 4,
+  },
+  actions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 0,
+  },
+  receiptBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    minHeight: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  receiptBtnText: {
     fontSize: 13,
     fontWeight: "700",
+    letterSpacing: -0.1,
+  },
+  rebookBtn: {
+    borderRadius: 10,
+    overflow: "hidden",
+    minHeight: 36,
+  },
+  rebookGradient: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    minHeight: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rebookBtnText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#1A1208",
+    letterSpacing: -0.1,
   },
   emptyState: {
     alignItems: "center",
@@ -686,8 +715,7 @@ const styles = StyleSheet.create({
     marginTop: 24,
     paddingVertical: 36,
     paddingHorizontal: 24,
-    borderRadius: 22,
-    overflow: "hidden",
+    borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
     gap: 8,
   },
@@ -737,7 +765,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   pressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.985 }],
+    opacity: 0.86,
   },
 });

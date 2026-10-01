@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../contexts/AuthContext";
 import { useCustomerTheme } from "../../contexts/CustomerThemeContext";
@@ -35,17 +35,45 @@ const TICKET_TYPES = [
   "Other",
 ] as const;
 
+function paramStr(v?: string | string[]): string {
+  if (typeof v === "string") return v;
+  if (Array.isArray(v) && typeof v[0] === "string") return v[0];
+  return "";
+}
+
 export default function ContactUsScreen() {
   const { user } = useAuth();
   const { palette, isDark } = useCustomerTheme();
+  const params = useLocalSearchParams<{
+    type?: string | string[];
+    subject?: string | string[];
+    bookingId?: string | string[];
+  }>();
   const blurIntensity = Platform.OS === "ios" ? 48 : 28;
   const cardBlur = Platform.OS === "ios" ? 36 : 22;
 
-  const [type, setType] = useState<(typeof TICKET_TYPES)[number] | "">("");
-  const [subject, setSubject] = useState("");
+  const initialType = paramStr(params.type);
+  const initialSubject = paramStr(params.subject);
+  const bookingId = paramStr(params.bookingId);
+
+  const [type, setType] = useState<(typeof TICKET_TYPES)[number] | "">(
+    TICKET_TYPES.includes(initialType as (typeof TICKET_TYPES)[number])
+      ? (initialType as (typeof TICKET_TYPES)[number])
+      : ""
+  );
+  const [subject, setSubject] = useState(initialSubject);
   const [message, setMessage] = useState("");
   const [typePickerOpen, setTypePickerOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const t = paramStr(params.type);
+    if (TICKET_TYPES.includes(t as (typeof TICKET_TYPES)[number])) {
+      setType(t as (typeof TICKET_TYPES)[number]);
+    }
+    const s = paramStr(params.subject);
+    if (s) setSubject(s);
+  }, [params.type, params.subject]);
 
   const fullName = useMemo(
     () => [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || "Guest",
@@ -66,10 +94,11 @@ export default function ContactUsScreen() {
 
     setSubmitting(true);
     try {
+      const bookingNote = bookingId ? `\n\nBooking ID: ${bookingId}` : "";
       const res = await submitSupportTicket({
         type,
         subject: subject.trim() || undefined,
-        message: message.trim(),
+        message: `${message.trim()}${bookingNote}`,
       });
       if (!res.ok || !res.data.success) {
         Alert.alert("Unable to send", res.data.error || "Please try again.");
@@ -92,7 +121,7 @@ export default function ContactUsScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: palette.bg }]} edges={["top", "bottom"]}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: palette.root }]} edges={["top", "bottom"]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       <KeyboardAvoidingView
         style={styles.flex}

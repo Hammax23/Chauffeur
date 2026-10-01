@@ -15,13 +15,21 @@ import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
+import * as FileSystem from "expo-file-system/legacy";
 import { getReservationById, hideReservationFromHistory, type Reservation } from "../../services/api";
 import { useCustomerTheme } from "../../contexts/CustomerThemeContext";
 import { SlimSpinner } from "../../components/SlimSpinner";
 import { GOLD } from "../../theme/driver-theme";
 import { isParcelServiceType } from "../../utils/parcel";
+import {
+  buildReservationInvoiceHtml,
+  invoiceFileName,
+} from "../../utils/reservation-invoice";
 
-const IN_PROGRESS = new Set(["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP"]);
+/** Live trip only — PENDING/ACCEPTED stay on this detail screen. */
+const IN_PROGRESS = new Set(["ON THE WAY", "ARRIVED", "CIC", "STOP"]);
 
 function shortLoc(s?: string | null) {
   if (!s?.trim()) return "—";
@@ -31,6 +39,30 @@ function shortLoc(s?: string | null) {
 function money(n?: number | null) {
   if (n == null || Number.isNaN(Number(n))) return null;
   return `$${Number(n).toFixed(2)}`;
+}
+
+/** Customer-facing status (never show raw PENDING). */
+function customerStatusLabel(r: Reservation): {
+  label: string;
+  tone: "confirmed" | "assigned" | "live" | "done" | "cancelled";
+} {
+  if (r.status === "DONE") return { label: "Completed", tone: "done" };
+  if (r.status === "CANCELLED" || r.status === "CANCELED") {
+    return { label: "Cancelled", tone: "cancelled" };
+  }
+  if (!r.driver) return { label: "Confirmed", tone: "confirmed" };
+  switch (r.status) {
+    case "ON THE WAY":
+      return { label: "On the way", tone: "live" };
+    case "ARRIVED":
+      return { label: "Arrived", tone: "live" };
+    case "CIC":
+      return { label: "In trip", tone: "live" };
+    case "STOP":
+      return { label: "Stop", tone: "live" };
+    default:
+      return { label: "Chauffeur assigned", tone: "assigned" };
+  }
 }
 
 export default function TripDetailScreen() {
@@ -47,6 +79,7 @@ export default function TripDetailScreen() {
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [loading, setLoading] = useState(true);
   const [hiding, setHiding] = useState(false);
+  const [invoiceBusy, setInvoiceBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!bookingId) {
@@ -90,6 +123,7 @@ export default function TripDetailScreen() {
   const isCancelled =
     reservation?.status === "CANCELLED" || reservation?.status === "CANCELED";
   const canHideFromHistory = Boolean(isDone || isCancelled);
+  const statusUi = reservation ? customerStatusLabel(reservation) : null;
 
   const confirmHideFromHistory = () => {
     if (!reservation || hiding) return;
@@ -128,6 +162,62 @@ export default function TripDetailScreen() {
     );
   };
 
+  const downloadInvoice = async () => {
+    if (!reservation || invoiceBusy) return;
+    setInvoiceBusy(true);
+    try {
+      const html = buildReservationInvoiceHtml(reservation);
+      const printed = await Print.printToFileAsync({ html, base64: false });
+      const fileName = invoiceFileName(reservation.bookingId);
+      const destUri = `${FileSystem.cacheDirectory ?? ""}${fileName}`;
+      let shareUri = printed.uri;
+      try {
+        const info = await FileSystem.getInfoAsync(destUri);
+        if (info.exists) {
+          await FileSystem.deleteAsync(destUri, { idempotent: true });
+        }
+        await FileSystem.copyAsync({ from: printed.uri, to: destUri });
+        shareUri = destUri;
+      } catch {
+        // Fall back to print cache URI if rename/copy fails
+        shareUri = printed.uri;
+      }
+
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        Alert.alert(
+          "Invoice ready",
+          "PDF was created, but sharing/download isn’t available on this device."
+        );
+        return;
+      }
+      await Sharing.shareAsync(shareUri, {
+        mimeType: "application/pdf",
+        dialogTitle: fileName,
+        UTI: "com.adobe.pdf",
+      });
+    } catch (e) {
+      Alert.alert(
+        "Unable to download",
+        e instanceof Error ? e.message : "Could not create the invoice PDF."
+      );
+    } finally {
+      setInvoiceBusy(false);
+    }
+  };
+
+  const reportIssue = () => {
+    if (!reservation) return;
+    router.push({
+      pathname: "/customer/contact-us",
+      params: {
+        type: "Booking Issue",
+        subject: `Issue with booking ${reservation.bookingId}`,
+        bookingId: reservation.bookingId,
+      },
+    });
+  };
+
   const stops = (reservation?.stops || "")
     .split("|")
     .map((s) => s.trim())
@@ -142,12 +232,15 @@ export default function TripDetailScreen() {
     const total = money(reservation.total);
     if (ride) fareRows.push({ label: "Ride fare", value: ride });
     if (sub && sub !== ride) fareRows.push({ label: "Subtotal", value: sub });
-    if (hst) fareRows.push({ label: "HST", value: hst });
+    if (hst && Number(reservation.hst) > 0) fareRows.push({ label: "HST", value: hst });
     if (tip && Number(reservation.gratuity) > 0) {
       fareRows.push({ label: "Gratuity", value: tip });
     }
     if (total) fareRows.push({ label: "Total", value: `${total} CAD` });
   }
+
+  const showReceiptActions = Boolean(isDone || isCancelled);
+  const fareSectionLabel = showReceiptActions ? "RECEIPT" : "FARE";
 
   return (
     <View style={[styles.root, { backgroundColor: palette.root }]}>
@@ -199,34 +292,69 @@ export default function TripDetailScreen() {
             >
               <View style={styles.rowBetween}>
                 <Text style={styles.bookingId}>{reservation.bookingId}</Text>
-                <View
-                  style={[
-                    styles.statusPill,
-                    {
-                      backgroundColor: isDone
-                        ? "rgba(52,199,89,0.14)"
-                        : isCancelled
-                          ? "rgba(255,69,58,0.12)"
-                          : "rgba(142,142,147,0.14)",
-                      borderColor: isDone
-                        ? "rgba(52,199,89,0.4)"
-                        : isCancelled
-                          ? "rgba(255,69,58,0.35)"
-                          : "rgba(142,142,147,0.35)",
-                    },
-                  ]}
-                >
-                  <Text
+                {statusUi ? (
+                  <View
                     style={[
-                      styles.statusText,
+                      styles.statusPill,
                       {
-                        color: isDone ? "#34C759" : isCancelled ? "#FF453A" : "#8E8E93",
+                        backgroundColor:
+                          statusUi.tone === "done"
+                            ? "rgba(52,199,89,0.14)"
+                            : statusUi.tone === "cancelled"
+                              ? "rgba(255,69,58,0.12)"
+                              : statusUi.tone === "confirmed"
+                                ? isDark
+                                  ? "rgba(52,199,89,0.16)"
+                                  : "rgba(22,163,74,0.12)"
+                                : statusUi.tone === "live"
+                                  ? isDark
+                                    ? "rgba(10,132,255,0.18)"
+                                    : "rgba(37,99,235,0.12)"
+                                  : palette.hintBg,
+                        borderColor:
+                          statusUi.tone === "done"
+                            ? "rgba(52,199,89,0.4)"
+                            : statusUi.tone === "cancelled"
+                              ? "rgba(255,69,58,0.35)"
+                              : statusUi.tone === "confirmed"
+                                ? isDark
+                                  ? "rgba(52,199,89,0.35)"
+                                  : "rgba(22,163,74,0.28)"
+                                : statusUi.tone === "live"
+                                  ? isDark
+                                    ? "rgba(10,132,255,0.35)"
+                                    : "rgba(37,99,235,0.28)"
+                                  : palette.hintBorder,
                       },
                     ]}
                   >
-                    {isDone ? "COMPLETED" : isCancelled ? "CANCELLED" : reservation.status}
-                  </Text>
-                </View>
+                    <Text
+                      style={[
+                        styles.statusText,
+                        {
+                          color:
+                            statusUi.tone === "done"
+                              ? "#34C759"
+                              : statusUi.tone === "cancelled"
+                                ? "#FF453A"
+                                : statusUi.tone === "confirmed"
+                                  ? isDark
+                                    ? "#34C759"
+                                    : "#15803D"
+                                  : statusUi.tone === "live"
+                                    ? isDark
+                                      ? "#64D2FF"
+                                      : "#1D4ED8"
+                                    : isDark
+                                      ? "#E8C078"
+                                      : "#7A5A28",
+                        },
+                      ]}
+                    >
+                      {statusUi.label}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
 
               {reservation.vehicle ? (
@@ -382,7 +510,9 @@ export default function TripDetailScreen() {
 
             {fareRows.length > 0 ? (
               <>
-                <Text style={[styles.sectionLabel, { color: palette.muted }]}>FARE</Text>
+                <Text style={[styles.sectionLabel, { color: palette.muted }]}>
+                  {fareSectionLabel}
+                </Text>
                 <BlurView
                   intensity={cardBlur}
                   tint={palette.blurTint}
@@ -433,6 +563,51 @@ export default function TripDetailScreen() {
                   })}
                 </BlurView>
               </>
+            ) : null}
+
+            {showReceiptActions ? (
+              <View style={styles.receiptActions}>
+                <Pressable
+                  onPress={() => void downloadInvoice()}
+                  disabled={invoiceBusy}
+                  style={({ pressed }) => [
+                    styles.receiptActionBtn,
+                    {
+                      borderColor: palette.border,
+                      backgroundColor: isDark
+                        ? "rgba(255,255,255,0.04)"
+                        : "rgba(0,0,0,0.03)",
+                      opacity: invoiceBusy ? 0.7 : 1,
+                    },
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  {invoiceBusy ? (
+                    <SlimSpinner size={16} stroke={2} color={palette.text} />
+                  ) : (
+                    <Text style={[styles.receiptActionText, { color: palette.text }]}>
+                      Download invoice
+                    </Text>
+                  )}
+                </Pressable>
+                <Pressable
+                  onPress={reportIssue}
+                  style={({ pressed }) => [
+                    styles.receiptActionBtn,
+                    {
+                      borderColor: palette.border,
+                      backgroundColor: isDark
+                        ? "rgba(255,255,255,0.04)"
+                        : "rgba(0,0,0,0.03)",
+                    },
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={[styles.receiptActionText, { color: palette.text }]}>
+                    Report an issue
+                  </Text>
+                </Pressable>
+              </View>
             ) : null}
 
             {isDone && reservation.driver ? (
@@ -642,6 +817,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#FF453A",
+  },
+  receiptActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 2,
+  },
+  receiptActionBtn: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+  },
+  receiptActionText: {
+    fontSize: 13,
+    fontWeight: "600",
+    letterSpacing: -0.15,
+    textAlign: "center",
   },
   pressed: { opacity: 0.85, transform: [{ scale: 0.985 }] },
 });

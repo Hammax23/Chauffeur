@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { getReservations, cancelReservation, Reservation } from "../../../services/api";
@@ -147,6 +148,7 @@ function secondaryLine(r: Reservation): string {
 export default function ReservationsScreen() {
   const { user } = useAuth();
   const { palette, isDark } = useCustomerTheme();
+  const cardBlur = Platform.OS === "ios" ? 36 : 22;
 
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -252,6 +254,13 @@ export default function ReservationsScreen() {
         }),
     [reservations]
   );
+
+  const openTripDetail = (bookingId: string) => {
+    router.push({
+      pathname: "/customer/trip-detail",
+      params: { bookingId },
+    });
+  };
 
   const openManage = (reservation: Reservation) => {
     if (
@@ -421,133 +430,162 @@ export default function ReservationsScreen() {
                   : "DROPOFF";
 
               return (
-                <View
+                <Pressable
                   key={reservation.id}
-                  style={[
-                    styles.card,
-                    {
-                      backgroundColor: isDark
-                        ? "rgba(28,28,30,0.92)"
-                        : "rgba(255,255,255,0.92)",
-                      borderColor: changed ? "rgba(52,199,89,0.45)" : palette.border,
-                    },
-                  ]}
+                  onPress={() => openTripDetail(reservation.bookingId)}
+                  style={({ pressed }) => [pressed && styles.pressed, { marginBottom: 12 }]}
                 >
-                  <View style={styles.cardTop}>
-                    <Text style={[styles.whenText, { color: palette.text }]} numberOfLines={1}>
-                      {when}
-                    </Text>
-                    <View
-                      style={[
-                        styles.statusPill,
-                        { backgroundColor: chip.bg, borderColor: chip.border },
-                      ]}
-                    >
-                      <Text style={[styles.statusPillText, { color: chip.text }]}>
-                        {status.label}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View
+                  <BlurView
+                    intensity={cardBlur}
+                    tint={palette.blurTint}
                     style={[
-                      styles.routePanel,
+                      styles.card,
                       {
-                        backgroundColor: palette.routeBg,
-                        borderColor: palette.border,
+                        borderColor: changed
+                          ? "rgba(52,199,89,0.45)"
+                          : isDark
+                            ? "rgba(212,160,74,0.22)"
+                            : palette.border,
+                        backgroundColor: isDark
+                          ? "rgba(18,16,14,0.72)"
+                          : Platform.OS === "android"
+                            ? palette.cardAndroid
+                            : "rgba(255,255,255,0.55)",
                       },
                     ]}
                   >
-                    <View style={styles.routeRow}>
-                      <View style={styles.routeRail}>
-                        <View
-                          style={[
-                            styles.routeMark,
-                            styles.routeMarkPickup,
-                            { backgroundColor: GOLD },
-                          ]}
-                        />
-                        <View
-                          style={[styles.routeStem, { backgroundColor: palette.routeLine }]}
-                        />
-                      </View>
-                      <View style={styles.routeCopy}>
-                        <Text style={[styles.routeLabel, { color: palette.muted }]}>PICKUP</Text>
-                        <Text
-                          style={[styles.routeText, { color: palette.location }]}
-                          numberOfLines={1}
-                        >
-                          {shortLoc(reservation.pickupLocation)}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.routeRow}>
-                      <View style={styles.routeRail}>
-                        <View
-                          style={[
-                            styles.routeMark,
-                            styles.routeMarkDrop,
-                            { backgroundColor: isDark ? "#F5F5F7" : "#1C1C1E" },
-                          ]}
-                        />
-                      </View>
-                      <View style={styles.routeCopy}>
-                        <Text style={[styles.routeLabel, { color: palette.muted }]}>
-                          {secondLabel}
-                        </Text>
-                        <Text
-                          style={[styles.routeText, { color: palette.location }]}
-                          numberOfLines={1}
-                        >
-                          {secondaryLine(reservation)}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  <View style={[styles.cardFooter, { borderTopColor: palette.border }]}>
-                    <Text style={[styles.metaFoot, { color: palette.muted }]} numberOfLines={1}>
-                      {reservation.vehicle}
-                      <Text style={{ color: GOLD }}> · ${reservation.total.toFixed(0)}</Text>
-                    </Text>
-
-                    <View style={styles.actions}>
-                      <Pressable
-                        onPress={() => openManage(reservation)}
-                        style={({ pressed }) => [
-                          styles.manageBtn,
-                          {
-                            borderColor: palette.border,
-                            backgroundColor: palette.metaChipBg,
-                          },
-                          pressed && styles.pressed,
+                    <View style={styles.cardTop}>
+                      <Text style={[styles.whenText, { color: palette.text }]} numberOfLines={1}>
+                        {when}
+                      </Text>
+                      <View
+                        style={[
+                          styles.statusPill,
+                          { backgroundColor: chip.bg, borderColor: chip.border },
                         ]}
-                        hitSlop={4}
                       >
-                        <Text style={[styles.manageBtnText, { color: palette.text }]}>
-                          Manage
+                        <Text style={[styles.statusPillText, { color: chip.text }]}>
+                          {status.label}
                         </Text>
-                      </Pressable>
+                      </View>
+                    </View>
 
-                      {showTrack ? (
+                    <View
+                      style={[
+                        styles.routePanel,
+                        {
+                          backgroundColor: isDark
+                            ? "rgba(0,0,0,0.35)"
+                            : palette.routeBg,
+                          borderColor: isDark
+                            ? "rgba(255,255,255,0.08)"
+                            : palette.border,
+                        },
+                      ]}
+                    >
+                      <View style={styles.routeRow}>
+                        <View style={styles.routeRail}>
+                          <View
+                            style={[
+                              styles.routeMark,
+                              styles.routeMarkPickup,
+                              { backgroundColor: GOLD },
+                            ]}
+                          />
+                          <View
+                            style={[styles.routeStem, { backgroundColor: palette.routeLine }]}
+                          />
+                        </View>
+                        <View style={styles.routeCopy}>
+                          <Text style={[styles.routeLabel, { color: palette.muted }]}>
+                            PICKUP
+                          </Text>
+                          <Text
+                            style={[styles.routeText, { color: palette.location }]}
+                            numberOfLines={1}
+                          >
+                            {shortLoc(reservation.pickupLocation)}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.routeRow}>
+                        <View style={styles.routeRail}>
+                          <View
+                            style={[
+                              styles.routeMark,
+                              styles.routeMarkDrop,
+                              { backgroundColor: isDark ? "#E8C078" : "#1C1C1E" },
+                            ]}
+                          />
+                        </View>
+                        <View style={styles.routeCopy}>
+                          <Text style={[styles.routeLabel, { color: palette.muted }]}>
+                            {secondLabel}
+                          </Text>
+                          <Text
+                            style={[styles.routeText, { color: palette.location }]}
+                            numberOfLines={1}
+                          >
+                            {secondaryLine(reservation)}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    <View style={[styles.cardFooter, { borderTopColor: palette.border }]}>
+                      <Text style={[styles.metaFoot, { color: palette.muted }]} numberOfLines={1}>
+                        {reservation.vehicle}
+                        <Text style={{ color: GOLD }}> · ${reservation.total.toFixed(0)}</Text>
+                      </Text>
+
+                      <View style={styles.actions}>
                         <Pressable
-                          onPress={() => openTrack(reservation.bookingId)}
-                          style={({ pressed }) => [styles.trackBtn, pressed && styles.pressed]}
+                          onPress={(e) => {
+                            e?.stopPropagation?.();
+                            openManage(reservation);
+                          }}
+                          style={({ pressed }) => [
+                            styles.manageBtn,
+                            {
+                              borderColor: isDark
+                                ? "rgba(212,160,74,0.35)"
+                                : palette.border,
+                              backgroundColor: isDark
+                                ? "rgba(212,160,74,0.1)"
+                                : palette.metaChipBg,
+                            },
+                            pressed && styles.pressed,
+                          ]}
                           hitSlop={4}
                         >
-                          <LinearGradient
-                            colors={["#E8C078", GOLD, "#B8862E"]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.trackGradient}
-                          >
-                            <Text style={styles.trackBtnText}>Track</Text>
-                          </LinearGradient>
+                          <Text style={[styles.manageBtnText, { color: palette.text }]}>
+                            Manage
+                          </Text>
                         </Pressable>
-                      ) : null}
+
+                        {showTrack ? (
+                          <Pressable
+                            onPress={(e) => {
+                              e?.stopPropagation?.();
+                              openTrack(reservation.bookingId);
+                            }}
+                            style={({ pressed }) => [styles.trackBtn, pressed && styles.pressed]}
+                            hitSlop={4}
+                          >
+                            <LinearGradient
+                              colors={["#E8C078", GOLD, "#B8862E"]}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 1 }}
+                              style={styles.trackGradient}
+                            >
+                              <Text style={styles.trackBtnText}>Track</Text>
+                            </LinearGradient>
+                          </Pressable>
+                        ) : null}
+                      </View>
                     </View>
-                  </View>
-                </View>
+                  </BlurView>
+                </Pressable>
               );
             })
           )}
@@ -611,17 +649,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 14,
-    marginBottom: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.18,
-        shadowRadius: 16,
-      },
-      android: { elevation: 3 },
-    }),
+    overflow: "hidden",
   },
   cardTop: {
     flexDirection: "row",
