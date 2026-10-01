@@ -36,6 +36,10 @@ import { SlimSpinner } from "../../../components/SlimSpinner";
 import { GOLD } from "../../../theme/driver-theme";
 import { isParcelServiceType } from "../../../utils/parcel";
 import {
+  formatTierDisplayTitle,
+  getTierCapacity,
+} from "../../../data/vehicle-tiers";
+import {
   dismissHomePromo,
   isHomePromoDismissed,
   setPendingPromoCode,
@@ -1166,12 +1170,42 @@ export default function CustomerHomeScreen() {
                       resizeMode="contain"
                     />
                   </LinearGradient>
-                  <Text
-                    style={[styles.fleetName, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]}
-                    numberOfLines={1}
-                  >
-                    {v.title}
-                  </Text>
+                  <View style={styles.fleetMeta}>
+                    <View style={styles.fleetNameRow}>
+                      <Text
+                        style={[styles.fleetName, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]}
+                        numberOfLines={1}
+                      >
+                        {formatTierDisplayTitle(v.title)}
+                      </Text>
+                      <View style={styles.fleetCapacity}>
+                        <Ionicons
+                          name="person"
+                          size={12}
+                          color={isDark ? "#A1A1AA" : "#6B7280"}
+                        />
+                        <Text
+                          style={[
+                            styles.fleetCapacityText,
+                            { color: isDark ? "#A1A1AA" : "#6B7280" },
+                          ]}
+                        >
+                          {getTierCapacity(v)}
+                        </Text>
+                      </View>
+                    </View>
+                    {v.subtitle ? (
+                      <Text
+                        style={[
+                          styles.fleetSubtitle,
+                          { color: isDark ? "#A1A1AA" : "#6B7280" },
+                        ]}
+                        numberOfLines={2}
+                      >
+                        {v.subtitle}
+                      </Text>
+                    ) : null}
+                  </View>
                 </Pressable>
               ))}
             </ScrollView>
@@ -1854,13 +1888,39 @@ const styles = StyleSheet.create({
     height: 92,
     zIndex: 1,
   },
-  fleetName: {
-    fontSize: 13.5,
-    fontWeight: "600",
-    lineHeight: 18,
-    letterSpacing: -0.15,
+  fleetNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  fleetMeta: {
+    gap: 3,
     paddingHorizontal: 2,
+  },
+  fleetName: {
+    flexShrink: 1,
+    minWidth: 0,
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 18,
+    letterSpacing: -0.2,
     marginTop: 0,
+  },
+  fleetCapacity: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    flexShrink: 0,
+  },
+  fleetCapacityText: {
+    fontSize: 12,
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
+  },
+  fleetSubtitle: {
+    fontSize: 12,
+    fontWeight: "400",
+    lineHeight: 16,
   },
   pressed: {
     opacity: 0.92,

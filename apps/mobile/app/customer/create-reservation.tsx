@@ -33,6 +33,8 @@ import {
   buildVehicleTiersFromAppFleet,
   filterVehicleTiersForParcel,
   findTierById,
+  formatTierDisplayTitle,
+  getTierCapacity,
   resolveTierIdFromFleetVehicleId,
   type VehicleTierOption,
 } from "../../data/vehicle-tiers";
@@ -1269,12 +1271,20 @@ export default function CreateReservationScreen() {
                   />
                 </View>
                 <View style={styles.carSelectorCopy}>
-                  <Text style={styles.carName} numberOfLines={2}>
-                    {selectedTier.title}
-                  </Text>
-                  {selectedTier.subtitle ? (
+                  <View style={styles.carTitleRow}>
+                    <Text style={styles.carName} numberOfLines={1}>
+                      {formatTierDisplayTitle(selectedTier.title)}
+                    </Text>
+                    <View style={styles.capacityInline} accessibilityLabel={`${getTierCapacity(selectedTier)} passengers`}>
+                      <Ionicons name="person" size={13} color="#6B7280" />
+                      <Text style={styles.capacityInlineText}>
+                        {getTierCapacity(selectedTier)}
+                      </Text>
+                    </View>
+                  </View>
+                  {selectedTier.subtitle || selectedTier.description ? (
                     <Text style={styles.carCategory} numberOfLines={2}>
-                      {selectedTier.subtitle}
+                      {selectedTier.subtitle || selectedTier.description}
                     </Text>
                   ) : null}
                 </View>
@@ -1343,18 +1353,38 @@ export default function CreateReservationScreen() {
                                 />
                               </View>
                               <View style={styles.carDropdownCopy}>
-                                <Text
-                                  style={[
-                                    styles.carDropdownName,
-                                    selected && styles.carDropdownNameActive,
-                                  ]}
-                                  numberOfLines={2}
-                                >
-                                  {tier.title}
-                                </Text>
-                                {tier.subtitle ? (
+                                <View style={styles.carTitleRow}>
+                                  <Text
+                                    style={[
+                                      styles.carDropdownName,
+                                      selected && styles.carDropdownNameActive,
+                                    ]}
+                                    numberOfLines={1}
+                                  >
+                                    {formatTierDisplayTitle(tier.title)}
+                                  </Text>
+                                  <View
+                                    style={styles.capacityInline}
+                                    accessibilityLabel={`${getTierCapacity(tier)} passengers`}
+                                  >
+                                    <Ionicons
+                                      name="person"
+                                      size={13}
+                                      color={selected ? "#8B6914" : "#6B7280"}
+                                    />
+                                    <Text
+                                      style={[
+                                        styles.capacityInlineText,
+                                        selected && { color: "#8B6914" },
+                                      ]}
+                                    >
+                                      {getTierCapacity(tier)}
+                                    </Text>
+                                  </View>
+                                </View>
+                                {tier.subtitle || tier.description ? (
                                   <Text style={styles.tierDropdownSubtitle} numberOfLines={2}>
-                                    {tier.subtitle}
+                                    {tier.subtitle || tier.description}
                                   </Text>
                                 ) : null}
                               </View>
@@ -2617,46 +2647,67 @@ const styles = StyleSheet.create({
   },
   carSelector: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     borderWidth: 1.5,
     borderColor: "#e5e7eb",
     borderRadius: 16,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 14,
     backgroundColor: "#FFFFFF",
-    gap: 12,
-    minHeight: 96,
+    gap: 10,
+    minHeight: 88,
   },
   carSelectorLocked: {
     backgroundColor: "#fafafa",
     borderColor: "#eceff3",
   },
   carThumbWrap: {
-    width: 108,
-    height: 72,
-    borderRadius: 12,
+    width: 72,
+    height: 56,
+    borderRadius: 10,
     backgroundColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
     overflow: "hidden",
+    marginTop: 2,
   },
   carThumb: {
-    width: 100,
-    height: 64,
+    width: 68,
+    height: 52,
   },
   carSelectorCopy: {
     flex: 1,
     minWidth: 0,
     justifyContent: "center",
+    gap: 4,
+    paddingTop: 2,
+  },
+  carTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "nowrap",
+  },
+  capacityInline: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 2,
+    flexShrink: 0,
+  },
+  capacityInlineText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6B7280",
+    fontVariant: ["tabular-nums"],
   },
   carSelectorTrailing: {
     flexShrink: 0,
     alignItems: "flex-end",
-    justifyContent: "center",
+    justifyContent: "flex-start",
     gap: 8,
-    minWidth: 78,
+    minWidth: 72,
+    paddingTop: 2,
   },
   carChevronWrap: {
     width: 28,
@@ -2672,12 +2723,13 @@ const styles = StyleSheet.create({
     color: "#111827",
     lineHeight: 21,
     letterSpacing: -0.2,
+    flexShrink: 1,
   },
   carCategory: {
     fontSize: 13,
     color: "#6B7280",
-    marginTop: 2,
-    lineHeight: 17,
+    marginTop: 0,
+    lineHeight: 18,
   },
   carMetaRow: {
     flexDirection: "row",
@@ -2742,37 +2794,37 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginTop: 10,
     backgroundColor: "#FFFFFF",
-    maxHeight: 440,
+    maxHeight: 520,
     overflow: "hidden",
   },
   tierDropdownGroupLabel: {
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: "700",
-    color: "#6B7280",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
+    color: "#111827",
+    letterSpacing: -0.2,
+    textTransform: "none",
     paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 6,
+    paddingTop: 16,
+    paddingBottom: 4,
   },
   tierDropdownSubtitle: {
-    marginTop: 3,
+    marginTop: 4,
     fontSize: 13,
-    fontWeight: "500",
+    fontWeight: "400",
     color: "#6B7280",
-    lineHeight: 17,
+    lineHeight: 18,
   },
   carDropdownItem: {
     flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
+    alignItems: "flex-start",
+    paddingHorizontal: 12,
     paddingVertical: 14,
-    gap: 12,
-    minHeight: 100,
-    marginHorizontal: 8,
-    marginBottom: 8,
-    borderRadius: 14,
-    backgroundColor: "#F9FAFB",
+    gap: 10,
+    minHeight: 88,
+    marginHorizontal: 6,
+    marginBottom: 4,
+    borderRadius: 12,
+    backgroundColor: "transparent",
     borderWidth: 1.5,
     borderColor: "transparent",
   },
@@ -2784,23 +2836,25 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
   },
   carDropdownThumbWrap: {
-    width: 112,
-    height: 76,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
+    width: 72,
+    height: 56,
+    borderRadius: 10,
+    backgroundColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
     overflow: "hidden",
+    marginTop: 2,
   },
   carDropdownThumb: {
-    width: 104,
-    height: 68,
+    width: 68,
+    height: 52,
   },
   carDropdownCopy: {
     flex: 1,
     minWidth: 0,
-    justifyContent: "center",
+    justifyContent: "flex-start",
+    paddingTop: 1,
   },
   carDropdownName: {
     fontSize: 16,
@@ -2808,6 +2862,7 @@ const styles = StyleSheet.create({
     color: "#111827",
     lineHeight: 21,
     letterSpacing: -0.2,
+    flexShrink: 1,
   },
   carDropdownNameActive: {
     color: "#111827",
@@ -2815,10 +2870,11 @@ const styles = StyleSheet.create({
   },
   carDropdownPriceCol: {
     flexShrink: 0,
-    minWidth: 72,
+    minWidth: 68,
     alignItems: "flex-end",
-    justifyContent: "center",
+    justifyContent: "flex-start",
     gap: 10,
+    paddingTop: 2,
   },
   carDropdownPrice: {
     fontSize: 16,

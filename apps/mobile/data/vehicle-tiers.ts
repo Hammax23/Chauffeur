@@ -19,56 +19,75 @@ export interface VehicleTierDefinition {
 export const VEHICLE_TIER_DEFINITIONS: VehicleTierDefinition[] = [
   {
     id: "only-black-sedan",
-    title: "Black SEDAN ",
-    subtitle: "LUXURY SEDAN CAR",
+    title: "Premier Black Sedan",
+    subtitle: "Sedan only — no SUV swap",
     group: "standard",
     representativeFleetId: "cadillac-xts",
   },
   {
     id: "black-sedan",
-    title: "BLACK CAR",
-    subtitle: "Luxury Sedan/SUV",
+    title: "Premier Black",
+    subtitle: "Sedan or SUV — whichever is available",
     group: "standard",
     representativeFleetId: "cadillac-xts",
   },
   {
     id: "black-suv",
-    title: "BLACK SUV",
-    subtitle: "Large SUV",
+    title: "Premier Black SUV",
+    subtitle: "Luxury SUV for up to 6",
     group: "standard",
     representativeFleetId: "chevrolet-suburban",
   },
   {
     id: "cadillac-escalade",
     title: "Cadillac Escalade",
-    subtitle: "CADILLAC ESCALADE",
+    subtitle: "Escalade guaranteed · top-rated chauffeurs",
     group: "standard",
     representativeFleetId: "cadillac-escalade",
   },
   {
+    id: "mercedes-s-class",
+    title: "Mercedes-Benz S-Class",
+    subtitle: "S-Class guaranteed · top-rated chauffeurs",
+    group: "executive",
+    representativeFleetId: "mercedes-s-class",
+  },
+  {
     id: "exec-black-sedan",
-    title: "Executive BLACK SEDAN ",
-    subtitle: "Executive Luxury Sedan ",
+    title: "Executive Sedan",
+    subtitle: "High-rated chauffeurs · sedan class",
     group: "executive",
     representativeFleetId: "mercedes-s-class",
   },
   {
     id: "exec-black-suv",
-    title: "Executive Large SUV ",
-    subtitle: "ONLY SUV CAN BE RESERVED",
+    title: "Executive SUV",
+    subtitle: "High-rated chauffeurs · SUV class",
     group: "executive",
     representativeFleetId: "chevrolet-suburban",
     pricePerKm: 5.5,
     hourlyRate: 295,
   },
   {
-    id: "exec-cadillac-escalade",
-    title: "Executive Cadillac Escalade ",
-    subtitle: "ONLY CADILLAC ESCALADE CAN BE RESERVED",
+    id: "electric-black-3",
+    title: "Electric",
+    subtitle: "Zero-emission vehicles",
+    group: "standard",
+    representativeFleetId: "cadillac-lyric",
+  },
+  {
+    id: "sarj-pet-3",
+    title: "SARJ Pet",
+    subtitle: "You and your pet welcome",
+    group: "standard",
+    representativeFleetId: "cadillac-xts",
+  },
+  {
+    id: "exec-sprinter-van-14",
+    title: "Executive Sprinter",
+    subtitle: "Group van for up to 14",
     group: "executive",
-    representativeFleetId: "cadillac-escalade",
-    pricePerKm: 5.5,
-    hourlyRate: 295,
+    representativeFleetId: "sprinter-van",
   },
 ];
 
@@ -91,11 +110,11 @@ export interface VehicleTierOption {
 /** Map a home-screen fleet card id → reservation tier id. */
 const FLEET_ID_TO_TIER: Record<string, string> = {
   "cadillac-xts": "black-sedan",
-  "cadillac-lyric": "black-sedan",
+  "cadillac-lyric": "electric-black-3",
   "chevrolet-suburban": "black-suv",
   "cadillac-escalade": "cadillac-escalade",
-  "mercedes-s-class": "exec-black-sedan",
-  "sprinter-van": "black-suv",
+  "mercedes-s-class": "mercedes-s-class",
+  "sprinter-van": "exec-sprinter-van-14",
 };
 
 export function resolveTierIdFromFleetVehicleId(fleetVehicleId: string): string {
@@ -127,20 +146,16 @@ export function findTierById(tiers: VehicleTierOption[], id: string): VehicleTie
   return tiers.find((t) => t.id === id);
 }
 
-/** Parcel Delivery: only BLACK CAR · Luxury Sedan/SUV. */
+/** Parcel Delivery: Premier Black (sedan or SUV) — stable tierId black-sedan. */
 export function isParcelBlackCarTier(tier: {
   id: string;
   title: string;
   subtitle: string;
 }): boolean {
   const title = tier.title.trim().toLowerCase().replace(/\s+/g, " ");
-  const subtitle = tier.subtitle.trim().toLowerCase().replace(/\s+/g, " ");
   if (tier.id === "black-sedan") return true;
-  return (
-    title === "black car" &&
-    subtitle.includes("luxury sedan") &&
-    subtitle.includes("suv")
-  );
+  if (title === "premier black") return true;
+  return title === "black car";
 }
 
 export function filterVehicleTiersForParcel(
@@ -148,6 +163,43 @@ export function filterVehicleTiersForParcel(
 ): VehicleTierOption[] {
   const matched = tiers.filter(isParcelBlackCarTier);
   if (matched.length > 0) return matched;
-  // Fallback: title-only match if subtitle text drifted in admin
-  return tiers.filter((t) => t.title.trim().toLowerCase().replace(/\s+/g, " ") === "black car");
+  return tiers.filter((t) => t.id === "black-sedan");
+}
+
+/** Uber-style capacity: person icon shows this number. */
+export function getTierCapacity(tier: {
+  id?: string;
+  seating?: string;
+  title?: string;
+}): number {
+  const fromSeating = (() => {
+    const raw = String(tier.seating || "").trim();
+    if (!raw) return null;
+    const nums = raw.match(/\d+/g)?.map((n) => parseInt(n, 10)).filter((n) => n > 0);
+    if (!nums?.length) return null;
+    return Math.max(...nums);
+  })();
+  if (fromSeating) return fromSeating;
+
+  // Legacy titles like "Premier Black · 3"
+  const fromTitle = String(tier.title || "").match(/[·•]\s*(\d+)\s*$/);
+  if (fromTitle) return parseInt(fromTitle[1], 10);
+
+  switch (tier.id) {
+    case "black-suv":
+    case "cadillac-escalade":
+    case "exec-black-suv":
+      return 6;
+    case "exec-sprinter-van-14":
+      return 14;
+    default:
+      return 3;
+  }
+}
+
+/** Display title without trailing " · 3" capacity suffix. */
+export function formatTierDisplayTitle(title: string): string {
+  return String(title || "")
+    .replace(/\s*[·•]\s*\d+\s*$/, "")
+    .trim();
 }

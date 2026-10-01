@@ -299,7 +299,7 @@ export default function AppFleetsAdminPage() {
             className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-60"
           >
             {seeding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            Seed defaults
+            Sync fleet list
           </button>
           <button
             type="button"
@@ -601,7 +601,7 @@ export default function AppFleetsAdminPage() {
             <Car className="w-10 h-10 text-gray-300 mx-auto mb-3" />
             <p className="text-sm font-medium text-gray-700">No app fleet vehicles yet</p>
             <p className="text-xs text-gray-400 mt-1 mb-4">
-              Seed defaults or add vehicles manually for the mobile app.
+              Sync the Premier / Executive fleet list or add vehicles manually.
             </p>
             <button
               type="button"
@@ -609,7 +609,7 @@ export default function AppFleetsAdminPage() {
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-[#C9A063] text-[#1a1a1a]"
             >
               <Download className="w-4 h-4" />
-              Seed defaults
+              Sync fleet list
             </button>
           </div>
         ) : (

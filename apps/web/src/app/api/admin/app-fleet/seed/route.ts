@@ -5,8 +5,10 @@ import { APP_FLEET_SEED } from "@/data/app-fleet-seed";
 import { fleetData } from "@/data/fleet";
 
 /**
- * Seed AppFleetVehicle from default app tiers.
- * Copies image + rates from website FleetVehicle / static fleet when available.
+ * Seed / sync AppFleetVehicle from default app tiers.
+ * - Creates missing tiers
+ * - Updates title/subtitle/copy/sort for existing tierIds (keeps rates/images if already set)
+ * - Deactivates tiers no longer in the seed list
  */
 export async function POST(request: NextRequest) {
   const auth = await verifyAdminAuth(request);
@@ -21,7 +23,9 @@ export async function POST(request: NextRequest) {
 
     let created = 0;
     let updated = 0;
-    let skipped = 0;
+    let deactivated = 0;
+
+    const seedTier = new Set(APP_FLEET_SEED.map((s) => s.tierId));
 
     for (const seed of APP_FLEET_SEED) {
       const fromDb = byVehicleId.get(seed.imageFromVehicleId) as any;
@@ -41,51 +45,69 @@ export async function POST(request: NextRequest) {
         where: { tierId: seed.tierId },
       });
 
-      const payload = {
-        title: seed.title,
-        subtitle: seed.subtitle,
-        description: seed.description,
-        image,
-        group: seed.group,
-        category: seed.category,
-        seating: seed.seating || fromDb?.seating || fromStatic?.seating || "",
-        luggage: seed.luggage || fromDb?.luggage || fromStatic?.luggage || "",
-        pricePerKm,
-        hourlyRate,
-        showOnHome: seed.showOnHome,
-        isActive: true,
-        sortOrder: seed.sortOrder,
-      };
-
       if (existing) {
-        // Only fill missing image/rates if empty — don't overwrite admin edits by default
-        const patch: Record<string, unknown> = {};
-        if (!existing.image && image) patch.image = image;
-        if (existing.pricePerKm <= 0 && pricePerKm > 0) patch.pricePerKm = pricePerKm;
-        if (existing.hourlyRate <= 0 && hourlyRate > 0) patch.hourlyRate = hourlyRate;
-        if (Object.keys(patch).length === 0) {
-          skipped += 1;
-          continue;
-        }
         await prisma.appFleetVehicle.update({
           where: { id: existing.id },
-          data: patch,
+          data: {
+            title: seed.title,
+            subtitle: seed.subtitle,
+            description: seed.description,
+            group: seed.group,
+            category: seed.category,
+            // Always sync seating from seed so capacity UI stays Uber-style (person + number).
+            seating: seed.seating || existing.seating || fromDb?.seating || fromStatic?.seating || "",
+            luggage: seed.luggage || existing.luggage || fromDb?.luggage || fromStatic?.luggage || "",
+            showOnHome: seed.showOnHome,
+            sortOrder: seed.sortOrder,
+            isActive: true,
+            // Keep admin rates/images unless empty
+            image: existing.image?.trim() ? existing.image : image,
+            pricePerKm: existing.pricePerKm > 0 ? existing.pricePerKm : pricePerKm,
+            hourlyRate: existing.hourlyRate > 0 ? existing.hourlyRate : hourlyRate,
+          },
         });
         updated += 1;
       } else {
         await prisma.appFleetVehicle.create({
-          data: { tierId: seed.tierId, ...payload },
+          data: {
+            tierId: seed.tierId,
+            title: seed.title,
+            subtitle: seed.subtitle,
+            description: seed.description,
+            image,
+            group: seed.group,
+            category: seed.category,
+            seating: seed.seating || fromDb?.seating || fromStatic?.seating || "",
+            luggage: seed.luggage || fromDb?.luggage || fromStatic?.luggage || "",
+            pricePerKm,
+            hourlyRate,
+            showOnHome: seed.showOnHome,
+            isActive: true,
+            sortOrder: seed.sortOrder,
+          },
         });
         created += 1;
       }
+    }
+
+    const obsolete = await prisma.appFleetVehicle.findMany({
+      where: { tierId: { notIn: [...seedTier] }, isActive: true },
+      select: { id: true },
+    });
+    if (obsolete.length > 0) {
+      await prisma.appFleetVehicle.updateMany({
+        where: { id: { in: obsolete.map((r) => r.id) } },
+        data: { isActive: false, showOnHome: false },
+      });
+      deactivated = obsolete.length;
     }
 
     return NextResponse.json({
       success: true,
       created,
       updated,
-      skipped,
-      message: `Seeded app fleet: ${created} created, ${updated} updated, ${skipped} unchanged.`,
+      deactivated,
+      message: `Synced app fleet: ${created} created, ${updated} updated, ${deactivated} deactivated.`,
     });
   } catch (error) {
     console.error("[AppFleet seed]", error);
