@@ -254,7 +254,12 @@ export default function ReservationsScreen() {
   );
 
   const openManage = (reservation: Reservation) => {
-    if (reservation.status === "ON THE WAY" || reservation.status === "ARRIVED" || reservation.status === "CIC" || reservation.status === "STOP") {
+    if (
+      reservation.status === "ON THE WAY" ||
+      reservation.status === "ARRIVED" ||
+      reservation.status === "CIC" ||
+      reservation.status === "STOP"
+    ) {
       router.push({
         pathname: "/customer/track-ride",
         params: { bookingId: reservation.bookingId },
@@ -293,37 +298,41 @@ export default function ReservationsScreen() {
   const toneStyles = (tone: "confirmed" | "assigned" | "live") => {
     if (tone === "confirmed") {
       return {
-        bg: isDark ? "rgba(52,199,89,0.18)" : "rgba(22,163,74,0.12)",
+        bg: isDark ? "rgba(52,199,89,0.16)" : "rgba(22,163,74,0.12)",
         text: isDark ? "#34C759" : "#15803D",
+        border: isDark ? "rgba(52,199,89,0.35)" : "rgba(22,163,74,0.28)",
       };
     }
     if (tone === "live") {
       return {
-        bg: isDark ? "rgba(10,132,255,0.2)" : "rgba(37,99,235,0.12)",
+        bg: isDark ? "rgba(10,132,255,0.18)" : "rgba(37,99,235,0.12)",
         text: isDark ? "#64D2FF" : "#1D4ED8",
+        border: isDark ? "rgba(10,132,255,0.35)" : "rgba(37,99,235,0.28)",
       };
     }
     return {
-      bg: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
-      text: isDark ? "#AEAEB2" : "#6B7280",
+      bg: palette.hintBg,
+      text: isDark ? "#E8C078" : "#7A5A28",
+      border: palette.hintBorder,
     };
   };
-
-  const cardBg = isDark ? "#2C2C2E" : "#FFFFFF";
-  const cardBorder = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)";
-  const markColor = isDark ? "#F5F5F7" : "#1C1C1E";
-  const divider = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)";
-  const manageBorder = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.2)";
-  const trackBg = isDark ? "#F5F5F7" : "#111827";
-  const trackFg = isDark ? "#111827" : "#FFFFFF";
 
   return (
     <View style={[styles.root, { backgroundColor: palette.root }]}>
       <StatusBar barStyle={palette.statusBar} backgroundColor={palette.root} />
       <LinearGradient colors={[...palette.bg]} style={StyleSheet.absoluteFill} />
+      <View style={styles.ambientGlow} pointerEvents="none">
+        <LinearGradient
+          colors={[...palette.glow]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.2, y: 0 }}
+          end={{ x: 0.85, y: 0.45 }}
+        />
+      </View>
 
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.headerRow}>
+          <Text style={styles.headerEyebrow}>YOUR TRIPS</Text>
           <Text style={[styles.headerTitle, { color: palette.text }]}>Bookings</Text>
           <Text style={[styles.headerSub, { color: palette.muted }]}>
             Upcoming & active trips
@@ -351,7 +360,12 @@ export default function ReservationsScreen() {
               <SlimSpinner size={32} stroke={2} color={GOLD} />
             </View>
           ) : loadError ? (
-            <View style={[styles.emptyCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+            <View
+              style={[
+                styles.emptyCard,
+                { backgroundColor: palette.cardAndroid, borderColor: palette.border },
+              ]}
+            >
               <Text style={[styles.emptyTitle, { color: palette.text }]}>{loadError}</Text>
               <Pressable
                 style={({ pressed }) => [styles.retryBtn, pressed && styles.pressed]}
@@ -360,11 +374,23 @@ export default function ReservationsScreen() {
                   void fetchReservations();
                 }}
               >
-                <Text style={styles.retryText}>Retry</Text>
+                <LinearGradient
+                  colors={["#E8C078", GOLD, "#B8862E"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.retryGradient}
+                >
+                  <Text style={styles.retryText}>Retry</Text>
+                </LinearGradient>
               </Pressable>
             </View>
           ) : activeList.length === 0 ? (
-            <View style={[styles.emptyCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+            <View
+              style={[
+                styles.emptyCard,
+                { backgroundColor: palette.cardAndroid, borderColor: palette.border },
+              ]}
+            >
               <View style={styles.emptyIconWrap}>
                 <Ionicons name="calendar-outline" size={26} color={GOLD} />
               </View>
@@ -387,6 +413,12 @@ export default function ReservationsScreen() {
               const showTrack = canTrackReservation(reservation);
               const changed = recentlyChanged.has(reservation.bookingId);
               const when = formatBookingWhen(reservation.serviceDate, reservation.serviceTime);
+              const secondLabel = isParcelServiceType(reservation.serviceType)
+                ? "DROPOFF"
+                : /hour/i.test(reservation.duration || "") ||
+                    /hourly/i.test(reservation.serviceType || "")
+                  ? "SERVICE"
+                  : "DROPOFF";
 
               return (
                 <View
@@ -394,8 +426,10 @@ export default function ReservationsScreen() {
                   style={[
                     styles.card,
                     {
-                      backgroundColor: cardBg,
-                      borderColor: changed ? "rgba(52,199,89,0.45)" : cardBorder,
+                      backgroundColor: isDark
+                        ? "rgba(28,28,30,0.92)"
+                        : "rgba(255,255,255,0.92)",
+                      borderColor: changed ? "rgba(52,199,89,0.45)" : palette.border,
                     },
                   ]}
                 >
@@ -403,28 +437,49 @@ export default function ReservationsScreen() {
                     <Text style={[styles.whenText, { color: palette.text }]} numberOfLines={1}>
                       {when}
                     </Text>
-                    <View style={[styles.statusPill, { backgroundColor: chip.bg }]}>
+                    <View
+                      style={[
+                        styles.statusPill,
+                        { backgroundColor: chip.bg, borderColor: chip.border },
+                      ]}
+                    >
                       <Text style={[styles.statusPillText, { color: chip.text }]}>
                         {status.label}
                       </Text>
                     </View>
                   </View>
 
-                  <View style={styles.routeBlock}>
+                  <View
+                    style={[
+                      styles.routePanel,
+                      {
+                        backgroundColor: palette.routeBg,
+                        borderColor: palette.border,
+                      },
+                    ]}
+                  >
                     <View style={styles.routeRow}>
                       <View style={styles.routeRail}>
                         <View
                           style={[
                             styles.routeMark,
                             styles.routeMarkPickup,
-                            { borderColor: markColor },
+                            { backgroundColor: GOLD },
                           ]}
                         />
-                        <View style={[styles.routeStem, { backgroundColor: divider }]} />
+                        <View
+                          style={[styles.routeStem, { backgroundColor: palette.routeLine }]}
+                        />
                       </View>
-                      <Text style={[styles.routeText, { color: palette.text }]} numberOfLines={1}>
-                        {shortLoc(reservation.pickupLocation)}
-                      </Text>
+                      <View style={styles.routeCopy}>
+                        <Text style={[styles.routeLabel, { color: palette.muted }]}>PICKUP</Text>
+                        <Text
+                          style={[styles.routeText, { color: palette.location }]}
+                          numberOfLines={1}
+                        >
+                          {shortLoc(reservation.pickupLocation)}
+                        </Text>
+                      </View>
                     </View>
                     <View style={styles.routeRow}>
                       <View style={styles.routeRail}>
@@ -432,19 +487,28 @@ export default function ReservationsScreen() {
                           style={[
                             styles.routeMark,
                             styles.routeMarkDrop,
-                            { backgroundColor: markColor },
+                            { backgroundColor: isDark ? "#F5F5F7" : "#1C1C1E" },
                           ]}
                         />
                       </View>
-                      <Text style={[styles.routeText, { color: palette.text }]} numberOfLines={1}>
-                        {secondaryLine(reservation)}
-                      </Text>
+                      <View style={styles.routeCopy}>
+                        <Text style={[styles.routeLabel, { color: palette.muted }]}>
+                          {secondLabel}
+                        </Text>
+                        <Text
+                          style={[styles.routeText, { color: palette.location }]}
+                          numberOfLines={1}
+                        >
+                          {secondaryLine(reservation)}
+                        </Text>
+                      </View>
                     </View>
                   </View>
 
-                  <View style={[styles.cardFooter, { borderTopColor: divider }]}>
+                  <View style={[styles.cardFooter, { borderTopColor: palette.border }]}>
                     <Text style={[styles.metaFoot, { color: palette.muted }]} numberOfLines={1}>
-                      {reservation.vehicle} · ${reservation.total.toFixed(0)}
+                      {reservation.vehicle}
+                      <Text style={{ color: GOLD }}> · ${reservation.total.toFixed(0)}</Text>
                     </Text>
 
                     <View style={styles.actions}>
@@ -452,7 +516,10 @@ export default function ReservationsScreen() {
                         onPress={() => openManage(reservation)}
                         style={({ pressed }) => [
                           styles.manageBtn,
-                          { borderColor: manageBorder },
+                          {
+                            borderColor: palette.border,
+                            backgroundColor: palette.metaChipBg,
+                          },
                           pressed && styles.pressed,
                         ]}
                         hitSlop={4}
@@ -465,14 +532,17 @@ export default function ReservationsScreen() {
                       {showTrack ? (
                         <Pressable
                           onPress={() => openTrack(reservation.bookingId)}
-                          style={({ pressed }) => [
-                            styles.trackBtn,
-                            { backgroundColor: trackBg },
-                            pressed && styles.pressed,
-                          ]}
+                          style={({ pressed }) => [styles.trackBtn, pressed && styles.pressed]}
                           hitSlop={4}
                         >
-                          <Text style={[styles.trackBtnText, { color: trackFg }]}>Track</Text>
+                          <LinearGradient
+                            colors={["#E8C078", GOLD, "#B8862E"]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.trackGradient}
+                          >
+                            <Text style={styles.trackBtnText}>Track</Text>
+                          </LinearGradient>
                         </Pressable>
                       ) : null}
                     </View>
@@ -501,20 +571,34 @@ export default function ReservationsScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  ambientGlow: {
+    position: "absolute",
+    top: -40,
+    left: -20,
+    right: -20,
+    height: 220,
+  },
   safeArea: { flex: 1, backgroundColor: "transparent" },
   headerRow: {
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 12,
   },
+  headerEyebrow: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: GOLD,
+    letterSpacing: 1.4,
+    marginBottom: 4,
+  },
   headerTitle: {
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: "700",
-    letterSpacing: -0.6,
+    letterSpacing: -0.5,
   },
   headerSub: {
     marginTop: 3,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "500",
   },
   container: { flex: 1 },
@@ -524,17 +608,17 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: 20,
-    paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 14,
     marginBottom: 12,
     borderWidth: StyleSheet.hairlineWidth,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.16,
-        shadowRadius: 14,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.18,
+        shadowRadius: 16,
       },
       android: { elevation: 3 },
     }),
@@ -544,7 +628,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   whenText: {
     flex: 1,
@@ -553,38 +637,42 @@ const styles = StyleSheet.create({
     letterSpacing: -0.35,
   },
   statusPill: {
-    paddingHorizontal: 11,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
     flexShrink: 0,
   },
   statusPillText: {
-    fontSize: 12,
-    fontWeight: "600",
-    letterSpacing: -0.15,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: -0.1,
   },
-  routeBlock: {
-    marginBottom: 4,
+  routePanel: {
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 4,
+    marginBottom: 12,
   },
   routeRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 12,
-    minHeight: 28,
+    gap: 10,
+    minHeight: 34,
   },
   routeRail: {
     width: 12,
     alignItems: "center",
-    paddingTop: 4,
+    paddingTop: 5,
   },
   routeMark: {
-    width: 10,
-    height: 10,
+    width: 9,
+    height: 9,
   },
   routeMarkPickup: {
     borderRadius: 5,
-    borderWidth: 2,
-    backgroundColor: "transparent",
   },
   routeMarkDrop: {
     borderRadius: 2.5,
@@ -592,26 +680,34 @@ const styles = StyleSheet.create({
   routeStem: {
     width: 1.5,
     flex: 1,
-    minHeight: 14,
+    minHeight: 16,
     marginTop: 3,
     marginBottom: 3,
     borderRadius: 1,
   },
-  routeText: {
+  routeCopy: {
     flex: 1,
-    fontSize: 15,
-    fontWeight: "500",
-    letterSpacing: -0.2,
-    lineHeight: 20,
     paddingBottom: 10,
+    minWidth: 0,
+  },
+  routeLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  routeText: {
+    fontSize: 14,
+    fontWeight: "600",
+    letterSpacing: -0.2,
+    lineHeight: 19,
   },
   cardFooter: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
-    paddingTop: 14,
-    marginTop: 2,
+    gap: 10,
+    paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   metaFoot: {
@@ -628,10 +724,10 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   manageBtn: {
-    paddingHorizontal: 15,
+    paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 999,
-    borderWidth: 1.4,
+    borderWidth: StyleSheet.hairlineWidth,
     minHeight: 36,
     alignItems: "center",
     justifyContent: "center",
@@ -642,9 +738,13 @@ const styles = StyleSheet.create({
     letterSpacing: -0.1,
   },
   trackBtn: {
+    borderRadius: 999,
+    overflow: "hidden",
+    minHeight: 36,
+  },
+  trackGradient: {
     paddingHorizontal: 16,
     paddingVertical: 9,
-    borderRadius: 999,
     minHeight: 36,
     alignItems: "center",
     justifyContent: "center",
@@ -652,6 +752,7 @@ const styles = StyleSheet.create({
   trackBtnText: {
     fontSize: 13,
     fontWeight: "800",
+    color: "#1A1208",
     letterSpacing: -0.1,
   },
   emptyState: {
@@ -700,10 +801,12 @@ const styles = StyleSheet.create({
   },
   retryBtn: {
     marginTop: 10,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: GOLD,
+    borderRadius: 14,
+    overflow: "hidden",
+  },
+  retryGradient: {
+    paddingHorizontal: 22,
+    paddingVertical: 12,
   },
   retryText: {
     fontSize: 14,
