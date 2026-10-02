@@ -341,7 +341,14 @@ export default function ReservationsScreen() {
 
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.headerRow}>
-          <Text style={styles.headerEyebrow}>YOUR TRIPS</Text>
+          <Text
+            style={[
+              styles.headerEyebrow,
+              { color: isDark ? GOLD : "#5C4218" },
+            ]}
+          >
+            YOUR TRIPS
+          </Text>
           <Text style={[styles.headerTitle, { color: palette.text }]}>Bookings</Text>
           <Text style={[styles.headerSub, { color: palette.muted }]}>
             Upcoming & active trips
@@ -410,9 +417,24 @@ export default function ReservationsScreen() {
               </Text>
               <Pressable
                 onPress={() => router.push("/customer/create-reservation")}
-                style={({ pressed }) => [styles.emptyCta, pressed && styles.pressed]}
+                style={({ pressed }) => [
+                  styles.emptyCta,
+                  {
+                    backgroundColor: isDark
+                      ? "rgba(212,160,74,0.18)"
+                      : "rgba(212,160,74,0.22)",
+                  },
+                  pressed && styles.pressed,
+                ]}
               >
-                <Text style={styles.emptyCtaText}>Book a ride</Text>
+                <Text
+                  style={[
+                    styles.emptyCtaText,
+                    { color: isDark ? GOLD : "#5C4218" },
+                  ]}
+                >
+                  Book a ride
+                </Text>
               </Pressable>
             </View>
           ) : (
@@ -535,7 +557,10 @@ export default function ReservationsScreen() {
                     <View style={[styles.cardFooter, { borderTopColor: palette.border }]}>
                       <Text style={[styles.metaFoot, { color: palette.muted }]} numberOfLines={1}>
                         {reservation.vehicle}
-                        <Text style={{ color: GOLD }}> · ${reservation.total.toFixed(0)}</Text>
+                        <Text style={{ color: isDark ? GOLD : "#5C4218" }}>
+                          {" "}
+                          · ${reservation.total.toFixed(0)}
+                        </Text>
                       </Text>
 
                       <View style={styles.actions}>
@@ -625,7 +650,6 @@ const styles = StyleSheet.create({
   headerEyebrow: {
     fontSize: 11,
     fontWeight: "800",
-    color: GOLD,
     letterSpacing: 1.4,
     marginBottom: 4,
   },
@@ -821,12 +845,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 11,
     borderRadius: 12,
-    backgroundColor: "rgba(212,160,74,0.18)",
   },
   emptyCtaText: {
     fontSize: 14,
     fontWeight: "800",
-    color: GOLD,
   },
   retryBtn: {
     marginTop: 10,

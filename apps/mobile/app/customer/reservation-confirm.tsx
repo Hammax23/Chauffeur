@@ -11,7 +11,9 @@ import {
   Modal,
   Pressable,
   TextInput,
+  StatusBar,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -40,6 +42,8 @@ import {
   clearPendingPromoCode,
   getPendingPromoCode,
 } from "../../utils/pending-promo";
+import { useCustomerTheme } from "../../contexts/CustomerThemeContext";
+import { GOLD, type DriverPalette } from "../../theme/driver-theme";
 
 /**
  * App card checkout via Stripe PaymentSheet (saved cards + Apple Pay when available).
@@ -53,6 +57,7 @@ const APP_PAYMENTS_ENABLED = false; // was: true
 export default function ReservationConfirmScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { palette, isDark } = useCustomerTheme();
   const [draft, setDraft] = useState<BookingDraft | null>(null);
   const [ready, setReady] = useState(false);
   const [gratuityPercent, setGratuityPercent] = useState<number>(APP_DEFAULT_GRATUITY_PERCENT);
@@ -484,18 +489,36 @@ export default function ReservationConfirmScreen() {
     }
   };
 
+  const styles = useMemo(() => makeStyles(palette, isDark), [palette, isDark]);
+
   if (!ready || !draft || !fare) {
     return (
-      <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator size="large" color="#0f172a" />
-        </View>
-      </SafeAreaView>
+      <View style={[styles.root, { backgroundColor: palette.root }]}>
+        <StatusBar barStyle={palette.statusBar} backgroundColor={palette.root} />
+        <LinearGradient colors={[...palette.bg]} style={StyleSheet.absoluteFill} />
+        <SafeAreaView style={styles.safe} edges={["top"]}>
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+            <ActivityIndicator size="large" color={isDark ? GOLD : palette.text} />
+          </View>
+        </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <View style={[styles.root, { backgroundColor: palette.root }]}>
+      <StatusBar barStyle={palette.statusBar} backgroundColor={palette.root} />
+      <LinearGradient colors={[...palette.bg]} style={StyleSheet.absoluteFill} />
+      <View style={styles.ambientGlow} pointerEvents="none">
+        <LinearGradient
+          colors={[...palette.glow]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.2, y: 0 }}
+          end={{ x: 0.85, y: 0.45 }}
+        />
+      </View>
+
+      <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -504,7 +527,7 @@ export default function ReservationConfirmScreen() {
       >
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
-            <Ionicons name="chevron-back" size={20} color="#0f172a" />
+            <Ionicons name="chevron-back" size={20} color={palette.text} />
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Confirm Booking</Text>
@@ -513,7 +536,11 @@ export default function ReservationConfirmScreen() {
 
         <View style={styles.stepIndicator}>
           <View style={styles.stepDone}>
-            <Ionicons name="checkmark" size={14} color="#fff" />
+            <Ionicons
+              name="checkmark"
+              size={14}
+              color={isDark ? "#1A1208" : "#fff"}
+            />
           </View>
           <View style={styles.stepLine} />
           <View style={styles.stepCurrent}>
@@ -537,7 +564,7 @@ export default function ReservationConfirmScreen() {
                 <Ionicons
                   name={isHourly ? "time-outline" : "navigate-outline"}
                   size={13}
-                  color={isHourly ? "#1a1208" : "#334155"}
+                  color={isHourly ? "#1a1208" : palette.muted}
                 />
                 <Text style={[styles.modeBadgeText, isHourly && styles.modeBadgeTextHourly]}>
                   {isHourly ? `Hourly · ${hourlyDuration} hours` : "Distance"}
@@ -581,7 +608,7 @@ export default function ReservationConfirmScreen() {
 
           <View style={styles.metaGrid}>
             <View style={styles.metaItem}>
-              <Ionicons name="car-outline" size={15} color="#64748b" />
+              <Ionicons name="car-outline" size={15} color={palette.muted} />
               <View style={styles.metaTextWrap}>
                 <Text style={styles.metaLabel}>Vehicle</Text>
                 <Text style={styles.metaValue} numberOfLines={2}>
@@ -590,7 +617,7 @@ export default function ReservationConfirmScreen() {
               </View>
             </View>
             <View style={styles.metaItem}>
-              <Ionicons name="calendar-outline" size={15} color="#64748b" />
+              <Ionicons name="calendar-outline" size={15} color={palette.muted} />
               <View style={styles.metaTextWrap}>
                 <Text style={styles.metaLabel}>Date & time</Text>
                 <Text style={styles.metaValue} numberOfLines={2}>
@@ -600,7 +627,7 @@ export default function ReservationConfirmScreen() {
             </View>
             {isHourly ? (
               <View style={styles.metaItem}>
-                <Ionicons name="time-outline" size={15} color="#64748b" />
+                <Ionicons name="time-outline" size={15} color={palette.muted} />
                 <View style={styles.metaTextWrap}>
                   <Text style={styles.metaLabel}>Duration</Text>
                   <Text style={styles.metaValue}>{hourlyDuration} hours</Text>
@@ -608,7 +635,7 @@ export default function ReservationConfirmScreen() {
               </View>
             ) : null}
             <View style={styles.metaItem}>
-              <Ionicons name={isParcel ? "cube-outline" : "people-outline"} size={15} color="#64748b" />
+              <Ionicons name={isParcel ? "cube-outline" : "people-outline"} size={15} color={palette.muted} />
               <View style={styles.metaTextWrap}>
                 <Text style={styles.metaLabel}>{isParcel ? "Service" : "Passengers"}</Text>
                 <Text style={styles.metaValue}>
@@ -618,7 +645,7 @@ export default function ReservationConfirmScreen() {
             </View>
             {isParcel && (draft.recipientName || draft.recipientPhone) ? (
               <View style={styles.metaItem}>
-                <Ionicons name="person-outline" size={15} color="#64748b" />
+                <Ionicons name="person-outline" size={15} color={palette.muted} />
                 <View style={styles.metaTextWrap}>
                   <Text style={styles.metaLabel}>Recipient</Text>
                   <Text style={styles.metaValue} numberOfLines={2}>
@@ -629,7 +656,7 @@ export default function ReservationConfirmScreen() {
             ) : null}
             {isParcel && draft.parcelWeight?.trim() ? (
               <View style={styles.metaItem}>
-                <Ionicons name="scale-outline" size={15} color="#64748b" />
+                <Ionicons name="scale-outline" size={15} color={palette.muted} />
                 <View style={styles.metaTextWrap}>
                   <Text style={styles.metaLabel}>Weight</Text>
                   <Text style={styles.metaValue}>{draft.parcelWeight}</Text>
@@ -638,7 +665,7 @@ export default function ReservationConfirmScreen() {
             ) : null}
             {isParcel && draft.parcelNote?.trim() ? (
               <View style={styles.metaItem}>
-                <Ionicons name="document-text-outline" size={15} color="#64748b" />
+                <Ionicons name="document-text-outline" size={15} color={palette.muted} />
                 <View style={styles.metaTextWrap}>
                   <Text style={styles.metaLabel}>Package note</Text>
                   <Text style={styles.metaValue} numberOfLines={3}>
@@ -649,7 +676,7 @@ export default function ReservationConfirmScreen() {
             ) : null}
             {!isParcel && childSeats > 0 ? (
               <View style={styles.metaItem}>
-                <Ionicons name="happy-outline" size={15} color="#64748b" />
+                <Ionicons name="happy-outline" size={15} color={palette.muted} />
                 <View style={styles.metaTextWrap}>
                   <Text style={styles.metaLabel}>Child seats</Text>
                   <Text style={styles.metaValue}>{childSeats}</Text>
@@ -693,7 +720,7 @@ export default function ReservationConfirmScreen() {
               <Ionicons
                 name={fareSummaryOpen ? "chevron-up" : "chevron-down"}
                 size={18}
-                color="#64748b"
+                color={palette.muted}
               />
             </View>
           </TouchableOpacity>
@@ -766,7 +793,7 @@ export default function ReservationConfirmScreen() {
                       <Ionicons
                         name={useReferralCredit ? "checkmark" : "add"}
                         size={16}
-                        color={useReferralCredit ? "#fff" : "#64748b"}
+                        color={useReferralCredit ? "#fff" : palette.muted}
                       />
                     </View>
                   </TouchableOpacity>
@@ -782,7 +809,11 @@ export default function ReservationConfirmScreen() {
                   {appliedPromoCode ? (
                     <View style={styles.promoAppliedRow}>
                       <View style={styles.promoChip}>
-                        <Ionicons name="pricetag" size={14} color="#166534" />
+                        <Ionicons
+                          name="pricetag"
+                          size={14}
+                          color={isDark ? "#4ADE80" : "#166534"}
+                        />
                         <Text style={styles.promoChipText}>{appliedPromoCode}</Text>
                       </View>
                       <TouchableOpacity onPress={handleClearPromo} hitSlop={10}>
@@ -799,7 +830,7 @@ export default function ReservationConfirmScreen() {
                           if (promoError) setPromoError("");
                         }}
                         placeholder="Enter code"
-                        placeholderTextColor="#94a3b8"
+                        placeholderTextColor={palette.muted}
                         autoCapitalize="characters"
                         autoCorrect={false}
                         editable={!promoBusy}
@@ -810,7 +841,7 @@ export default function ReservationConfirmScreen() {
                         disabled={promoBusy}
                       >
                         {promoBusy ? (
-                          <ActivityIndicator size="small" color="#fff" />
+                          <ActivityIndicator size="small" color={isDark ? "#1A1208" : "#fff"} />
                         ) : (
                           <Text style={styles.promoApplyText}>Apply</Text>
                         )}
@@ -823,12 +854,22 @@ export default function ReservationConfirmScreen() {
 
               {(fare.discountAmount || 0) > 0 ? (
                 <View style={styles.fareRow}>
-                  <Text style={[styles.fareLabel, { color: "#166534" }]}>
+                  <Text
+                    style={[
+                      styles.fareLabel,
+                      { color: isDark ? "#4ADE80" : "#166534" },
+                    ]}
+                  >
                     {useReferralCredit
                       ? "Referral credit"
                       : `Discount${appliedPromoCode ? ` (${appliedPromoCode})` : ""}`}
                   </Text>
-                  <Text style={[styles.fareValue, { color: "#166534" }]}>
+                  <Text
+                    style={[
+                      styles.fareValue,
+                      { color: isDark ? "#4ADE80" : "#166534" },
+                    ]}
+                  >
                     −${(fare.discountAmount || 0).toFixed(2)}
                   </Text>
                 </View>
@@ -846,7 +887,7 @@ export default function ReservationConfirmScreen() {
               >
                 <View style={styles.tipEntryLeft}>
                   <View style={styles.tipEntryIcon}>
-                    <Ionicons name="heart-outline" size={18} color="#0f172a" />
+                    <Ionicons name="heart-outline" size={18} color={palette.text} />
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={styles.tipEntryTitle}>Add tip</Text>
@@ -857,7 +898,7 @@ export default function ReservationConfirmScreen() {
                     </Text>
                   </View>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+                <Ionicons name="chevron-forward" size={18} color={palette.muted} />
               </TouchableOpacity>
 
               {gratuityPercent > 0 ? (
@@ -932,7 +973,7 @@ export default function ReservationConfirmScreen() {
               <Ionicons
                 name={APP_PAYMENTS_ENABLED ? "lock-closed-outline" : "ban-outline"}
                 size={11}
-                color={APP_PAYMENTS_ENABLED ? "#2e7d32" : "#64748b"}
+                color={APP_PAYMENTS_ENABLED ? "#2e7d32" : palette.muted}
               />
               <Text
                 style={[
@@ -966,9 +1007,9 @@ export default function ReservationConfirmScreen() {
               style={styles.manageCardsBtn}
               hitSlop={6}
             >
-              <Ionicons name="wallet-outline" size={14} color="#0f172a" />
+              <Ionicons name="wallet-outline" size={14} color={palette.text} />
               <Text style={styles.manageCardsText}>Manage saved cards</Text>
-              <Ionicons name="chevron-forward" size={14} color="#94a3b8" />
+              <Ionicons name="chevron-forward" size={14} color={palette.muted} />
             </Pressable>
           ) : null}
         </View>
@@ -985,7 +1026,9 @@ export default function ReservationConfirmScreen() {
           activeOpacity={0.8}
         >
           <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
-            {termsAccepted && <Ionicons name="checkmark" size={13} color="#fff" />}
+            {termsAccepted && (
+              <Ionicons name="checkmark" size={13} color={isDark ? "#1A1208" : "#fff"} />
+            )}
           </View>
           <Text style={styles.termsText}>
             I agree to the{" "}
@@ -1035,7 +1078,7 @@ export default function ReservationConfirmScreen() {
           onPress={handleSubmit}
         >
           {isSubmitting ? (
-            <ActivityIndicator color="#fff" size="small" />
+            <ActivityIndicator color="#1A1208" size="small" />
           ) : (
             <Text style={styles.submitBtnText}>
               {APP_PAYMENTS_ENABLED ? "Pay & confirm" : "Submit reservation"}
@@ -1101,12 +1144,26 @@ export default function ReservationConfirmScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
+function makeStyles(palette: DriverPalette, isDark: boolean) {
+  const card = isDark ? palette.cardAndroid : "#fff";
+  const fieldBg = isDark ? palette.metaChipBg : "#fff";
+  const primaryBtnBg = isDark ? GOLD : "#0f172a";
+  const primaryBtnText = isDark ? "#1A1208" : "#fff";
+  return StyleSheet.create({
+  root: { flex: 1 },
+  ambientGlow: {
+    position: "absolute",
+    top: -40,
+    left: -20,
+    right: -20,
+    height: 220,
+  },
+  safe: { flex: 1, backgroundColor: "transparent" },
   scrollView: { flex: 1 },
   scrollContent: { paddingHorizontal: 20 },
   header: {
@@ -1116,8 +1173,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   backBtn: { flexDirection: "row", alignItems: "center" },
-  backText: { fontSize: 15, color: "#0f172a", marginLeft: 2 },
-  headerTitle: { fontSize: 16, fontWeight: "600", color: "#0f172a" },
+  backText: { fontSize: 15, color: palette.text, marginLeft: 2 },
+  headerTitle: { fontSize: 16, fontWeight: "600", color: palette.text },
   stepIndicator: {
     flexDirection: "row",
     alignItems: "center",
@@ -1128,37 +1185,37 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: "#0f172a",
+    backgroundColor: isDark ? GOLD : "#0f172a",
     justifyContent: "center",
     alignItems: "center",
   },
-  stepLine: { width: 120, height: 2, backgroundColor: "#0f172a" },
+  stepLine: { width: 120, height: 2, backgroundColor: isDark ? GOLD : "#0f172a" },
   stepCurrent: {
     width: 26,
     height: 26,
     borderRadius: 13,
     borderWidth: 2,
-    borderColor: "#0f172a",
-    backgroundColor: "#fff",
+    borderColor: isDark ? GOLD : "#0f172a",
+    backgroundColor: card,
     justifyContent: "center",
     alignItems: "center",
   },
-  stepCurrentText: { fontSize: 12, fontWeight: "700", color: "#0f172a" },
+  stepCurrentText: { fontSize: 12, fontWeight: "700", color: palette.text },
   pageTitle: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#0f172a",
+    color: palette.text,
     letterSpacing: -0.3,
     marginBottom: 6,
   },
-  pageSubtitle: { fontSize: 14, color: "#64748b", marginBottom: 18, lineHeight: 20 },
+  pageSubtitle: { fontSize: 14, color: palette.muted, marginBottom: 18, lineHeight: 20 },
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: card,
     borderRadius: 16,
     padding: 16,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: palette.border,
   },
   cardTitleRow: {
     flexDirection: "row",
@@ -1166,7 +1223,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 10,
   },
-  cardTitle: { fontSize: 15, fontWeight: "700", color: "#0f172a", marginBottom: 10 },
+  cardTitle: { fontSize: 15, fontWeight: "700", color: palette.text, marginBottom: 10 },
   modeBadgeRow: {
     marginBottom: 12,
   },
@@ -1178,7 +1235,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: "#f1f5f9",
+    backgroundColor: fieldBg,
   },
   modeBadgeHourly: {
     backgroundColor: "#F5E6C8",
@@ -1186,7 +1243,7 @@ const styles = StyleSheet.create({
   modeBadgeText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#334155",
+    color: palette.muted,
     letterSpacing: 0.2,
   },
   modeBadgeTextHourly: {
@@ -1199,7 +1256,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: "#0f172a",
+    backgroundColor: palette.text,
   },
   routeDotStop: {
     width: 8,
@@ -1211,19 +1268,19 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 2,
-    backgroundColor: "#0f172a",
+    backgroundColor: palette.text,
   },
   routeDotAsDirected: {
     borderRadius: 5,
     backgroundColor: "#C9A063",
   },
-  routeLine: { width: 2, flex: 1, backgroundColor: "#e2e8f0", marginVertical: 4 },
+  routeLine: { width: 2, flex: 1, backgroundColor: palette.border, marginVertical: 4 },
   routeCopy: { flex: 1, paddingLeft: 10, gap: 12 },
   routeItem: {},
-  routeLabel: { fontSize: 11, fontWeight: "600", color: "#94a3b8", marginBottom: 2 },
-  routeValue: { fontSize: 14, color: "#0f172a", lineHeight: 20 },
+  routeLabel: { fontSize: 11, fontWeight: "600", color: palette.muted, marginBottom: 2 },
+  routeValue: { fontSize: 14, color: palette.text, lineHeight: 20 },
   routeValueMuted: {
-    color: "#64748b",
+    color: palette.muted,
     fontStyle: "italic",
     fontWeight: "500",
   },
@@ -1233,23 +1290,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 8,
-    backgroundColor: "#f8fafc",
+    backgroundColor: fieldBg,
     borderRadius: 10,
     padding: 10,
   },
   metaTextWrap: { flex: 1 },
-  metaLabel: { fontSize: 11, color: "#94a3b8", marginBottom: 2 },
-  metaValue: { fontSize: 13, fontWeight: "600", color: "#0f172a" },
+  metaLabel: { fontSize: 11, color: palette.muted, marginBottom: 2 },
+  metaValue: { fontSize: 13, fontWeight: "600", color: palette.text },
   routeStats: {
     flexDirection: "row",
     alignItems: "center",
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "#f1f5f9",
+    borderTopColor: palette.border,
   },
-  routeStatText: { fontSize: 13, color: "#64748b", fontWeight: "500" },
-  routeStatDot: { marginHorizontal: 6, color: "#cbd5e1" },
+  routeStatText: { fontSize: 13, color: palette.muted, fontWeight: "500" },
+  routeStatDot: { marginHorizontal: 6, color: palette.muted },
   fareRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1269,12 +1326,12 @@ const styles = StyleSheet.create({
   fareSummaryHeaderTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#0f172a",
+    color: palette.text,
   },
   fareSummaryHeaderHint: {
     marginTop: 2,
     fontSize: 12,
-    color: "#94a3b8",
+    color: palette.muted,
     fontWeight: "500",
   },
   fareSummaryHeaderRight: {
@@ -1286,23 +1343,23 @@ const styles = StyleSheet.create({
   fareSummaryHeaderTotal: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#0f172a",
+    color: palette.text,
     fontVariant: ["tabular-nums"],
   },
   fareSummaryBody: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#e2e8f0",
+    borderTopColor: palette.border,
   },
-  fareLabel: { fontSize: 13, color: "#64748b" },
-  fareValue: { fontSize: 13, fontWeight: "600", color: "#0f172a" },
+  fareLabel: { fontSize: 13, color: palette.muted },
+  fareValue: { fontSize: 13, fontWeight: "600", color: palette.text },
   promoBlock: {
     marginTop: 4,
     marginBottom: 8,
     paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#e2e8f0",
+    borderTopColor: palette.border,
   },
   referralToggleRow: {
     flexDirection: "row",
@@ -1314,10 +1371,10 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: "#cbd5e1",
+    borderColor: palette.border,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#f8fafc",
+    backgroundColor: fieldBg,
   },
   referralToggleOn: {
     backgroundColor: "#166534",
@@ -1326,7 +1383,7 @@ const styles = StyleSheet.create({
   promoLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#64748b",
+    color: palette.muted,
     marginBottom: 8,
   },
   promoHint: {
@@ -1343,18 +1400,18 @@ const styles = StyleSheet.create({
   promoInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: palette.border,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: Platform.OS === "ios" ? 11 : 8,
     fontSize: 14,
     fontWeight: "600",
-    color: "#0f172a",
+    color: palette.text,
     letterSpacing: 0.6,
-    backgroundColor: "#f8fafc",
+    backgroundColor: fieldBg,
   },
   promoApplyBtn: {
-    backgroundColor: "#0f172a",
+    backgroundColor: primaryBtnBg,
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 11,
@@ -1362,7 +1419,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  promoApplyText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  promoApplyText: { color: primaryBtnText, fontSize: 13, fontWeight: "700" },
   promoAppliedRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1372,22 +1429,26 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#dcfce7",
+    backgroundColor: isDark ? "rgba(74,222,128,0.14)" : "#dcfce7",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
   },
-  promoChipText: { fontSize: 13, fontWeight: "700", color: "#166534" },
-  promoRemove: { fontSize: 13, fontWeight: "600", color: "#64748b" },
+  promoChipText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: isDark ? "#4ADE80" : "#166534",
+  },
+  promoRemove: { fontSize: 13, fontWeight: "600", color: palette.muted },
   promoError: { marginTop: 6, fontSize: 12, color: "#b91c1c" },
   fareTotalRow: {
     marginTop: 8,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: "#f1f5f9",
+    borderTopColor: palette.border,
   },
-  fareTotalLabel: { fontSize: 15, fontWeight: "700", color: "#0f172a" },
-  fareTotalValue: { fontSize: 16, fontWeight: "700", color: "#0f172a" },
+  fareTotalLabel: { fontSize: 15, fontWeight: "700", color: palette.text },
+  fareTotalValue: { fontSize: 16, fontWeight: "700", color: palette.text },
   tipEntryRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1398,9 +1459,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderRadius: 14,
-    backgroundColor: "#f8fafc",
+    backgroundColor: fieldBg,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: palette.border,
   },
   tipEntryLeft: {
     flex: 1,
@@ -1413,21 +1474,21 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#fff",
+    backgroundColor: card,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: palette.border,
   },
   tipEntryTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#0f172a",
+    color: palette.text,
   },
   tipEntrySub: {
     marginTop: 2,
     fontSize: 12,
-    color: "#64748b",
+    color: palette.muted,
   },
   tipModalRoot: {
     flex: 1,
@@ -1438,7 +1499,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.45)",
   },
   tipModalSheet: {
-    backgroundColor: "#fff",
+    backgroundColor: card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
@@ -1450,13 +1511,13 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#d1d5db",
+    backgroundColor: palette.border,
     marginBottom: 14,
   },
   tipModalTitle: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#0f172a",
+    color: palette.text,
     letterSpacing: -0.3,
     marginBottom: 20,
   },
@@ -1469,23 +1530,23 @@ const styles = StyleSheet.create({
     minHeight: 72,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: "#e2e8f0",
-    backgroundColor: "#f8fafc",
+    borderColor: palette.border,
+    backgroundColor: fieldBg,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 14,
   },
   tipModalOptionActive: {
-    borderColor: "#0f172a",
-    backgroundColor: "#0f172a",
+    borderColor: primaryBtnBg,
+    backgroundColor: primaryBtnBg,
   },
   tipModalOptionPct: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#0f172a",
+    color: palette.text,
   },
   tipModalOptionPctActive: {
-    color: "#fff",
+    color: primaryBtnText,
   },
   tipModalNoTip: {
     marginTop: 14,
@@ -1495,21 +1556,21 @@ const styles = StyleSheet.create({
   tipModalNoTipText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#64748b",
+    color: palette.muted,
   },
-  guestName: { fontSize: 15, fontWeight: "600", color: "#0f172a", marginBottom: 4 },
-  guestDetail: { fontSize: 13, color: "#64748b", marginBottom: 2 },
+  guestName: { fontSize: 15, fontWeight: "600", color: palette.text, marginBottom: 4 },
+  guestDetail: { fontSize: 13, color: palette.muted, marginBottom: 2 },
   bookerBox: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(15,23,42,0.08)",
+    borderTopColor: palette.border,
   },
   bookerLabel: {
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.6,
-    color: "#D4A04A",
+    color: isDark ? GOLD : palette.hintBold,
     marginBottom: 4,
     textTransform: "uppercase",
   },
@@ -1517,7 +1578,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 12,
     lineHeight: 17,
-    color: "#64748b",
+    color: palette.muted,
   },
   secureBadge: {
     flexDirection: "row",
@@ -1532,24 +1593,24 @@ const styles = StyleSheet.create({
   secureBadgeText: { fontSize: 11, fontWeight: "600", color: "#2e7d32" },
   paymentDisabledCard: {
     opacity: 0.72,
-    backgroundColor: "#f8fafc",
+    backgroundColor: fieldBg,
   },
   paymentDisabledBadge: {
-    backgroundColor: "#e2e8f0",
+    backgroundColor: palette.border,
   },
   paymentDisabledBadgeText: {
-    color: "#64748b",
+    color: palette.muted,
   },
   paymentDisabledText: {
-    color: "#94a3b8",
+    color: palette.muted,
   },
   paymentAmount: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#0f172a",
+    color: palette.text,
     marginBottom: 8,
   },
-  paymentNote: { fontSize: 13, color: "#64748b", lineHeight: 19 },
+  paymentNote: { fontSize: 13, color: palette.muted, lineHeight: 19 },
   paymentTrustRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1569,40 +1630,43 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 10,
-    backgroundColor: "#f8fafc",
+    backgroundColor: fieldBg,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#e2e8f0",
+    borderColor: palette.border,
   },
   manageCardsText: {
     flex: 1,
     fontSize: 13,
     fontWeight: "600",
-    color: "#0f172a",
+    color: palette.text,
   },
   notesCard: {
-    backgroundColor: "#f8fafc",
+    backgroundColor: fieldBg,
     borderRadius: 12,
     padding: 14,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: palette.border,
   },
-  notesTitle: { fontSize: 13, fontWeight: "700", color: "#0f172a", marginBottom: 6 },
-  notesLine: { fontSize: 12, color: "#64748b", marginBottom: 2 },
+  notesTitle: { fontSize: 13, fontWeight: "700", color: palette.text, marginBottom: 6 },
+  notesLine: { fontSize: 12, color: palette.muted, marginBottom: 2 },
   termsRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 8 },
   checkbox: {
     width: 20,
     height: 20,
     borderRadius: 4,
     borderWidth: 1.5,
-    borderColor: "#cbd5e1",
+    borderColor: palette.border,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 2,
   },
-  checkboxChecked: { backgroundColor: "#0f172a", borderColor: "#0f172a" },
-  termsText: { flex: 1, fontSize: 13, color: "#64748b", lineHeight: 19 },
-  termsLink: { color: "#0f172a", fontWeight: "600", textDecorationLine: "underline" },
+  checkboxChecked: {
+    backgroundColor: isDark ? GOLD : "#0f172a",
+    borderColor: isDark ? GOLD : "#0f172a",
+  },
+  termsText: { flex: 1, fontSize: 13, color: palette.muted, lineHeight: 19 },
+  termsLink: { color: palette.text, fontWeight: "600", textDecorationLine: "underline" },
   bottomBar: {
     position: "absolute",
     left: 0,
@@ -1614,21 +1678,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: Platform.OS === "ios" ? 28 : 16,
-    backgroundColor: "#fff",
+    backgroundColor: card,
     borderTopWidth: 1,
-    borderTopColor: "#e2e8f0",
+    borderTopColor: palette.border,
   },
   bottomTotal: { flex: 1 },
-  bottomTotalLabel: { fontSize: 12, color: "#64748b" },
-  bottomTotalValue: { fontSize: 20, fontWeight: "700", color: "#0f172a" },
+  bottomTotalLabel: { fontSize: 12, color: palette.muted },
+  bottomTotalValue: { fontSize: 20, fontWeight: "700", color: palette.text },
   submitBtn: {
-    backgroundColor: "#0f172a",
+    backgroundColor: GOLD,
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderRadius: 12,
     minWidth: 160,
     alignItems: "center",
   },
-  submitBtnDisabled: { opacity: 0.7 },
-  submitBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  submitBtnDisabled: {
+    backgroundColor: isDark ? "rgba(212,160,74,0.28)" : "rgba(212,160,74,0.4)",
+    opacity: 1,
+  },
+  submitBtnText: { color: "#1A1208", fontSize: 15, fontWeight: "700" },
 });
+}

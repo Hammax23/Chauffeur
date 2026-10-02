@@ -50,8 +50,7 @@ export default function ConciergeProfileScreen() {
         <Text style={styles.email}>{concierge?.email}</Text>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Hotel</Text>
-          <Info label="Name" value={concierge?.hotelName} />
+          <Text style={styles.cardTitle}>Account</Text>
           <Info label="Phone" value={concierge?.phone} />
           <Info
             label="Commission"

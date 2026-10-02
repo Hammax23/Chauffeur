@@ -181,7 +181,9 @@ export default function ContactUsScreen() {
             </View>
           </BlurView>
 
-          <Text style={styles.fieldLabel}>TOPIC *</Text>
+          <Text style={[styles.fieldLabel, { color: isDark ? GOLD : palette.hintBold }]}>
+            TOPIC *
+          </Text>
           <Pressable
             onPress={() => setTypePickerOpen(true)}
             style={({ pressed }) => [
@@ -204,7 +206,9 @@ export default function ContactUsScreen() {
             <Ionicons name="chevron-down" size={18} color={palette.muted} />
           </Pressable>
 
-          <Text style={styles.fieldLabel}>SUBJECT (OPTIONAL)</Text>
+          <Text style={[styles.fieldLabel, { color: isDark ? GOLD : palette.hintBold }]}>
+            SUBJECT (OPTIONAL)
+          </Text>
           <View
             style={[
               styles.fieldCard,
@@ -224,7 +228,9 @@ export default function ContactUsScreen() {
             />
           </View>
 
-          <Text style={styles.fieldLabel}>MESSAGE *</Text>
+          <Text style={[styles.fieldLabel, { color: isDark ? GOLD : palette.hintBold }]}>
+            MESSAGE *
+          </Text>
           <BlurView
             intensity={cardBlur}
             tint={isDark ? "dark" : "light"}
@@ -319,13 +325,20 @@ export default function ContactUsScreen() {
                     style={[
                       styles.modalRowText,
                       { color: palette.text },
-                      type === item && { color: GOLD, fontWeight: "700" },
+                      type === item && {
+                        color: isDark ? GOLD : palette.hintBold,
+                        fontWeight: "700",
+                      },
                     ]}
                   >
                     {item}
                   </Text>
                   {type === item ? (
-                    <Ionicons name="checkmark-circle" size={18} color={GOLD} />
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={18}
+                      color={isDark ? GOLD : palette.hintBold}
+                    />
                   ) : null}
                 </Pressable>
               )}
@@ -400,7 +413,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 1.1,
-    color: GOLD,
     marginBottom: 8,
     marginTop: 4,
   },

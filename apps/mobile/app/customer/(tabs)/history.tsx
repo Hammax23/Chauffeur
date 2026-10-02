@@ -178,7 +178,10 @@ function HistoryCard({
         <View style={styles.metaCol}>
           <Text style={[styles.metaLine, { color: palette.muted }]} numberOfLines={1}>
             {reservation.vehicle || "Vehicle"}
-            <Text style={{ color: GOLD }}> · {priceLabel}</Text>
+            <Text style={{ color: isDark ? GOLD : palette.hintBold }}>
+              {" "}
+              · {priceLabel}
+            </Text>
           </Text>
           {isDone && reservation.review ? (
             <View style={styles.ratingRow}>
@@ -336,7 +339,14 @@ export default function HistoryScreen() {
 
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.header}>
-          <Text style={styles.headerEyebrow}>PAST TRIPS</Text>
+          <Text
+            style={[
+              styles.headerEyebrow,
+              { color: isDark ? GOLD : palette.hintBold },
+            ]}
+          >
+            PAST TRIPS
+          </Text>
           <Text style={[styles.headerTitle, { color: palette.text }]}>History</Text>
           {!isLoading && total > 0 ? (
             <Text style={[styles.headerSub, { color: palette.muted }]}>
@@ -525,7 +535,6 @@ const styles = StyleSheet.create({
   headerEyebrow: {
     fontSize: 11,
     fontWeight: "800",
-    color: GOLD,
     letterSpacing: 1.5,
     marginBottom: 4,
   },

@@ -8,9 +8,14 @@ import {
 
 export const CUSTOMER_THEME_KEY = "customer_home_theme";
 
+/** Survives remounts so nested providers (e.g. legal-doc) don't flash dark → light. */
+let cachedCustomerTheme: ThemeMode | null = null;
+
 type CustomerThemeContextValue = {
   themeMode: ThemeMode;
   isDark: boolean;
+  /** True after SecureStore theme has been read (or failed). */
+  hydrated: boolean;
   palette: DriverPalette;
   toggleTheme: () => void;
   setThemeMode: (mode: ThemeMode) => void;
@@ -18,23 +23,41 @@ type CustomerThemeContextValue = {
 
 const CustomerThemeContext = createContext<CustomerThemeContextValue | null>(null);
 
+function rememberTheme(mode: ThemeMode) {
+  cachedCustomerTheme = mode;
+}
+
 export function CustomerThemeProvider({ children }: { children: ReactNode }) {
-  const [themeMode, setThemeModeState] = useState<ThemeMode>("dark");
+  const [themeMode, setThemeModeState] = useState<ThemeMode>(
+    () => cachedCustomerTheme ?? "dark"
+  );
+  const [hydrated, setHydrated] = useState(() => cachedCustomerTheme != null);
 
   useEffect(() => {
     let alive = true;
     SecureStore.getItemAsync(CUSTOMER_THEME_KEY)
       .then((saved) => {
         if (!alive) return;
-        if (saved === "light" || saved === "dark") setThemeModeState(saved);
+        if (saved === "light" || saved === "dark") {
+          rememberTheme(saved);
+          setThemeModeState(saved);
+        } else if (cachedCustomerTheme == null) {
+          rememberTheme("dark");
+        }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (alive && cachedCustomerTheme == null) rememberTheme("dark");
+      })
+      .finally(() => {
+        if (alive) setHydrated(true);
+      });
     return () => {
       alive = false;
     };
   }, []);
 
   const setThemeMode = useCallback((mode: ThemeMode) => {
+    rememberTheme(mode);
     setThemeModeState(mode);
     SecureStore.setItemAsync(CUSTOMER_THEME_KEY, mode).catch(() => {});
   }, []);
@@ -42,6 +65,7 @@ export function CustomerThemeProvider({ children }: { children: ReactNode }) {
   const toggleTheme = useCallback(() => {
     setThemeModeState((prev) => {
       const next: ThemeMode = prev === "dark" ? "light" : "dark";
+      rememberTheme(next);
       SecureStore.setItemAsync(CUSTOMER_THEME_KEY, next).catch(() => {});
       return next;
     });
@@ -51,11 +75,12 @@ export function CustomerThemeProvider({ children }: { children: ReactNode }) {
     () => ({
       themeMode,
       isDark: themeMode === "dark",
+      hydrated,
       palette: getDriverPalette(themeMode),
       toggleTheme,
       setThemeMode,
     }),
-    [themeMode, toggleTheme, setThemeMode]
+    [themeMode, hydrated, toggleTheme, setThemeMode]
   );
 
   return <CustomerThemeContext.Provider value={value}>{children}</CustomerThemeContext.Provider>;
@@ -67,4 +92,9 @@ export function useCustomerTheme() {
     throw new Error("useCustomerTheme must be used within CustomerThemeProvider");
   }
   return ctx;
+}
+
+/** Safe for shared components that may render outside CustomerThemeProvider. */
+export function useOptionalCustomerTheme(): CustomerThemeContextValue | null {
+  return useContext(CustomerThemeContext);
 }

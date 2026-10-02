@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
@@ -27,6 +28,12 @@ import * as Google from "expo-auth-session/providers/google";
 import { makeRedirectUri, ResponseType, exchangeCodeAsync } from "expo-auth-session";
 import * as AppleAuthentication from "expo-apple-authentication";
 import Constants, { ExecutionEnvironment } from "expo-constants";
+import { SlimSpinner } from "../components/SlimSpinner";
+import {
+  CustomerThemeProvider,
+  useCustomerTheme,
+} from "../contexts/CustomerThemeContext";
+import { GOLD, type DriverPalette } from "../theme/driver-theme";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -75,9 +82,11 @@ async function routeAfterCustomerAuth() {
  * Consumer app login — Customer & Driver only.
  * Hotel Concierge uses the separate enterprise Partner Portal at /partner/login.
  */
-export default function LoginScreen() {
+function LoginScreenInner() {
   const { login, reactivate, loginWithGoogle, loginWithApple } = useAuth();
   const { login: driverLogin } = useDriverAuth();
+  const { palette, isDark, hydrated } = useCustomerTheme();
+  const styles = useMemo(() => makeStyles(palette, isDark), [palette, isDark]);
   const { width } = useWindowDimensions();
   const compact = width < 380;
   const [userType, setUserType] = useState<MainRole>("customer");
@@ -86,6 +95,9 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [appleAvailable, setAppleAvailable] = useState(false);
+
+  const accent = isDark ? GOLD : "#8B6914";
+  const fieldBg = isDark ? palette.metaChipBg : "#fff";
 
   useEffect(() => {
     if (Platform.OS !== "ios") return;
@@ -105,7 +117,6 @@ export default function LoginScreen() {
   const googleIosScheme = googleReversedIosScheme(googleIosClientId);
 
   const googleRedirectUri = makeRedirectUri({
-    // Native Google iOS clients expect the reversed-client-id URL scheme.
     native:
       Platform.OS === "ios" && googleIosScheme
         ? `${googleIosScheme}:/oauthredirect`
@@ -137,7 +148,6 @@ export default function LoginScreen() {
     const immediate = extractGoogleIdToken(result);
     if (immediate) return immediate;
 
-    // Code flow: promptAsync often returns before auto-exchange finishes.
     const code = result.params?.code;
     if (!code || !googleRequest) return null;
 
@@ -273,7 +283,6 @@ export default function LoginScreen() {
         );
       }
     } catch (e: unknown) {
-      // User dismissed the Apple sheet — not an error
       const code =
         e && typeof e === "object" && "code" in e
           ? String((e as { code?: string }).code)
@@ -281,7 +290,6 @@ export default function LoginScreen() {
       if (code === "ERR_REQUEST_CANCELED" || code === "ERR_CANCELED") return;
       const raw = e instanceof Error ? e.message : "Apple login failed";
       const lower = raw.toLowerCase();
-      // Apple ASAuthorizationError 1000 / capability mismatch often shows this copy
       const msg =
         lower.includes("sign up not completed") ||
         lower.includes("authorizationerror") ||
@@ -355,385 +363,458 @@ export default function LoginScreen() {
     }
   }
 
+  if (!hydrated) {
+    return (
+      <View style={[styles.root, { backgroundColor: palette.root }]}>
+        <StatusBar barStyle={palette.statusBar} backgroundColor={palette.root} />
+        <LinearGradient colors={[...palette.bg]} style={StyleSheet.absoluteFill} />
+        <View style={styles.hydrateGate}>
+          <SlimSpinner size={28} stroke={2} color={GOLD} />
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
-      >
-        <ScrollView
-          style={styles.container}
-          contentContainerStyle={[
-            styles.contentContainer,
-            compact && styles.contentContainerCompact,
-          ]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          bounces
+    <View style={[styles.root, { backgroundColor: palette.root }]}>
+      <StatusBar barStyle={palette.statusBar} backgroundColor={palette.root} />
+      <LinearGradient colors={[...palette.bg]} style={StyleSheet.absoluteFill} />
+      <View style={styles.ambientGlow} pointerEvents="none">
+        <LinearGradient
+          colors={[...palette.glow]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.2, y: 0 }}
+          end={{ x: 0.85, y: 0.55 }}
+        />
+      </View>
+
+      <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
         >
-          <Text style={styles.title} maxFontSizeMultiplier={1.3}>
-            Login
-          </Text>
-          <Text style={styles.subtitle} maxFontSizeMultiplier={1.3}>
-            Log into your account.
-          </Text>
-
-          <View style={styles.segment}>
-            <TouchableOpacity
-              style={[styles.segmentBtn, userType === "customer" && styles.segmentBtnActive]}
-              onPress={() => setUserType("customer")}
-              accessibilityRole="button"
-              accessibilityState={{ selected: userType === "customer" }}
-            >
-              <Text
-                style={[styles.segmentText, userType === "customer" && styles.segmentTextActive]}
-                maxFontSizeMultiplier={1.2}
-              >
-                Customer
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.segmentBtn, userType === "driver" && styles.segmentBtnActive]}
-              onPress={() => setUserType("driver")}
-              accessibilityRole="button"
-              accessibilityState={{ selected: userType === "driver" }}
-            >
-              <Text
-                style={[styles.segmentText, userType === "driver" && styles.segmentTextActive]}
-                maxFontSizeMultiplier={1.15}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.75}
-              >
-                Drive for us!
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>
-              Email<Text style={styles.required}>*</Text>
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your email"
-              placeholderTextColor="#999"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="email"
-              textContentType="emailAddress"
-              returnKeyType="next"
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>
-              Password<Text style={styles.required}>*</Text>
-            </Text>
-            <View style={styles.passwordContainer}>
-              <TextInput
-                style={styles.passwordInput}
-                placeholder="Enter your password"
-                placeholderTextColor="#999"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                autoComplete="password"
-                textContentType="password"
-                returnKeyType="done"
-                onSubmitEditing={() => void handleSignIn()}
-              />
-              <TouchableOpacity
-                style={styles.eyeButton}
-                onPress={() => setShowPassword(!showPassword)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityLabel={showPassword ? "Hide password" : "Show password"}
-              >
-                <Ionicons
-                  name={showPassword ? "eye-outline" : "eye-off-outline"}
-                  size={22}
-                  color="#999"
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {userType === "customer" && (
-            <TouchableOpacity
-              style={styles.forgotContainer}
-              onPress={() => router.push("/forgot-password")}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={styles.forgotText}>Forgot Password?</Text>
-            </TouchableOpacity>
-          )}
-
-          {userType === "customer" && (
-            <View style={styles.registerContainer}>
-              <Text style={styles.registerText}>Don&apos;t have an account? </Text>
-              <TouchableOpacity onPress={() => router.push("/register")}>
-                <Text style={styles.registerLink}>Register Here</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          <TouchableOpacity
-            style={[styles.signInButton, isLoading && styles.disabled]}
-            disabled={isLoading}
-            onPress={() => void handleSignIn()}
-            activeOpacity={0.9}
+          <ScrollView
+            style={styles.container}
+            contentContainerStyle={[
+              styles.contentContainer,
+              compact && styles.contentContainerCompact,
+            ]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            bounces
           >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={styles.signInText}>Sign In</Text>
-            )}
-          </TouchableOpacity>
+            <Text style={styles.title} maxFontSizeMultiplier={1.3}>
+              Welcome back
+            </Text>
+            <Text style={styles.subtitle} maxFontSizeMultiplier={1.3}>
+              Sign in to book your chauffeur
+            </Text>
 
-          {userType === "customer" && (
-            <>
-              <View style={styles.dividerContainer}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText} maxFontSizeMultiplier={1.2}>
-                  Or sign in with
-                </Text>
-                <View style={styles.dividerLine} />
-              </View>
-
+            <View style={styles.segment}>
               <TouchableOpacity
-                style={[styles.socialButton, (!googleRequest || isLoading) && styles.disabled]}
-                disabled={!googleRequest || isLoading}
-                onPress={handleGoogle}
-                activeOpacity={0.9}
+                style={[
+                  styles.segmentBtn,
+                  userType === "customer" && styles.segmentBtnActive,
+                ]}
+                onPress={() => setUserType("customer")}
+                accessibilityRole="button"
+                accessibilityState={{ selected: userType === "customer" }}
               >
-                <Image
-                  source={{ uri: "https://www.google.com/favicon.ico" }}
-                  style={styles.socialIcon}
-                />
-                <Text style={styles.socialText} numberOfLines={1}>
-                  Continue with Google
+                <Text
+                  style={[
+                    styles.segmentText,
+                    userType === "customer" && styles.segmentTextActive,
+                  ]}
+                  maxFontSizeMultiplier={1.2}
+                >
+                  Customer
                 </Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.segmentBtn,
+                  userType === "driver" && styles.segmentBtnActive,
+                ]}
+                onPress={() => setUserType("driver")}
+                accessibilityRole="button"
+                accessibilityState={{ selected: userType === "driver" }}
+              >
+                <Text
+                  style={[
+                    styles.segmentText,
+                    userType === "driver" && styles.segmentTextActive,
+                  ]}
+                  maxFontSizeMultiplier={1.15}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.75}
+                >
+                  Drive for us!
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-              {Platform.OS === "ios" && appleAvailable && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>
+                Email<Text style={styles.required}>*</Text>
+              </Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: fieldBg }]}
+                placeholder="Enter your email"
+                placeholderTextColor={palette.muted}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+                textContentType="emailAddress"
+                returnKeyType="next"
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>
+                Password<Text style={styles.required}>*</Text>
+              </Text>
+              <View style={[styles.passwordContainer, { backgroundColor: fieldBg }]}>
+                <TextInput
+                  style={styles.passwordInput}
+                  placeholder="Enter your password"
+                  placeholderTextColor={palette.muted}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoComplete="password"
+                  textContentType="password"
+                  returnKeyType="done"
+                  onSubmitEditing={() => void handleSignIn()}
+                />
                 <TouchableOpacity
-                  style={[styles.socialButton, isLoading && styles.disabled]}
-                  disabled={isLoading}
-                  onPress={handleApple}
+                  style={styles.eyeButton}
+                  onPress={() => setShowPassword(!showPassword)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                >
+                  <Ionicons
+                    name={showPassword ? "eye-outline" : "eye-off-outline"}
+                    size={22}
+                    color={palette.muted}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {userType === "customer" && (
+              <TouchableOpacity
+                style={styles.forgotContainer}
+                onPress={() => router.push("/forgot-password")}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={[styles.forgotText, { color: accent }]}>Forgot Password?</Text>
+              </TouchableOpacity>
+            )}
+
+            {userType === "customer" && (
+              <View style={styles.registerContainer}>
+                <Text style={styles.registerText}>Don&apos;t have an account? </Text>
+                <TouchableOpacity onPress={() => router.push("/register")}>
+                  <Text style={[styles.registerLink, { color: accent }]}>Register Here</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[styles.signInButton, isLoading && styles.disabled]}
+              disabled={isLoading}
+              onPress={() => void handleSignIn()}
+              activeOpacity={0.9}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.signInText}>Sign In</Text>
+              )}
+            </TouchableOpacity>
+
+            {userType === "customer" && (
+              <>
+                <View style={styles.dividerContainer}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText} maxFontSizeMultiplier={1.2}>
+                    Or sign in with
+                  </Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.socialButton,
+                    { backgroundColor: fieldBg },
+                    (!googleRequest || isLoading) && styles.disabled,
+                  ]}
+                  disabled={!googleRequest || isLoading}
+                  onPress={handleGoogle}
                   activeOpacity={0.9}
                 >
-                  <Ionicons name="logo-apple" size={20} color="#000" />
+                  <Image
+                    source={{ uri: "https://www.google.com/favicon.ico" }}
+                    style={styles.socialIcon}
+                  />
                   <Text style={styles.socialText} numberOfLines={1}>
-                    Continue with Apple
+                    Continue with Google
                   </Text>
                 </TouchableOpacity>
-              )}
-            </>
-          )}
 
-          <View style={styles.partnerFooter}>
-            <View style={styles.partnerDivider} />
-            <Pressable
-              onPress={() => router.push("/partner/login")}
-              style={({ pressed }) => [styles.partnerLink, pressed && { opacity: 0.7 }]}
-              hitSlop={8}
-            >
-              <Text style={styles.partnerLinkText}>SARJ Partners</Text>
-              <Ionicons name="open-outline" size={13} color="#94a3b8" />
-            </Pressable>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+                {Platform.OS === "ios" && appleAvailable && (
+                  <TouchableOpacity
+                    style={[
+                      styles.socialButton,
+                      { backgroundColor: fieldBg },
+                      isLoading && styles.disabled,
+                    ]}
+                    disabled={isLoading}
+                    onPress={handleApple}
+                    activeOpacity={0.9}
+                  >
+                    <Ionicons name="logo-apple" size={20} color={palette.text} />
+                    <Text style={styles.socialText} numberOfLines={1}>
+                      Continue with Apple
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+
+            <View style={styles.partnerFooter}>
+              <View style={styles.partnerDivider} />
+              <Pressable
+                onPress={() => router.push("/partner/login")}
+                style={({ pressed }) => [styles.partnerLink, pressed && { opacity: 0.7 }]}
+                hitSlop={8}
+              >
+                <Text style={styles.partnerLinkText}>SARJ Partners</Text>
+                <Ionicons name="open-outline" size={13} color={palette.muted} />
+              </Pressable>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#fff" },
-  flex: { flex: 1 },
-  container: { flex: 1, backgroundColor: "#fff" },
-  contentContainer: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 32,
-  },
-  contentContainerCompact: {
-    paddingHorizontal: 18,
-    paddingTop: 12,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#000",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: "#666",
-    marginBottom: 28,
-  },
-  segment: {
-    flexDirection: "row",
-    backgroundColor: "#f1f5f9",
-    borderRadius: 14,
-    padding: 4,
-    marginBottom: 28,
-    gap: 4,
-  },
-  segmentBtn: {
-    flex: 1,
-    minWidth: 0,
-    minHeight: 44,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  segmentBtnActive: { backgroundColor: "#1a1a1a" },
-  segmentText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#64748b",
-    textAlign: "center",
-  },
-  segmentTextActive: { color: "#fff" },
-  inputGroup: { marginBottom: 20 },
-  label: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#000",
-    marginBottom: 10,
-  },
-  required: { color: "#e53935" },
-  input: {
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: Platform.OS === "ios" ? 14 : 12,
-    fontSize: 15,
-    color: "#000",
-    minHeight: 48,
-  },
-  passwordContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-    borderRadius: 8,
-    minHeight: 48,
-  },
-  passwordInput: {
-    flex: 1,
-    minWidth: 0,
-    paddingHorizontal: 16,
-    paddingVertical: Platform.OS === "ios" ? 14 : 12,
-    fontSize: 15,
-    color: "#000",
-  },
-  eyeButton: {
-    paddingHorizontal: 14,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  forgotContainer: {
-    alignItems: "flex-end",
-    marginBottom: 16,
-  },
-  forgotText: {
-    fontSize: 14,
-    color: "#000",
-    fontWeight: "500",
-  },
-  registerContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    marginBottom: 24,
-  },
-  registerText: { fontSize: 14, color: "#666" },
-  registerLink: {
-    fontSize: 14,
-    color: "#000",
-    fontWeight: "600",
-  },
-  signInButton: {
-    backgroundColor: "#1a1a1a",
-    paddingVertical: 16,
-    borderRadius: 30,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 24,
-    minHeight: 52,
-  },
-  disabled: { opacity: 0.7 },
-  signInText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  dividerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  dividerLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: "#e0e0e0",
-  },
-  dividerText: {
-    paddingHorizontal: 12,
-    fontSize: 14,
-    color: "#666",
-    flexShrink: 1,
-  },
-  socialButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-    borderRadius: 30,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    marginBottom: 12,
-    gap: 10,
-    minHeight: 52,
-  },
-  socialIcon: { width: 20, height: 20, flexShrink: 0 },
-  socialText: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: "#000",
-    flexShrink: 1,
-  },
-  partnerFooter: {
-    marginTop: 36,
-    alignItems: "center",
-  },
-  partnerDivider: {
-    width: 48,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: "#e2e8f0",
-    marginBottom: 16,
-  },
-  partnerLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 8,
-  },
-  partnerLinkText: {
-    fontSize: 13,
-    color: "#94a3b8",
-    fontWeight: "600",
-  },
-});
+function makeStyles(palette: DriverPalette, isDark: boolean) {
+  const segmentTrack = isDark ? palette.metaChipBg : "rgba(0,0,0,0.06)";
+  const segmentActiveBg = isDark ? GOLD : "#0f172a";
+  const segmentActiveText = isDark ? "#1A1208" : "#fff";
+
+  return StyleSheet.create({
+    root: { flex: 1 },
+    ambientGlow: {
+      position: "absolute",
+      top: -60,
+      left: -30,
+      right: -30,
+      height: 280,
+    },
+    safeArea: { flex: 1, backgroundColor: "transparent" },
+    flex: { flex: 1 },
+    hydrateGate: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    container: { flex: 1, backgroundColor: "transparent" },
+    contentContainer: {
+      flexGrow: 1,
+      paddingHorizontal: 24,
+      paddingTop: 16,
+      paddingBottom: 32,
+    },
+    contentContainerCompact: {
+      paddingHorizontal: 18,
+      paddingTop: 10,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: "800",
+      color: palette.text,
+      letterSpacing: -0.5,
+      marginBottom: 8,
+    },
+    subtitle: {
+      fontSize: 15,
+      color: palette.muted,
+      marginBottom: 26,
+      lineHeight: 21,
+    },
+    segment: {
+      flexDirection: "row",
+      backgroundColor: segmentTrack,
+      borderRadius: 14,
+      padding: 4,
+      marginBottom: 28,
+      gap: 4,
+    },
+    segmentBtn: {
+      flex: 1,
+      minWidth: 0,
+      minHeight: 44,
+      paddingVertical: 12,
+      paddingHorizontal: 8,
+      borderRadius: 11,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    segmentBtnActive: { backgroundColor: segmentActiveBg },
+    segmentText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: palette.muted,
+      textAlign: "center",
+    },
+    segmentTextActive: { color: segmentActiveText },
+    inputGroup: { marginBottom: 18 },
+    label: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: palette.text,
+      marginBottom: 8,
+    },
+    required: { color: palette.danger },
+    input: {
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: Platform.OS === "ios" ? 14 : 12,
+      fontSize: 15,
+      fontWeight: "500",
+      color: palette.text,
+      minHeight: 48,
+    },
+    passwordContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: 12,
+      minHeight: 48,
+    },
+    passwordInput: {
+      flex: 1,
+      minWidth: 0,
+      paddingHorizontal: 14,
+      paddingVertical: Platform.OS === "ios" ? 14 : 12,
+      fontSize: 15,
+      fontWeight: "500",
+      color: palette.text,
+    },
+    eyeButton: {
+      paddingHorizontal: 14,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    forgotContainer: {
+      alignItems: "flex-end",
+      marginBottom: 14,
+    },
+    forgotText: {
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    registerContainer: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "center",
+      marginBottom: 22,
+    },
+    registerText: { fontSize: 14, color: palette.muted },
+    registerLink: {
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    signInButton: {
+      backgroundColor: "#1a1a1a",
+      paddingVertical: 16,
+      borderRadius: 30,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 24,
+      minHeight: 52,
+    },
+    disabled: { opacity: 0.7 },
+    signInText: {
+      color: "#fff",
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    dividerContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 20,
+    },
+    dividerLine: {
+      flex: 1,
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: palette.border,
+    },
+    dividerText: {
+      paddingHorizontal: 12,
+      fontSize: 13,
+      color: palette.muted,
+      flexShrink: 1,
+    },
+    socialButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: 14,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      marginBottom: 12,
+      gap: 10,
+      minHeight: 52,
+    },
+    socialIcon: { width: 20, height: 20, flexShrink: 0 },
+    socialText: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: palette.text,
+      flexShrink: 1,
+    },
+    partnerFooter: {
+      marginTop: 28,
+      alignItems: "center",
+    },
+    partnerDivider: {
+      width: 48,
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: palette.border,
+      marginBottom: 16,
+    },
+    partnerLink: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingVertical: 8,
+    },
+    partnerLinkText: {
+      fontSize: 13,
+      color: palette.muted,
+      fontWeight: "600",
+    },
+  });
+}
+
+export default function LoginScreen() {
+  return (
+    <CustomerThemeProvider>
+      <LoginScreenInner />
+    </CustomerThemeProvider>
+  );
+}

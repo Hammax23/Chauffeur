@@ -155,10 +155,10 @@ export default function PartnerLoginScreen() {
                 transform: [{ translateY: rise }],
               }}
             >
-              <Text style={styles.kicker}>HOTEL OPERATIONS</Text>
+              <Text style={styles.kicker}>PARTNER ACCESS</Text>
               <Text style={styles.headline}>Partner portal</Text>
               <Text style={styles.lede}>
-                Concierge workspace for SARJ hotel partners. Access is granted by
+                Concierge workspace for SARJ partners. Access is granted by
                 administrators only.
               </Text>
 
@@ -189,7 +189,7 @@ export default function PartnerLoginScreen() {
                     />
                     <TextInput
                       style={styles.input}
-                      placeholder="name@hotel.com"
+                      placeholder="name@email.com"
                       placeholderTextColor="rgba(255,255,255,0.28)"
                       value={email}
                       onChangeText={setEmail}
@@ -264,7 +264,7 @@ export default function PartnerLoginScreen() {
 
               {/* Trust strip — one purpose, quiet */}
               <View style={styles.trustRow}>
-                <TrustItem icon="business-outline" label="Hotel scoped" />
+                <TrustItem icon="shield-checkmark-outline" label="Scoped access" />
                 <View style={styles.trustSep} />
                 <TrustItem icon="lock-closed-outline" label="Encrypted" />
                 <View style={styles.trustSep} />
@@ -272,7 +272,7 @@ export default function PartnerLoginScreen() {
               </View>
 
               <Text style={styles.support}>
-                Request access through your property manager or SARJ operations.
+                Request access through your manager or SARJ operations.
               </Text>
             </Animated.View>
           </ScrollView>

@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   Keyboard,
   Dimensions,
+  StatusBar,
   type NativeSyntheticEvent,
   type NativeScrollEvent,
   type TextInputProps,
@@ -22,8 +23,11 @@ import DateTimePicker, {
   type DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useCustomerTheme } from "../../contexts/CustomerThemeContext";
+import { GOLD, type DriverPalette } from "../../theme/driver-theme";
 import * as Location from "expo-location";
 import { useAuth } from "../../contexts/AuthContext";
 import { GooglePlacesAddressField } from "../../components/GooglePlacesAddressField";
@@ -206,6 +210,7 @@ const SERVICE_PREFILL_MAP: Record<string, string> = {
 
 export default function CreateReservationScreen() {
   const { user } = useAuth();
+  const { palette, isDark } = useCustomerTheme();
   const params = useLocalSearchParams<{
     prefill?: string | string[];
     vehicleId?: string | string[];
@@ -1024,8 +1029,22 @@ export default function CreateReservationScreen() {
     router.push("/customer/reservation-confirm");
   };
 
+  const styles = useMemo(() => makeStyles(palette, isDark), [palette, isDark]);
+
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <View style={[styles.root, { backgroundColor: palette.root }]}>
+      <StatusBar barStyle={palette.statusBar} backgroundColor={palette.root} />
+      <LinearGradient colors={[...palette.bg]} style={StyleSheet.absoluteFill} />
+      <View style={styles.ambientGlow} pointerEvents="none">
+        <LinearGradient
+          colors={[...palette.glow]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.2, y: 0 }}
+          end={{ x: 0.85, y: 0.45 }}
+        />
+      </View>
+
+      <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView
         ref={scrollRef}
         style={styles.scrollView}
@@ -1043,7 +1062,7 @@ export default function CreateReservationScreen() {
         {/* Header — Uber-style rider switcher on the right */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={20} color="#1a1a1a" />
+            <Ionicons name="chevron-back" size={20} color={palette.text} />
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1}>
@@ -1081,7 +1100,7 @@ export default function CreateReservationScreen() {
                 )}
               </View>
             )}
-            <Ionicons name="chevron-down" size={12} color="#6B7280" />
+            <Ionicons name="chevron-down" size={12} color={palette.muted} />
           </TouchableOpacity>
         </View>
 
@@ -1110,7 +1129,7 @@ export default function CreateReservationScreen() {
                   {user?.photo ? (
                     <Image source={{ uri: user.photo }} style={styles.riderMenuIconImg} />
                   ) : (
-                    <Ionicons name="person" size={18} color="#111827" />
+                    <Ionicons name="person" size={18} color={palette.text} />
                   )}
                 </View>
                 <View style={styles.riderMenuCopy}>
@@ -1123,7 +1142,7 @@ export default function CreateReservationScreen() {
                   </Text>
                 </View>
                 {rideFor === "me" ? (
-                  <Ionicons name="checkmark-circle" size={22} color="#111827" />
+                  <Ionicons name="checkmark-circle" size={22} color={palette.text} />
                 ) : null}
               </TouchableOpacity>
 
@@ -1141,7 +1160,7 @@ export default function CreateReservationScreen() {
                     <Text style={styles.riderMenuItemSub}>Book a ride for your child</Text>
                   </View>
                   {rideFor === "child" ? (
-                    <Ionicons name="checkmark-circle" size={22} color="#111827" />
+                    <Ionicons name="checkmark-circle" size={22} color={palette.text} />
                   ) : null}
                 </TouchableOpacity>
               ) : null}
@@ -1152,7 +1171,7 @@ export default function CreateReservationScreen() {
                 activeOpacity={0.85}
               >
                 <View style={[styles.riderMenuIcon, styles.riderMenuIconSomeone]}>
-                  <Ionicons name="people-outline" size={18} color="#374151" />
+                  <Ionicons name="people-outline" size={18} color={palette.text} />
                 </View>
                 <View style={styles.riderMenuCopy}>
                   <Text style={styles.riderMenuItemTitle}>Someone else</Text>
@@ -1161,7 +1180,7 @@ export default function CreateReservationScreen() {
                   </Text>
                 </View>
                 {rideFor === "someone" ? (
-                  <Ionicons name="checkmark-circle" size={22} color="#111827" />
+                  <Ionicons name="checkmark-circle" size={22} color={palette.text} />
                 ) : null}
               </TouchableOpacity>
             </View>
@@ -1185,7 +1204,11 @@ export default function CreateReservationScreen() {
           <Text style={[styles.sectionSubtitle, styles.sectionSubtitleWhenWhere]}>When & Where</Text>
           {isParcel ? (
             <View style={styles.parcelBanner}>
-              <Ionicons name="cube-outline" size={16} color="#D4A04A" />
+              <Ionicons
+                name="cube-outline"
+                size={16}
+                color={isDark ? GOLD : "#8B6914"}
+              />
               <Text style={styles.parcelBannerText}>Parcel Delivery · same-day chauffeur</Text>
             </View>
           ) : (
@@ -1201,7 +1224,7 @@ export default function CreateReservationScreen() {
                 <Ionicons
                   name="navigate-outline"
                   size={15}
-                  color={!isHourly ? "#fff" : "#64748b"}
+                  color={!isHourly ? (isDark ? "#1A1208" : "#fff") : palette.muted}
                 />
                 <Text style={[styles.modeToggleText, !isHourly && styles.modeToggleTextActive]}>
                   Distance
@@ -1218,7 +1241,7 @@ export default function CreateReservationScreen() {
                 <Ionicons
                   name="time-outline"
                   size={15}
-                  color={isHourly ? "#fff" : "#64748b"}
+                  color={isHourly ? (isDark ? "#1A1208" : "#fff") : palette.muted}
                 />
                 <Text style={[styles.modeToggleText, isHourly && styles.modeToggleTextActive]}>
                   Hourly
@@ -1242,10 +1265,14 @@ export default function CreateReservationScreen() {
               hitSlop={8}
             >
               {pickupLocating ? (
-                <ActivityIndicator size="small" color="#D4A04A" />
+                <ActivityIndicator size="small" color={isDark ? GOLD : "#8B6914"} />
               ) : (
                 <>
-                  <Ionicons name="locate-outline" size={14} color="#D4A04A" />
+                  <Ionicons
+                    name="locate-outline"
+                    size={14}
+                    color={isDark ? GOLD : "#8B6914"}
+                  />
                   <Text style={styles.useLocationText}>My location</Text>
                 </>
               )}
@@ -1262,9 +1289,16 @@ export default function CreateReservationScreen() {
             placeholder={
               pickupLocating
                 ? "Detecting your location…"
-                : "Search pickup — street, city, or airport (e.g. YYZ)"
+                : "Search pickup address"
             }
             iconName="navigate-outline"
+            onPlaceResolved={(place) => {
+              setPickupAddress(place.address);
+              if (place.lat != null && place.lng != null) {
+                setPickupCoords({ lat: place.lat, lng: place.lng });
+                setPickupLocationHint(null);
+              }
+            }}
           />
           {pickupLocationHint ? (
             <Text style={styles.pickupHint}>{pickupLocationHint}</Text>
@@ -1277,14 +1311,21 @@ export default function CreateReservationScreen() {
               <GooglePlacesAddressField
                 value={dropoffAddress}
                 onChangeText={setDropoffAddress}
-                placeholder="Search destination"
+                placeholder="Search drop-off address"
                 iconName="location-outline"
+                onPlaceResolved={(place) => {
+                  setDropoffAddress(place.address);
+                }}
               />
             </>
           ) : (
             <View style={styles.asDirectedCard}>
               <View style={styles.asDirectedIcon}>
-                <Ionicons name="compass-outline" size={18} color="#D4A04A" />
+                <Ionicons
+                  name="compass-outline"
+                  size={18}
+                  color={isDark ? GOLD : "#8B6914"}
+                />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.asDirectedTitle}>Drop-off · As directed</Text>
@@ -1332,7 +1373,11 @@ export default function CreateReservationScreen() {
             style={styles.addStopBtn} 
             onPress={() => setShowStopField(!showStopField)}
           >
-            <Ionicons name={showStopField ? "remove-circle-outline" : "add-circle-outline"} size={20} color="#D4A04A" />
+            <Ionicons
+              name={showStopField ? "remove-circle-outline" : "add-circle-outline"}
+              size={20}
+              color={isDark ? GOLD : "#8B6914"}
+            />
             <Text style={styles.addStopText}>{showStopField ? "Remove Stop" : "Add Stop"}</Text>
           </TouchableOpacity>
           {showStopField ? (
@@ -1341,8 +1386,11 @@ export default function CreateReservationScreen() {
               <GooglePlacesAddressField
                 value={stopAddress}
                 onChangeText={setStopAddress}
-                placeholder="Search stop location"
+                placeholder="Search stop address"
                 iconName="flag-outline"
+                onPlaceResolved={(place) => {
+                  setStopAddress(place.address);
+                }}
               />
             </>
           ) : null}
@@ -1355,7 +1403,7 @@ export default function CreateReservationScreen() {
             activeOpacity={0.85}
           >
             <Text style={[styles.inputField, { flex: 1 }]}>{pickupTimeDisplay}</Text>
-            <Ionicons name="time-outline" size={18} color="#999" />
+            <Ionicons name="time-outline" size={18} color={palette.muted} />
           </TouchableOpacity>
 
           {Platform.OS === "android" && showDatePicker ? (
@@ -1391,7 +1439,7 @@ export default function CreateReservationScreen() {
                     mode="datetime"
                     display="spinner"
                     minimumDate={pickerMinDate}
-                    themeVariant="light"
+                    themeVariant={isDark ? "dark" : "light"}
                     onChange={(_e, d) => {
                       if (d) setPickupAt(clampPickupAt(d));
                     }}
@@ -1419,7 +1467,7 @@ export default function CreateReservationScreen() {
           {!isParcel ? <Text style={styles.inputLabel}>Select Car</Text> : null}
           {fleetLoading ? (
             <View style={styles.fleetLoadingBox}>
-              <ActivityIndicator size="small" color="#D4A04A" />
+              <ActivityIndicator size="small" color={GOLD} />
               <Text style={styles.fleetLoadingText}>Loading vehicles…</Text>
             </View>
           ) : fleetError ? (
@@ -1455,7 +1503,7 @@ export default function CreateReservationScreen() {
                       {formatTierDisplayTitle(selectedTier.title)}
                     </Text>
                     <View style={styles.capacityInline} accessibilityLabel={`${getTierCapacity(selectedTier)} passengers`}>
-                      <Ionicons name="person" size={13} color="#6B7280" />
+                      <Ionicons name="person" size={13} color={palette.muted} />
                       <Text style={styles.capacityInlineText}>
                         {getTierCapacity(selectedTier)}
                       </Text>
@@ -1486,7 +1534,7 @@ export default function CreateReservationScreen() {
                       <Ionicons
                         name={showTierDropdown ? "chevron-up" : "chevron-down"}
                         size={18}
-                        color="#1a1a1a"
+                        color={palette.text}
                       />
                     </View>
                   ) : null}
@@ -1547,12 +1595,14 @@ export default function CreateReservationScreen() {
                                     <Ionicons
                                       name="person"
                                       size={13}
-                                      color={selected ? "#8B6914" : "#6B7280"}
+                                      color={selected ? (isDark ? GOLD : "#8B6914") : palette.muted}
                                     />
                                     <Text
                                       style={[
                                         styles.capacityInlineText,
-                                        selected && { color: "#8B6914" },
+                                        selected && {
+                                          color: isDark ? GOLD : "#8B6914",
+                                        },
                                       ]}
                                     >
                                       {getTierCapacity(tier)}
@@ -1560,13 +1610,26 @@ export default function CreateReservationScreen() {
                                   </View>
                                 </View>
                                 {tier.subtitle ? (
-                                  <Text style={styles.tierDropdownSubtitle} numberOfLines={2}>
+                                  <Text
+                                    style={[
+                                      styles.tierDropdownSubtitle,
+                                      selected &&
+                                        !isDark && { color: "rgba(26,21,16,0.55)" },
+                                    ]}
+                                    numberOfLines={2}
+                                  >
                                     {tier.subtitle}
                                   </Text>
                                 ) : null}
                               </View>
                               <View style={styles.carDropdownPriceCol}>
-                                <Text style={styles.carDropdownPrice} numberOfLines={1}>
+                                <Text
+                                  style={[
+                                    styles.carDropdownPrice,
+                                    selected && styles.carDropdownPriceActive,
+                                  ]}
+                                  numberOfLines={1}
+                                >
                                   {tierFare != null
                                     ? `$${tierFare.toFixed(0)}`
                                     : tier.hourlyRate > 0
@@ -1582,7 +1645,11 @@ export default function CreateReservationScreen() {
                                   ]}
                                 >
                                   {selected ? (
-                                    <Ionicons name="checkmark" size={12} color="#fff" />
+                                    <Ionicons
+                                      name="checkmark"
+                                      size={12}
+                                      color={isDark ? "#1A1208" : "#fff"}
+                                    />
                                   ) : null}
                                 </View>
                               </View>
@@ -1617,7 +1684,7 @@ export default function CreateReservationScreen() {
                   onPress={() => setChildSeatCount(Math.max(0, childSeatCount - 1))}
                   hitSlop={6}
                 >
-                  <Ionicons name="remove" size={16} color="#1a1a1a" />
+                  <Ionicons name="remove" size={16} color={palette.text} />
                 </TouchableOpacity>
                 <Text style={styles.dualCounterValue}>{childSeatCount}</Text>
                 <TouchableOpacity
@@ -1627,7 +1694,7 @@ export default function CreateReservationScreen() {
                   }
                   hitSlop={6}
                 >
-                  <Ionicons name="add" size={16} color="#fff" />
+                  <Ionicons name="add" size={16} color={isDark ? "#1A1208" : "#fff"} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -1641,7 +1708,7 @@ export default function CreateReservationScreen() {
                   value={recipientName}
                   onChangeText={setRecipientName}
                   placeholder="Who receives the parcel?"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={palette.muted}
                   onFocus={onFormFieldFocus}
                 />
               </View>
@@ -1652,7 +1719,7 @@ export default function CreateReservationScreen() {
                   value={recipientPhone}
                   onChangeText={setRecipientPhone}
                   placeholder="Recipient phone number"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={palette.muted}
                   keyboardType="phone-pad"
                   onFocus={onFormFieldFocus}
                 />
@@ -1665,7 +1732,7 @@ export default function CreateReservationScreen() {
                     value={parcelWeight}
                     onChangeText={setParcelWeight}
                     placeholder="e.g. 2.5"
-                    placeholderTextColor="#999"
+                    placeholderTextColor={palette.muted}
                     keyboardType="decimal-pad"
                     onFocus={onFormFieldFocus}
                   />
@@ -1682,7 +1749,7 @@ export default function CreateReservationScreen() {
                   value={parcelNote}
                   onChangeText={setParcelNote}
                   placeholder="e.g. Small box, fragile"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={palette.muted}
                   multiline
                   onFocus={onFormFieldFocus}
                 />
@@ -1703,7 +1770,7 @@ export default function CreateReservationScreen() {
                   />
                 ) : (
                   <View style={styles.mapPlaceholder}>
-                    <Ionicons name="map-outline" size={28} color="#94a3b8" />
+                    <Ionicons name="map-outline" size={28} color={palette.muted} />
                     <Text style={styles.mapPlaceholderText}>
                       {pickupAddress.trim().length < 8 || dropoffAddress.trim().length < 8
                         ? "Enter pickup & drop-off to preview the route"
@@ -1717,7 +1784,7 @@ export default function CreateReservationScreen() {
                 )}
                 {routeLoading && routeSummary?.mapImageUrl ? (
                   <View style={styles.mapImageLoadingOverlay} pointerEvents="none">
-                    <ActivityIndicator size="small" color="#D4A04A" />
+                    <ActivityIndicator size="small" color={GOLD} />
                   </View>
                 ) : null}
               </View>
@@ -1838,7 +1905,7 @@ export default function CreateReservationScreen() {
                           value={firstName}
                           onChangeText={setFirstName}
                           placeholder="First name"
-                          placeholderTextColor="#999"
+                          placeholderTextColor={palette.muted}
                           autoCapitalize="words"
                           onFocus={onFormFieldFocus}
                         />
@@ -1852,7 +1919,7 @@ export default function CreateReservationScreen() {
                           value={lastName}
                           onChangeText={setLastName}
                           placeholder="Last name"
-                          placeholderTextColor="#999"
+                          placeholderTextColor={palette.muted}
                           autoCapitalize="words"
                           onFocus={onFormFieldFocus}
                         />
@@ -1888,7 +1955,7 @@ export default function CreateReservationScreen() {
                       value={firstName}
                       onChangeText={setFirstName}
                       placeholder="First name"
-                      placeholderTextColor="#999"
+                      placeholderTextColor={palette.muted}
                       autoCapitalize="words"
                       onFocus={onFormFieldFocus}
                     />
@@ -1902,7 +1969,7 @@ export default function CreateReservationScreen() {
                       value={lastName}
                       onChangeText={setLastName}
                       placeholder="Last name"
-                      placeholderTextColor="#999"
+                      placeholderTextColor={palette.muted}
                       autoCapitalize="words"
                       onFocus={onFormFieldFocus}
                     />
@@ -1918,7 +1985,7 @@ export default function CreateReservationScreen() {
                   onChangeText={(t) => setChildAge(t.replace(/[^0-9]/g, "").slice(0, 2))}
                   keyboardType="number-pad"
                   placeholder="Age (1–17)"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={palette.muted}
                   maxLength={2}
                   onFocus={onFormFieldFocus}
                 />
@@ -1938,7 +2005,7 @@ export default function CreateReservationScreen() {
                   onChangeText={(t) => setPhoneNumber(normalizeNanpNationalNumber(t))}
                   keyboardType="phone-pad"
                   placeholder="10-digit number"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={palette.muted}
                   maxLength={10}
                   onFocus={onFormFieldFocus}
                 />
@@ -1967,7 +2034,7 @@ export default function CreateReservationScreen() {
                       value={firstName}
                       onChangeText={setFirstName}
                       placeholder={isParcel ? "Sender" : "Passenger"}
-                      placeholderTextColor="#999"
+                      placeholderTextColor={palette.muted}
                       autoCapitalize="words"
                       onFocus={onFormFieldFocus}
                     />
@@ -1981,7 +2048,7 @@ export default function CreateReservationScreen() {
                       value={lastName}
                       onChangeText={setLastName}
                       placeholder="Name"
-                      placeholderTextColor="#999"
+                      placeholderTextColor={palette.muted}
                       autoCapitalize="words"
                       onFocus={onFormFieldFocus}
                     />
@@ -2003,7 +2070,7 @@ export default function CreateReservationScreen() {
                   onChangeText={(t) => setPhoneNumber(normalizeNanpNationalNumber(t))}
                   keyboardType="phone-pad"
                   placeholder="10-digit number"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={palette.muted}
                   maxLength={10}
                   onFocus={onFormFieldFocus}
                 />
@@ -2024,18 +2091,44 @@ export default function CreateReservationScreen() {
             onPress={continueToConfirm}
             disabled={continueDisabled}
           >
-            <Text style={styles.continueBtnText}>{continueLabel}</Text>
+            <Text
+              style={[
+                styles.continueBtnText,
+                continueDisabled && styles.continueBtnTextDisabled,
+              ]}
+            >
+              {continueLabel}
+            </Text>
           </TouchableOpacity>
         </View>
       ) : null}
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
+function makeStyles(palette: DriverPalette, isDark: boolean) {
+  const card = isDark ? palette.cardAndroid : "#fff";
+  /** Light: match Google Places white fields. Dark: subtle elevated chip. */
+  const fieldBg = isDark ? palette.metaChipBg : "#fff";
+  const segmentTrack = isDark ? palette.metaChipBg : "rgba(0,0,0,0.06)";
+  const primaryBtnBg = isDark ? GOLD : "#0f172a";
+  const primaryBtnText = isDark ? "#1A1208" : "#fff";
+  const primaryBtnTextMuted = isDark ? "rgba(26,18,8,0.72)" : "rgba(255,255,255,0.72)";
+  return StyleSheet.create({
+  root: {
     flex: 1,
-    backgroundColor: "#fff",
+  },
+  ambientGlow: {
+    position: "absolute",
+    top: -40,
+    left: -20,
+    right: -20,
+    height: 220,
+  },
+  safe: {
+    flex: 1,
+    backgroundColor: "transparent",
   },
   scrollView: {
     flex: 1,
@@ -2057,14 +2150,14 @@ const styles = StyleSheet.create({
   },
   backText: {
     fontSize: 15,
-    color: "#1a1a1a",
+    color: palette.text,
     marginLeft: 2,
   },
   headerTitle: {
     flex: 1,
     fontSize: 17,
     fontWeight: "600",
-    color: "#1a1a1a",
+    color: palette.text,
     textAlign: "center",
     paddingHorizontal: 8,
   },
@@ -2104,7 +2197,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   riderMenuCard: {
-    backgroundColor: "#fff",
+    backgroundColor: card,
     borderRadius: 20,
     paddingTop: 16,
     paddingBottom: 10,
@@ -2122,7 +2215,7 @@ const styles = StyleSheet.create({
   riderMenuTitle: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#9CA3AF",
+    color: palette.muted,
     letterSpacing: 0.3,
     textTransform: "uppercase",
     paddingHorizontal: 10,
@@ -2137,13 +2230,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   riderMenuItemOn: {
-    backgroundColor: "#F3F4F6",
+    backgroundColor: fieldBg,
   },
   riderMenuIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: fieldBg,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
@@ -2156,7 +2249,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(201,160,99,0.22)",
   },
   riderMenuIconSomeone: {
-    backgroundColor: "#E5E7EB",
+    backgroundColor: fieldBg,
   },
   riderMenuCopy: {
     flex: 1,
@@ -2165,13 +2258,13 @@ const styles = StyleSheet.create({
   riderMenuItemTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#111827",
+    color: palette.text,
     letterSpacing: -0.2,
   },
   riderMenuItemSub: {
     marginTop: 2,
     fontSize: 13,
-    color: "#6B7280",
+    color: palette.muted,
   },
   riderSectionHead: {
     flexDirection: "row",
@@ -2189,9 +2282,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: 16,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: fieldBg,
     borderWidth: 1,
-    borderColor: "#EEF0F3",
+    borderColor: palette.border,
   },
   forMeChipAvatar: {
     width: 40,
@@ -2221,33 +2314,33 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#D4A04A",
+    backgroundColor: primaryBtnBg,
     justifyContent: "center",
     alignItems: "center",
   },
   stepActiveText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#fff",
+    color: primaryBtnText,
   },
   stepLine: {
     width: 180,
     height: 2,
-    backgroundColor: "#e0e0e0",
+    backgroundColor: palette.border,
   },
   stepInactive: {
     width: 28,
     height: 28,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: "#e0e0e0",
+    borderColor: palette.border,
     justifyContent: "center",
     alignItems: "center",
   },
   stepInactiveText: {
     fontSize: 13,
     fontWeight: "500",
-    color: "#999",
+    color: palette.muted,
   },
   section: {
     marginBottom: 24,
@@ -2255,12 +2348,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#1a1a1a",
+    color: palette.text,
     marginBottom: 2,
   },
   sectionSubtitle: {
     fontSize: 12,
-    color: "#D4A04A",
+    color: isDark ? GOLD : palette.hintBold,
     marginBottom: 16,
   },
   childSafetyBanner: {
@@ -2278,20 +2371,20 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 12,
     lineHeight: 17,
-    color: "#5c4a2a",
+    color: palette.hintText,
     fontWeight: "500",
   },
   childPhoneHint: {
     marginTop: 8,
     fontSize: 12,
     lineHeight: 16,
-    color: "#9ca3af",
+    color: palette.muted,
   },
   forMeCard: {
     borderWidth: 1,
-    borderColor: "#eceff3",
+    borderColor: palette.border,
     borderRadius: 14,
-    backgroundColor: "#fafafa",
+    backgroundColor: fieldBg,
     paddingHorizontal: 14,
     paddingVertical: 14,
   },
@@ -2328,12 +2421,12 @@ const styles = StyleSheet.create({
   forMeName: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#111827",
+    color: palette.text,
     marginBottom: 2,
   },
   forMeMeta: {
     fontSize: 12,
-    color: "#6b7280",
+    color: palette.muted,
     fontWeight: "500",
   },
   forMeVerified: {
@@ -2357,22 +2450,22 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#e5e7eb",
+    borderTopColor: palette.border,
   },
   forMeEmail: {
     flex: 1,
     fontSize: 13,
-    color: "#6b7280",
+    color: palette.muted,
   },
   forMeIncompleteTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#111827",
+    color: palette.text,
   },
   forMeIncompleteHint: {
     marginTop: 4,
     fontSize: 12,
-    color: "#6b7280",
+    color: palette.muted,
     lineHeight: 16,
   },
   riderSimpleRow: {
@@ -2385,28 +2478,28 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: fieldBg,
     alignItems: "center",
     justifyContent: "center",
   },
   riderInitials: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#374151",
+    color: palette.text,
     letterSpacing: 0.3,
   },
   riderName: {
     flex: 1,
     fontSize: 15,
     fontWeight: "600",
-    color: "#111827",
+    color: palette.text,
   },
   sectionSubtitleWhenWhere: {
     marginBottom: 4,
   },
   modeToggle: {
     flexDirection: "row",
-    backgroundColor: "#f1f5f9",
+    backgroundColor: segmentTrack,
     borderRadius: 12,
     padding: 4,
     marginTop: 10,
@@ -2423,21 +2516,21 @@ const styles = StyleSheet.create({
     borderRadius: 9,
   },
   modeToggleBtnActive: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: primaryBtnBg,
   },
   modeToggleText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#64748b",
+    color: palette.muted,
     letterSpacing: 0.2,
   },
   modeToggleTextActive: {
-    color: "#fff",
+    color: primaryBtnText,
   },
   modeHint: {
     fontSize: 12,
     lineHeight: 16,
-    color: "#64748b",
+    color: palette.muted,
     marginTop: 8,
     marginBottom: 2,
   },
@@ -2449,26 +2542,26 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 14,
     borderRadius: 12,
-    backgroundColor: "#FFF8E7",
+    backgroundColor: isDark ? "rgba(212,160,74,0.12)" : palette.hintBg,
     borderWidth: 1,
-    borderColor: "rgba(212, 160, 74, 0.28)",
+    borderColor: isDark ? "rgba(212,160,74,0.28)" : palette.hintBorder,
   },
   asDirectedIcon: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: "rgba(212, 160, 74, 0.18)",
+    backgroundColor: isDark ? "rgba(212,160,74,0.18)" : "rgba(212,160,74,0.2)",
     alignItems: "center",
     justifyContent: "center",
   },
   asDirectedTitle: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#1a1a1a",
+    color: isDark ? palette.text : palette.hintBold,
   },
   asDirectedSub: {
     fontSize: 12,
-    color: "#64748b",
+    color: isDark ? palette.muted : palette.hintText,
     marginTop: 2,
     lineHeight: 16,
   },
@@ -2487,42 +2580,42 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 10,
     borderRadius: 12,
-    backgroundColor: "#f8fafc",
+    backgroundColor: fieldBg,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: palette.border,
     alignItems: "center",
   },
   hourChipActive: {
-    backgroundColor: "#1a1a1a",
-    borderColor: "#1a1a1a",
+    backgroundColor: primaryBtnBg,
+    borderColor: primaryBtnBg,
   },
   hourChipValue: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#1a1a1a",
+    color: palette.text,
   },
   hourChipValueActive: {
-    color: "#fff",
+    color: primaryBtnText,
   },
   hourChipUnit: {
     fontSize: 11,
     fontWeight: "500",
-    color: "#94a3b8",
+    color: palette.muted,
     marginTop: 1,
   },
   hourChipUnitActive: {
-    color: "rgba(255,255,255,0.72)",
+    color: primaryBtnTextMuted,
   },
   placesHint: {
     fontSize: 11,
     lineHeight: 15,
-    color: "#64748b",
+    color: palette.muted,
     marginBottom: 14,
   },
   inputLabel: {
     fontSize: 13,
     fontWeight: "500",
-    color: "#1a1a1a",
+    color: palette.text,
     marginBottom: 8,
     marginTop: 12,
   },
@@ -2547,11 +2640,11 @@ const styles = StyleSheet.create({
   useLocationText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#D4A04A",
+    color: isDark ? GOLD : palette.hintBold,
   },
   pickupHint: {
     fontSize: 11,
-    color: "#64748b",
+    color: palette.muted,
     marginTop: 6,
     lineHeight: 15,
   },
@@ -2560,27 +2653,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     borderWidth: 1,
-    borderColor: "#e8e8e8",
+    borderColor: palette.border,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 14,
-    backgroundColor: "#fafafa",
+    backgroundColor: fieldBg,
   },
   placeholderText: {
     fontSize: 14,
-    color: "#999",
+    color: palette.muted,
   },
   selectedText: {
     fontSize: 14,
-    color: "#1a1a1a",
+    color: palette.text,
     fontWeight: "500",
   },
   dropdownList: {
     borderWidth: 1,
-    borderColor: "#e8e8e8",
+    borderColor: palette.border,
     borderRadius: 10,
     marginTop: 6,
-    backgroundColor: "#fff",
+    backgroundColor: card,
     overflow: "hidden",
   },
   dropdownItem: {
@@ -2590,34 +2683,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+    borderBottomColor: palette.border,
   },
   dropdownItemActive: {
-    backgroundColor: "#FFF8E7",
+    backgroundColor: isDark ? "rgba(212,160,74,0.16)" : "#FFFBF5",
   },
   dropdownItemText: {
     fontSize: 14,
-    color: "#1a1a1a",
+    color: palette.text,
   },
   dropdownItemTextActive: {
-    color: "#D4A04A",
+    color: isDark ? GOLD : "#8B6914",
     fontWeight: "600",
   },
   inputWithIcon: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#e8e8e8",
-    borderRadius: 10,
+    borderColor: palette.border,
+    borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    backgroundColor: "#fafafa",
+    minHeight: 48,
+    backgroundColor: fieldBg,
     gap: 10,
   },
   inputField: {
     flex: 1,
-    fontSize: 14,
-    color: "#1a1a1a",
+    fontSize: 15,
+    fontWeight: "500",
+    color: palette.text,
   },
   addStopBtn: {
     flexDirection: "row",
@@ -2627,14 +2722,14 @@ const styles = StyleSheet.create({
   },
   addStopText: {
     fontSize: 13,
-    color: "#D4A04A",
+    color: isDark ? GOLD : palette.hintBold,
     fontWeight: "500",
   },
   mapContainer: {
     borderRadius: 16,
     overflow: "hidden",
     marginBottom: 24,
-    backgroundColor: "#fff",
+    backgroundColor: card,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(15,23,42,0.08)",
     shadowColor: "#0f172a",
@@ -2646,13 +2741,13 @@ const styles = StyleSheet.create({
   mapImageWrap: {
     width: "100%",
     height: 200,
-    backgroundColor: "#eef2f7",
+    backgroundColor: fieldBg,
     overflow: "hidden",
   },
   mapImage: {
     width: "100%",
     height: "100%",
-    backgroundColor: "#eef2f7",
+    backgroundColor: fieldBg,
   },
   mapImageLoadingOverlay: {
     position: "absolute",
@@ -2680,14 +2775,14 @@ const styles = StyleSheet.create({
   mapPlaceholderText: {
     marginTop: 8,
     fontSize: 12,
-    color: "#94a3b8",
+    color: palette.muted,
     textAlign: "center",
     fontWeight: "500",
   },
   mapLegend: {
     paddingVertical: 10,
     paddingHorizontal: 14,
-    backgroundColor: "#fff",
+    backgroundColor: card,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "rgba(15,23,42,0.08)",
   },
@@ -2713,7 +2808,7 @@ const styles = StyleSheet.create({
   },
   mapLegendLabel: {
     fontSize: 11,
-    color: "#94a3b8",
+    color: palette.muted,
     fontWeight: "600",
     letterSpacing: 0.4,
     textTransform: "uppercase",
@@ -2722,12 +2817,12 @@ const styles = StyleSheet.create({
   mapLegendText: {
     flex: 1,
     fontSize: 13,
-    color: "#1a1a1a",
+    color: palette.text,
     fontWeight: "500",
   },
   mapInfo: {
     flexDirection: "row",
-    backgroundColor: "#fff",
+    backgroundColor: card,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -2735,7 +2830,7 @@ const styles = StyleSheet.create({
   },
   mapInfoFootnote: {
     fontSize: 10,
-    color: "#94a3b8",
+    color: palette.muted,
     paddingHorizontal: 16,
     paddingBottom: 10,
     paddingTop: 2,
@@ -2754,19 +2849,19 @@ const styles = StyleSheet.create({
   },
   mapInfoLabel: {
     fontSize: 11,
-    color: "#999",
+    color: palette.muted,
     marginBottom: 2,
   },
   mapInfoValue: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#1a1a1a",
+    color: palette.text,
   },
   tierList: {
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(15,23,42,0.10)",
-    backgroundColor: "#fff",
+    backgroundColor: card,
     overflow: "hidden",
     shadowColor: "#0f172a",
     shadowOpacity: 0.04,
@@ -2780,7 +2875,7 @@ const styles = StyleSheet.create({
   tierGroupLabel: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#94a3b8",
+    color: palette.muted,
     letterSpacing: 0.8,
     textTransform: "uppercase",
     paddingHorizontal: 14,
@@ -2792,7 +2887,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 14,
     paddingHorizontal: 12,
-    backgroundColor: "#fff",
+    backgroundColor: card,
   },
   tierRowSelected: {
     backgroundColor: "rgba(201,160,99,0.06)",
@@ -2815,17 +2910,17 @@ const styles = StyleSheet.create({
   tierTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#0F172A",
+    color: palette.text,
     letterSpacing: 0.1,
   },
   tierTitleSelected: {
-    color: "#8B6914",
+    color: isDark ? GOLD : "#8B6914",
   },
   tierSubtitle: {
     marginTop: 4,
     fontSize: 11,
     fontWeight: "500",
-    color: "#64748b",
+    color: palette.muted,
     lineHeight: 15,
     letterSpacing: 0.2,
   },
@@ -2837,25 +2932,25 @@ const styles = StyleSheet.create({
   tierFare: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#0F172A",
+    color: palette.text,
   },
   tierFareSelected: {
-    color: "#8B6914",
+    color: isDark ? GOLD : "#8B6914",
   },
   tierRate: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#94a3b8",
+    color: palette.muted,
   },
   tierCheck: {
     width: 22,
     height: 22,
     borderRadius: 11,
     borderWidth: 1.5,
-    borderColor: "#cbd5e1",
+    borderColor: palette.border,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#fff",
+    backgroundColor: card,
   },
   tierCheckSelected: {
     borderColor: "#C9A063",
@@ -2865,18 +2960,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     borderWidth: 1.5,
-    borderColor: "#e5e7eb",
+    borderColor: palette.border,
     borderRadius: 16,
     paddingLeft: 6,
     paddingRight: 10,
     paddingVertical: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: card,
     gap: 8,
     minHeight: 88,
   },
   carSelectorLocked: {
-    backgroundColor: "#fafafa",
-    borderColor: "#eceff3",
+    backgroundColor: fieldBg,
+    borderColor: palette.border,
   },
   carThumbWrap: {
     width: 96,
@@ -2913,7 +3008,7 @@ const styles = StyleSheet.create({
   capacityInlineText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#6B7280",
+    color: palette.muted,
     fontVariant: ["tabular-nums"],
   },
   carSelectorTrailing: {
@@ -2928,7 +3023,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: fieldBg,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2937,13 +3032,13 @@ const styles = StyleSheet.create({
     minWidth: 0,
     fontSize: 16,
     fontWeight: "700",
-    color: "#111827",
+    color: palette.text,
     lineHeight: 21,
     letterSpacing: -0.2,
   },
   carCategory: {
     fontSize: 13,
-    color: "#6B7280",
+    color: palette.muted,
     marginTop: 0,
     lineHeight: 18,
   },
@@ -2956,7 +3051,7 @@ const styles = StyleSheet.create({
   carMetaText: {
     fontSize: 12,
     fontWeight: "500",
-    color: "#64748b",
+    color: palette.muted,
     flexShrink: 1,
   },
   fleetLoadingBox: {
@@ -2966,13 +3061,13 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: "#e8e8e8",
+    borderColor: palette.border,
     borderRadius: 10,
-    backgroundColor: "#fafafa",
+    backgroundColor: fieldBg,
   },
   fleetLoadingText: {
     fontSize: 14,
-    color: "#666",
+    color: palette.muted,
   },
   fleetErrorBox: {
     padding: 14,
@@ -2990,33 +3085,33 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     paddingVertical: 8,
     paddingHorizontal: 16,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: primaryBtnBg,
     borderRadius: 8,
   },
   fleetRetryText: {
-    color: "#fff",
+    color: primaryBtnText,
     fontSize: 13,
     fontWeight: "600",
   },
   carPriceText: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#111827",
+    color: palette.text,
     textAlign: "right",
   },
   carDropdownList: {
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: palette.border,
     borderRadius: 16,
     marginTop: 10,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: card,
     maxHeight: 520,
     overflow: "hidden",
   },
   tierDropdownGroupLabel: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#111827",
+    color: palette.text,
     letterSpacing: -0.2,
     textTransform: "none",
     paddingLeft: 8,
@@ -3028,7 +3123,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 13,
     fontWeight: "400",
-    color: "#6B7280",
+    color: palette.muted,
     lineHeight: 18,
   },
   carDropdownItem: {
@@ -3047,7 +3142,7 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   carDropdownItemActive: {
-    backgroundColor: "#FFFBF5",
+    backgroundColor: isDark ? "rgba(212,160,74,0.16)" : "#FFFBF5",
     borderColor: "#C9A063",
   },
   carDropdownItemBorder: {
@@ -3076,13 +3171,13 @@ const styles = StyleSheet.create({
     minWidth: 0,
     fontSize: 15,
     fontWeight: "700",
-    color: "#111827",
+    color: palette.text,
     lineHeight: 20,
     letterSpacing: -0.2,
   },
   carDropdownNameActive: {
-    color: "#111827",
-    fontWeight: "700",
+    color: isDark ? "#F7F1E8" : "#1A1510",
+    fontWeight: "800",
   },
   carDropdownPriceCol: {
     flexShrink: 0,
@@ -3095,23 +3190,27 @@ const styles = StyleSheet.create({
   carDropdownPrice: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#111827",
+    color: palette.text,
     textAlign: "right",
     lineHeight: 18,
+  },
+  carDropdownPriceActive: {
+    color: isDark ? "#F7F1E8" : "#1A1510",
+    fontWeight: "800",
   },
   carRadio: {
     width: 22,
     height: 22,
     borderRadius: 11,
     borderWidth: 2,
-    borderColor: "#D1D5DB",
+    borderColor: palette.border,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#fff",
+    backgroundColor: card,
   },
   carRadioSelected: {
-    borderColor: "#111827",
-    backgroundColor: "#111827",
+    borderColor: primaryBtnBg,
+    backgroundColor: primaryBtnBg,
   },
   toggleRow: {
     flexDirection: "row",
@@ -3119,17 +3218,17 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+    borderBottomColor: palette.border,
   },
   toggleTitle: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#1a1a1a",
+    color: palette.text,
     marginBottom: 2,
   },
   toggleSubtitle: {
     fontSize: 12,
-    color: "#999",
+    color: palette.muted,
   },
   counterRow: {
     flexDirection: "row",
@@ -3142,9 +3241,9 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
     marginTop: 12,
     borderWidth: 1,
-    borderColor: "#e8e8e8",
+    borderColor: palette.border,
     borderRadius: 14,
-    backgroundColor: "#fafafa",
+    backgroundColor: fieldBg,
     overflow: "hidden",
   },
   dualCounterCard: {
@@ -3167,18 +3266,18 @@ const styles = StyleSheet.create({
   },
   dualCounterDivider: {
     width: StyleSheet.hairlineWidth,
-    backgroundColor: "#e2e8f0",
+    backgroundColor: palette.border,
     alignSelf: "stretch",
   },
   dualCounterTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#0f172a",
+    color: palette.text,
     letterSpacing: 0.2,
   },
   dualCounterSub: {
     fontSize: 12,
-    color: "#94a3b8",
+    color: palette.muted,
     fontWeight: "500",
     marginTop: 2,
     marginBottom: 0,
@@ -3192,7 +3291,7 @@ const styles = StyleSheet.create({
   dualCounterValue: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#0f172a",
+    color: palette.text,
     minWidth: 22,
     textAlign: "center",
   },
@@ -3206,19 +3305,19 @@ const styles = StyleSheet.create({
     height: 30,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: palette.border,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: card,
   },
   counterBtnAdd: {
-    backgroundColor: "#1a1a1a",
-    borderColor: "#1a1a1a",
+    backgroundColor: primaryBtnBg,
+    borderColor: primaryBtnBg,
   },
   counterValue: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#1a1a1a",
+    color: palette.text,
     minWidth: 20,
     textAlign: "center",
   },
@@ -3231,15 +3330,15 @@ const styles = StyleSheet.create({
   },
   inputBox: {
     borderWidth: 1,
-    borderColor: "#e8e8e8",
+    borderColor: palette.border,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    backgroundColor: "#fafafa",
+    backgroundColor: fieldBg,
   },
   textInput: {
     fontSize: 14,
-    color: "#1a1a1a",
+    color: palette.text,
   },
   parcelBanner: {
     flexDirection: "row",
@@ -3256,7 +3355,7 @@ const styles = StyleSheet.create({
   parcelBannerText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#8B6914",
+    color: isDark ? "#E8C078" : "#8B6914",
   },
   parcelFields: {
     marginTop: 4,
@@ -3274,20 +3373,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#e8e8e8",
-    backgroundColor: "#f3f3f3",
+    borderColor: palette.border,
+    backgroundColor: fieldBg,
     alignItems: "center",
     justifyContent: "center",
   },
   weightUnitText: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#64748b",
+    color: palette.muted,
     letterSpacing: 0.3,
   },
   weightHint: {
     fontSize: 11,
-    color: "#94a3b8",
+    color: palette.muted,
     marginTop: 6,
     lineHeight: 15,
   },
@@ -3303,9 +3402,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#e8e8e8",
+    borderColor: palette.border,
     borderRadius: 10,
-    backgroundColor: "#fafafa",
+    backgroundColor: fieldBg,
     overflow: "hidden",
   },
   countryCode: {
@@ -3314,7 +3413,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 14,
     borderRightWidth: 1,
-    borderRightColor: "#e8e8e8",
+    borderRightColor: palette.border,
     gap: 6,
   },
   flagIcon: {
@@ -3326,14 +3425,14 @@ const styles = StyleSheet.create({
   countryCodeText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#1a1a1a",
+    color: palette.text,
   },
   phoneField: {
     flex: 1,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 14,
-    color: "#1a1a1a",
+    color: palette.text,
   },
   bottomContainer: {
     position: "absolute",
@@ -3342,7 +3441,9 @@ const styles = StyleSheet.create({
     right: 0,
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: "#fff",
+    backgroundColor: isDark ? "rgba(10,9,8,0.94)" : card,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: palette.border,
     ...Platform.select({
       ios: {
         paddingBottom: 30,
@@ -3350,18 +3451,22 @@ const styles = StyleSheet.create({
     }),
   },
   continueBtn: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: GOLD,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
   },
   continueBtnDisabled: {
-    opacity: 0.45,
+    backgroundColor: isDark ? "rgba(212,160,74,0.28)" : "rgba(212,160,74,0.4)",
+    opacity: 1,
   },
   continueBtnText: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#fff",
+    fontWeight: "700",
+    color: "#1A1208",
+  },
+  continueBtnTextDisabled: {
+    color: "rgba(26,18,8,0.55)",
   },
   dateModalRoot: {
     flex: 1,
@@ -3376,7 +3481,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.45)",
   },
   dateModalSheet: {
-    backgroundColor: "#fff",
+    backgroundColor: card,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     paddingBottom: Platform.OS === "ios" ? 28 : 16,
@@ -3388,23 +3493,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    borderBottomColor: palette.border,
   },
   dateModalTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#1a1a1a",
+    color: palette.text,
   },
   dateModalBtn: {
     fontSize: 16,
-    color: "#666",
+    color: palette.muted,
   },
   dateModalDone: {
-    color: "#D4A04A",
+    color: isDark ? GOLD : palette.hintBold,
     fontWeight: "700",
   },
   iosPicker: {
     height: 216,
     alignSelf: "stretch",
   },
-});
+  });
+}

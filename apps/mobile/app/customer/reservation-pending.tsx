@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useLocalSearchParams, useNavigation } from "expo-router";
 import {
   View,
@@ -13,7 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useCustomerTheme } from "../../contexts/CustomerThemeContext";
-import { GOLD } from "../../theme/driver-theme";
+import { GOLD, type DriverPalette } from "../../theme/driver-theme";
 import {
   resetToBookingsTab,
   resetToTripDetail,
@@ -27,6 +27,7 @@ function qp(v: string | string[] | undefined): string {
 export default function ReservationConfirmedScreen() {
   const navigation = useNavigation();
   const { palette, isDark } = useCustomerTheme();
+  const styles = useMemo(() => makeStyles(palette, isDark), [palette, isDark]);
   const raw = useLocalSearchParams();
   const bookingId = qp(raw.bookingId);
 
@@ -82,7 +83,11 @@ export default function ReservationConfirmedScreen() {
           <Animated.View style={{ transform: [{ scale: checkScale }] }}>
             <View style={styles.badgeOuter}>
               <LinearGradient
-                colors={["rgba(232,192,120,0.35)", "rgba(212,160,74,0.12)"]}
+                colors={
+                  isDark
+                    ? ["rgba(232,192,120,0.28)", "rgba(212,160,74,0.08)"]
+                    : ["rgba(232,192,120,0.45)", "rgba(212,160,74,0.16)"]
+                }
                 style={styles.badgeRing}
               >
                 <LinearGradient
@@ -98,40 +103,35 @@ export default function ReservationConfirmedScreen() {
           </Animated.View>
 
           <Text style={styles.eyebrow}>YOU'RE ALL SET</Text>
-          <Text style={[styles.title, { color: palette.text }]}>Reservation confirmed</Text>
-          <Text style={[styles.subtitle, { color: palette.muted }]}>
+          <Text style={styles.title}>Reservation confirmed</Text>
+          <Text style={styles.subtitle}>
             Your ride is booked. We’ll notify you as soon as a chauffeur is assigned.
           </Text>
 
           {bookingId ? (
-            <View
-              style={[
-                styles.idChip,
-                {
-                  borderColor: isDark ? "rgba(212,160,74,0.35)" : palette.hintBorder,
-                  backgroundColor: isDark ? "rgba(212,160,74,0.1)" : palette.hintBg,
-                },
-              ]}
-            >
-              <Text style={[styles.idLabel, { color: palette.muted }]}>BOOKING ID</Text>
+            <View style={styles.idChip}>
+              <Text style={styles.idLabel}>BOOKING ID</Text>
               <Text style={styles.idValue} numberOfLines={1}>
                 {bookingId}
               </Text>
             </View>
           ) : null}
 
-          <View style={styles.tips}>
+          <View style={styles.tipsCard}>
             <View style={styles.tipRow}>
-              <Ionicons name="notifications-outline" size={16} color={GOLD} />
-              <Text style={[styles.tipText, { color: palette.muted }]}>
+              <View style={styles.tipIcon}>
+                <Ionicons name="notifications-outline" size={16} color={GOLD} />
+              </View>
+              <Text style={styles.tipText}>
                 Push updates when your chauffeur is on the way
               </Text>
             </View>
+            <View style={[styles.tipDivider, { backgroundColor: palette.border }]} />
             <View style={styles.tipRow}>
-              <Ionicons name="calendar-outline" size={16} color={GOLD} />
-              <Text style={[styles.tipText, { color: palette.muted }]}>
-                Find this trip anytime under Bookings
-              </Text>
+              <View style={styles.tipIcon}>
+                <Ionicons name="calendar-outline" size={16} color={GOLD} />
+              </View>
+              <Text style={styles.tipText}>Find this trip anytime under Bookings</Text>
             </View>
           </View>
         </Animated.View>
@@ -140,20 +140,9 @@ export default function ReservationConfirmedScreen() {
           {bookingId ? (
             <Pressable
               onPress={goTripDetail}
-              style={({ pressed }) => [
-                styles.secondaryBtn,
-                {
-                  borderColor: palette.border,
-                  backgroundColor: isDark
-                    ? "rgba(255,255,255,0.04)"
-                    : "rgba(0,0,0,0.03)",
-                },
-                pressed && styles.pressed,
-              ]}
+              style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
             >
-              <Text style={[styles.secondaryBtnText, { color: palette.text }]}>
-                View booking
-              </Text>
+              <Text style={styles.secondaryBtnText}>View booking</Text>
             </Pressable>
           ) : null}
 
@@ -176,134 +165,164 @@ export default function ReservationConfirmedScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1 },
-  ambientGlow: {
-    position: "absolute",
-    top: -60,
-    left: -30,
-    right: -30,
-    height: 320,
-  },
-  safe: { flex: 1, backgroundColor: "transparent" },
-  content: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 28,
-  },
-  badgeOuter: {
-    marginBottom: 28,
-  },
-  badgeRing: {
-    width: 112,
-    height: 112,
-    borderRadius: 56,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  badgeInner: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    alignItems: "center",
-    justifyContent: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: GOLD,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.35,
-        shadowRadius: 16,
-      },
-      android: { elevation: 6 },
-    }),
-  },
-  eyebrow: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: GOLD,
-    letterSpacing: 1.6,
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-    letterSpacing: -0.6,
-    textAlign: "center",
-    marginBottom: 10,
-  },
-  subtitle: {
-    fontSize: 15,
-    fontWeight: "500",
-    textAlign: "center",
-    lineHeight: 22,
-    maxWidth: 320,
-  },
-  idChip: {
-    marginTop: 22,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    alignItems: "center",
-    minWidth: 220,
-    gap: 4,
-  },
-  idLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1.2,
-  },
-  idValue: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: GOLD,
-    letterSpacing: 0.4,
-  },
-  tips: {
-    marginTop: 28,
-    gap: 12,
-    alignSelf: "stretch",
-    maxWidth: 340,
-  },
-  tipRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  tipText: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: "500",
-    lineHeight: 18,
-  },
-  bottom: {
-    paddingHorizontal: 20,
-    paddingBottom: Platform.OS === "ios" ? 8 : 20,
-    gap: 10,
-  },
-  secondaryBtn: {
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 15,
-    borderRadius: 14,
-    alignItems: "center",
-  },
-  secondaryBtnText: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  primaryBtn: {
-    borderRadius: 14,
-    overflow: "hidden",
-  },
-  primaryGradient: {
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  primaryBtnText: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#1A1208",
-  },
-  pressed: { opacity: 0.88 },
-});
+function makeStyles(palette: DriverPalette, isDark: boolean) {
+  const card = isDark ? "rgba(28,28,30,0.88)" : "rgba(255,255,255,0.88)";
+  return StyleSheet.create({
+    root: { flex: 1 },
+    ambientGlow: {
+      position: "absolute",
+      top: -60,
+      left: -30,
+      right: -30,
+      height: 320,
+    },
+    safe: { flex: 1, backgroundColor: "transparent" },
+    content: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 28,
+    },
+    badgeOuter: {
+      marginBottom: 28,
+    },
+    badgeRing: {
+      width: 112,
+      height: 112,
+      borderRadius: 56,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    badgeInner: {
+      width: 84,
+      height: 84,
+      borderRadius: 42,
+      alignItems: "center",
+      justifyContent: "center",
+      ...Platform.select({
+        ios: {
+          shadowColor: GOLD,
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.35,
+          shadowRadius: 16,
+        },
+        android: { elevation: 6 },
+      }),
+    },
+    eyebrow: {
+      fontSize: 11,
+      fontWeight: "800",
+      color: isDark ? GOLD : palette.hintBold,
+      letterSpacing: 1.6,
+      marginBottom: 8,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: "800",
+      letterSpacing: -0.6,
+      textAlign: "center",
+      marginBottom: 10,
+      color: palette.text,
+    },
+    subtitle: {
+      fontSize: 15,
+      fontWeight: "500",
+      textAlign: "center",
+      lineHeight: 22,
+      maxWidth: 320,
+      color: palette.muted,
+    },
+    idChip: {
+      marginTop: 22,
+      borderRadius: 14,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: isDark ? "rgba(212,160,74,0.35)" : palette.hintBorder,
+      backgroundColor: isDark ? "rgba(212,160,74,0.12)" : palette.hintBg,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      alignItems: "center",
+      minWidth: 220,
+      gap: 4,
+    },
+    idLabel: {
+      fontSize: 10,
+      fontWeight: "700",
+      letterSpacing: 1.2,
+      color: palette.muted,
+    },
+    idValue: {
+      fontSize: 14,
+      fontWeight: "800",
+      color: isDark ? GOLD : palette.hintBold,
+      letterSpacing: 0.4,
+    },
+    tipsCard: {
+      marginTop: 28,
+      alignSelf: "stretch",
+      maxWidth: 340,
+      borderRadius: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: palette.border,
+      backgroundColor: card,
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+    },
+    tipRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingVertical: 12,
+    },
+    tipIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: isDark ? "rgba(212,160,74,0.14)" : "rgba(212,160,74,0.12)",
+    },
+    tipDivider: {
+      height: StyleSheet.hairlineWidth,
+      marginLeft: 44,
+    },
+    tipText: {
+      flex: 1,
+      fontSize: 13,
+      fontWeight: "500",
+      lineHeight: 18,
+      color: palette.muted,
+    },
+    bottom: {
+      paddingHorizontal: 20,
+      paddingBottom: Platform.OS === "ios" ? 8 : 20,
+      gap: 10,
+    },
+    secondaryBtn: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: palette.border,
+      backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+      paddingVertical: 15,
+      borderRadius: 14,
+      alignItems: "center",
+    },
+    secondaryBtnText: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: palette.text,
+    },
+    primaryBtn: {
+      borderRadius: 14,
+      overflow: "hidden",
+    },
+    primaryGradient: {
+      paddingVertical: 16,
+      alignItems: "center",
+    },
+    primaryBtnText: {
+      fontSize: 16,
+      fontWeight: "800",
+      color: "#1A1208",
+    },
+    pressed: { opacity: 0.88 },
+  });
+}

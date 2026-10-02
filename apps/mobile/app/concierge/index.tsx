@@ -139,7 +139,6 @@ export default function ConciergeDashboardScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.eyebrow}>HOTEL CONCIERGE</Text>
             <Text style={styles.title}>Hi, {firstName}</Text>
-            <Text style={styles.subtitle}>{concierge?.hotelName || "Your hotel"}</Text>
           </View>
           <Pressable
             onPress={() => router.push("/concierge/profile")}

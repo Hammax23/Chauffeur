@@ -291,7 +291,14 @@ export default function TripDetailScreen() {
               ]}
             >
               <View style={styles.rowBetween}>
-                <Text style={styles.bookingId}>{reservation.bookingId}</Text>
+                <Text
+                  style={[
+                    styles.bookingId,
+                    { color: isDark ? GOLD : palette.hintBold },
+                  ]}
+                >
+                  {reservation.bookingId}
+                </Text>
                 {statusUi ? (
                   <View
                     style={[
@@ -299,9 +306,13 @@ export default function TripDetailScreen() {
                       {
                         backgroundColor:
                           statusUi.tone === "done"
-                            ? "rgba(52,199,89,0.14)"
+                            ? isDark
+                              ? "rgba(52,199,89,0.14)"
+                              : "rgba(22,163,74,0.12)"
                             : statusUi.tone === "cancelled"
-                              ? "rgba(255,69,58,0.12)"
+                              ? isDark
+                                ? "rgba(255,69,58,0.12)"
+                                : "rgba(220,38,38,0.1)"
                               : statusUi.tone === "confirmed"
                                 ? isDark
                                   ? "rgba(52,199,89,0.16)"
@@ -313,9 +324,13 @@ export default function TripDetailScreen() {
                                   : palette.hintBg,
                         borderColor:
                           statusUi.tone === "done"
-                            ? "rgba(52,199,89,0.4)"
+                            ? isDark
+                              ? "rgba(52,199,89,0.4)"
+                              : "rgba(22,163,74,0.28)"
                             : statusUi.tone === "cancelled"
-                              ? "rgba(255,69,58,0.35)"
+                              ? isDark
+                                ? "rgba(255,69,58,0.35)"
+                                : "rgba(220,38,38,0.28)"
                               : statusUi.tone === "confirmed"
                                 ? isDark
                                   ? "rgba(52,199,89,0.35)"
@@ -334,9 +349,13 @@ export default function TripDetailScreen() {
                         {
                           color:
                             statusUi.tone === "done"
-                              ? "#34C759"
+                              ? isDark
+                                ? "#34C759"
+                                : "#15803D"
                               : statusUi.tone === "cancelled"
-                                ? "#FF453A"
+                                ? isDark
+                                  ? "#FF453A"
+                                  : "#DC2626"
                                 : statusUi.tone === "confirmed"
                                   ? isDark
                                     ? "#34C759"
@@ -709,7 +728,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
   },
-  bookingId: { flex: 1, fontSize: 13, color: GOLD, fontWeight: "700" },
+  bookingId: { flex: 1, fontSize: 13, fontWeight: "700" },
   statusPill: {
     paddingHorizontal: 9,
     paddingVertical: 4,

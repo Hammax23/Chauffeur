@@ -12,14 +12,12 @@ import { Ionicons } from "@expo/vector-icons";
 import type { ComponentProps } from "react";
 import { randomUUID } from "expo-crypto";
 import { fetchPlaceFormattedAddress, fetchPlacePredictions, type PlacePrediction } from "../services/places";
+import { useOptionalCustomerTheme } from "../contexts/CustomerThemeContext";
+import { GOLD, getDriverPalette } from "../theme/driver-theme";
 
 const DEBOUNCE_MS = 280;
-
-const ACCENT = "#D4A04A";
-const SLATE_900 = "#0f172a";
-const SLATE_500 = "#64748b";
-const SLATE_400 = "#94a3b8";
-const SLATE_100 = "#f1f5f9";
+const ACCENT = GOLD;
+const FALLBACK_PALETTE = getDriverPalette("dark");
 
 export type GooglePlacesAddressFieldIcon = ComponentProps<typeof Ionicons>["name"];
 
@@ -60,15 +58,13 @@ export function GooglePlacesAddressField({
   maxPanelHeight = 260,
   compact = false,
 }: GooglePlacesAddressFieldProps) {
+  const theme = useOptionalCustomerTheme();
+  const palette = theme?.palette ?? FALLBACK_PALETTE;
+  const isDark = theme?.isDark ?? true;
   const sessionRef = useRef<string>(randomUUID());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // `focused`  — visual focus on the TextInput (gold border etc.). Mirrors keyboard focus.
-  // `panelOpen` — controls whether the suggestions panel is visible. Decoupled
-  //               from focus so that dismissing the keyboard (by tapping a label
-  //               or empty space) does NOT close the panel. It only closes on
-  //               explicit user actions: pick, clear, dismiss button.
   const [focused, setFocused] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
@@ -147,8 +143,6 @@ export function GooglePlacesAddressField({
     setFocused(true);
     if (value.trim().length >= 2) {
       setPanelOpen(true);
-      // Re-run autocomplete on refocus only if we don't already have results
-      // (avoids a pointless network round-trip).
       if (predictions.length === 0) {
         setLoading(true);
         scheduleAutocomplete(value);
@@ -157,10 +151,6 @@ export function GooglePlacesAddressField({
   };
 
   const onBlur = () => {
-    // Visual focus follows the keyboard, but the panel is INTENTIONALLY left
-    // open so the user can tap aside to dismiss the keyboard and still read
-    // / scroll / pick a suggestion. The panel closes on pick, clear, or the
-    // explicit dismiss button (see onDismissPanel).
     setFocused(false);
   };
 
@@ -205,14 +195,37 @@ export function GooglePlacesAddressField({
   const showPanel =
     panelOpen && (!!banner || loading || predictions.length > 0 || value.trim().length >= 2);
 
+  const inputBg = isDark ? "rgba(255,255,255,0.06)" : "#FFFFFF";
+  const panelBg = isDark ? "rgba(28,28,30,0.98)" : "#fff";
+  const panelHeaderBg = isDark ? "rgba(255,255,255,0.04)" : "#fafafa";
+  const divider = palette.border;
+  const accentMuted = isDark ? GOLD : "#8B6914";
+
   return (
     <View style={[styles.wrap, (focused || panelOpen) && styles.wrapRaised, containerStyle]}>
-      <View style={[styles.inputRow, compact && styles.inputRowCompact, focused && styles.inputRowFocused]}>
-        <Ionicons name={iconName} size={compact ? 16 : 18} color={focused ? ACCENT : SLATE_400} />
+      <View
+        style={[
+          styles.inputRow,
+          compact && styles.inputRowCompact,
+          {
+            borderColor: focused
+              ? isDark
+                ? "rgba(212, 160, 74, 0.55)"
+                : "rgba(139, 105, 20, 0.45)"
+              : palette.border,
+            backgroundColor: inputBg,
+          },
+        ]}
+      >
+        <Ionicons
+          name={iconName}
+          size={compact ? 16 : 18}
+          color={focused ? accentMuted : palette.muted}
+        />
         <TextInput
-          style={[styles.input, compact && styles.inputCompact]}
+          style={[styles.input, compact && styles.inputCompact, { color: palette.text }]}
           placeholder={placeholder}
-          placeholderTextColor="#999"
+          placeholderTextColor={palette.muted}
           value={value}
           onChangeText={onChange}
           onFocus={onFocus}
@@ -224,32 +237,54 @@ export function GooglePlacesAddressField({
           autoFocus={autoFocus}
           accessibilityLabel={placeholder}
         />
-        {(loading || resolving) && <ActivityIndicator size="small" color={ACCENT} style={styles.spinner} />}
+        {(loading || resolving) && (
+          <ActivityIndicator size="small" color={accentMuted} style={styles.spinner} />
+        )}
       </View>
 
       {showPanel ? (
-        <View style={styles.panel} accessibilityRole="list">
-          <View style={styles.panelHeader}>
-            <Text style={styles.panelHeaderTitle}>Suggestions</Text>
+        <View
+          style={[styles.panel, { borderColor: divider, backgroundColor: panelBg }]}
+          accessibilityRole="list"
+        >
+          <View
+            style={[
+              styles.panelHeader,
+              { backgroundColor: panelHeaderBg, borderBottomColor: divider },
+            ]}
+          >
+            <Text style={[styles.panelHeaderTitle, { color: palette.muted }]}>Suggestions</Text>
             <TouchableOpacity
               onPress={onDismissPanel}
               hitSlop={10}
               accessibilityLabel="Close suggestions"
               accessibilityRole="button"
             >
-              <Ionicons name="close" size={16} color={SLATE_500} />
+              <Ionicons name="close" size={16} color={palette.muted} />
             </TouchableOpacity>
           </View>
           {banner ? (
-            <View style={styles.banner}>
-              <Ionicons name="alert-circle-outline" size={18} color="#b45309" />
-              <Text style={styles.bannerText}>{banner}</Text>
+            <View
+              style={[
+                styles.banner,
+                {
+                  backgroundColor: isDark ? "rgba(212,160,74,0.12)" : "#fffbeb",
+                  borderBottomColor: isDark ? palette.hintBorder : "#fde68a",
+                },
+              ]}
+            >
+              <Ionicons name="alert-circle-outline" size={18} color={isDark ? GOLD : "#b45309"} />
+              <Text style={[styles.bannerText, { color: isDark ? "#E8C078" : "#92400e" }]}>
+                {banner}
+              </Text>
             </View>
           ) : null}
           {loading && predictions.length === 0 && !banner ? (
-            <View style={styles.loadingBanner}>
+            <View style={[styles.loadingBanner, { borderBottomColor: divider }]}>
               <ActivityIndicator size="small" color={ACCENT} />
-              <Text style={styles.loadingText}>Searching addresses…</Text>
+              <Text style={[styles.loadingText, { color: palette.muted }]}>
+                Searching addresses…
+              </Text>
             </View>
           ) : null}
           {!banner && predictions.length > 0 ? (
@@ -262,7 +297,11 @@ export function GooglePlacesAddressField({
               {predictions.map((item) => (
                 <TouchableOpacity
                   key={item.placeId}
-                  style={[styles.row, compact && styles.rowCompact]}
+                  style={[
+                    styles.row,
+                    compact && styles.rowCompact,
+                    { borderBottomColor: divider },
+                  ]}
                   activeOpacity={0.7}
                   onPress={() => onPick(item)}
                 >
@@ -270,25 +309,35 @@ export function GooglePlacesAddressField({
                     <Ionicons name={predictionIcon(item.types)} size={20} color={ACCENT} />
                   </View>
                   <View style={styles.rowText}>
-                    <Text style={styles.main} numberOfLines={1}>
+                    <Text style={[styles.main, { color: palette.text }]} numberOfLines={1}>
                       {item.mainText}
                     </Text>
                     {item.secondaryText ? (
-                      <Text style={styles.secondary} numberOfLines={2}>
+                      <Text style={[styles.secondary, { color: palette.muted }]} numberOfLines={2}>
                         {item.secondaryText}
                       </Text>
                     ) : null}
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color={SLATE_400} />
+                  <Ionicons name="chevron-forward" size={18} color={palette.muted} />
                 </TouchableOpacity>
               ))}
             </ScrollView>
           ) : null}
           {!banner && !loading && predictions.length === 0 && value.trim().length >= 2 ? (
-            <Text style={styles.empty}>No matches — try street, city, or airport code</Text>
+            <Text style={[styles.empty, { color: palette.muted }]}>
+              No matches — try street, city, or airport code
+            </Text>
           ) : null}
-          <View style={styles.poweredRow}>
-            <Text style={styles.powered}>Google Places</Text>
+          <View
+            style={[
+              styles.poweredRow,
+              {
+                backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+                borderTopColor: divider,
+              },
+            ]}
+          >
+            <Text style={[styles.powered, { color: palette.muted }]}>Google Places</Text>
           </View>
         </View>
       ) : null}
@@ -308,40 +357,33 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 14,
+    borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 14,
-    backgroundColor: "#FFFFFF",
+    paddingVertical: 12,
     gap: 10,
-    minHeight: 52,
+    minHeight: 48,
   },
   inputRowCompact: {
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 10,
-    minHeight: undefined,
-  },
-  inputRowFocused: {
-    borderColor: "rgba(212, 160, 74, 0.55)",
-    backgroundColor: "#fff",
+    minHeight: 44,
   },
   input: {
     flex: 1,
-    fontSize: 16,
-    color: SLATE_900,
+    fontSize: 15,
+    fontWeight: "500",
     paddingVertical: 0,
   },
   inputCompact: {
     fontSize: 13.5,
+    fontWeight: "400",
   },
   spinner: { marginLeft: 4 },
   panel: {
     marginTop: 8,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(15, 23, 42, 0.08)",
-    backgroundColor: "#fff",
     overflow: "hidden",
   },
   panelHeader: {
@@ -350,14 +392,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: "#fafafa",
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(15,23,42,0.06)",
   },
   panelHeaderTitle: {
     fontSize: 11,
     fontWeight: "800",
-    color: SLATE_500,
     letterSpacing: 1.2,
   },
   panelScroll: {
@@ -369,14 +408,11 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: "#fffbeb",
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#fde68a",
   },
   bannerText: {
     flex: 1,
     fontSize: 12,
-    color: "#92400e",
     lineHeight: 16,
   },
   row: {
@@ -386,7 +422,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     gap: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: SLATE_100,
   },
   rowCompact: {
     paddingVertical: 10,
@@ -406,32 +441,26 @@ const styles = StyleSheet.create({
   main: {
     fontSize: 15,
     fontWeight: "600",
-    color: SLATE_900,
   },
   secondary: {
     marginTop: 2,
     fontSize: 12,
-    color: SLATE_500,
     lineHeight: 16,
   },
   empty: {
     paddingHorizontal: 14,
     paddingVertical: 14,
     fontSize: 13,
-    color: SLATE_500,
     textAlign: "center",
   },
   poweredRow: {
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: SLATE_100,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(15, 23, 42, 0.06)",
   },
   powered: {
     fontSize: 10,
     fontWeight: "600",
-    color: SLATE_400,
     letterSpacing: 0.4,
     textAlign: "center",
   },
@@ -442,11 +471,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: SLATE_100,
   },
   loadingText: {
     fontSize: 13,
-    color: SLATE_500,
     fontWeight: "500",
   },
 });

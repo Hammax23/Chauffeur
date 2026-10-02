@@ -11,10 +11,12 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { GooglePlacesAddressField } from "../../components/GooglePlacesAddressField";
+import { useCustomerTheme } from "../../contexts/CustomerThemeContext";
 import { GOLD } from "../../theme/driver-theme";
 
 const ACCENT = GOLD;
@@ -42,6 +44,7 @@ function formatReverseGeocodeAddress(
  * (no Modal / KeyboardAvoidingView — those break the iOS soft keyboard).
  */
 export default function PlanRideScreen() {
+  const { palette, isDark } = useCustomerTheme();
   const params = useLocalSearchParams<{
     focus?: string | string[];
     pickup?: string | string[];
@@ -121,109 +124,142 @@ export default function PlanRideScreen() {
   }, []);
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
-      <StatusBar barStyle="dark-content" />
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        automaticallyAdjustKeyboardInsets
-      >
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
-            <Ionicons name="chevron-back" size={20} color="#1a1a1a" />
-            <Text style={styles.backText}>Back</Text>
-          </Pressable>
-          <Text style={styles.headerTitle}>Plan your ride</Text>
-          <View style={{ width: 64 }} />
-        </View>
-
-        <Text style={styles.sectionTitle}>Where</Text>
-        <Text style={styles.sectionSub}>Search pickup and drop-off</Text>
-
-        <Text style={styles.inputLabel}>Pickup</Text>
-        <GooglePlacesAddressField
-          value={pickup}
-          onChangeText={(t) => {
-            setPickup(t);
-            setPickupCoords(null);
-          }}
-          placeholder="Search pickup — street, city, or airport"
-          iconName="locate-outline"
-          onPlaceResolved={(place) => {
-            setPickup(place.address);
-            if (place.lat != null && place.lng != null) {
-              setPickupCoords({ lat: place.lat, lng: place.lng });
-            }
-          }}
+    <View style={[styles.root, { backgroundColor: palette.root }]}>
+      <StatusBar barStyle={palette.statusBar} backgroundColor={palette.root} />
+      <LinearGradient colors={[...palette.bg]} style={StyleSheet.absoluteFill} />
+      <View style={styles.ambientGlow} pointerEvents="none">
+        <LinearGradient
+          colors={[...palette.glow]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.2, y: 0 }}
+          end={{ x: 0.85, y: 0.45 }}
         />
+      </View>
 
-        <Pressable
-          onPress={() => void useCurrentLocation()}
-          disabled={locating}
-          style={({ pressed }) => [
-            styles.gpsBtn,
-            pressed && styles.pressed,
-            locating && { opacity: 0.7 },
-          ]}
+      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets
         >
-          {locating ? (
-            <ActivityIndicator size="small" color={ACCENT} />
-          ) : (
-            <Ionicons name="navigate" size={16} color={ACCENT} />
-          )}
-          <Text style={styles.gpsText}>
-            {locating ? "Getting location…" : "Use current location"}
+          <View style={styles.header}>
+            <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
+              <Ionicons name="chevron-back" size={20} color={palette.text} />
+              <Text style={[styles.backText, { color: palette.text }]}>Back</Text>
+            </Pressable>
+            <Text style={[styles.headerTitle, { color: palette.text }]}>Plan your ride</Text>
+            <View style={{ width: 64 }} />
+          </View>
+
+          <Text style={[styles.eyebrow, { color: isDark ? GOLD : palette.hintBold }]}>
+            ROUTE
           </Text>
-        </Pressable>
+          <Text style={[styles.sectionTitle, { color: palette.text }]}>Where</Text>
+          <Text style={[styles.sectionSub, { color: palette.muted }]}>
+            Search pickup and drop-off
+          </Text>
 
-        <Text style={[styles.inputLabel, { marginTop: 18 }]}>Drop-off</Text>
-        <GooglePlacesAddressField
-          value={dropoff}
-          onChangeText={(t) => {
-            setDropoff(t);
-            setDropoffCoords(null);
-          }}
-          placeholder="Search destination"
-          iconName="search-outline"
-          onPlaceResolved={(place) => {
-            setDropoff(place.address);
-            const coords =
-              place.lat != null && place.lng != null
-                ? { lat: place.lat, lng: place.lng }
-                : null;
-            setDropoffCoords(coords);
-            goCreate(place.address, coords);
-          }}
-        />
+          <Text style={[styles.inputLabel, { color: palette.muted }]}>Pickup</Text>
+          <GooglePlacesAddressField
+            value={pickup}
+            onChangeText={(t) => {
+              setPickup(t);
+              setPickupCoords(null);
+            }}
+            placeholder="Search pickup address"
+            iconName="navigate-outline"
+            onPlaceResolved={(place) => {
+              setPickup(place.address);
+              if (place.lat != null && place.lng != null) {
+                setPickupCoords({ lat: place.lat, lng: place.lng });
+              }
+            }}
+          />
 
-        <Pressable
-          onPress={() => goCreate(dropoff)}
-          disabled={!canContinue}
-          style={({ pressed }) => [
-            styles.continueBtn,
-            !canContinue && styles.continueDisabled,
-            pressed && canContinue && styles.pressed,
-          ]}
-        >
-          <Text style={styles.continueText}>Continue</Text>
-          <Ionicons name="arrow-forward" size={18} color="#1A1208" />
-        </Pressable>
-      </ScrollView>
-    </SafeAreaView>
+          <Pressable
+            onPress={() => void useCurrentLocation()}
+            disabled={locating}
+            style={({ pressed }) => [
+              styles.gpsBtn,
+              {
+                backgroundColor: palette.hintBg,
+                borderColor: palette.hintBorder,
+              },
+              pressed && styles.pressed,
+              locating && { opacity: 0.7 },
+            ]}
+          >
+            {locating ? (
+              <ActivityIndicator size="small" color={isDark ? ACCENT : "#8B6914"} />
+            ) : (
+              <Ionicons name="navigate" size={16} color={isDark ? ACCENT : "#8B6914"} />
+            )}
+            <Text style={[styles.gpsText, { color: isDark ? "#E8C078" : "#7A5A28" }]}>
+              {locating ? "Getting location…" : "Use current location"}
+            </Text>
+          </Pressable>
+
+          <Text style={[styles.inputLabel, { color: palette.muted, marginTop: 18 }]}>
+            Drop-off
+          </Text>
+          <GooglePlacesAddressField
+            value={dropoff}
+            onChangeText={(t) => {
+              setDropoff(t);
+              setDropoffCoords(null);
+            }}
+            placeholder="Search drop-off address"
+            iconName="location-outline"
+            onPlaceResolved={(place) => {
+              setDropoff(place.address);
+              const coords =
+                place.lat != null && place.lng != null
+                  ? { lat: place.lat, lng: place.lng }
+                  : null;
+              setDropoffCoords(coords);
+              goCreate(place.address, coords);
+            }}
+          />
+
+          <Pressable
+            onPress={() => goCreate(dropoff)}
+            disabled={!canContinue}
+            style={({ pressed }) => [
+              styles.continueBtn,
+              !canContinue && styles.continueDisabled,
+              pressed && canContinue && styles.pressed,
+            ]}
+          >
+            <LinearGradient
+              colors={["#E8C078", ACCENT, "#B8862E"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.continueGrad}
+            >
+              <Text style={styles.continueText}>Continue</Text>
+              <Ionicons name="arrow-forward" size={18} color="#1A1208" />
+            </LinearGradient>
+          </Pressable>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f8f8f8",
+  root: { flex: 1 },
+  ambientGlow: {
+    position: "absolute",
+    top: -40,
+    left: -20,
+    right: -20,
+    height: 220,
   },
-  scroll: {
-    flex: 1,
-  },
+  safe: { flex: 1, backgroundColor: "transparent" },
+  scroll: { flex: 1 },
   scrollContent: {
     paddingHorizontal: 20,
     paddingBottom: 40,
@@ -243,29 +279,31 @@ const styles = StyleSheet.create({
   },
   backText: {
     fontSize: 16,
-    color: "#1a1a1a",
     fontWeight: "500",
   },
   headerTitle: {
     fontSize: 17,
     fontWeight: "700",
-    color: "#1a1a1a",
+  },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.4,
+    marginBottom: 4,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1a1a1a",
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: -0.4,
     marginBottom: 4,
   },
   sectionSub: {
     fontSize: 13,
-    color: "#64748b",
     marginBottom: 18,
   },
   inputLabel: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#475569",
     marginBottom: 8,
   },
   gpsBtn: {
@@ -277,31 +315,32 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 20,
-    backgroundColor: "rgba(212,160,74,0.12)",
+    borderWidth: StyleSheet.hairlineWidth,
   },
   gpsText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#8B6914",
   },
   continueBtn: {
     marginTop: 28,
+    borderRadius: 14,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: GOLD,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 10,
+      },
+      android: { elevation: 2 },
+    }),
+  },
+  continueGrad: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: ACCENT,
-    borderRadius: 14,
     paddingVertical: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
-      },
-      android: { elevation: 2 },
-    }),
   },
   continueDisabled: {
     opacity: 0.45,
