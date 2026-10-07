@@ -39,6 +39,7 @@ import {
   findTierById,
   formatTierDisplayTitle,
   getTierCapacity,
+  getTierSubtitle,
   resolveTierIdFromFleetVehicleId,
   type VehicleTierOption,
 } from "../../data/vehicle-tiers";
@@ -1509,11 +1510,18 @@ export default function CreateReservationScreen() {
                       </Text>
                     </View>
                   </View>
-                  {selectedTier.subtitle || selectedTier.description ? (
-                    <Text style={styles.carCategory} numberOfLines={2}>
-                      {selectedTier.subtitle || selectedTier.description}
-                    </Text>
-                  ) : null}
+                  {(() => {
+                    const line = getTierSubtitle(
+                      selectedTier.id,
+                      selectedTier.subtitle,
+                      selectedTier.description
+                    );
+                    return line ? (
+                      <Text style={styles.carCategory} numberOfLines={2}>
+                        {line}
+                      </Text>
+                    ) : null;
+                  })()}
                 </View>
                 <View style={styles.carSelectorTrailing}>
                   {tierFareById[selectedTier.id] != null ? (
@@ -1548,115 +1556,109 @@ export default function CreateReservationScreen() {
                   keyboardShouldPersistTaps="handled"
                   showsVerticalScrollIndicator
                 >
-                  {(["standard", "executive"] as const).map((group) => {
-                    const groupTiers = vehicleTiers.filter((t) => t.group === group);
-                    if (groupTiers.length === 0) return null;
+                  {vehicleTiers.map((tier) => {
+                    const selected = selectedTierId === tier.id;
+                    const tierFare = tierFareById[tier.id];
+                    const tierLine = getTierSubtitle(
+                      tier.id,
+                      tier.subtitle,
+                      tier.description
+                    );
                     return (
-                      <View key={group}>
-                        <Text style={styles.tierDropdownGroupLabel}>
-                          {group === "executive" ? "Executive" : "Standard"}
-                        </Text>
-                        {groupTiers.map((tier) => {
-                          const selected = selectedTierId === tier.id;
-                          const tierFare = tierFareById[tier.id];
-                          return (
-                            <TouchableOpacity
-                              key={tier.id}
+                      <TouchableOpacity
+                        key={tier.id}
+                        style={[
+                          styles.carDropdownItem,
+                          selected && styles.carDropdownItemActive,
+                        ]}
+                        onPress={() => {
+                          setSelectedTierId(tier.id);
+                          setShowTierDropdown(false);
+                        }}
+                        activeOpacity={0.85}
+                      >
+                        <Image
+                          source={{ uri: tier.imageUrl }}
+                          style={styles.carDropdownThumb}
+                          resizeMode="contain"
+                        />
+                        <View style={styles.carDropdownCopy}>
+                          <View style={styles.carTitleRow}>
+                            <Text
                               style={[
-                                styles.carDropdownItem,
-                                selected && styles.carDropdownItemActive,
+                                styles.carDropdownName,
+                                selected && styles.carDropdownNameActive,
                               ]}
-                              onPress={() => {
-                                setSelectedTierId(tier.id);
-                                setShowTierDropdown(false);
-                              }}
-                              activeOpacity={0.85}
+                              numberOfLines={2}
                             >
-                              <Image
-                                source={{ uri: tier.imageUrl }}
-                                style={styles.carDropdownThumb}
-                                resizeMode="contain"
+                              {formatTierDisplayTitle(tier.title)}
+                            </Text>
+                            <View
+                              style={styles.capacityInline}
+                              accessibilityLabel={`${getTierCapacity(tier)} passengers`}
+                            >
+                              <Ionicons
+                                name="person"
+                                size={13}
+                                color={selected ? (isDark ? GOLD : "#8B6914") : palette.muted}
                               />
-                              <View style={styles.carDropdownCopy}>
-                                <View style={styles.carTitleRow}>
-                                  <Text
-                                    style={[
-                                      styles.carDropdownName,
-                                      selected && styles.carDropdownNameActive,
-                                    ]}
-                                    numberOfLines={2}
-                                  >
-                                    {formatTierDisplayTitle(tier.title)}
-                                  </Text>
-                                  <View
-                                    style={styles.capacityInline}
-                                    accessibilityLabel={`${getTierCapacity(tier)} passengers`}
-                                  >
-                                    <Ionicons
-                                      name="person"
-                                      size={13}
-                                      color={selected ? (isDark ? GOLD : "#8B6914") : palette.muted}
-                                    />
-                                    <Text
-                                      style={[
-                                        styles.capacityInlineText,
-                                        selected && {
-                                          color: isDark ? GOLD : "#8B6914",
-                                        },
-                                      ]}
-                                    >
-                                      {getTierCapacity(tier)}
-                                    </Text>
-                                  </View>
-                                </View>
-                                {tier.subtitle ? (
-                                  <Text
-                                    style={[
-                                      styles.tierDropdownSubtitle,
-                                      selected &&
-                                        !isDark && { color: "rgba(26,21,16,0.55)" },
-                                    ]}
-                                    numberOfLines={2}
-                                  >
-                                    {tier.subtitle}
-                                  </Text>
-                                ) : null}
-                              </View>
-                              <View style={styles.carDropdownPriceCol}>
-                                <Text
-                                  style={[
-                                    styles.carDropdownPrice,
-                                    selected && styles.carDropdownPriceActive,
-                                  ]}
-                                  numberOfLines={1}
-                                >
-                                  {tierFare != null
-                                    ? `$${tierFare.toFixed(0)}`
-                                    : tier.hourlyRate > 0
-                                      ? isHourly
-                                        ? `$${tier.hourlyRate.toFixed(0)}/hr`
-                                        : `$${tier.hourlyRate.toFixed(0)}`
-                                      : `$${tier.pricePerKm.toFixed(2)}`}
-                                </Text>
-                                <View
-                                  style={[
-                                    styles.carRadio,
-                                    selected && styles.carRadioSelected,
-                                  ]}
-                                >
-                                  {selected ? (
-                                    <Ionicons
-                                      name="checkmark"
-                                      size={12}
-                                      color={isDark ? "#1A1208" : "#fff"}
-                                    />
-                                  ) : null}
-                                </View>
-                              </View>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
+                              <Text
+                                style={[
+                                  styles.capacityInlineText,
+                                  selected && {
+                                    color: isDark ? GOLD : "#8B6914",
+                                  },
+                                ]}
+                              >
+                                {getTierCapacity(tier)}
+                              </Text>
+                            </View>
+                          </View>
+                          {tierLine ? (
+                            <Text
+                              style={[
+                                styles.tierDropdownSubtitle,
+                                selected &&
+                                  !isDark && { color: "rgba(26,21,16,0.55)" },
+                              ]}
+                              numberOfLines={2}
+                            >
+                              {tierLine}
+                            </Text>
+                          ) : null}
+                        </View>
+                        <View style={styles.carDropdownPriceCol}>
+                          <Text
+                            style={[
+                              styles.carDropdownPrice,
+                              selected && styles.carDropdownPriceActive,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {tierFare != null
+                              ? `$${tierFare.toFixed(0)}`
+                              : tier.hourlyRate > 0
+                                ? isHourly
+                                  ? `$${tier.hourlyRate.toFixed(0)}/hr`
+                                  : `$${tier.hourlyRate.toFixed(0)}`
+                                : `$${tier.pricePerKm.toFixed(2)}`}
+                          </Text>
+                          <View
+                            style={[
+                              styles.carRadio,
+                              selected && styles.carRadioSelected,
+                            ]}
+                          >
+                            {selected ? (
+                              <Ionicons
+                                name="checkmark"
+                                size={12}
+                                color={isDark ? "#1A1208" : "#fff"}
+                              />
+                            ) : null}
+                          </View>
+                        </View>
+                      </TouchableOpacity>
                     );
                   })}
                 </ScrollView>

@@ -48,10 +48,51 @@ const COUNTRY_CODES = [
   { code: "+49", label: "DE", name: "Germany" },
 ];
 
-function calcDistanceFare(basePrice: number, distanceMeters: number): number {
-  const km = distanceMeters / 1000;
-  if (km <= BASE_DISTANCE_KM) return basePrice;
-  return basePrice + (km - BASE_DISTANCE_KM) * EXTRA_KM_RATE;
+type PricedVehicle = {
+  price: number;
+  basePrice?: number;
+  baseDistanceKm?: number;
+  extraKmRate?: number;
+  pricePerKm?: number;
+};
+
+/** Same distance formula as website reservation: basePrice + extra km × rate. */
+function calcDistanceFare(
+  vehicle: PricedVehicle,
+  distanceMeters: number,
+  defaults: { baseDistanceKm: number; extraKmRate: number }
+): number {
+  const distanceKm = distanceMeters / 1000;
+  const basePrice =
+    vehicle.basePrice && vehicle.basePrice > 0 ? vehicle.basePrice : vehicle.price;
+  const baseKm =
+    vehicle.baseDistanceKm && vehicle.baseDistanceKm > 0
+      ? vehicle.baseDistanceKm
+      : defaults.baseDistanceKm;
+  const extraRate =
+    vehicle.extraKmRate && vehicle.extraKmRate > 0
+      ? vehicle.extraKmRate
+      : vehicle.pricePerKm && vehicle.pricePerKm > 0
+        ? vehicle.pricePerKm
+        : defaults.extraKmRate;
+  const extraKm = Math.max(0, distanceKm - baseKm);
+  return basePrice + extraKm * extraRate;
+}
+
+function getVehicleRideFare(
+  vehicle: PricedVehicle,
+  opts: {
+    bookingMode: "distance" | "hourly";
+    hourlyDuration: number;
+    routeDistanceValue: number;
+    defaults: { baseDistanceKm: number; extraKmRate: number };
+  }
+): number | null {
+  if (opts.bookingMode === "hourly") {
+    return vehicle.price * opts.hourlyDuration;
+  }
+  if (opts.routeDistanceValue <= 0) return null;
+  return calcDistanceFare(vehicle, opts.routeDistanceValue, opts.defaults);
 }
 
 export default function CustomReservationForm() {
@@ -60,6 +101,10 @@ export default function CustomReservationForm() {
   const [hourlyDuration, setHourlyDuration] = useState(3);
   const [selectedVehicle, setSelectedVehicle] = useState("");
   const [reservationFleet, setReservationFleet] = useState<FleetVehicle[]>(fleetData);
+  const [pricingDefaults, setPricingDefaults] = useState({
+    baseDistanceKm: BASE_DISTANCE_KM,
+    extraKmRate: EXTRA_KM_RATE,
+  });
   const [adultsCount, setAdultsCount] = useState(1);
   const [childrenCount, setChildrenCount] = useState(0);
   const passengersCount = adultsCount + childrenCount;
@@ -123,6 +168,20 @@ export default function CustomReservationForm() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    fetch("/api/pricing-config")
+      .then((res) => res.json())
+      .then((data: { success?: boolean; charges?: { baseDistanceKm?: number; extraKmRate?: number } }) => {
+        if (data?.success && data.charges) {
+          setPricingDefaults({
+            baseDistanceKm: data.charges.baseDistanceKm ?? BASE_DISTANCE_KM,
+            extraKmRate: data.charges.extraKmRate ?? EXTRA_KM_RATE,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const resolveVehicle = useCallback(
     (vehicleId: string) =>
       reservationFleet.find((v) => v.id === vehicleId) ??
@@ -140,19 +199,31 @@ export default function CustomReservationForm() {
     []
   );
 
-  // Auto-suggest fare from fleet pricing (admin can still override)
+  // Auto-suggest fare from fleet pricing (admin can still override) — same rules as website
   useEffect(() => {
     if (fareManual || !selectedVehicle) return;
     const vehicle = resolveVehicle(selectedVehicle);
     if (!vehicle) return;
-    let fare = vehicle.price;
-    if (bookingMode === "hourly") {
-      fare = vehicle.price * hourlyDuration;
-    } else if (routeDistanceValue > 0) {
-      fare = calcDistanceFare(vehicle.price, routeDistanceValue);
+    const fare = getVehicleRideFare(vehicle, {
+      bookingMode,
+      hourlyDuration,
+      routeDistanceValue,
+      defaults: pricingDefaults,
+    });
+    if (fare == null || fare <= 0) {
+      setRideFare("");
+      return;
     }
-    setRideFare(fare > 0 ? fare.toFixed(2) : "");
-  }, [selectedVehicle, bookingMode, hourlyDuration, routeDistanceValue, fareManual, resolveVehicle]);
+    setRideFare(fare.toFixed(2));
+  }, [
+    selectedVehicle,
+    bookingMode,
+    hourlyDuration,
+    routeDistanceValue,
+    fareManual,
+    resolveVehicle,
+    pricingDefaults,
+  ]);
 
   const addStop = () => setStops([...stops, ""]);
   const removeStop = (index: number) => setStops(stops.filter((_, i) => i !== index));
@@ -779,12 +850,12 @@ export default function CustomReservationForm() {
                 const imageSrc =
                   (vehicle as FleetVehicle & { imageUrl?: string }).imageUrl ||
                   vehicle.image;
-                let suggested = vehicle.price;
-                if (bookingMode === "hourly") {
-                  suggested = vehicle.price * hourlyDuration;
-                } else if (routeDistanceValue > 0) {
-                  suggested = calcDistanceFare(vehicle.price, routeDistanceValue);
-                }
+                const suggested = getVehicleRideFare(vehicle, {
+                  bookingMode,
+                  hourlyDuration,
+                  routeDistanceValue,
+                  defaults: pricingDefaults,
+                });
                 return (
                   <button
                     key={vehicle.id}
@@ -813,12 +884,20 @@ export default function CustomReservationForm() {
                       </h4>
                       <p className="text-[12px] text-gray-500 truncate">{vehicle.name}</p>
                       <p className="mt-0.5 text-[16px] sm:text-[18px] font-bold text-[#4A2C5A] tabular-nums">
-                        CAD{suggested.toFixed(2)}
-                        {bookingMode === "hourly" ? (
-                          <span className="text-[11px] font-medium text-gray-400 ml-1">
-                            / {hourlyDuration}h
+                        {suggested != null ? (
+                          <>
+                            CAD{suggested.toFixed(2)}
+                            {bookingMode === "hourly" ? (
+                              <span className="text-[11px] font-medium text-gray-400 ml-1">
+                                / {hourlyDuration}h
+                              </span>
+                            ) : null}
+                          </>
+                        ) : (
+                          <span className="text-[14px] font-semibold text-gray-400">
+                            Enter route for fare
                           </span>
-                        ) : null}
+                        )}
                       </p>
                     </div>
                     <div className="flex-shrink-0 flex flex-col items-end gap-2">

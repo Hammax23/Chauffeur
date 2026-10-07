@@ -34,8 +34,9 @@ import { SlimSpinner } from "../../../components/SlimSpinner";
 import { GOLD } from "../../../theme/driver-theme";
 import { isParcelServiceType } from "../../../utils/parcel";
 import {
-  formatTierDisplayTitle,
   getTierCapacity,
+  getTierDisplayTitle,
+  getTierSubtitle,
 } from "../../../data/vehicle-tiers";
 import {
   dismissHomePromo,
@@ -126,7 +127,8 @@ export default function CustomerHomeScreen() {
     const fabSize = isCompact ? 40 : 44;
     const pickupMinH = isCompact ? 50 : 56;
     const titleSize = isCompact ? 20 : 22;
-    const fleetCardW = Math.min(windowWidth * (isTablet ? 0.34 : 0.52), isTablet ? 268 : 216);
+    const fleetCardW = Math.min(windowWidth * (isTablet ? 0.38 : 0.62), isTablet ? 300 : 248);
+    const fleetCardH = isTablet ? 196 : 178;
     return {
       isCompact,
       isShort,
@@ -138,6 +140,7 @@ export default function CustomerHomeScreen() {
       pickupMinH,
       titleSize,
       fleetCardW,
+      fleetCardH,
       topGap: isCompact ? 8 : 10,
       sheetContentPad: padH,
     };
@@ -976,13 +979,17 @@ export default function CustomerHomeScreen() {
             </Pressable>
           </View>
 
-          {/* Fleet strip */}
+          {/* Fleet strip — cinematic image cards */}
           <View style={styles.fleetHeader}>
-            <Text style={[styles.fleetTitle, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]}>
-              Premium fleet
-            </Text>
-            <Pressable onPress={openRide} hitSlop={10}>
-              <Text style={styles.fleetLink}>Book</Text>
+            <View style={styles.fleetHeaderLeft}>
+              <View style={styles.fleetAccentBar} />
+              <Text style={[styles.fleetTitle, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]}>
+                Premium fleet
+              </Text>
+            </View>
+            <Pressable onPress={openRide} hitSlop={10} style={styles.fleetLinkRow}>
+              <Text style={styles.fleetLink}>View all</Text>
+              <Ionicons name="chevron-forward" size={14} color={ACCENT} />
             </Pressable>
           </View>
 
@@ -994,9 +1001,15 @@ export default function CustomerHomeScreen() {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
+              decelerationRate="fast"
+              snapToInterval={layout.fleetCardW + 12}
+              snapToAlignment="start"
               contentContainerStyle={styles.fleetScroll}
             >
-              {fleetPreview.map((v) => (
+              {fleetPreview.map((v) => {
+                const tierId = v.tierId || v.id;
+                const subtitle = getTierSubtitle(tierId, v.subtitle, v.description);
+                return (
                 <Pressable
                   key={v.id}
                   onPress={() =>
@@ -1009,66 +1022,62 @@ export default function CustomerHomeScreen() {
                     styles.fleetCard,
                     {
                       width: layout.fleetCardW,
-                      backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
-                      borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
+                      height: layout.fleetCardH,
                     },
-                    pressed && styles.pressed,
+                    pressed && styles.fleetCardPressed,
                   ]}
                 >
                   <LinearGradient
                     colors={
                       isDark
-                        ? ["#2E2A26", "#24201C", "#1E1B18"]
-                        : ["#F7F4EF", "#F0EBE3", "#E8E2D8"]
+                        ? ["#2A2622", "#1A1714", "#12100E"]
+                        : ["#2C2824", "#1E1B18", "#141210"]
                     }
-                    locations={[0, 0.5, 1]}
-                    start={{ x: 0.2, y: 0 }}
-                    end={{ x: 0.8, y: 1 }}
-                    style={styles.fleetImageWrap}
-                  >
-                    <LinearGradient
-                      colors={
-                        isDark
-                          ? ["rgba(212,160,74,0.14)", "transparent"]
-                          : ["rgba(212,160,74,0.12)", "rgba(255,255,255,0.35)", "transparent"]
-                      }
-                      locations={isDark ? [0, 1] : [0, 0.45, 1]}
-                      start={{ x: 0.5, y: 0 }}
-                      end={{ x: 0.5, y: 1 }}
-                      style={styles.fleetStageGlow}
-                      pointerEvents="none"
-                    />
-                    <Image
-                      source={{ uri: v.imageUrl }}
-                      style={styles.fleetImage}
-                      resizeMode="contain"
-                    />
-                  </LinearGradient>
-                  <View style={styles.fleetNameRow}>
-                    <Text
-                      style={[styles.fleetName, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]}
-                      numberOfLines={1}
-                    >
-                      {formatTierDisplayTitle(v.title)}
-                    </Text>
-                    <View style={styles.fleetCapacity}>
-                      <Ionicons
-                        name="person"
-                        size={12}
-                        color={isDark ? "#A1A1AA" : "#6B7280"}
-                      />
-                      <Text
-                        style={[
-                          styles.fleetCapacityText,
-                          { color: isDark ? "#A1A1AA" : "#6B7280" },
-                        ]}
-                      >
-                        {getTierCapacity(v)}
+                    locations={[0, 0.55, 1]}
+                    start={{ x: 0.15, y: 0 }}
+                    end={{ x: 0.85, y: 1 }}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <LinearGradient
+                    colors={["rgba(212,160,74,0.18)", "transparent", "transparent"]}
+                    locations={[0, 0.4, 1]}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={styles.fleetStageGlow}
+                    pointerEvents="none"
+                  />
+                  <Image
+                    source={{ uri: v.imageUrl }}
+                    style={styles.fleetImage}
+                    resizeMode="contain"
+                  />
+                  <LinearGradient
+                    colors={["transparent", "rgba(10,8,6,0.55)", "rgba(8,6,4,0.92)"]}
+                    locations={[0, 0.45, 1]}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={styles.fleetFade}
+                    pointerEvents="none"
+                  />
+                  <View style={styles.fleetMeta}>
+                    <View style={styles.fleetMetaTop}>
+                      <Text style={styles.fleetName} numberOfLines={1}>
+                        {getTierDisplayTitle(tierId, v.title)}
                       </Text>
+                      <View style={styles.fleetCapacity}>
+                        <Ionicons name="person" size={11} color="rgba(255,255,255,0.55)" />
+                        <Text style={styles.fleetCapacityText}>{getTierCapacity(v)}</Text>
+                      </View>
                     </View>
+                    {!!subtitle && (
+                      <Text style={styles.fleetDesc} numberOfLines={2}>
+                        {subtitle}
+                      </Text>
+                    )}
                   </View>
                 </Pressable>
-              ))}
+              );
+              })}
             </ScrollView>
           )}
         </ScrollView>
@@ -1556,83 +1565,124 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 12,
+    marginTop: 2,
+  },
+  fleetHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  fleetAccentBar: {
+    width: 3,
+    height: 16,
+    borderRadius: 1.5,
+    backgroundColor: ACCENT,
   },
   fleetTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
-    letterSpacing: -0.2,
+    letterSpacing: -0.35,
+  },
+  fleetLinkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 1,
   },
   fleetLink: {
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "600",
     color: ACCENT,
+    letterSpacing: -0.1,
   },
   fleetLoading: {
-    paddingVertical: 28,
+    paddingVertical: 36,
     alignItems: "center",
   },
   fleetScroll: {
     paddingRight: 4,
-    gap: 10,
-    paddingBottom: 2,
+    gap: 12,
+    paddingBottom: 4,
   },
   fleetCard: {
-    borderRadius: 16,
-    padding: 8,
-    paddingBottom: 10,
-    marginRight: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 20,
+    overflow: "hidden",
+    marginRight: 0,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.22,
+        shadowRadius: 16,
       },
-      android: { elevation: 2 },
+      android: { elevation: 6 },
     }),
   },
-  fleetImageWrap: {
-    borderRadius: 12,
-    height: 118,
-    marginBottom: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
+  fleetCardPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.985 }],
   },
   fleetStageGlow: {
     ...StyleSheet.absoluteFillObject,
   },
   fleetImage: {
-    width: "98%",
-    height: 92,
+    position: "absolute",
+    left: "2%",
+    right: "2%",
+    top: 8,
+    bottom: 58,
     zIndex: 1,
   },
-  fleetNameRow: {
+  fleetFade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: "56%",
+    zIndex: 2,
+  },
+  fleetMeta: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    bottom: 12,
+    zIndex: 3,
+    gap: 3,
+  },
+  fleetMetaTop: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 2,
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    gap: 8,
   },
   fleetName: {
-    flexShrink: 1,
+    flex: 1,
     minWidth: 0,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "700",
-    lineHeight: 18,
-    letterSpacing: -0.2,
-    marginTop: 0,
+    lineHeight: 19,
+    letterSpacing: -0.3,
+    color: "#F8F5F0",
+  },
+  fleetDesc: {
+    fontSize: 11.5,
+    fontWeight: "500",
+    lineHeight: 15,
+    letterSpacing: -0.1,
+    color: "rgba(255,255,255,0.58)",
+    paddingRight: 4,
   },
   fleetCapacity: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 2,
+    gap: 3,
     flexShrink: 0,
+    paddingBottom: 1,
   },
   fleetCapacityText: {
     fontSize: 12,
     fontWeight: "600",
+    color: "rgba(255,255,255,0.55)",
     fontVariant: ["tabular-nums"],
   },
   pressed: {
