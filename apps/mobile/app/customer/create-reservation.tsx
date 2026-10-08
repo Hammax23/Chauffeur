@@ -55,6 +55,11 @@ import {
   type AppBookingMode,
   type AppDistancePricing,
 } from "../../utils/app-fare";
+import {
+  MAX_APP_STOPS,
+  activeStopAddresses,
+  joinAppStops,
+} from "../../utils/stops";
 import { saveBookingDraft } from "../../services/booking-draft";
 import {
   PARCEL_SERVICE_TYPE,
@@ -279,8 +284,8 @@ export default function CreateReservationScreen() {
   const [pickupLocating, setPickupLocating] = useState(false);
   const [pickupLocationHint, setPickupLocationHint] = useState<string | null>(null);
   const [dropoffAddress, setDropoffAddress] = useState("");
-  const [stopAddress, setStopAddress] = useState("");
-  const [showStopField, setShowStopField] = useState(false);
+  /** Intermediate stops (empty slots allowed while editing). */
+  const [stops, setStops] = useState<string[]>([]);
   const [pickupAt, setPickupAt] = useState<Date>(defaultPickupDate);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [pickerMinDate, setPickerMinDate] = useState(() => earliestPickupAt());
@@ -610,8 +615,7 @@ export default function CreateReservationScreen() {
     }
     const pickup = pickupAddress.trim();
     const dropoff = dropoffAddress.trim();
-    const waypoint =
-      showStopField && stopAddress.trim().length >= 3 ? stopAddress.trim() : undefined;
+    const waypoints = activeStopAddresses(stops);
 
     // Prefer GPS lat,lng for My Location so Google Directions does not re-geocode a fuzzy address.
     const origin =
@@ -637,7 +641,7 @@ export default function CreateReservationScreen() {
           {
             origin,
             destination: dropoff,
-            waypoint,
+            waypoints,
             avoidTolls: !tollRoute,
             mapWidth: 800,
             mapHeight: 460,
@@ -679,8 +683,7 @@ export default function CreateReservationScreen() {
     pickupAddress,
     pickupCoords,
     dropoffAddress,
-    stopAddress,
-    showStopField,
+    stops,
     tollRoute,
   ]);
 
@@ -701,12 +704,12 @@ export default function CreateReservationScreen() {
    */
   const fareEstimate = useMemo(() => {
     if (!selectedTier) return null;
-    const hasStop = showStopField && stopAddress.trim().length >= 3;
+    const stopCount = activeStopAddresses(stops).length;
     if (isHourly) {
       return calculateAppHourlyFare({
         hours: hourlyDuration,
         hourlyRate: selectedTier.hourlyRate,
-        hasStop,
+        stopCount,
         childSeatCount,
         gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
         pickupLocation: pickupAddress,
@@ -720,7 +723,7 @@ export default function CreateReservationScreen() {
       pricePerKm: selectedTier.pricePerKm,
       baseDistanceKm: selectedTier.baseDistanceKm || distancePricing.baseDistanceKm,
       extraKmRate: selectedTier.extraKmRate || distancePricing.extraKmRate,
-      hasStop,
+      stopCount,
       childSeatCount,
       gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
       pickupLocation: pickupAddress,
@@ -730,8 +733,7 @@ export default function CreateReservationScreen() {
     isHourly,
     hourlyDuration,
     routeSummary,
-    showStopField,
-    stopAddress,
+    stops,
     childSeatCount,
     distancePricing,
     pickupAddress,
@@ -750,13 +752,13 @@ export default function CreateReservationScreen() {
   /** Per-tier ride fare for the list (Uber-style price on the right). */
   const tierFareById = useMemo(() => {
     const out: Record<string, number> = {};
-    const hasStop = false;
+    const stopCount = 0;
     if (isHourly) {
       for (const tier of vehicleTiers) {
         const fare = calculateAppHourlyFare({
           hours: hourlyDuration,
           hourlyRate: tier.hourlyRate,
-          hasStop,
+          stopCount,
           childSeatCount: 0,
           gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
           pickupLocation: pickupAddress,
@@ -774,7 +776,7 @@ export default function CreateReservationScreen() {
         pricePerKm: tier.pricePerKm,
         baseDistanceKm: tier.baseDistanceKm || distancePricing.baseDistanceKm,
         extraKmRate: tier.extraKmRate || distancePricing.extraKmRate,
-        hasStop,
+        stopCount,
         childSeatCount: 0,
         gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
         pickupLocation: pickupAddress,
@@ -845,6 +847,17 @@ export default function CreateReservationScreen() {
     }
     if (showDropoff && !dropoffAddress.trim()) {
       Alert.alert("Missing info", "Please enter pickup and drop-off addresses.");
+      return;
+    }
+    if (stops.some((s) => s.trim().length > 0 && s.trim().length < 3)) {
+      Alert.alert("Stop address", "Each stop needs a full address. Clear or complete empty stop fields.");
+      return;
+    }
+    if (stops.some((s) => !s.trim())) {
+      Alert.alert(
+        "Incomplete stop",
+        "Please enter an address for every stop, or remove the empty stop."
+      );
       return;
     }
     const bookingPhone =
@@ -978,8 +991,7 @@ export default function CreateReservationScreen() {
       hourlyDuration: isHourly ? String(hourlyDuration) : undefined,
       pickupAddress: pickupAddress.trim(),
       dropoffAddress: resolvedDropoff,
-      stopAddress:
-        showStopField && stopAddress.trim().length >= 3 ? stopAddress.trim() : "",
+      stopAddress: joinAppStops(stops),
       serviceDate: serviceDateStr,
       serviceTime: serviceTimeStr,
       pickupTimeDisplay,
@@ -1369,31 +1381,53 @@ export default function CreateReservationScreen() {
             </>
           ) : null}
 
-          {/* Add Stop */}
-          <TouchableOpacity 
-            style={styles.addStopBtn} 
-            onPress={() => setShowStopField(!showStopField)}
-          >
-            <Ionicons
-              name={showStopField ? "remove-circle-outline" : "add-circle-outline"}
-              size={20}
-              color={isDark ? GOLD : "#8B6914"}
-            />
-            <Text style={styles.addStopText}>{showStopField ? "Remove Stop" : "Add Stop"}</Text>
-          </TouchableOpacity>
-          {showStopField ? (
-            <>
-              <Text style={styles.inputLabel}>Stop</Text>
+          {/* Intermediate stops (up to MAX_APP_STOPS) */}
+          {stops.map((stop, index) => (
+            <View key={`stop-${index}`} style={styles.stopBlock}>
+              <View style={styles.stopLabelRow}>
+                <Text style={styles.inputLabel}>
+                  {stops.length > 1 ? `Stop ${index + 1}` : "Stop"}
+                </Text>
+                <TouchableOpacity
+                  onPress={() =>
+                    setStops((prev) => prev.filter((_, i) => i !== index))
+                  }
+                  hitSlop={10}
+                  style={styles.stopRemoveBtn}
+                >
+                  <Ionicons name="close-circle" size={20} color={palette.muted} />
+                  <Text style={styles.stopRemoveText}>Remove</Text>
+                </TouchableOpacity>
+              </View>
               <GooglePlacesAddressField
-                value={stopAddress}
-                onChangeText={setStopAddress}
+                value={stop}
+                onChangeText={(text) =>
+                  setStops((prev) => prev.map((s, i) => (i === index ? text : s)))
+                }
                 placeholder="Search stop address"
                 iconName="flag-outline"
                 onPlaceResolved={(place) => {
-                  setStopAddress(place.address);
+                  setStops((prev) =>
+                    prev.map((s, i) => (i === index ? place.address : s))
+                  );
                 }}
               />
-            </>
+            </View>
+          ))}
+          {stops.length < MAX_APP_STOPS ? (
+            <TouchableOpacity
+              style={styles.addStopBtn}
+              onPress={() => setStops((prev) => [...prev, ""])}
+            >
+              <Ionicons
+                name="add-circle"
+                size={18}
+                color={isDark ? GOLD : "#8B6914"}
+              />
+              <Text style={styles.addStopText}>
+                {stops.length === 0 ? "Add Stop" : "Add another stop"}
+              </Text>
+            </TouchableOpacity>
           ) : null}
 
           {/* Pick-up Time */}
@@ -1791,7 +1825,7 @@ export default function CreateReservationScreen() {
                 ) : null}
               </View>
 
-              {/* A / B / (C) legend */}
+              {/* A / B / C… legend */}
               {routeSummary && routeSummary.pointCount >= 2 ? (
                 <View style={styles.mapLegend}>
                   <View style={styles.mapLegendItem}>
@@ -1803,21 +1837,26 @@ export default function CreateReservationScreen() {
                       {pickupAddress || "—"}
                     </Text>
                   </View>
-                  {routeSummary.pointCount >= 3 ? (
-                    <View style={styles.mapLegendItem}>
-                      <View style={styles.mapLegendDot}>
-                        <Text style={styles.mapLegendDotText}>B</Text>
+                  {activeStopAddresses(stops).map((addr, i) => {
+                    const letter = String.fromCharCode(66 + i); // B, C, …
+                    return (
+                      <View key={`legend-stop-${i}`} style={styles.mapLegendItem}>
+                        <View style={styles.mapLegendDot}>
+                          <Text style={styles.mapLegendDotText}>{letter}</Text>
+                        </View>
+                        <Text style={styles.mapLegendLabel}>
+                          Stop{activeStopAddresses(stops).length > 1 ? ` ${i + 1}` : ""}
+                        </Text>
+                        <Text style={styles.mapLegendText} numberOfLines={1}>
+                          {addr}
+                        </Text>
                       </View>
-                      <Text style={styles.mapLegendLabel}>Stop</Text>
-                      <Text style={styles.mapLegendText} numberOfLines={1}>
-                        {stopAddress || "—"}
-                      </Text>
-                    </View>
-                  ) : null}
+                    );
+                  })}
                   <View style={styles.mapLegendItem}>
                     <View style={styles.mapLegendDot}>
                       <Text style={styles.mapLegendDotText}>
-                        {routeSummary.pointCount >= 3 ? "C" : "B"}
+                        {String.fromCharCode(65 + 1 + activeStopAddresses(stops).length)}
                       </Text>
                     </View>
                     <Text style={styles.mapLegendLabel}>To</Text>
@@ -2716,16 +2755,44 @@ function makeStyles(palette: DriverPalette, isDark: boolean) {
     fontWeight: "500",
     color: palette.text,
   },
+  stopBlock: {
+    marginTop: 10,
+  },
+  stopLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 2,
+  },
+  stopRemoveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 2,
+  },
+  stopRemoveText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: palette.muted,
+  },
   addStopBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
     marginTop: 12,
+    alignSelf: "flex-start",
+    paddingVertical: 5,
+    paddingHorizontal: 9,
+    borderRadius: 10,
+    backgroundColor: isDark ? "rgba(232,192,120,0.12)" : "rgba(201,160,99,0.14)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: isDark ? "rgba(232,192,120,0.28)" : "rgba(168,120,48,0.28)",
   },
   addStopText: {
-    fontSize: 13,
-    color: isDark ? GOLD : palette.hintBold,
-    fontWeight: "500",
+    fontSize: 12.5,
+    color: isDark ? GOLD : "#8B6914",
+    fontWeight: "700",
+    letterSpacing: -0.1,
   },
   mapContainer: {
     borderRadius: 16,

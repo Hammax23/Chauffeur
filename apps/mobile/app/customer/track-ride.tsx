@@ -23,6 +23,7 @@ import { getReservationById, getDriverLiveLocation, getCustomerChat, Reservation
 import { useReservationStream } from "../../hooks/useReservationStream";
 import type { ReservationStreamStatus } from "../../services/reservation-stream";
 import { isParcelServiceType } from "../../utils/parcel";
+import { parseAppStops } from "../../utils/stops";
 import { wasReviewPrompted, markReviewPrompted } from "../../utils/review-prompt";
 
 // Palette — kept consistent with customer/index.tsx
@@ -883,8 +884,8 @@ export default function TrackRideScreen() {
                   </View>
                 </View>
 
-                {reservation?.stops ? (
-                  <View style={styles.routeRow}>
+                {parseAppStops(reservation?.stops).map((addr, i, arr) => (
+                  <View key={`track-stop-${i}`} style={styles.routeRow}>
                     <View style={styles.routeIndicatorCol}>
                       <View style={[styles.routeDot, styles.routeDotHollow]}>
                         <View style={styles.routeDotHollowInner} />
@@ -892,13 +893,15 @@ export default function TrackRideScreen() {
                       <View style={styles.routeLine} />
                     </View>
                     <View style={styles.routeContentCol}>
-                      <Text style={styles.routeLabel}>STOP</Text>
+                      <Text style={styles.routeLabel}>
+                        {arr.length > 1 ? `STOP ${i + 1}` : "STOP"}
+                      </Text>
                       <Text style={styles.routeValue} numberOfLines={2}>
-                        {reservation.stops}
+                        {addr}
                       </Text>
                     </View>
                   </View>
-                ) : null}
+                ))}
 
                 <View style={[styles.routeRow, styles.routeRowLast]}>
                   <View style={styles.routeIndicatorCol}>

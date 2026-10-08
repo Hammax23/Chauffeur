@@ -127,8 +127,8 @@ export default function CustomerHomeScreen() {
     const fabSize = isCompact ? 40 : 44;
     const pickupMinH = isCompact ? 50 : 56;
     const titleSize = isCompact ? 20 : 22;
-    const fleetCardW = Math.min(windowWidth * (isTablet ? 0.38 : 0.62), isTablet ? 300 : 248);
-    const fleetCardH = isTablet ? 196 : 178;
+    const fleetCardW = Math.min(windowWidth * (isTablet ? 0.36 : 0.58), isTablet ? 280 : 220);
+    const fleetCardH = isTablet ? 210 : 188;
     return {
       isCompact,
       isShort,
@@ -257,7 +257,15 @@ export default function CustomerHomeScreen() {
     setFleetLoading(true);
     try {
       const { vehicles } = await getAppFleetVehicles({ homeOnly: true });
-      setFleetPreview(vehicles.slice(0, 8));
+      // Home strip only: Black Sedan → Electric Car → rest (Select Vehicle order unchanged).
+      const pinFirst = ["only-black-sedan", "electric-black-3"];
+      const keyed = (v: AppFleetVehicleDto) => v.tierId || v.id;
+      const pinned = pinFirst
+        .map((id) => vehicles.find((v) => keyed(v) === id))
+        .filter((v): v is AppFleetVehicleDto => !!v);
+      const pinnedIds = new Set(pinned.map(keyed));
+      const rest = vehicles.filter((v) => !pinnedIds.has(keyed(v)));
+      setFleetPreview([...pinned, ...rest].slice(0, 8));
     } catch (e) {
       if (__DEV__) {
         console.warn("[home] fleet preview failed:", e instanceof Error ? e.message : e);
@@ -979,107 +987,144 @@ export default function CustomerHomeScreen() {
             </Pressable>
           </View>
 
-          {/* Fleet strip — cinematic image cards */}
-          <View style={styles.fleetHeader}>
-            <View style={styles.fleetHeaderLeft}>
-              <View style={styles.fleetAccentBar} />
+          {/* Premium fleet — light editorial showroom strip */}
+          <View style={styles.fleetSection}>
+            <View style={styles.fleetHeader}>
               <Text style={[styles.fleetTitle, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]}>
                 Premium fleet
               </Text>
             </View>
-            <Pressable onPress={openRide} hitSlop={10} style={styles.fleetLinkRow}>
-              <Text style={styles.fleetLink}>View all</Text>
-              <Ionicons name="chevron-forward" size={14} color={ACCENT} />
-            </Pressable>
-          </View>
 
-          {fleetLoading ? (
-            <View style={styles.fleetLoading}>
-              <SlimSpinner size={24} stroke={2} color={ACCENT} />
-            </View>
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              decelerationRate="fast"
-              snapToInterval={layout.fleetCardW + 12}
-              snapToAlignment="start"
-              contentContainerStyle={styles.fleetScroll}
-            >
-              {fleetPreview.map((v) => {
-                const tierId = v.tierId || v.id;
-                const subtitle = getTierSubtitle(tierId, v.subtitle, v.description);
-                return (
-                <Pressable
-                  key={v.id}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/customer/create-reservation",
-                      params: bookingParams({ vehicleId: v.id }),
-                    })
-                  }
-                  style={({ pressed }) => [
-                    styles.fleetCard,
-                    {
-                      width: layout.fleetCardW,
-                      height: layout.fleetCardH,
-                    },
-                    pressed && styles.fleetCardPressed,
-                  ]}
-                >
-                  <LinearGradient
-                    colors={
-                      isDark
-                        ? ["#2A2622", "#1A1714", "#12100E"]
-                        : ["#2C2824", "#1E1B18", "#141210"]
-                    }
-                    locations={[0, 0.55, 1]}
-                    start={{ x: 0.15, y: 0 }}
-                    end={{ x: 0.85, y: 1 }}
-                    style={StyleSheet.absoluteFill}
-                  />
-                  <LinearGradient
-                    colors={["rgba(212,160,74,0.18)", "transparent", "transparent"]}
-                    locations={[0, 0.4, 1]}
-                    start={{ x: 0.5, y: 0 }}
-                    end={{ x: 0.5, y: 1 }}
-                    style={styles.fleetStageGlow}
-                    pointerEvents="none"
-                  />
-                  <Image
-                    source={{ uri: v.imageUrl }}
-                    style={styles.fleetImage}
-                    resizeMode="contain"
-                  />
-                  <LinearGradient
-                    colors={["transparent", "rgba(10,8,6,0.55)", "rgba(8,6,4,0.92)"]}
-                    locations={[0, 0.45, 1]}
-                    start={{ x: 0.5, y: 0 }}
-                    end={{ x: 0.5, y: 1 }}
-                    style={styles.fleetFade}
-                    pointerEvents="none"
-                  />
-                  <View style={styles.fleetMeta}>
-                    <View style={styles.fleetMetaTop}>
-                      <Text style={styles.fleetName} numberOfLines={1}>
-                        {getTierDisplayTitle(tierId, v.title)}
-                      </Text>
-                      <View style={styles.fleetCapacity}>
-                        <Ionicons name="person" size={11} color="rgba(255,255,255,0.55)" />
-                        <Text style={styles.fleetCapacityText}>{getTierCapacity(v)}</Text>
+            {fleetLoading ? (
+              <View style={styles.fleetLoading}>
+                <SlimSpinner size={24} stroke={2} color={ACCENT} />
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                decelerationRate="fast"
+                snapToInterval={layout.fleetCardW + 14}
+                snapToAlignment="start"
+                contentContainerStyle={styles.fleetScroll}
+              >
+                {fleetPreview.map((v) => {
+                  const tierId = v.tierId || v.id;
+                  const subtitle = getTierSubtitle(tierId, v.subtitle, v.description);
+                  return (
+                    <Pressable
+                      key={v.id}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/customer/create-reservation",
+                          params: bookingParams({ vehicleId: v.id }),
+                        })
+                      }
+                      style={({ pressed }) => [
+                        styles.fleetCard,
+                        {
+                          width: layout.fleetCardW,
+                          height: layout.fleetCardH,
+                          backgroundColor: isDark ? "#1C1915" : "#FFFCFA",
+                          borderColor: isDark
+                            ? "rgba(255,255,255,0.07)"
+                            : "rgba(28,28,30,0.06)",
+                        },
+                        pressed && styles.fleetCardPressed,
+                      ]}
+                    >
+                      <View style={styles.fleetStage}>
+                        <LinearGradient
+                          colors={
+                            isDark
+                              ? [
+                                  "rgba(232,192,120,0.14)",
+                                  "rgba(28,25,21,0.2)",
+                                  "rgba(12,10,8,0.55)",
+                                ]
+                              : [
+                                  "rgba(232,192,120,0.28)",
+                                  "rgba(248,244,238,0.9)",
+                                  "rgba(236,230,220,0.95)",
+                                ]
+                          }
+                          locations={[0, 0.45, 1]}
+                          start={{ x: 0.5, y: 0 }}
+                          end={{ x: 0.5, y: 1 }}
+                          style={StyleSheet.absoluteFill}
+                        />
+                        <View
+                          style={[
+                            styles.fleetStageFloor,
+                            {
+                              backgroundColor: isDark
+                                ? "rgba(0,0,0,0.35)"
+                                : "rgba(28,28,30,0.04)",
+                            },
+                          ]}
+                          pointerEvents="none"
+                        />
+                        <Image
+                          source={{ uri: v.imageUrl }}
+                          style={styles.fleetImage}
+                          resizeMode="contain"
+                        />
                       </View>
-                    </View>
-                    {!!subtitle && (
-                      <Text style={styles.fleetDesc} numberOfLines={2}>
-                        {subtitle}
-                      </Text>
-                    )}
-                  </View>
-                </Pressable>
-              );
-              })}
-            </ScrollView>
-          )}
+
+                      <View style={styles.fleetBody}>
+                        <View style={styles.fleetMetaTop}>
+                          <Text
+                            style={[
+                              styles.fleetName,
+                              { color: isDark ? "#F5F5F7" : "#1C1C1E" },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {getTierDisplayTitle(tierId, v.title)}
+                          </Text>
+                          <View
+                            style={[
+                              styles.fleetCapacity,
+                              {
+                                backgroundColor: isDark
+                                  ? "rgba(255,255,255,0.08)"
+                                  : "rgba(28,28,30,0.05)",
+                              },
+                            ]}
+                          >
+                            <Ionicons
+                              name="people-outline"
+                              size={12}
+                              color={isDark ? "rgba(255,255,255,0.65)" : "#6B6B70"}
+                            />
+                            <Text
+                              style={[
+                                styles.fleetCapacityText,
+                                { color: isDark ? "rgba(255,255,255,0.72)" : "#3A3A3C" },
+                              ]}
+                            >
+                              {getTierCapacity(v)}
+                            </Text>
+                          </View>
+                        </View>
+                        {!!subtitle && (
+                          <Text
+                            style={[
+                              styles.fleetDesc,
+                              { color: isDark ? "rgba(255,255,255,0.48)" : "#8E8E93" },
+                            ]}
+                            numberOfLines={2}
+                          >
+                            {subtitle}
+                          </Text>
+                        )}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </View>
         </ScrollView>
       </Animated.View>
     </View>
@@ -1561,128 +1606,108 @@ const styles = StyleSheet.create({
     color: "#1A1208",
     letterSpacing: -0.1,
   },
+  fleetSection: {
+    marginTop: 6,
+  },
   fleetHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     marginBottom: 12,
-    marginTop: 2,
-  },
-  fleetHeaderLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  fleetAccentBar: {
-    width: 3,
-    height: 16,
-    borderRadius: 1.5,
-    backgroundColor: ACCENT,
   },
   fleetTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    letterSpacing: -0.35,
-  },
-  fleetLinkRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 1,
-  },
-  fleetLink: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: ACCENT,
-    letterSpacing: -0.1,
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: -0.4,
   },
   fleetLoading: {
-    paddingVertical: 36,
+    paddingVertical: 44,
     alignItems: "center",
   },
   fleetScroll: {
     paddingRight: 4,
-    gap: 12,
-    paddingBottom: 4,
+    gap: 14,
+    paddingBottom: 6,
+    paddingTop: 2,
   },
   fleetCard: {
-    borderRadius: 20,
+    borderRadius: 22,
     overflow: "hidden",
-    marginRight: 0,
+    borderWidth: StyleSheet.hairlineWidth,
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.22,
-        shadowRadius: 16,
+        shadowColor: "#1C1410",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.1,
+        shadowRadius: 18,
       },
-      android: { elevation: 6 },
+      android: { elevation: 4 },
     }),
   },
   fleetCardPressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.985 }],
+    opacity: 0.94,
+    transform: [{ scale: 0.982 }],
   },
-  fleetStageGlow: {
-    ...StyleSheet.absoluteFillObject,
+  fleetStage: {
+    height: "58%",
+    overflow: "hidden",
+    position: "relative",
+  },
+  fleetStageFloor: {
+    position: "absolute",
+    left: "12%",
+    right: "12%",
+    bottom: 10,
+    height: 10,
+    borderRadius: 100,
+    opacity: 0.9,
   },
   fleetImage: {
     position: "absolute",
-    left: "2%",
-    right: "2%",
-    top: 8,
-    bottom: 58,
+    left: "4%",
+    right: "4%",
+    top: 6,
+    bottom: 4,
     zIndex: 1,
   },
-  fleetFade: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: "56%",
-    zIndex: 2,
-  },
-  fleetMeta: {
-    position: "absolute",
-    left: 14,
-    right: 14,
-    bottom: 12,
-    zIndex: 3,
-    gap: 3,
+  fleetBody: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 10,
+    justifyContent: "flex-start",
+    gap: 2,
   },
   fleetMetaTop: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     justifyContent: "space-between",
     gap: 8,
   },
   fleetName: {
     flex: 1,
     minWidth: 0,
-    fontSize: 15,
-    fontWeight: "700",
-    lineHeight: 19,
-    letterSpacing: -0.3,
-    color: "#F8F5F0",
+    fontSize: 14.5,
+    fontWeight: "800",
+    lineHeight: 18,
+    letterSpacing: -0.35,
   },
   fleetDesc: {
     fontSize: 11.5,
     fontWeight: "500",
-    lineHeight: 15,
+    lineHeight: 14,
     letterSpacing: -0.1,
-    color: "rgba(255,255,255,0.58)",
-    paddingRight: 4,
+    marginTop: 0,
   },
   fleetCapacity: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
+    gap: 4,
     flexShrink: 0,
-    paddingBottom: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
   },
   fleetCapacityText: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "rgba(255,255,255,0.55)",
+    fontWeight: "700",
     fontVariant: ["tabular-nums"],
   },
   pressed: {

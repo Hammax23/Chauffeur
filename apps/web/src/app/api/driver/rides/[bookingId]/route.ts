@@ -207,6 +207,10 @@ export async function PATCH(
       updateData.driverOnTheWayAt = now;
     }
 
+    if (status === "ARRIVED" && !reservation.driverArrivedAt) {
+      updateData.driverArrivedAt = now;
+    }
+
     if (status === "STOP") {
       if (reservation.status !== "CIC") {
         return NextResponse.json(
@@ -255,6 +259,42 @@ export async function PATCH(
       where: { id: reservation.id },
       data: updateData,
     });
+
+    // Bill pickup wait + Meet & Greet extra wait when customer enters car (or trip completes)
+    if (status === "CIC" || status === "DONE") {
+      try {
+        const { billPickupWaitIfNeeded, billMgWaitIfNeeded } = await import(
+          "@/lib/fare-adjustments"
+        );
+        const fresh = await prisma.reservation.findUnique({ where: { id: reservation.id } });
+        if (fresh) {
+          await billPickupWaitIfNeeded({
+            id: fresh.id,
+            bookingId: fresh.bookingId,
+            customerId: fresh.customerId,
+            stripeCustomerId: fresh.stripeCustomerId,
+            stripePaymentMethodId: fresh.stripePaymentMethodId,
+            driverArrivedAt: fresh.driverArrivedAt,
+            waitMinutesBilled: fresh.waitMinutesBilled,
+            status: fresh.status,
+          });
+          await billMgWaitIfNeeded({
+            id: fresh.id,
+            bookingId: fresh.bookingId,
+            customerId: fresh.customerId,
+            stripeCustomerId: fresh.stripeCustomerId,
+            stripePaymentMethodId: fresh.stripePaymentMethodId,
+            specialRequirements: fresh.specialRequirements,
+            serviceDate: fresh.serviceDate,
+            serviceTime: fresh.serviceTime,
+            actualLandingAt: fresh.actualLandingAt,
+            mgWaitMinutesBilled: fresh.mgWaitMinutesBilled,
+          });
+        }
+      } catch (waitErr) {
+        console.error("[wait-charge] failed", waitErr);
+      }
+    }
 
     if (status === "DONE") {
       try {

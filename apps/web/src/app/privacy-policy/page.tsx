@@ -136,8 +136,9 @@ export default async function PrivacyPolicyPage({
                 <span className="text-[#C9A063]">6.</span> Airport / One-Way Transfer (Luxury Sedan/SUV) — Greater Toronto Area
               </h2>
               <ul className="list-disc list-inside text-gray-600 text-[15px] leading-relaxed space-y-1.5 ml-4">
-                <li>Cancellations require <strong>2 hours&apos;</strong> notice.</li>
-                <li>Less than 2 hours: full fare charges apply.</li>
+                <li>Free cancel <strong>2+ hours</strong> before pickup (full refund).</li>
+                <li>Less than 2 hours: full fare kept (no second charge).</li>
+                <li>Pickup wait: <strong>20 minutes free</strong> after chauffeur ARRIVED, then <strong>$1 CAD/min</strong> (+ HST).</li>
               </ul>
             </div>
 
@@ -147,8 +148,7 @@ export default async function PrivacyPolicyPage({
                 <span className="text-[#C9A063]">7.</span> Sprinter Van — Airport / One-Way Transfer
               </h2>
               <ul className="list-disc list-inside text-gray-600 text-[15px] leading-relaxed space-y-1.5 ml-4">
-                <li>Cancellations require <strong>24 hours&apos;</strong> notice.</li>
-                <li>Less than 24 hours: full fare charges apply.</li>
+                <li>When treated as long-distance / specialty charter, long-distance cancel tiers below apply.</li>
                 <li>Hourly minimum service rates may apply.</li>
               </ul>
             </div>
@@ -156,7 +156,7 @@ export default async function PrivacyPolicyPage({
             {/* 8. Out of Town / Hourly / Charter */}
             <div>
               <h2 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-[#C9A063]">8.</span> Out of Town / Hourly / Charter Services (All Vehicle Types)
+                <span className="text-[#C9A063]">8.</span> Long Distance / Out of Town (typically ≥100 km)
               </h2>
               <div className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
                 <table className="w-full text-[15px]">
@@ -183,7 +183,7 @@ export default async function PrivacyPolicyPage({
                 </table>
               </div>
               <p className="text-gray-500 text-[13px] mt-3 italic">
-                Bookings may be subject to hourly minimum service rates.
+                Clock = hours left until pickup. Bookings may be subject to hourly minimum service rates.
               </p>
             </div>
 
@@ -202,8 +202,11 @@ export default async function PrivacyPolicyPage({
               <h2 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
                 <span className="text-[#C9A063]">10.</span> Meet &amp; Greet Cancellations
               </h2>
+              <p className="text-gray-600 text-[15px] leading-relaxed mb-3">
+                Meet &amp; Greet fee: <strong>$110 CAD + HST</strong>. Free wait <strong>60 minutes</strong> after actual landing; extra wait <strong>$110 CAD + HST / hour</strong>.
+              </p>
               <p className="text-gray-600 text-[15px] leading-relaxed">
-                YYZ and YTZ Meet &amp; Greet cancellations require <strong>2 hours&apos;</strong> notice; otherwise full charges apply.
+                On a regular booking, cancel <strong>2+ hours</strong> before pickup for a full refund; under 2 hours charges are kept. Long-distance Meet &amp; Greet bookings follow the long-distance cancel table above.
               </p>
             </div>
 

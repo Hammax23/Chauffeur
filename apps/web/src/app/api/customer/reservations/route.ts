@@ -10,6 +10,10 @@ import {
 } from "@/lib/app-reservation-fare";
 import { recordPromotionRedemption } from "@/lib/promotions";
 import { markReferralRewardRedeemed } from "@/lib/referrals";
+import {
+  parseDistanceKm,
+  resolveIsLongDistance,
+} from "@/lib/cancel-policy";
 
 const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -99,6 +103,8 @@ export async function GET(req: NextRequest) {
       gratuity: r.gratuity,
       total: r.total,
       paymentStatus: r.paymentStatus || "PENDING",
+      isLongDistance: r.isLongDistance,
+      waitChargeAmount: r.waitChargeAmount,
       statusUpdatedAt: r.statusUpdatedAt?.toISOString() || null,
       completedAt: r.completedAt?.toISOString() || null,
       createdAt: r.createdAt.toISOString(),
@@ -147,6 +153,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(fail.body, { status: fail.status });
     }
     const tokenData = auth.customer;
+
+    const balanceRow = await prisma.customer.findUnique({
+      where: { id: tokenData.id },
+      select: { outstandingBalance: true },
+    });
+    if ((balanceRow?.outstandingBalance || 0) > 0.009) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `You have an outstanding balance of $${Number(
+            balanceRow?.outstandingBalance || 0
+          ).toFixed(2)}. Please pay it in the app before booking again.`,
+          code: "OUTSTANDING_BALANCE",
+          outstandingBalance: balanceRow?.outstandingBalance || 0,
+        },
+        { status: 402 }
+      );
+    }
 
     const body = await req.json();
     const {
@@ -206,6 +230,12 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    const distanceKm = parseDistanceKm(
+      typeof distance === "string" ? distance : null,
+      typeof distanceMeters === "number" ? distanceMeters : Number(distanceMeters) || null
+    );
+    const isLongDistance = resolveIsLongDistance({ distanceKm });
 
     const paymentIntentId =
       typeof stripePaymentIntentId === "string" ? stripePaymentIntentId.trim() : "";
@@ -369,9 +399,11 @@ export async function POST(req: NextRequest) {
           trackLink,
           stripePaymentMethodId: resolvedStripePaymentMethodId,
           stripeCustomerId: resolvedStripeCustomerId,
+          stripePaymentIntentId: paymentIntentId,
           cardType: resolvedCardType,
           cardLast4: resolvedCardLast4,
           paymentStatus,
+          isLongDistance,
         },
       });
 
@@ -489,9 +521,11 @@ export async function POST(req: NextRequest) {
         trackLink,
         stripePaymentMethodId: null,
         stripeCustomerId: null,
+        stripePaymentIntentId: null,
         cardType: null,
         cardLast4: null,
         paymentStatus: "PENDING",
+        isLongDistance,
       },
     });
 

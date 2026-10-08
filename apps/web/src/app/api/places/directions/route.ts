@@ -31,7 +31,7 @@ interface DirectionsLeg {
 }
 
 /**
- * Driving distance/duration (pickup → optional waypoint → drop-off).
+ * Driving distance/duration (pickup → optional stop(s) → drop-off).
  * Uses Google Directions API server-side (same key strategy as /api/places/*).
  */
 export async function POST(req: NextRequest) {
@@ -43,7 +43,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { origin?: string; destination?: string; waypoint?: string | null; avoidTolls?: boolean };
+  let body: {
+    origin?: string;
+    destination?: string;
+    waypoint?: string | null;
+    waypoints?: string[] | null;
+    avoidTolls?: boolean;
+  };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -52,13 +58,26 @@ export async function POST(req: NextRequest) {
 
   const origin = (body.origin || "").trim();
   const destination = (body.destination || "").trim();
-  const waypointRaw = typeof body.waypoint === "string" ? body.waypoint.trim() : "";
   const avoidTolls = Boolean(body.avoidTolls);
+
+  const waypointList: string[] = [];
+  if (Array.isArray(body.waypoints)) {
+    for (const w of body.waypoints) {
+      const t = String(w || "").trim();
+      if (t.length >= 3) waypointList.push(t);
+    }
+  } else if (typeof body.waypoint === "string" && body.waypoint.trim().length >= 3) {
+    waypointList.push(body.waypoint.trim());
+  }
 
   if (origin.length < 3 || destination.length < 3) {
     return NextResponse.json({ success: false, error: "Origin and destination are required." }, { status: 400 });
   }
-  if (origin.length > 2048 || destination.length > 2048 || waypointRaw.length > 2048) {
+  if (
+    origin.length > 2048 ||
+    destination.length > 2048 ||
+    waypointList.some((w) => w.length > 2048)
+  ) {
     return NextResponse.json({ success: false, error: "Address too long." }, { status: 400 });
   }
 
@@ -72,8 +91,9 @@ export async function POST(req: NextRequest) {
     language: "en",
   });
 
-  if (waypointRaw.length >= 3) {
-    params.set("waypoints", waypointRaw);
+  if (waypointList.length > 0) {
+    // Google Directions: pipe-separated intermediate waypoints (order preserved).
+    params.set("waypoints", waypointList.join("|"));
   }
 
   if (avoidTolls) {

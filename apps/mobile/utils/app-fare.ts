@@ -77,9 +77,17 @@ export function isAirportPickupLocation(location?: string | null): boolean {
   return false;
 }
 
+function resolveStopCount(input: { stopCount?: number; hasStop?: boolean }): number {
+  if (typeof input.stopCount === "number" && Number.isFinite(input.stopCount)) {
+    return Math.max(0, Math.floor(input.stopCount));
+  }
+  return input.hasStop ? 1 : 0;
+}
+
 function finalizeAppFare(input: {
   rideFare: number;
-  hasStop: boolean;
+  stopCount?: number;
+  hasStop?: boolean;
   childSeatCount: number;
   gratuityPercent?: number;
   airportPickup?: boolean;
@@ -90,7 +98,7 @@ function finalizeAppFare(input: {
   const rideFare = Number(input.rideFare) || 0;
   if (rideFare <= 0) return null;
 
-  const stopCharge = input.hasStop ? STOP_CHARGE : 0;
+  const stopCharge = resolveStopCount(input) * STOP_CHARGE;
   const childSeatCount = Math.max(0, Math.floor(Number(input.childSeatCount) || 0));
   const childSeatCharge = childSeatCount * CHILD_SEAT_CHARGE;
   const airportPickupFee =
@@ -140,7 +148,10 @@ export function calculateAppDistanceFare(input: {
   pricePerKm?: number;
   baseDistanceKm?: number;
   extraKmRate?: number;
-  hasStop: boolean;
+  /** Preferred: number of intermediate stops ($20 each). */
+  stopCount?: number;
+  /** @deprecated use stopCount */
+  hasStop?: boolean;
   childSeatCount: number;
   gratuityPercent?: number;
   airportPickup?: boolean;
@@ -165,6 +176,7 @@ export function calculateAppDistanceFare(input: {
 
   return finalizeAppFare({
     rideFare,
+    stopCount: input.stopCount,
     hasStop: input.hasStop,
     childSeatCount: input.childSeatCount,
     gratuityPercent: input.gratuityPercent,
@@ -178,7 +190,9 @@ export function calculateAppDistanceFare(input: {
 export function calculateAppHourlyFare(input: {
   hours: number;
   hourlyRate: number;
-  hasStop: boolean;
+  stopCount?: number;
+  /** @deprecated use stopCount */
+  hasStop?: boolean;
   childSeatCount: number;
   gratuityPercent?: number;
   airportPickup?: boolean;
@@ -190,6 +204,7 @@ export function calculateAppHourlyFare(input: {
 
   return finalizeAppFare({
     rideFare: rate * hours,
+    stopCount: input.stopCount,
     hasStop: input.hasStop,
     childSeatCount: input.childSeatCount,
     gratuityPercent: input.gratuityPercent,

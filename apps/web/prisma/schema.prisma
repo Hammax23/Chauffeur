@@ -53,9 +53,27 @@ model Reservation {
   driverStopPeriodsJson String?
   stripeCustomerId      String?
   stripePaymentMethodId String?
+  /// Captured PaymentIntent id (pi_…) for refunds / audits.
+  stripePaymentIntentId String?
   cardType              String?
   cardLast4             String?
   paymentStatus         String?     @default("PENDING")
+  /// Long-distance / out-of-town cancel ladder (24h / 12h / 50%).
+  isLongDistance        Boolean     @default(false)
+  /// First transition to ARRIVED — pickup wait clock.
+  driverArrivedAt       DateTime?
+  /// Billable pickup wait minutes beyond free window (audit).
+  waitMinutesBilled     Int         @default(0)
+  waitChargeAmount      Float       @default(0)
+  /// Actual flight landing (M&G free-wait clock). Falls back to scheduled pickup if null.
+  actualLandingAt       DateTime?
+  /// Billable Meet & Greet wait beyond 60 free minutes (audit).
+  mgWaitMinutesBilled   Int         @default(0)
+  mgWaitChargeAmount    Float       @default(0)
+  /// Ops-marked no-show — prepaid fare retained (no auto refund).
+  noShowMarkedAt        DateTime?
+  noShowMarkedBy        String?
+  noShowNotes           String?
   driverResponse        String?
   driverRespondedAt     DateTime?
   rejectedDriverIds     String?
@@ -70,11 +88,40 @@ model Reservation {
   chatThread            ChatThread?
   tripReview            TripReview?
   promoRedemption       PromotionRedemption?
+  fareAdjustments       FareAdjustment[]
   assignedDriver        Driver?     @relation(fields: [assignedDriverId], references: [id])
   customer              Customer?   @relation(fields: [customerId], references: [id])
 
   @@index([customerId, customerHistoryHiddenAt])
   @@index([promoCode])
+  @@index([stripePaymentIntentId])
+}
+
+/// Post-booking extra charges (wait, stop, capacity, M&G wait, etc.).
+model FareAdjustment {
+  id                    String      @id @default(cuid())
+  reservationId         String
+  bookingId             String
+  customerId            String?
+  /// WAIT | EXTRA_STOP | CAPACITY | MG_WAIT | OTHER | NO_SHOW
+  type                  String
+  description           String      @default("")
+  amount                Float
+  hst                   Float       @default(0)
+  total                 Float
+  /// PENDING | PAID | FAILED | WAIVED
+  status                String      @default("PENDING")
+  stripePaymentIntentId String?
+  stripePaymentMethodId String?
+  idempotencyKey        String      @unique
+  failureMessage        String?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  reservation           Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+
+  @@index([reservationId, status])
+  @@index([customerId, status])
+  @@index([bookingId])
 }
 
 model Driver {
@@ -203,6 +250,8 @@ model Customer {
   /// Set when the customer self-deactivates (soft delete). Cleared on reactivate.
   deactivatedAt      DateTime?
   pushToken          String?
+  /// Unpaid post-booking charges (CAD). Blocks new bookings while > 0.
+  outstandingBalance Float         @default(0)
   /// Unique share code for inviting friends (e.g. SARJ-AB12CD).
   referralCode       String?       @unique
   /// Who referred this customer (set once at signup / claim).
@@ -224,6 +273,7 @@ model Customer {
   @@index([accountStatus])
   @@index([registrationSource])
   @@index([referredByCustomerId])
+  @@index([outstandingBalance])
 }
 
 /// In-app Contact Us / support messages from the customer mobile app.

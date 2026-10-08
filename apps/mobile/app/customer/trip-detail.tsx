@@ -18,9 +18,15 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
-import { getReservationById, hideReservationFromHistory, type Reservation } from "../../services/api";
+import {
+  getReservationById,
+  hideReservationFromHistory,
+  payCustomerOutstanding,
+  type Reservation,
+} from "../../services/api";
 import { useCustomerTheme } from "../../contexts/CustomerThemeContext";
 import { SlimSpinner } from "../../components/SlimSpinner";
+import { PayOutstandingSheet } from "../../components/PayOutstandingSheet";
 import { GOLD } from "../../theme/driver-theme";
 import { isParcelServiceType } from "../../utils/parcel";
 import {
@@ -80,6 +86,8 @@ export default function TripDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [hiding, setHiding] = useState(false);
   const [invoiceBusy, setInvoiceBusy] = useState(false);
+  const [payBusy, setPayBusy] = useState(false);
+  const [paySheetOpen, setPaySheetOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!bookingId) {
@@ -236,8 +244,79 @@ export default function TripDetailScreen() {
     if (tip && Number(reservation.gratuity) > 0) {
       fareRows.push({ label: "Gratuity", value: tip });
     }
+    for (const adj of reservation.fareAdjustments || []) {
+      const statusTag =
+        adj.status === "PAID"
+          ? ""
+          : adj.status === "WAIVED"
+            ? " (waived)"
+            : " (unpaid)";
+      fareRows.push({
+        label: adj.description || adj.type,
+        value: `${money(adj.total) || "$0.00"}${statusTag}`,
+      });
+    }
+    if (reservation.waitChargeAmount && reservation.waitChargeAmount > 0) {
+      const alreadyListed = (reservation.fareAdjustments || []).some(
+        (a) => a.type === "WAIT"
+      );
+      if (!alreadyListed) {
+        fareRows.push({
+          label: "Pickup wait",
+          value: money(reservation.waitChargeAmount) || "$0.00",
+        });
+      }
+    }
+    if (reservation.mgWaitChargeAmount && reservation.mgWaitChargeAmount > 0) {
+      const alreadyListed = (reservation.fareAdjustments || []).some(
+        (a) => a.type === "MG_WAIT"
+      );
+      if (!alreadyListed) {
+        fareRows.push({
+          label: "Meet & Greet wait",
+          value: money(reservation.mgWaitChargeAmount) || "$0.00",
+        });
+      }
+    }
     if (total) fareRows.push({ label: "Total", value: `${total} CAD` });
   }
+
+  const unpaidAdjustments = (reservation?.fareAdjustments || []).filter(
+    (a) => a.status === "PENDING" || a.status === "FAILED"
+  );
+  const unpaidTotal = unpaidAdjustments.reduce((s, a) => s + (Number(a.total) || 0), 0);
+
+  const payOutstanding = () => {
+    if (payBusy || unpaidTotal <= 0) return;
+    setPaySheetOpen(true);
+  };
+
+  const confirmPayOutstanding = (paymentMethodId?: string) => {
+    if (payBusy || unpaidTotal <= 0) return;
+    void (async () => {
+      setPayBusy(true);
+      try {
+        const res = await payCustomerOutstanding(paymentMethodId);
+        if (!res.success) {
+          Alert.alert(
+            "Payment failed",
+            res.error || "Update your card in Payment methods and try again."
+          );
+          return;
+        }
+        setPaySheetOpen(false);
+        Alert.alert("Paid", "Outstanding charges were processed.");
+        await load();
+      } catch (e) {
+        Alert.alert(
+          "Payment failed",
+          e instanceof Error ? e.message : "Please try again."
+        );
+      } finally {
+        setPayBusy(false);
+      }
+    })();
+  };
 
   const showReceiptActions = Boolean(isDone || isCancelled);
   const fareSectionLabel = showReceiptActions ? "RECEIPT" : "FARE";
@@ -584,6 +663,33 @@ export default function TripDetailScreen() {
               </>
             ) : null}
 
+            {unpaidTotal > 0.009 ? (
+              <Pressable
+                onPress={payOutstanding}
+                disabled={payBusy}
+                style={({ pressed }) => [
+                  styles.payNowBtn,
+                  pressed && styles.pressed,
+                  payBusy && { opacity: 0.75 },
+                ]}
+              >
+                <LinearGradient
+                  colors={["#E8C078", GOLD, "#B8862E"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.payNowGrad}
+                >
+                  {payBusy ? (
+                    <SlimSpinner size={16} stroke={2} color="#1A1208" />
+                  ) : (
+                    <Text style={styles.payNowText}>
+                      Pay outstanding ${unpaidTotal.toFixed(2)}
+                    </Text>
+                  )}
+                </LinearGradient>
+              </Pressable>
+            ) : null}
+
             {showReceiptActions ? (
               <View style={styles.receiptActions}>
                 <Pressable
@@ -690,6 +796,18 @@ export default function TripDetailScreen() {
           </ScrollView>
         )}
       </SafeAreaView>
+      <PayOutstandingSheet
+        visible={paySheetOpen}
+        amount={unpaidTotal}
+        busy={payBusy}
+        onClose={() => {
+          if (!payBusy) setPaySheetOpen(false);
+        }}
+        onPay={confirmPayOutstanding}
+        textColor={palette.text}
+        mutedColor={palette.muted}
+        surfaceColor={isDark ? "#1C1915" : "#FFFFFF"}
+      />
     </View>
   );
 }
@@ -836,6 +954,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#FF453A",
+  },
+  payNowBtn: {
+    borderRadius: 14,
+    overflow: "hidden",
+    marginBottom: 10,
+    marginTop: 4,
+  },
+  payNowGrad: {
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  payNowText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#1A1208",
+    letterSpacing: -0.2,
   },
   receiptActions: {
     flexDirection: "row",

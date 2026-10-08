@@ -354,7 +354,7 @@ function ReservationPageContent() {
     extraKmRate: 3.2,
     stop: 20,
     childSeat: 25,
-    meetGreet: 95,
+    meetGreet: 110,
     bouquet: 75,
     hstRate: 0.13,
   });
@@ -517,7 +517,7 @@ function ReservationPageContent() {
             extraKmRate: data.charges.extraKmRate ?? 3.2,
             stop: data.charges.stop ?? 20,
             childSeat: data.charges.childSeat ?? 25,
-            meetGreet: data.charges.meetGreet ?? 95,
+            meetGreet: data.charges.meetGreet ?? 110,
             bouquet: data.charges.bouquet ?? 75,
             hstRate: data.charges.hstRate ?? 0.13,
           });

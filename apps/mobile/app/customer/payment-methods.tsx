@@ -22,6 +22,7 @@ import {
   createCustomerSetupIntent,
   deleteCustomerPaymentMethod,
   getCustomerPaymentMethods,
+  setCustomerDefaultPaymentMethod,
   type SavedPaymentMethod,
 } from "../../services/api";
 import { SlimSpinner } from "../../components/SlimSpinner";
@@ -51,6 +52,7 @@ export default function PaymentMethodsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [adding, setAdding] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [defaultingId, setDefaultingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -138,6 +140,30 @@ export default function PaymentMethodsScreen() {
     } finally {
       setAdding(false);
     }
+  };
+
+  const handleSetDefault = (card: SavedPaymentMethod) => {
+    if (card.isDefault) return;
+    void (async () => {
+      try {
+        setDefaultingId(card.id);
+        const res = await setCustomerDefaultPaymentMethod(card.id);
+        if (!res.success) {
+          Alert.alert("Default card", res.error || "Could not set default card.");
+          return;
+        }
+        setCards((prev) =>
+          prev.map((c) => ({ ...c, isDefault: c.id === card.id }))
+        );
+      } catch (e: unknown) {
+        Alert.alert(
+          "Default card",
+          e instanceof Error ? e.message : "Could not set default card."
+        );
+      } finally {
+        setDefaultingId(null);
+      }
+    })();
   };
 
   const handleRemove = (card: SavedPaymentMethod) => {
@@ -280,18 +306,34 @@ export default function PaymentMethodsScreen() {
                       {card.isDefault ? " · Default" : ""}
                     </Text>
                   </View>
-                  <Pressable
-                    onPress={() => handleRemove(card)}
-                    disabled={removingId === card.id}
-                    hitSlop={8}
-                    style={({ pressed }) => [styles.removeBtn, pressed && styles.pressed]}
-                  >
-                    {removingId === card.id ? (
-                      <SlimSpinner size={16} stroke={2} color={palette.muted} />
-                    ) : (
-                      <Ionicons name="trash-outline" size={18} color="#B91C1C" />
-                    )}
-                  </Pressable>
+                  <View style={styles.cardActions}>
+                    {!card.isDefault ? (
+                      <Pressable
+                        onPress={() => handleSetDefault(card)}
+                        disabled={defaultingId === card.id}
+                        hitSlop={8}
+                        style={({ pressed }) => [styles.defaultBtn, pressed && styles.pressed]}
+                      >
+                        {defaultingId === card.id ? (
+                          <SlimSpinner size={14} stroke={2} color={GOLD} />
+                        ) : (
+                          <Text style={styles.defaultBtnText}>Default</Text>
+                        )}
+                      </Pressable>
+                    ) : null}
+                    <Pressable
+                      onPress={() => handleRemove(card)}
+                      disabled={removingId === card.id}
+                      hitSlop={8}
+                      style={({ pressed }) => [styles.removeBtn, pressed && styles.pressed]}
+                    >
+                      {removingId === card.id ? (
+                        <SlimSpinner size={16} stroke={2} color={palette.muted} />
+                      ) : (
+                        <Ionicons name="trash-outline" size={18} color="#B91C1C" />
+                      )}
+                    </Pressable>
+                  </View>
                 </BlurView>
               ))}
             </View>
@@ -451,6 +493,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
     fontWeight: "500",
+  },
+  cardActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  defaultBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "rgba(212,160,74,0.16)",
+  },
+  defaultBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: GOLD,
   },
   removeBtn: {
     width: 36,

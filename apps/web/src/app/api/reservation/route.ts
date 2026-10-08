@@ -11,6 +11,7 @@ import { buildReservationAdminEmail, buildReservationUserEmail } from "@/lib/ema
 import { calculateReservationPricing, isAirportPickupLocation, AIRPORT_PICKUP_FEE } from "@/lib/reservation-pricing";
 import { getPricingConfig } from "@/lib/get-pricing-config";
 import { createReservationPaymentLink } from "@/lib/reservation-payment-link";
+import prisma from "@/lib/prisma";
 
 const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -53,6 +54,25 @@ export async function POST(request: NextRequest) {
     const lastName = sanitizeInput(body.lastName);
     const email = sanitizeInput(body.email);
     const phone = sanitizeInput(body.phone);
+
+    // Block public web bookings when the matching app customer has unpaid balance.
+    // Staff (skipTurnstile) may still create for ops override.
+    if (!wantsSkipTurnstile && email) {
+      const owed = await prisma.customer.findFirst({
+        where: { email: { equals: email, mode: "insensitive" } },
+        select: { outstandingBalance: true },
+      });
+      if ((owed?.outstandingBalance || 0) > 0.009) {
+        return NextResponse.json(
+          {
+            error: `Outstanding balance of $${Number(owed?.outstandingBalance || 0).toFixed(2)} CAD must be paid in the app before booking again.`,
+            code: "OUTSTANDING_BALANCE",
+            outstandingBalance: owed?.outstandingBalance || 0,
+          },
+          { status: 402 }
+        );
+      }
+    }
     const phoneCode = sanitizeInput(body.phoneCode);
     const serviceType = sanitizeInput(body.serviceType);
     const pickupLocation = sanitizeInput(body.pickupLocation);
@@ -130,7 +150,7 @@ export async function POST(request: NextRequest) {
     const activeStops = stops ? stops.length : 0;
     let stopCharge = activeStops * 20;
     let childSeatCharge = childSeatCount * 25;
-    let meetGreetCharge = meetGreet ? 95 : 0;
+    let meetGreetCharge = meetGreet ? 110 : 0;
     let bouquetCharge = bouquetFlowers ? 75 : 0;
     let airportPickupFee = isAirportPickupLocation(pickupLocation) ? AIRPORT_PICKUP_FEE : 0;
     let rideFare = routePrice;
@@ -410,6 +430,7 @@ export async function POST(request: NextRequest) {
       cardType: resolvedCardType,
       cardLast4: resolvedCardLast4,
       paymentStatus,
+      routeDistanceValue: routeDistanceValue > 0 ? routeDistanceValue : undefined,
     });
 
     const { maybeBroadcastNewReservation } = await import("@/lib/live-auto");

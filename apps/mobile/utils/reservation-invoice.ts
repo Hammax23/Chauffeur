@@ -30,6 +30,7 @@ function formatDate(serviceDate: string, serviceTime: string): string {
 
 function statusLabel(r: Reservation): string {
   if (r.status === "DONE") return "Completed";
+  if (r.status === "NO_SHOW") return "No-show";
   if (r.status === "CANCELLED" || r.status === "CANCELED") return "Cancelled";
   if (!r.driver) return "Confirmed";
   if (r.status === "ON THE WAY") return "On the way";
@@ -61,7 +62,43 @@ export function buildReservationInvoiceHtml(r: Reservation): string {
   if (r.gratuity != null && Number(r.gratuity) > 0) {
     lines.push({ label: "Gratuity", value: money(r.gratuity) });
   }
-  lines.push({ label: "Total (CAD)", value: money(r.total), strong: true });
+  for (const adj of r.fareAdjustments || []) {
+    if (!adj || Number(adj.total) <= 0) continue;
+    if (adj.status === "WAIVED") continue;
+    const tag =
+      adj.status === "PAID" ? "" : adj.status === "FAILED" || adj.status === "PENDING" ? " (unpaid)" : "";
+    lines.push({
+      label: adj.description || adj.type || "Adjustment",
+      value: `${money(adj.total)}${tag}`,
+    });
+  }
+  if (
+    r.waitChargeAmount &&
+    Number(r.waitChargeAmount) > 0 &&
+    !(r.fareAdjustments || []).some((a) => a.type === "WAIT")
+  ) {
+    lines.push({ label: "Pickup wait", value: money(r.waitChargeAmount) });
+  }
+  if (
+    r.mgWaitChargeAmount &&
+    Number(r.mgWaitChargeAmount) > 0 &&
+    !(r.fareAdjustments || []).some((a) => a.type === "MG_WAIT")
+  ) {
+    lines.push({ label: "Meet & Greet wait", value: money(r.mgWaitChargeAmount) });
+  }
+  const adjustmentsPaid = (r.fareAdjustments || [])
+    .filter((a) => a.status === "PAID" || a.status === "PENDING" || a.status === "FAILED")
+    .reduce((s, a) => s + (Number(a.total) || 0), 0);
+  const grand =
+    Math.round(((Number(r.total) || 0) + adjustmentsPaid) * 100) / 100;
+  lines.push({
+    label: adjustmentsPaid > 0.009 ? "Trip total (CAD)" : "Total (CAD)",
+    value: money(r.total),
+    strong: adjustmentsPaid <= 0.009,
+  });
+  if (adjustmentsPaid > 0.009) {
+    lines.push({ label: "Grand total (CAD)", value: money(grand), strong: true });
+  }
 
   const fareRows = lines
     .map(

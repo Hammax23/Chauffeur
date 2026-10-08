@@ -34,6 +34,7 @@ import {
   calculateAppDistanceFare,
   calculateAppHourlyFare,
 } from "../../utils/app-fare";
+import { parseAppStops } from "../../utils/stops";
 import {
   encodeParcelRequirements,
   isParcelServiceType,
@@ -117,7 +118,12 @@ export default function ReservationConfirmScreen() {
     3,
     Math.floor(parseFloat(draft?.hourlyDuration || "3") || 3)
   );
-  const hasStop = (draft?.stopAddress?.trim().length ?? 0) >= 3;
+  const stopList = useMemo(
+    () => parseAppStops(draft?.stopAddress),
+    [draft?.stopAddress]
+  );
+  const stopCount = stopList.length;
+  const stopsPayload = stopCount > 0 ? draft?.stopAddress?.trim() : undefined;
 
   const fare = useMemo(() => {
     if (!draft) return null;
@@ -126,7 +132,7 @@ export default function ReservationConfirmScreen() {
       base = calculateAppHourlyFare({
         hours: hourlyDuration,
         hourlyRate,
-        hasStop,
+        stopCount,
         childSeatCount: childSeats,
         gratuityPercent,
         pickupLocation: draft.pickupAddress,
@@ -138,7 +144,7 @@ export default function ReservationConfirmScreen() {
         pricePerKm,
         baseDistanceKm,
         extraKmRate,
-        hasStop,
+        stopCount,
         childSeatCount: childSeats,
         gratuityPercent,
         pickupLocation: draft.pickupAddress,
@@ -161,7 +167,7 @@ export default function ReservationConfirmScreen() {
     pricePerKm,
     baseDistanceKm,
     extraKmRate,
-    hasStop,
+    stopCount,
     childSeats,
     gratuityPercent,
     appliedPromoCode,
@@ -210,7 +216,7 @@ export default function ReservationConfirmScreen() {
         vehicleId: draft.vehicleId,
         childSeats,
         pickupLocation: draft.pickupAddress,
-        stops: hasStop ? draft.stopAddress : undefined,
+        stops: stopsPayload,
         distanceMeters: isHourly ? undefined : distanceMeters,
         gratuityPercent,
         bookingMode: isHourly ? "hourly" : "distance",
@@ -287,7 +293,7 @@ export default function ReservationConfirmScreen() {
             vehicleId: draft.vehicleId,
             childSeats,
             pickupLocation: draft.pickupAddress,
-            stops: hasStop ? draft.stopAddress : undefined,
+            stops: stopsPayload,
             distanceMeters: isHourly ? undefined : distanceMeters,
             gratuityPercent,
             bookingMode: isHourly ? "hourly" : "distance",
@@ -376,7 +382,7 @@ export default function ReservationConfirmScreen() {
           vehicleId: draft.vehicleId,
           childSeats,
           pickupLocation: draft.pickupAddress,
-          stops: hasStop ? draft.stopAddress : undefined,
+          stops: stopsPayload,
           distanceMeters: isHourly ? undefined : distanceMeters,
           gratuityPercent: fare.gratuityPercent,
           email: draft.email,
@@ -445,7 +451,7 @@ export default function ReservationConfirmScreen() {
         serviceDate: draft.serviceDate,
         serviceTime: draft.serviceTime,
         pickupLocation: draft.pickupAddress,
-        stops: hasStop ? draft.stopAddress : undefined,
+        stops: stopsPayload,
         dropoffLocation: dropoffDisplay,
         distance: draft.distanceText || "—",
         duration: draft.durationText || "—",
@@ -576,12 +582,12 @@ export default function ReservationConfirmScreen() {
             <View style={styles.routeRail}>
               <View style={styles.routeDotStart} />
               <View style={styles.routeLine} />
-              {hasStop ? (
-                <>
+              {stopList.map((_, i) => (
+                <View key={`rail-stop-${i}`}>
                   <View style={styles.routeDotStop} />
                   <View style={styles.routeLine} />
-                </>
-              ) : null}
+                </View>
+              ))}
               <View style={[styles.routeDotEnd, isAsDirected && styles.routeDotAsDirected]} />
             </View>
             <View style={styles.routeCopy}>
@@ -589,12 +595,14 @@ export default function ReservationConfirmScreen() {
                 <Text style={styles.routeLabel}>Pickup</Text>
                 <Text style={styles.routeValue}>{draft.pickupAddress || "—"}</Text>
               </View>
-              {hasStop ? (
-                <View style={styles.routeItem}>
-                  <Text style={styles.routeLabel}>Stop</Text>
-                  <Text style={styles.routeValue}>{draft.stopAddress}</Text>
+              {stopList.map((addr, i) => (
+                <View key={`stop-item-${i}`} style={styles.routeItem}>
+                  <Text style={styles.routeLabel}>
+                    {stopList.length > 1 ? `Stop ${i + 1}` : "Stop"}
+                  </Text>
+                  <Text style={styles.routeValue}>{addr}</Text>
                 </View>
-              ) : null}
+              ))}
               <View style={styles.routeItem}>
                 <Text style={styles.routeLabel}>Drop-off</Text>
                 <Text
@@ -748,7 +756,11 @@ export default function ReservationConfirmScreen() {
               </View>
               {fare.stopCharge > 0 ? (
                 <View style={styles.fareRow}>
-                  <Text style={styles.fareLabel}>Stop charge</Text>
+                  <Text style={styles.fareLabel}>
+                    {stopCount > 1
+                      ? `Stops × ${stopCount} ($20 each)`
+                      : "Stop charge"}
+                  </Text>
                   <Text style={styles.fareValue}>${fare.stopCharge.toFixed(2)}</Text>
                 </View>
               ) : null}

@@ -6,6 +6,11 @@ import {
   getActiveCustomerFromRequest,
   customerAuthFailurePayload,
 } from "@/lib/customer-auth";
+import {
+  extractStripePaymentIntentId,
+  getCancelMoneyDecision,
+} from "@/lib/cancel-policy";
+import { refundPaymentIntent } from "@/lib/off-session-charge";
 
 // GET - Get single reservation details
 export async function GET(
@@ -24,7 +29,11 @@ export async function GET(
 
     const reservation = await prisma.reservation.findFirst({
       where: { bookingId: id, customerId: tokenData.id },
-      include: { assignedDriver: true, tripReview: true },
+      include: {
+        assignedDriver: true,
+        tripReview: true,
+        fareAdjustments: { orderBy: { createdAt: "asc" } },
+      },
     });
 
     if (!reservation) {
@@ -37,6 +46,13 @@ export async function GET(
     );
     const trackLink =
       reservation.trackLink?.trim() || `${siteBase}/track/${reservation.bookingId}`;
+
+    const cancelPreview = getCancelMoneyDecision({
+      serviceDate: reservation.serviceDate,
+      serviceTime: reservation.serviceTime,
+      isLongDistance: reservation.isLongDistance,
+      actor: "customer",
+    });
 
     return NextResponse.json({
       success: true,
@@ -72,9 +88,33 @@ export async function GET(
         total: reservation.total,
         paymentStatus: reservation.paymentStatus || "PENDING",
         specialRequirements: reservation.specialRequirements || "",
+        isLongDistance: reservation.isLongDistance,
+        driverArrivedAt: reservation.driverArrivedAt?.toISOString() || null,
+        waitMinutesBilled: reservation.waitMinutesBilled,
+        waitChargeAmount: reservation.waitChargeAmount,
+        actualLandingAt: reservation.actualLandingAt?.toISOString() || null,
+        mgWaitMinutesBilled: reservation.mgWaitMinutesBilled,
+        mgWaitChargeAmount: reservation.mgWaitChargeAmount,
+        noShowMarkedAt: reservation.noShowMarkedAt?.toISOString() || null,
         statusUpdatedAt: reservation.statusUpdatedAt?.toISOString() || null,
         completedAt: reservation.completedAt?.toISOString() || null,
         createdAt: reservation.createdAt.toISOString(),
+        cancelPolicy: {
+          refundPercent: cancelPreview.refundPercent,
+          keepPercent: cancelPreview.keepPercent,
+          label: cancelPreview.label,
+          freeUntil: cancelPreview.freeUntil?.toISOString() || null,
+        },
+        fareAdjustments: reservation.fareAdjustments.map((a) => ({
+          id: a.id,
+          type: a.type,
+          description: a.description,
+          amount: a.amount,
+          hst: a.hst,
+          total: a.total,
+          status: a.status,
+          createdAt: a.createdAt.toISOString(),
+        })),
         driver: serializeCustomerDriver(
           reservation.status,
           reservation.assignedDriver,
@@ -99,7 +139,7 @@ export async function GET(
   }
 }
 
-// DELETE - Cancel reservation (PENDING or ACCEPTED before trip starts)
+// DELETE - Cancel reservation (PENDING or ACCEPTED before trip starts) + Stripe refund policy
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -142,15 +182,77 @@ export async function DELETE(
       );
     }
 
+    const decision = getCancelMoneyDecision({
+      serviceDate: reservation.serviceDate,
+      serviceTime: reservation.serviceTime,
+      isLongDistance: reservation.isLongDistance,
+      actor: "customer",
+    });
+
+    let refundResult: { refunded: boolean; amount?: number; message?: string } = {
+      refunded: false,
+    };
+    let nextPaymentStatus = reservation.paymentStatus || "PENDING";
+
+    const piId = extractStripePaymentIntentId(reservation);
+    const payStatus = String(reservation.paymentStatus || "").toUpperCase();
+    const alreadyRefunded =
+      payStatus === "REFUNDED" || payStatus === "PARTIALLY_REFUNDED";
+    const isPaid = payStatus === "PAID";
+
+    if (alreadyRefunded) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "This booking was already refunded. Contact support if you need help.",
+          code: "ALREADY_REFUNDED",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (isPaid && piId && decision.refundPercent > 0 && process.env.STRIPE_SECRET_KEY) {
+      const refund = await refundPaymentIntent({
+        paymentIntentId: piId,
+        refundPercent: decision.refundPercent,
+        reason: reason || decision.label,
+        metadata: {
+          bookingId: reservation.bookingId,
+          cancelPolicy: decision.label,
+        },
+      });
+      if (refund.ok) {
+        refundResult = { refunded: true, amount: refund.amount };
+        nextPaymentStatus =
+          decision.refundPercent >= 100 ? "REFUNDED" : "PARTIALLY_REFUNDED";
+      } else {
+        refundResult = { refunded: false, message: refund.message };
+        console.error(
+          `[cancel] Stripe refund failed for ${reservation.bookingId}:`,
+          refund.message
+        );
+      }
+    } else if (isPaid && decision.refundPercent <= 0) {
+      nextPaymentStatus = "PAID"; // kept — late cancel
+      refundResult = { refunded: false, message: decision.label };
+    }
+
     const noteBits = [
       reservation.specialRequirements?.trim() || "",
       reason ? `Cancel reason: ${reason}` : "",
+      `Cancel policy: ${decision.label}`,
+      decision.refundPercent > 0
+        ? `Refund: ${decision.refundPercent}%${
+            refundResult.refunded ? ` ($${refundResult.amount?.toFixed(2)})` : " (pending/failed — ops)"
+          }`
+        : "Refund: none (fare kept per policy)",
     ].filter(Boolean);
 
     await prisma.reservation.update({
       where: { id: reservation.id },
       data: {
         status: "CANCELLED",
+        paymentStatus: nextPaymentStatus,
         specialRequirements: noteBits.join("\n") || reservation.specialRequirements,
       },
     });
@@ -160,7 +262,17 @@ export async function DELETE(
 
     await publishReservationFromDb(id, "reservation_cancelled");
 
-    return NextResponse.json({ success: true, message: "Reservation cancelled successfully" });
+    return NextResponse.json({
+      success: true,
+      message: "Reservation cancelled successfully",
+      cancelPolicy: {
+        label: decision.label,
+        refundPercent: decision.refundPercent,
+        keepPercent: decision.keepPercent,
+        isLongDistance: decision.isLongDistance,
+      },
+      refund: refundResult,
+    });
   } catch (error) {
     console.error("Cancel reservation error:", error);
     return NextResponse.json({ success: false, error: "Failed to cancel reservation" }, { status: 500 });

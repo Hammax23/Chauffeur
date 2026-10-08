@@ -63,9 +63,21 @@ export async function getPricingConfig(): Promise<PricingConfig> {
         case "childSeat":
           charges.childSeat = c.amount;
           break;
-        case "meetGreet":
-          charges.meetGreet = c.amount;
+        case "meetGreet": {
+          // Policy floor: Meet & Greet is $110 CAD. Auto-heal legacy $95 seed rows.
+          let amt = c.amount;
+          if (amt === 95) {
+            amt = MEET_GREET_CHARGE;
+            void prisma.reservationCharges
+              .update({
+                where: { chargeKey: "meetGreet" },
+                data: { amount: MEET_GREET_CHARGE },
+              })
+              .catch(() => {});
+          }
+          charges.meetGreet = amt;
           break;
+        }
         case "bouquet":
           charges.bouquet = c.amount;
           break;

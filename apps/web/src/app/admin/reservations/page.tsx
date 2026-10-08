@@ -11,7 +11,17 @@ import {
 import DriverTripTimingPanel from "@/components/DriverTripTimingPanel";
 import { isParcelServiceType, parseParcelRequirements } from "@/lib/parcel";
 
-const STATUS_OPTIONS = ["ALL", "PENDING", "ON THE WAY", "ARRIVED", "CIC", "STOP", "DONE"];
+const STATUS_OPTIONS = [
+  "ALL",
+  "PENDING",
+  "ON THE WAY",
+  "ARRIVED",
+  "CIC",
+  "STOP",
+  "DONE",
+  "CANCELLED",
+  "NO_SHOW",
+];
 const SERVICE_FILTER_OPTIONS = [
   { id: "ALL", label: "All services" },
   { id: "RIDES", label: "Rides" },
@@ -25,6 +35,8 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> =
   CIC: { bg: "bg-purple-50", text: "text-purple-700", dot: "bg-purple-500" },
   STOP: { bg: "bg-red-50", text: "text-red-800", dot: "bg-red-500" },
   DONE: { bg: "bg-green-50", text: "text-green-700", dot: "bg-green-500" },
+  CANCELLED: { bg: "bg-slate-100", text: "text-slate-700", dot: "bg-slate-400" },
+  NO_SHOW: { bg: "bg-rose-50", text: "text-rose-800", dot: "bg-rose-500" },
 };
 
 interface AssignedDriver {
@@ -88,6 +100,12 @@ interface Reservation {
   /** JSON [{ start, end? }] mid-trip Stop → Continue */
   driverStopPeriodsJson?: string | null;
   completedAt?: string | null;
+  isLongDistance?: boolean;
+  actualLandingAt?: string | null;
+  mgWaitMinutesBilled?: number;
+  mgWaitChargeAmount?: number;
+  noShowMarkedAt?: string | null;
+  noShowMarkedBy?: string | null;
 }
 
 export default function ReservationsPage() {
@@ -134,6 +152,50 @@ export default function ReservationsPage() {
     { id: string; senderType: string; body: string; createdAt: string }[]
   >([]);
   const [chatMeta, setChatMeta] = useState<{ canSend: boolean; status: string } | null>(null);
+  const [policyBusyId, setPolicyBusyId] = useState<string | null>(null);
+
+  const runMgOps = async (
+    bookingId: string,
+    action: string,
+    extra: Record<string, unknown> = {}
+  ) => {
+    setPolicyBusyId(bookingId);
+    setChargeResult(null);
+    try {
+      const res = await fetch("/api/admin/reservations/mg-ops", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId, action, ...extra }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setChargeResult({
+          id: bookingId,
+          success: false,
+          message: data.error || `${action} failed`,
+        });
+        return;
+      }
+      const msg =
+        action === "mark_no_show"
+          ? "Marked no-show — prepaid fare retained"
+          : action === "charge_mg_wait"
+            ? data.result?.billed
+              ? `M&G wait charged (${data.mgWaitMinutesBilled || 0} min)`
+              : `M&G wait recorded — no billable minutes`
+            : action === "set_landing"
+              ? "Landing time saved"
+              : action === "set_long_distance"
+                ? `Long distance: ${data.isLongDistance ? "Yes" : "No"}`
+                : "Updated";
+      setChargeResult({ id: bookingId, success: true, message: msg });
+      await fetchReservations();
+    } catch {
+      setChargeResult({ id: bookingId, success: false, message: "Policy action failed" });
+    } finally {
+      setPolicyBusyId(null);
+    }
+  };
 
   const copyToClipboard = async (url: string, type: string) => {
     try {
@@ -659,7 +721,19 @@ export default function ReservationsPage() {
                             {r.etr407 === "Yes" && <p><span className="text-gray-500">407 ETR:</span> <span className="text-[#C9A063] font-semibold">Yes</span></p>}
                             {r.distance && <p><span className="text-gray-500">Distance:</span> {r.distance}</p>}
                             {r.duration && <p><span className="text-gray-500">Duration:</span> {r.duration}</p>}
-                            {r.stops && <p><span className="text-gray-500">Stops:</span> {r.stops}</p>}
+                            {r.stops
+                              ? (r.stops.includes("|")
+                                  ? r.stops.split("|").map((s) => s.trim()).filter((s) => s.length >= 3)
+                                  : [r.stops.trim()].filter((s) => s.length >= 3)
+                                ).map((addr, i, arr) => (
+                                  <p key={`stop-${i}`}>
+                                    <span className="text-gray-500">
+                                      {arr.length > 1 ? `Stop ${i + 1}:` : "Stop:"}
+                                    </span>{" "}
+                                    {addr}
+                                  </p>
+                                ))
+                              : null}
                           </div>
                         </div>
 
@@ -845,6 +919,180 @@ export default function ReservationsPage() {
                             )}
                           </div>
                         )}
+
+                        {/* Policy ops: M&G wait, landing, no-show, long distance */}
+                        <div className="w-full flex flex-wrap items-center gap-2 p-3 rounded-xl bg-amber-50/80 border border-amber-100">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-amber-800 mr-1">
+                            Policy money
+                          </span>
+                          {r.isLongDistance ? (
+                            <span className="text-xs px-2 py-1 rounded-full bg-amber-200/80 text-amber-900">
+                              Long distance
+                            </span>
+                          ) : null}
+                          {r.noShowMarkedAt ? (
+                            <span className="text-xs px-2 py-1 rounded-full bg-rose-200 text-rose-900">
+                              No-show
+                            </span>
+                          ) : null}
+                          {typeof r.mgWaitChargeAmount === "number" && r.mgWaitChargeAmount > 0 ? (
+                            <span className="text-xs px-2 py-1 rounded-full bg-white text-amber-900 border border-amber-200">
+                              M&G wait ${Number(r.mgWaitChargeAmount).toFixed(2)}
+                            </span>
+                          ) : null}
+                          <button
+                            type="button"
+                            disabled={policyBusyId === r.bookingId}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const raw = window.prompt(
+                                "Actual landing time (local). Leave blank for now.",
+                                ""
+                              );
+                              if (raw === null) return;
+                              const dt = raw.trim()
+                                ? new Date(raw)
+                                : new Date();
+                              if (Number.isNaN(dt.getTime())) {
+                                setChargeResult({
+                                  id: r.bookingId,
+                                  success: false,
+                                  message: "Invalid landing datetime",
+                                });
+                                return;
+                              }
+                              void runMgOps(r.bookingId, "set_landing", {
+                                actualLandingAt: dt.toISOString(),
+                              });
+                            }}
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white border border-amber-200 text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                          >
+                            Set landing
+                          </button>
+                          <button
+                            type="button"
+                            disabled={policyBusyId === r.bookingId}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (
+                                !window.confirm(
+                                  "Charge Meet & Greet extra wait ($110/hr after 60 free min)?"
+                                )
+                              ) {
+                                return;
+                              }
+                              void runMgOps(r.bookingId, "charge_mg_wait", { force: true });
+                            }}
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[#C9A063] text-white hover:bg-[#B89552] disabled:opacity-50"
+                          >
+                            Charge M&G wait
+                          </button>
+                          <button
+                            type="button"
+                            disabled={policyBusyId === r.bookingId || !!r.noShowMarkedAt}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (
+                                !window.confirm(
+                                  "Mark NO-SHOW? Prepaid fare will be retained (no refund)."
+                                )
+                              ) {
+                                return;
+                              }
+                              const notes = window.prompt("Optional notes (contact attempts, etc.)") || "";
+                              void runMgOps(r.bookingId, "mark_no_show", { notes });
+                            }}
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50"
+                          >
+                            Mark no-show
+                          </button>
+                          <button
+                            type="button"
+                            disabled={policyBusyId === r.bookingId}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void runMgOps(r.bookingId, "set_long_distance", {
+                                isLongDistance: !r.isLongDistance,
+                              });
+                            }}
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white border border-amber-200 text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                          >
+                            {r.isLongDistance ? "Clear long distance" : "Mark long distance"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={policyBusyId === r.bookingId}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const amountRaw = window.prompt(
+                                "Fare adjustment amount (CAD, before HST):",
+                                ""
+                              );
+                              if (amountRaw === null) return;
+                              const amount = parseFloat(amountRaw);
+                              if (!Number.isFinite(amount) || amount <= 0) {
+                                setChargeResult({
+                                  id: r.bookingId,
+                                  success: false,
+                                  message: "Enter a positive amount",
+                                });
+                                return;
+                              }
+                              const type =
+                                window.prompt(
+                                  "Type: EXTRA_STOP | CAPACITY | MG_WAIT | OTHER",
+                                  "OTHER"
+                                ) || "OTHER";
+                              const description =
+                                window.prompt("Description for receipt:", `${type} adjustment`) ||
+                                `${type} adjustment`;
+                              setPolicyBusyId(r.bookingId);
+                              void (async () => {
+                                try {
+                                  const res = await fetch(
+                                    "/api/admin/reservations/fare-adjustment",
+                                    {
+                                      method: "POST",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({
+                                        bookingId: r.bookingId,
+                                        type,
+                                        description,
+                                        amount,
+                                      }),
+                                    }
+                                  );
+                                  const data = await res.json();
+                                  if (!data.success) {
+                                    setChargeResult({
+                                      id: r.bookingId,
+                                      success: false,
+                                      message: data.error || "Adjustment failed",
+                                    });
+                                    return;
+                                  }
+                                  setChargeResult({
+                                    id: r.bookingId,
+                                    success: true,
+                                    message: `Adjustment ${data.status}: $${Number(data.total || 0).toFixed(2)}`,
+                                  });
+                                  await fetchReservations();
+                                } catch {
+                                  setChargeResult({
+                                    id: r.bookingId,
+                                    success: false,
+                                    message: "Adjustment failed",
+                                  });
+                                } finally {
+                                  setPolicyBusyId(null);
+                                }
+                              })();
+                            }}
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white border border-amber-200 text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                          >
+                            Add fare adjustment
+                          </button>
+                        </div>
 
                         {/* Charge Button with Editable Amount */}
                         {r.stripeCustomerId && r.stripePaymentMethodId && r.paymentStatus !== 'PAID' && (

@@ -454,6 +454,30 @@ export interface Reservation {
   gratuity: number;
   total: number;
   paymentStatus: string;
+  isLongDistance?: boolean;
+  driverArrivedAt?: string | null;
+  waitMinutesBilled?: number;
+  waitChargeAmount?: number;
+  actualLandingAt?: string | null;
+  mgWaitMinutesBilled?: number;
+  mgWaitChargeAmount?: number;
+  noShowMarkedAt?: string | null;
+  cancelPolicy?: {
+    refundPercent: number;
+    keepPercent: number;
+    label: string;
+    freeUntil: string | null;
+  };
+  fareAdjustments?: Array<{
+    id: string;
+    type: string;
+    description: string;
+    amount: number;
+    hst: number;
+    total: number;
+    status: string;
+    createdAt: string;
+  }>;
   statusUpdatedAt: string | null;
   completedAt: string | null;
   createdAt: string;
@@ -1321,6 +1345,47 @@ export async function deleteCustomerPaymentMethod(paymentMethodId: string) {
     `/customer/payment-methods/${encodeURIComponent(paymentMethodId)}`,
     { method: "DELETE" }
   );
+}
+
+export async function setCustomerDefaultPaymentMethod(paymentMethodId: string) {
+  return apiRequest<{ success: boolean; defaultPaymentMethodId?: string; error?: string }>(
+    "/customer/payment-methods/default",
+    {
+      method: "POST",
+      body: JSON.stringify({ paymentMethodId }),
+    }
+  );
+}
+
+export async function getCustomerOutstanding() {
+  return apiRequest<{
+    success: boolean;
+    outstandingBalance: number;
+    adjustments: Array<{
+      id: string;
+      bookingId: string;
+      type: string;
+      description: string;
+      total: number;
+      status: string;
+      failureMessage?: string | null;
+      createdAt: string;
+    }>;
+    error?: string;
+  }>("/customer/outstanding");
+}
+
+export async function payCustomerOutstanding(paymentMethodId?: string) {
+  return apiRequest<{
+    success: boolean;
+    paid?: number;
+    failed?: number;
+    outstandingBalance?: number;
+    error?: string;
+  }>("/customer/outstanding", {
+    method: "POST",
+    body: JSON.stringify(paymentMethodId ? { paymentMethodId } : {}),
+  });
 }
 
 export async function getDriverLiveLocation(bookingId: string) {

@@ -19,10 +19,14 @@ import { useAuth } from "../../../contexts/AuthContext";
 import { useCustomerTheme } from "../../../contexts/CustomerThemeContext";
 import {
   deactivateCustomerAccount,
+  getCustomerOutstanding,
   getReferralStatus,
+  payCustomerOutstanding,
   type ReferralProgress,
 } from "../../../services/api";
 import { GOLD } from "../../../theme/driver-theme";
+import { SlimSpinner } from "../../../components/SlimSpinner";
+import { PayOutstandingSheet } from "../../../components/PayOutstandingSheet";
 
 type MenuRowProps = {
   label: string;
@@ -105,6 +109,9 @@ export default function CustomerProfileScreen() {
   const { palette, isDark } = useCustomerTheme();
   const [showAccountOptions, setShowAccountOptions] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
+  const [outstanding, setOutstanding] = useState(0);
+  const [payBusy, setPayBusy] = useState(false);
+  const [paySheetOpen, setPaySheetOpen] = useState(false);
   const [referral, setReferral] = useState<ReferralProgress | null>({
     referralCode: "",
     qualifyNeeded: 2,
@@ -134,9 +141,47 @@ export default function CustomerProfileScreen() {
         } catch {
           /* keep soft fallback */
         }
+        try {
+          const bal = await getCustomerOutstanding();
+          if (bal.success) setOutstanding(Number(bal.outstandingBalance) || 0);
+        } catch {
+          /* ignore */
+        }
       })();
     }, [])
   );
+
+  const handlePayOutstanding = () => {
+    if (payBusy || outstanding <= 0) return;
+    setPaySheetOpen(true);
+  };
+
+  const confirmPayOutstanding = (paymentMethodId?: string) => {
+    if (payBusy || outstanding <= 0) return;
+    void (async () => {
+      setPayBusy(true);
+      try {
+        const res = await payCustomerOutstanding(paymentMethodId);
+        if (!res.success) {
+          Alert.alert(
+            "Payment failed",
+            res.error || "Update your card under Payment methods and try again."
+          );
+          return;
+        }
+        setOutstanding(Number(res.outstandingBalance) || 0);
+        setPaySheetOpen(false);
+        Alert.alert("Paid", "Your outstanding balance was cleared.");
+      } catch (e) {
+        Alert.alert(
+          "Payment failed",
+          e instanceof Error ? e.message : "Please try again."
+        );
+      } finally {
+        setPayBusy(false);
+      }
+    })();
+  };
 
   const handleLogout = async () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -367,6 +412,29 @@ export default function CustomerProfileScreen() {
           </MenuGroup>
 
           <Text style={styles.sectionEyebrow}>ACCOUNT</Text>
+          {outstanding > 0.009 ? (
+            <Pressable
+              onPress={handlePayOutstanding}
+              disabled={payBusy}
+              style={({ pressed }) => [
+                styles.outstandingBanner,
+                pressed && styles.pressed,
+                payBusy && { opacity: 0.75 },
+              ]}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.outstandingTitle}>Outstanding balance</Text>
+                <Text style={styles.outstandingSub}>
+                  ${outstanding.toFixed(2)} CAD — pay to book again
+                </Text>
+              </View>
+              {payBusy ? (
+                <SlimSpinner size={16} stroke={2} color="#1A1208" />
+              ) : (
+                <Text style={styles.outstandingCta}>Pay now</Text>
+              )}
+            </Pressable>
+          ) : null}
           <MenuGroup {...groupCommon}>
             <MenuRow
               label="Payment methods"
@@ -412,6 +480,18 @@ export default function CustomerProfileScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+      <PayOutstandingSheet
+        visible={paySheetOpen}
+        amount={outstanding}
+        busy={payBusy}
+        onClose={() => {
+          if (!payBusy) setPaySheetOpen(false);
+        }}
+        onPay={confirmPayOutstanding}
+        textColor={palette.text}
+        mutedColor={palette.muted}
+        surfaceColor={isDark ? "#1C1915" : "#FFFFFF"}
+      />
     </View>
   );
 }
@@ -572,6 +652,32 @@ const styles = StyleSheet.create({
     color: GOLD,
     marginBottom: 8,
     marginLeft: 6,
+  },
+  outstandingBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "rgba(232,192,120,0.95)",
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  outstandingTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#1A1208",
+  },
+  outstandingSub: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "rgba(26,18,8,0.7)",
+    marginTop: 2,
+  },
+  outstandingCta: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#1A1208",
   },
   menuGroup: {
     borderRadius: 18,

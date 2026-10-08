@@ -1,7 +1,8 @@
 import { fleetData } from "@/data/fleet";
 
 // Default charges (can be overridden by database values)
-export const MEET_GREET_CHARGE = 95;
+/** Pearson inside-terminal Meet & Greet (policy: $110 CAD + HST). */
+export const MEET_GREET_CHARGE = 110;
 export const BOUQUET_CHARGE = 75;
 export const STOP_CHARGE = 20;
 export const CHILD_SEAT_CHARGE = 25;
@@ -66,13 +67,22 @@ export interface ReservationPricingResult {
  * then `extraKmRate` per extra km. (Mobile app fleet still maps rates this way.)
  * Falls back to legacy `km × pricePerKm` when base is missing.
  */
+function resolveAppStopCount(input: { stopCount?: number; hasStop?: boolean }): number {
+  if (typeof input.stopCount === "number" && Number.isFinite(input.stopCount)) {
+    return Math.max(0, Math.floor(input.stopCount));
+  }
+  return input.hasStop ? 1 : 0;
+}
+
 export function calculateAppDistanceFare(input: {
   distanceMeters: number;
   hourlyRate?: number;
   pricePerKm?: number;
   baseDistanceKm?: number;
   extraKmRate?: number;
-  hasStop: boolean;
+  stopCount?: number;
+  /** @deprecated use stopCount */
+  hasStop?: boolean;
   childSeatCount: number;
   gratuityPercent?: number;
   airportPickup?: boolean;
@@ -96,7 +106,7 @@ export function calculateAppDistanceFare(input: {
     rideFare = km * pricePerKm;
   }
 
-  const stopCharge = input.hasStop ? STOP_CHARGE : 0;
+  const stopCharge = resolveAppStopCount(input) * STOP_CHARGE;
   const childSeatCount = Math.max(0, Math.floor(Number(input.childSeatCount) || 0));
   const childSeatCharge = childSeatCount * CHILD_SEAT_CHARGE;
   const airportPickupFee =
@@ -139,7 +149,9 @@ export function calculateAppDistanceFare(input: {
 export function calculateAppHourlyFare(input: {
   hours: number;
   hourlyRate: number;
-  hasStop: boolean;
+  stopCount?: number;
+  /** @deprecated use stopCount */
+  hasStop?: boolean;
   childSeatCount: number;
   gratuityPercent?: number;
   airportPickup?: boolean;
@@ -150,7 +162,7 @@ export function calculateAppHourlyFare(input: {
   if (hours < 3 || rate <= 0) return null;
 
   const rideFare = rate * hours;
-  const stopCharge = input.hasStop ? STOP_CHARGE : 0;
+  const stopCharge = resolveAppStopCount(input) * STOP_CHARGE;
   const childSeatCount = Math.max(0, Math.floor(Number(input.childSeatCount) || 0));
   const childSeatCharge = childSeatCount * CHILD_SEAT_CHARGE;
   const airportPickupFee =

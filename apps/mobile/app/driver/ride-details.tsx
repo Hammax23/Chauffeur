@@ -22,6 +22,7 @@ import { syncDriverLiveTracking } from "../../services/driver-live-session";
 import { dismissPresentedForEntity } from "../../services/notification-deep-link";
 import { SlimSpinner } from "../../components/SlimSpinner";
 import { isParcelServiceType, parseParcelRequirements } from "../../utils/parcel";
+import { parseAppStops } from "../../utils/stops";
 
 type RideStatus =
   | "pending"
@@ -835,12 +836,12 @@ export default function RideDetailsScreen() {
                   <View style={styles.routeRail}>
                     <View style={[styles.routeDot, { backgroundColor: GREEN }]} />
                     <View style={styles.routeLine} />
-                    {ride?.stops ? (
-                      <>
+                    {parseAppStops(ride?.stops).map((_, i) => (
+                      <View key={`rail-${i}`}>
                         <View style={[styles.routeDot, { backgroundColor: RED }]} />
                         <View style={styles.routeLine} />
-                      </>
-                    ) : null}
+                      </View>
+                    ))}
                     <View style={[styles.routeDot, { backgroundColor: AMBER }]} />
                   </View>
                   <View style={{ flex: 1, gap: 14 }}>
@@ -848,12 +849,14 @@ export default function RideDetailsScreen() {
                       <Text style={[styles.routeLabel, { color: GREEN }]}>Pick-up</Text>
                       <Text style={styles.routeText}>{ride?.pickupLocation || "N/A"}</Text>
                     </View>
-                    {ride?.stops ? (
-                      <View>
-                        <Text style={[styles.routeLabel, { color: RED }]}>Route stop</Text>
-                        <Text style={styles.routeText}>{ride.stops}</Text>
+                    {parseAppStops(ride?.stops).map((addr, i, arr) => (
+                      <View key={`stop-${i}`}>
+                        <Text style={[styles.routeLabel, { color: RED }]}>
+                          {arr.length > 1 ? `Stop ${i + 1}` : "Route stop"}
+                        </Text>
+                        <Text style={styles.routeText}>{addr}</Text>
                       </View>
-                    ) : null}
+                    ))}
                     <View>
                       <Text style={[styles.routeLabel, { color: AMBER }]}>Drop-off</Text>
                       <Text style={styles.routeText}>{ride?.dropoffLocation || "N/A"}</Text>

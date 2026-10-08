@@ -86,17 +86,14 @@ export interface DirectionsSummary {
 }
 
 /**
- * Build a labelled marker query string for the staticmap proxy from the route
- * points returned by Directions. Labels A → B → (C) follow the user's expected
- * model: A = pickup, B = drop-off (no stop) or stop (with stop), C = drop-off
- * when a stop is present.
+ * Build labelled markers for the staticmap proxy (A = pickup … last = drop-off).
  */
 function buildMarkerSegments(points: DirectionsLatLng[]): string[] {
   if (points.length < 2) return [];
-  const labels = points.length === 2 ? ["A", "B"] : ["A", "B", "C"];
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const segments: string[] = [];
-  for (let i = 0; i < points.length && i < labels.length; i++) {
-    segments.push(`${labels[i]}:${points[i].lat.toFixed(6)},${points[i].lng.toFixed(6)}`);
+  for (let i = 0; i < points.length && i < alphabet.length; i++) {
+    segments.push(`${alphabet[i]}:${points[i].lat.toFixed(6)},${points[i].lng.toFixed(6)}`);
   }
   return segments;
 }
@@ -105,7 +102,10 @@ export async function fetchDirectionsSummary(
   params: {
     origin: string;
     destination: string;
+    /** @deprecated prefer waypoints[] */
     waypoint?: string;
+    /** Intermediate stops in order (pickup → stops → drop-off). */
+    waypoints?: string[];
     /** When true, request a route that avoids toll roads (e.g. no 407 ETR). */
     avoidTolls: boolean;
     /** Optional preferred static map size — clamped server-side. */
@@ -114,6 +114,13 @@ export async function fetchDirectionsSummary(
   },
   signal?: AbortSignal
 ): Promise<DirectionsSummary> {
+  const waypoints = (params.waypoints || [])
+    .map((w) => w.trim())
+    .filter((w) => w.length >= 3);
+  if (waypoints.length === 0 && params.waypoint?.trim()) {
+    waypoints.push(params.waypoint.trim());
+  }
+
   const res = await fetch(`${API_BASE_URL}/places/directions`, {
     method: "POST",
     headers: {
@@ -123,7 +130,7 @@ export async function fetchDirectionsSummary(
     body: JSON.stringify({
       origin: params.origin.trim(),
       destination: params.destination.trim(),
-      waypoint: params.waypoint?.trim() || undefined,
+      waypoints: waypoints.length > 0 ? waypoints : undefined,
       avoidTolls: params.avoidTolls,
     }),
     signal,

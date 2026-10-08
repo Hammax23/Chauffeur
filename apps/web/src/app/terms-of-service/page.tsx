@@ -126,8 +126,8 @@ export default async function TermsOfServicePage({
               
               <h3 className="text-[16px] font-semibold text-gray-800 mt-4 mb-2">Waiting Time</h3>
               <ul className="list-disc list-inside text-gray-600 text-[15px] leading-relaxed space-y-1.5 ml-4 mb-4">
-                <li>Airport drop-off / point-to-point / hourly: 15 minutes complimentary at pickup.</li>
-                <li>Airport pickup: 45 minutes complimentary from gate arrival; after that, CAD 1.50/min.</li>
+                <li><strong>Regular pickup:</strong> 20 minutes free after the chauffeur marks ARRIVED; then $1 CAD per extra minute (+ HST).</li>
+                <li><strong>Meet &amp; Greet:</strong> $110 CAD + HST; 60 minutes free after actual landing; extra wait $110 CAD + HST per hour.</li>
               </ul>
 
               <p className="text-gray-600 text-[15px] leading-relaxed mb-3">
@@ -144,17 +144,31 @@ export default async function TermsOfServicePage({
               </p>
             </div>
 
+            {/* 5b. Cancellation & Refunds */}
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
+                <span className="text-[#C9A063]">5b.</span> Cancellation &amp; Refunds
+              </h2>
+              <ul className="list-disc list-inside text-gray-600 text-[15px] leading-relaxed space-y-1.5 ml-4 mb-4">
+                <li><strong>Regular bookings:</strong> free cancel 2+ hours before pickup (full refund); under 2 hours the prepaid fare is kept.</li>
+                <li><strong>Long distance</strong> (typically ≥100 km): 24+ hours full refund; 12–24 hours 50% kept; under 12 hours full fare kept.</li>
+                <li><strong>Company / driver cancel:</strong> full refund.</li>
+                <li><strong>No-show:</strong> 100% of prepaid charges retained.</li>
+                <li>Clock = hours left until pickup (app server time). Late cancel does not charge a second time.</li>
+              </ul>
+            </div>
+
             {/* 6. Airport Wait Time Policy */}
             <div>
               <h2 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
                 <span className="text-[#C9A063]">6.</span> Airport Wait Time Policy (Arrivals)
               </h2>
               <ul className="list-disc list-inside text-gray-600 text-[15px] leading-relaxed space-y-1.5 ml-4 mb-3">
-                <li><strong>Pearson International Airport (YYZ):</strong> 45-minute grace period for arrivals.</li>
-                <li><strong>Toronto Island Airport (YTZ) &amp; FBO pickups:</strong> 15-minute grace period.</li>
+                <li><strong>Meet &amp; Greet (YYZ / YTZ):</strong> 60 minutes complimentary after actual landing; then $110 CAD + HST per hour of approved extra wait.</li>
+                <li><strong>Standard airport pickup (no Meet &amp; Greet):</strong> 20 minutes complimentary after chauffeur ARRIVED; then $1 CAD per minute (+ HST).</li>
               </ul>
               <p className="text-gray-600 text-[15px] leading-relaxed">
-                During the grace period, we will attempt to contact the client. After the grace period, the chauffeur will wait an additional 15 minutes before cancelling the transfer. After cancellation, the client is responsible for applicable charges.
+                During the free-wait window we may attempt to contact you. A no-show after the free window (greeter present and contact attempts) retains 100% of prepaid charges.
               </p>
             </div>
 

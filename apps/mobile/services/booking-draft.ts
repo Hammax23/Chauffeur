@@ -12,6 +12,7 @@ export type BookingDraft = {
   hourlyDuration?: string;
   pickupAddress: string;
   dropoffAddress: string;
+  /** Intermediate stops joined with ` | ` (empty string = none). */
   stopAddress: string;
   serviceDate: string;
   serviceTime: string;

@@ -23,8 +23,10 @@ export const CANCEL_REASONS = [
 
 export type CancelReason = (typeof CANCEL_REASONS)[number];
 
-/** Free cancel until this many minutes before pickup (airport / point-to-point policy). */
-const FREE_CANCEL_LEAD_MINUTES = 120;
+const REGULAR_FREE_MINUTES = 120;
+const LD_FREE_HOURS = 24;
+const LD_HALF_HOURS = 12;
+const LD_KM_THRESHOLD = 100;
 
 function parsePickupDate(r: Reservation): Date | null {
   const dateRaw = (r.serviceDate || "").trim();
@@ -54,33 +56,145 @@ function parsePickupDate(r: Reservation): Date | null {
   return base;
 }
 
+function parseDistanceKm(distance?: string): number | null {
+  const raw = String(distance || "").trim();
+  if (!raw) return null;
+  const m = raw.match(/([\d.]+)\s*(km|mi)?/i);
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  if ((m[2] || "").toLowerCase() === "mi") return n * 1.60934;
+  return n;
+}
+
 export function getCancelPolicy(r: Reservation): {
   freeUntil: Date | null;
   freeUntilLabel: string;
   fee: number;
+  refundPercent: number;
+  keepPercent: number;
+  label: string;
   canCancelOnline: boolean;
+  isLongDistance: boolean;
 } {
   const pickup = parsePickupDate(r);
-  const freeUntil = pickup
-    ? new Date(pickup.getTime() - FREE_CANCEL_LEAD_MINUTES * 60 * 1000)
-    : null;
+  const km = parseDistanceKm(r.distance);
+  const isLongDistance =
+    r.isLongDistance === true || (km != null && km >= LD_KM_THRESHOLD);
+
+  const canCancelOnline = r.status === "PENDING" || r.status === "ACCEPTED";
+  const total = Number(r.total) || 0;
   const now = Date.now();
-  const isFree = !freeUntil || now < freeUntil.getTime();
-  const canCancelOnline =
-    r.status === "PENDING" || r.status === "ACCEPTED";
 
-  const freeUntilLabel = freeUntil
-    ? freeUntil.toLocaleTimeString(undefined, {
-        hour: "numeric",
-        minute: "2-digit",
-      })
-    : "";
+  if (r.cancelPolicy) {
+    const freeUntil = r.cancelPolicy.freeUntil
+      ? new Date(r.cancelPolicy.freeUntil)
+      : pickup
+        ? new Date(
+            pickup.getTime() -
+              (isLongDistance ? LD_FREE_HOURS * 3600 * 1000 : REGULAR_FREE_MINUTES * 60 * 1000)
+          )
+        : null;
+    const freeUntilLabel = freeUntil
+      ? freeUntil.toLocaleString(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        })
+      : "";
+    const keepPercent = r.cancelPolicy.keepPercent;
+    return {
+      freeUntil,
+      freeUntilLabel,
+      fee: (total * keepPercent) / 100,
+      refundPercent: r.cancelPolicy.refundPercent,
+      keepPercent,
+      label: r.cancelPolicy.label,
+      canCancelOnline,
+      isLongDistance,
+    };
+  }
 
+  if (!pickup) {
+    return {
+      freeUntil: null,
+      freeUntilLabel: "",
+      fee: total,
+      refundPercent: 0,
+      keepPercent: 100,
+      label: "Cancellation charges may apply",
+      canCancelOnline,
+      isLongDistance,
+    };
+  }
+
+  const hoursUntil = (pickup.getTime() - now) / (3600 * 1000);
+  const minutesUntil = (pickup.getTime() - now) / 60000;
+
+  if (isLongDistance) {
+    const freeUntil = new Date(pickup.getTime() - LD_FREE_HOURS * 3600 * 1000);
+    const freeUntilLabel = freeUntil.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    if (hoursUntil >= LD_FREE_HOURS) {
+      return {
+        freeUntil,
+        freeUntilLabel,
+        fee: 0,
+        refundPercent: 100,
+        keepPercent: 0,
+        label: "Free cancel (24+ hours before pickup)",
+        canCancelOnline,
+        isLongDistance: true,
+      };
+    }
+    if (hoursUntil >= LD_HALF_HOURS) {
+      return {
+        freeUntil,
+        freeUntilLabel,
+        fee: total * 0.5,
+        refundPercent: 50,
+        keepPercent: 50,
+        label: "50% charge (12–24 hours before pickup)",
+        canCancelOnline,
+        isLongDistance: true,
+      };
+    }
+    return {
+      freeUntil,
+      freeUntilLabel,
+      fee: total,
+      refundPercent: 0,
+      keepPercent: 100,
+      label: "Full charge (under 12 hours before pickup)",
+      canCancelOnline,
+      isLongDistance: true,
+    };
+  }
+
+  const freeUntil = new Date(pickup.getTime() - REGULAR_FREE_MINUTES * 60 * 1000);
+  const freeUntilLabel = freeUntil.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const isFree = minutesUntil >= REGULAR_FREE_MINUTES;
   return {
     freeUntil,
     freeUntilLabel,
-    fee: isFree ? 0 : Number(r.total) || 0,
+    fee: isFree ? 0 : total,
+    refundPercent: isFree ? 100 : 0,
+    keepPercent: isFree ? 0 : 100,
+    label: isFree
+      ? "Free cancel (2+ hours before pickup)"
+      : "Full charge (less than 2 hours before pickup)",
     canCancelOnline,
+    isLongDistance: false,
   };
 }
 
@@ -114,8 +228,12 @@ export function CancelRideSheet({
 
   if (!reservation || !policy) return null;
 
-  const subtitle = policy.freeUntilLabel
-    ? `Free cancellation until ${policy.freeUntilLabel}. Tell us why so we can improve.`
+  const subtitle = policy.label
+    ? `${policy.label}${
+        policy.freeUntilLabel && policy.keepPercent === 0
+          ? ` Free until ${policy.freeUntilLabel}.`
+          : ""
+      } Tell us why so we can improve.`
     : "Tell us why so we can improve.";
 
   const sheetBg = isDark ? "#1C1C1E" : "#FFFFFF";
@@ -145,6 +263,45 @@ export function CancelRideSheet({
 
           <Text style={[styles.title, { color: palette.text }]}>Cancel this ride?</Text>
           <Text style={[styles.subtitle, { color: palette.muted }]}>{subtitle}</Text>
+
+          {policy.keepPercent > 0 ? (
+            <View
+              style={[
+                styles.feeBanner,
+                { backgroundColor: keepBg, borderColor: keepBorder },
+              ]}
+            >
+              <Text style={[styles.feeTitle, { color: palette.text }]}>
+                {policy.keepPercent >= 100
+                  ? "Full fare will be kept"
+                  : `${policy.keepPercent}% of fare will be kept`}
+              </Text>
+              <Text style={[styles.feeAmount, { color: GOLD }]}>
+                ${policy.fee.toFixed(2)} CAD
+              </Text>
+              {policy.refundPercent > 0 ? (
+                <Text style={[styles.feeHint, { color: palette.muted }]}>
+                  {policy.refundPercent}% refunded to your card
+                </Text>
+              ) : (
+                <Text style={[styles.feeHint, { color: palette.muted }]}>
+                  No refund — per Sarj cancellation policy
+                </Text>
+              )}
+            </View>
+          ) : (
+            <View
+              style={[
+                styles.feeBanner,
+                { backgroundColor: keepBg, borderColor: keepBorder },
+              ]}
+            >
+              <Text style={[styles.feeTitle, { color: palette.text }]}>Full refund</Text>
+              <Text style={[styles.feeHint, { color: palette.muted }]}>
+                Your payment will be returned to your card
+              </Text>
+            </View>
+          )}
 
           <ScrollView
             style={styles.list}
@@ -191,41 +348,23 @@ export function CancelRideSheet({
             })}
           </ScrollView>
 
-          <View style={styles.feeRow}>
-            <Text style={[styles.feeLabel, { color: palette.muted }]}>Cancellation fee</Text>
-            <Text
-              style={[
-                styles.feeValue,
-                { color: policy.fee <= 0 ? "#34C759" : palette.danger },
-              ]}
-            >
-              ${policy.fee.toFixed(2)}
-            </Text>
-          </View>
-
           <View style={styles.actions}>
             <Pressable
-              style={[
-                styles.btn,
-                styles.btnKeep,
-                { backgroundColor: keepBg, borderColor: keepBorder },
-              ]}
               onPress={onClose}
               disabled={busy}
+              style={[styles.btnSecondary, { borderColor: palette.border }]}
             >
-              <Text style={[styles.btnKeepText, { color: palette.text }]}>Keep ride</Text>
+              <Text style={[styles.btnSecondaryText, { color: palette.text }]}>Keep ride</Text>
             </Pressable>
             <Pressable
-              style={[styles.btn, styles.btnCancel, busy && { opacity: 0.7 }]}
               onPress={() => onConfirm(reason)}
               disabled={busy}
+              style={[styles.btnDanger, busy && { opacity: 0.7 }]}
             >
               {busy ? (
-                <ActivityIndicator color={palette.danger} />
+                <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={[styles.btnCancelText, { color: palette.danger }]}>
-                  Cancel ride
-                </Text>
+                <Text style={styles.btnDangerText}>Cancel ride</Text>
               )}
             </Pressable>
           </View>
@@ -236,119 +375,71 @@ export function CancelRideSheet({
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
+  root: { flex: 1, justifyContent: "flex-end" },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
   sheet: {
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 20,
     paddingTop: 10,
-    maxHeight: "92%",
-    borderTopWidth: StyleSheet.hairlineWidth,
+    maxHeight: "88%",
   },
   handle: {
     alignSelf: "center",
     width: 40,
     height: 4,
     borderRadius: 2,
-    marginBottom: 18,
+    marginBottom: 14,
   },
-  title: {
-    fontSize: 26,
-    fontWeight: "700",
-    letterSpacing: -0.5,
-    marginBottom: 8,
+  title: { fontSize: 20, fontWeight: "800", letterSpacing: -0.3 },
+  subtitle: { fontSize: 13, lineHeight: 18, marginTop: 6, marginBottom: 12 },
+  feeBanner: {
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 12,
+    marginBottom: 12,
   },
-  subtitle: {
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: "500",
-    marginBottom: 18,
-  },
-  list: {
-    maxHeight: 340,
-  },
+  feeTitle: { fontSize: 14, fontWeight: "700" },
+  feeAmount: { fontSize: 18, fontWeight: "800", marginTop: 4 },
+  feeHint: { fontSize: 12, marginTop: 4, lineHeight: 16 },
+  list: { maxHeight: 220 },
   reasonRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
-    paddingVertical: 15,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    marginBottom: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 8,
   },
-  reasonText: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: "500",
-    letterSpacing: -0.2,
-  },
-  reasonTextOn: {
-    fontWeight: "700",
-  },
+  reasonText: { fontSize: 15, fontWeight: "600", flex: 1, paddingRight: 10 },
+  reasonTextOn: { fontWeight: "700" },
   radio: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1.5,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
   },
-  radioDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#1A1208",
-  },
-  feeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: 14,
-    paddingBottom: 16,
-  },
-  feeLabel: {
-    fontSize: 15,
-    fontWeight: "500",
-  },
-  feeValue: {
-    fontSize: 16,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
-  actions: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  btn: {
+  radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#1A1208" },
+  actions: { flexDirection: "row", gap: 10, marginTop: 8 },
+  btnSecondary: {
     flex: 1,
-    minHeight: 52,
-    borderRadius: 14,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 14,
     alignItems: "center",
-    justifyContent: "center",
   },
-  btnKeep: {
-    borderWidth: 1,
+  btnSecondaryText: { fontSize: 15, fontWeight: "700" },
+  btnDanger: {
+    flex: 1,
+    borderRadius: 12,
+    backgroundColor: "#B91C1C",
+    paddingVertical: 14,
+    alignItems: "center",
   },
-  btnKeepText: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  btnCancel: {
-    backgroundColor: "rgba(255,69,58,0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(255,69,58,0.35)",
-  },
-  btnCancelText: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
+  btnDangerText: { fontSize: 15, fontWeight: "700", color: "#fff" },
 });

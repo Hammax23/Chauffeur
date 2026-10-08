@@ -10,6 +10,7 @@ import {
   getStripe,
 } from "@/lib/stripe-customer";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { MAX_SAVED_CARDS } from "@/lib/off-session-charge";
 
 /**
  * Create SetupIntent + ephemeral key so the app can save a card via PaymentSheet (no charge).
@@ -66,6 +67,20 @@ export async function POST(req: NextRequest) {
 
     const stripe = getStripe();
     const stripeCustomerId = await ensureStripeCustomer(customer, stripe);
+
+    const existing = await stripe.paymentMethods.list({
+      customer: stripeCustomerId,
+      type: "card",
+    });
+    if (existing.data.length >= MAX_SAVED_CARDS) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `You can save up to ${MAX_SAVED_CARDS} cards. Remove one to add another.`,
+        },
+        { status: 400 }
+      );
+    }
 
     const [setupIntent, ephemeralKeySecret] = await Promise.all([
       stripe.setupIntents.create({

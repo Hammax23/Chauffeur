@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     const defaultCharges = [
       { chargeKey: "stop", chargeName: "Extra Stop", amount: 20, isPercentage: false },
       { chargeKey: "childSeat", chargeName: "Child Seat", amount: 25, isPercentage: false },
-      { chargeKey: "meetGreet", chargeName: "Meet & Greet", amount: 95, isPercentage: false },
+      { chargeKey: "meetGreet", chargeName: "Meet & Greet", amount: 110, isPercentage: false },
       { chargeKey: "bouquet", chargeName: "Bouquet of Flowers", amount: 75, isPercentage: false },
       { chargeKey: "hst", chargeName: "HST", amount: 13, isPercentage: true },
       { chargeKey: "baseDistanceKm", chargeName: "Base Distance (KM)", amount: 17, isPercentage: false },
@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
     ];
 
     let chargesCreated = 0;
+    let chargesUpdated = 0;
     for (const charge of defaultCharges) {
       const existing = await prisma.reservationCharges.findUnique({
         where: { chargeKey: charge.chargeKey },
@@ -66,12 +67,22 @@ export async function POST(request: NextRequest) {
       if (!existing) {
         await prisma.reservationCharges.create({ data: charge });
         chargesCreated++;
+      } else if (
+        charge.chargeKey === "meetGreet" &&
+        Number(existing.amount) !== Number(charge.amount)
+      ) {
+        // Policy sync: Meet & Greet is $110 CAD (was historically $95 in seed).
+        await prisma.reservationCharges.update({
+          where: { chargeKey: "meetGreet" },
+          data: { amount: charge.amount, chargeName: charge.chargeName, isActive: true },
+        });
+        chargesUpdated++;
       }
     }
 
     return NextResponse.json({
       success: true,
-      message: `Seeded ${created} vehicles (${skipped} already existed), ${chargesCreated} charges created`,
+      message: `Seeded ${created} vehicles (${skipped} already existed), ${chargesCreated} charges created, ${chargesUpdated} charges updated`,
     });
   } catch (error: any) {
     console.error("[Fleet Seed] Error:", error?.message);

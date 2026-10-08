@@ -89,7 +89,18 @@ export async function resolveAppReservationFare(
   const { charges } = await getPricingConfig();
   vehicleBaseKm = charges.baseDistanceKm;
   vehicleExtraRate = pricePerKm > 0 ? pricePerKm : charges.extraKmRate;
-  const hasStop = typeof input.stops === "string" && input.stops.trim().length >= 3;
+  const stopCount = (() => {
+    if (typeof input.stops !== "string") return 0;
+    const t = input.stops.trim();
+    if (!t) return 0;
+    if (t.includes("|")) {
+      return t
+        .split("|")
+        .map((s) => s.trim())
+        .filter((s) => s.length >= 3).length;
+    }
+    return t.length >= 3 ? 1 : 0;
+  })();
   const pickupLocation =
     typeof input.pickupLocation === "string" ? input.pickupLocation : "";
   const gratuityPercent = (() => {
@@ -108,7 +119,7 @@ export async function resolveAppReservationFare(
     basePricing = calculateAppHourlyFare({
       hours,
       hourlyRate,
-      hasStop,
+      stopCount,
       childSeatCount,
       gratuityPercent,
       pickupLocation,
@@ -128,7 +139,7 @@ export async function resolveAppReservationFare(
       pricePerKm,
       baseDistanceKm: vehicleBaseKm,
       extraKmRate: vehicleExtraRate,
-      hasStop,
+      stopCount,
       childSeatCount,
       gratuityPercent,
       pickupLocation,

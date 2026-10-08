@@ -111,8 +111,10 @@ export const LEGAL_DEFAULT_HTML: Record<LegalSlug, string> = {
 <div class="legal-callout"><h2>Cancellation &amp; Refunds</h2><p>Notice periods and how refunds are processed</p></div>
 <h2>1. Airport / One-Way Transfer (Luxury Sedan/SUV) — Greater Toronto Area</h2>
 <ul>
-  <li>Cancellations require 2 hours' notice.</li>
-  <li>Less than 2 hours: full fare charges apply.</li>
+  <li>Regular bookings: free cancel 2+ hours before pickup; less than 2 hours: full fare kept.</li>
+  <li>Long distance: free 24+ hours before; 50% if 12–24 hours; full fare under 12 hours.</li>
+  <li>Pickup wait: 20 minutes free after chauffeur arrives, then $1 CAD per extra minute (+ HST).</li>
+  <li>Meet &amp; Greet (Pearson terminal): $110 CAD + HST; 60 minutes free wait after landing.</li>
 </ul>
 <h2>2. Sprinter Van — Airport / One-Way Transfer</h2>
 <ul>
@@ -133,11 +135,11 @@ export const LEGAL_DEFAULT_HTML: Record<LegalSlug, string> = {
 <h2>4. Major Events (Peak / Special Events)</h2>
 <p>For services booked during major events, cancellations require 14-day and 21-day notice from the event's first day (as applicable). Otherwise, full fare charges may apply, and hourly minimums may apply.</p>
 <h2>5. Meet &amp; Greet Cancellations</h2>
-<p>YYZ and YTZ Meet &amp; Greet cancellations require 2 hours' notice; otherwise full charges apply.</p>
+<p>Meet &amp; Greet fee is $110 CAD + HST. On a regular booking, cancel 2+ hours before pickup for a full refund; under 2 hours the fare (including Meet &amp; Greet) is kept. If the booking is also long-distance (≥100 km), long-distance cancel tiers apply instead (24h / 12–24h 50% / under 12h).</p>
 <h2>6. Onsite Coordinator Cancellations</h2>
 <p>Service cancellations require 48 hours' notice; otherwise standard four-hour minimum service charges apply.</p>
 <h2>7. No-Show Policy</h2>
-<p>If the client does not show or leaves the pickup location without contacting Dispatch, 100% of the fare may be charged (no refund).</p>
+<p>If the client does not show (including Meet &amp; Greet after landing + 60 minutes free wait, greeter present, and contact attempts), 100% of prepaid charges are retained — no refund.</p>
 <h2>8. Refunds &amp; Processing</h2>
 <ul>
   <li>Approved refunds are typically processed within 5–10 business days (bank timelines may vary).</li>
@@ -158,14 +160,20 @@ export const LEGAL_DEFAULT_HTML: Record<LegalSlug, string> = {
 <p>We may pre-authorize or charge the card 24–72 hours prior to pickup. Bookings made within 24 hours may be charged immediately.</p>
 <p>Payments may be processed via a PCI-compliant payment processor (e.g., Stripe). We do not store full card details.</p>
 <p>If invoiced, payment is due within two (2) business days of the invoice date (or per your Preferred Client Pricing Agreement).</p>
-<p>Late payments may incur <strong>2% monthly interest</strong> on outstanding amounts. Clients remain responsible for all unpaid amounts.</p>
+<p>Late payments may incur <strong>2% monthly interest</strong> on outstanding amounts. Clients remain responsible for all unpaid amounts. Unpaid post-trip charges may block new bookings until cleared.</p>
+<h2>3b. Cancellation &amp; Refunds</h2>
+<ul>
+  <li><strong>Regular:</strong> free cancel 2+ hours before pickup; under 2 hours prepaid fare kept.</li>
+  <li><strong>Long distance</strong> (typically ≥100 km): 24+ hours full refund; 12–24 hours 50%; under 12 hours full fare kept.</li>
+  <li><strong>Company / driver cancel:</strong> full refund. <strong>No-show:</strong> 100% retained.</li>
+</ul>
 <h2>4. Taxes</h2>
 <p>Clients are responsible for all applicable taxes (including HST where applicable) unless expressly included in a quoted flat rate.</p>
 <h2>5. Additional Charges</h2>
 <p><strong>Waiting Time</strong></p>
 <ul>
-  <li>Airport drop-off / point-to-point / hourly: 15 minutes complimentary at pickup.</li>
-  <li>Airport pickup: 45 minutes complimentary from gate arrival; after that, CAD 1.50/min.</li>
+  <li><strong>Regular pickup:</strong> 20 minutes free after the chauffeur marks ARRIVED; then $1 CAD per extra minute (+ HST), charged to your saved card(s).</li>
+  <li><strong>Meet &amp; Greet:</strong> $110 CAD + HST fee; 60 minutes free wait after actual landing (valid flight info); extra wait $110 CAD + HST per hour.</li>
 </ul>
 <p><strong>Tolls &amp; Parking:</strong> billed at cost.</p>
 <p><strong>Extra Stops/Route Changes:</strong> may incur additional time/distance charges.</p>
@@ -173,10 +181,10 @@ export const LEGAL_DEFAULT_HTML: Record<LegalSlug, string> = {
 <p><strong>Event/Holiday surcharges</strong> (if disclosed): peak days and major events may include surcharges shown on your quote/confirmation.</p>
 <h2>6. Airport Wait Time Policy (Arrivals)</h2>
 <ul>
-  <li><strong>Pearson International Airport (YYZ):</strong> 45-minute grace period for arrivals.</li>
-  <li><strong>Toronto Island Airport (YTZ) &amp; FBO pickups:</strong> 15-minute grace period.</li>
+  <li><strong>Meet &amp; Greet (YYZ / YTZ):</strong> 60 minutes complimentary after actual landing; then $110 CAD + HST per hour of approved extra wait.</li>
+  <li><strong>Standard airport pickup (no Meet &amp; Greet):</strong> 20 minutes complimentary after chauffeur ARRIVED; then $1 CAD per minute (+ HST).</li>
 </ul>
-<p>During the grace period, we will attempt to contact the client. After the grace period, the chauffeur will wait an additional 15 minutes before cancelling the transfer. After cancellation, the client is responsible for applicable charges.</p>
+<p>During the free-wait window we may attempt to contact you. No-show after the free window (with greeter present and contact attempts) retains 100% of prepaid charges.</p>
 <h2>7. Airport Fees (GTAA)</h2>
 <p>If the airport or regulatory authority imposes pickup fees, those will be charged to the client. GTAA pre-arranged pickup fees include:</p>
 <table>

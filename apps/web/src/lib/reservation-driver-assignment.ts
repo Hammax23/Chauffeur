@@ -1,5 +1,5 @@
 /** Ride finished or cancelled — driver may take another assignment. */
-export const TERMINAL_RESERVATION_STATUSES = ["DONE", "CANCELLED"] as const;
+export const TERMINAL_RESERVATION_STATUSES = ["DONE", "CANCELLED", "NO_SHOW"] as const;
 
 export function isReservationTerminal(status: string): boolean {
   return (TERMINAL_RESERVATION_STATUSES as readonly string[]).includes(status);

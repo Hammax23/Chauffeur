@@ -3,6 +3,7 @@ import {
   TERMINAL_RESERVATION_STATUSES,
   isReservationTerminal,
 } from "./reservation-driver-assignment";
+import { parseDistanceKm, resolveIsLongDistance } from "./cancel-policy";
 
 // Reservation interface for API compatibility
 export interface ReservationData {
@@ -58,6 +59,9 @@ export interface ReservationData {
   cardType?: string;
   cardLast4?: string;
   paymentStatus?: string;
+  isLongDistance?: boolean;
+  /** Route distance in meters (Google) — used when isLongDistance not explicit. */
+  routeDistanceValue?: number;
 }
 
 // Driver interface for API compatibility
@@ -106,6 +110,9 @@ export async function getReservations() {
     assignedDriver: safeAssigned,
     dateSubmitted: r.dateSubmitted.toISOString(),
     driverOnTheWayAt: r.driverOnTheWayAt?.toISOString() ?? null,
+    driverArrivedAt: r.driverArrivedAt?.toISOString() ?? null,
+    actualLandingAt: r.actualLandingAt?.toISOString() ?? null,
+    noShowMarkedAt: r.noShowMarkedAt?.toISOString() ?? null,
     driverStopPeriodsJson: r.driverStopPeriodsJson ?? null,
     completedAt: r.completedAt?.toISOString() ?? null,
     childSeats: r.childSeats || 0,
@@ -146,6 +153,12 @@ export async function addReservation(data: ReservationData) {
     .filter(Boolean)
     .join("\n");
 
+  const distanceKm = parseDistanceKm(data.distance, data.routeDistanceValue ?? null);
+  const isLongDistance = resolveIsLongDistance({
+    flag: data.isLongDistance,
+    distanceKm,
+  });
+
   const reservation = await prisma.reservation.create({
     data: {
       bookingId: data.bookingId,
@@ -182,9 +195,11 @@ export async function addReservation(data: ReservationData) {
       trackLink: data.trackLink,
       stripeCustomerId: data.stripeCustomerId,
       stripePaymentMethodId: data.stripePaymentMethodId,
+      stripePaymentIntentId: data.stripePaymentIntentId || null,
       cardType: data.cardType,
       cardLast4: data.cardLast4,
       paymentStatus: data.paymentStatus || "PENDING",
+      isLongDistance,
     },
   });
   return reservation;
@@ -194,6 +209,12 @@ export async function addReservation(data: ReservationData) {
 export async function updateReservationStatus(bookingId: string, status: string) {
   try {
     const now = new Date();
+    const prev = await prisma.reservation.findUnique({
+      where: { bookingId },
+      select: { status: true, assignedDriverId: true, driverResponse: true },
+    });
+    if (!prev) return false;
+
     const updateData: {
       status: string;
       completedAt?: Date;
@@ -213,11 +234,7 @@ export async function updateReservationStatus(bookingId: string, status: string)
     // Progressed trip statuses imply the assignee is accepted for customer visibility.
     const acceptedLike = ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP", "DONE"];
     if (acceptedLike.includes(status)) {
-      const row = await prisma.reservation.findUnique({
-        where: { bookingId },
-        select: { assignedDriverId: true, driverResponse: true },
-      });
-      if (row?.assignedDriverId && row.driverResponse !== "ACCEPTED") {
+      if (prev.assignedDriverId && prev.driverResponse !== "ACCEPTED") {
         updateData.driverResponse = "ACCEPTED";
         updateData.driverRespondedAt = now;
       }
@@ -227,6 +244,22 @@ export async function updateReservationStatus(bookingId: string, status: string)
       where: { bookingId },
       data: updateData,
     });
+
+    const wasCancelled = ["CANCELLED", "CANCELED"].includes(
+      String(prev.status || "").toUpperCase()
+    );
+    if (
+      ["CANCELLED", "CANCELED"].includes(String(status).toUpperCase()) &&
+      !wasCancelled
+    ) {
+      try {
+        const { applyCompanyCancelRefund } = await import("@/lib/company-cancel-refund");
+        await applyCompanyCancelRefund(bookingId);
+      } catch (e) {
+        console.error("[company-cancel-refund]", e);
+      }
+    }
+
     return true;
   } catch {
     return false;
@@ -381,13 +414,15 @@ export async function updateReservation(bookingId: string, updates: Partial<Rese
     const status = typeof updates.status === "string" ? updates.status : null;
     const acceptedLike = ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP", "DONE"];
 
+    const prev = await prisma.reservation.findUnique({
+      where: { bookingId },
+      select: { status: true, assignedDriverId: true, driverResponse: true },
+    });
+    if (!prev) return false;
+
     if (status && acceptedLike.includes(status)) {
-      const row = await prisma.reservation.findUnique({
-        where: { bookingId },
-        select: { assignedDriverId: true, driverResponse: true },
-      });
       // Admin progressing a trip with an assignee ⇒ treat as accepted for customers.
-      if (row?.assignedDriverId && row.driverResponse !== "ACCEPTED") {
+      if (prev.assignedDriverId && prev.driverResponse !== "ACCEPTED") {
         data.driverResponse = "ACCEPTED";
         data.driverRespondedAt = new Date();
       }
@@ -397,6 +432,23 @@ export async function updateReservation(bookingId: string, updates: Partial<Rese
       where: { bookingId },
       data,
     });
+
+    const wasCancelled = ["CANCELLED", "CANCELED"].includes(
+      String(prev.status || "").toUpperCase()
+    );
+    if (
+      status &&
+      ["CANCELLED", "CANCELED"].includes(String(status).toUpperCase()) &&
+      !wasCancelled
+    ) {
+      try {
+        const { applyCompanyCancelRefund } = await import("@/lib/company-cancel-refund");
+        await applyCompanyCancelRefund(bookingId);
+      } catch (e) {
+        console.error("[company-cancel-refund]", e);
+      }
+    }
+
     return true;
   } catch {
     return false;
