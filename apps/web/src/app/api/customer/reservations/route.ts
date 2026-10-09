@@ -192,6 +192,7 @@ export async function POST(req: NextRequest) {
       airline,
       flightNumber,
       flightNote,
+      meetGreet: rawMeetGreet,
       specialRequirements,
       firstName,
       lastName,
@@ -240,6 +241,12 @@ export async function POST(req: NextRequest) {
     const paymentIntentId =
       typeof stripePaymentIntentId === "string" ? stripePaymentIntentId.trim() : "";
 
+    const meetGreet =
+      rawMeetGreet === true ||
+      rawMeetGreet === "true" ||
+      rawMeetGreet === 1 ||
+      rawMeetGreet === "1";
+
     const fare = await resolveAppReservationFare({
       vehicleId,
       vehicle,
@@ -250,6 +257,7 @@ export async function POST(req: NextRequest) {
       pickupLocation,
       bookingMode,
       hourlyDuration,
+      meetGreet,
       promoCode: rawPromoCode,
       useReferralCredit: rawUseReferralCredit,
       customerId: tokenData.id,
@@ -268,7 +276,11 @@ export async function POST(req: NextRequest) {
       typeof specialRequirements === "string" && specialRequirements.trim()
         ? specialRequirements.trim()
         : "";
-    let storedRequirements = [baseRequirements, modeNote]
+    let storedRequirements = [
+      baseRequirements,
+      meetGreet ? "Meet & Greet: Yes" : "",
+      modeNote,
+    ]
       .filter((line) => line && String(line).trim())
       .join("\n");
 

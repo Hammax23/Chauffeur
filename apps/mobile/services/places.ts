@@ -8,15 +8,29 @@ export interface PlacePrediction {
   types: string[];
 }
 
+export type PlaceAutocompleteOptions = {
+  /** Google Places Autocomplete `types` — currently only `airport` is supported server-side. */
+  types?: "airport";
+  /** When true, omit Canada-only `components` filter (Uber-style airport search). */
+  worldwide?: boolean;
+};
+
 export async function fetchPlacePredictions(
   input: string,
   sessionToken: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options?: PlaceAutocompleteOptions
 ): Promise<PlacePrediction[]> {
   const q = input.trim();
   if (q.length < 2) return [];
 
   const params = new URLSearchParams({ input: q, session: sessionToken });
+  if (options?.types === "airport") {
+    params.set("types", "airport");
+  }
+  if (options?.worldwide) {
+    params.set("worldwide", "1");
+  }
   const res = await fetch(`${API_BASE_URL}/places/autocomplete?${params}`, {
     method: "GET",
     headers: { Accept: "application/json" },
@@ -111,6 +125,11 @@ export async function fetchDirectionsSummary(
     /** Optional preferred static map size — clamped server-side. */
     mapWidth?: number;
     mapHeight?: number;
+    /**
+     * When "hero", static map insets the route so floating chrome / chips
+     * don’t cover A/B pins (create-reservation top map plane).
+     */
+    mapPad?: "hero";
   },
   signal?: AbortSignal
 ): Promise<DirectionsSummary> {
@@ -157,7 +176,12 @@ export async function fetchDirectionsSummary(
       markers: markers.join(";"),
       w: String(params.mapWidth ?? 800),
       h: String(params.mapHeight ?? 440),
+      // Bust CDN/browser cache when map padding/style changes.
+      v: "uber3",
     });
+    if (params.mapPad === "hero") {
+      staticParams.set("pad", "hero");
+    }
     mapImageUrl = `${API_BASE_URL}/places/staticmap?${staticParams.toString()}`;
 
     const embedParams = new URLSearchParams({

@@ -233,8 +233,8 @@ export function CancelRideSheet({
         policy.freeUntilLabel && policy.keepPercent === 0
           ? ` Free until ${policy.freeUntilLabel}.`
           : ""
-      } Tell us why so we can improve.`
-    : "Tell us why so we can improve.";
+      }`
+    : "";
 
   const sheetBg = isDark ? "#1C1C1E" : "#FFFFFF";
   const handleColor = isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.18)";
@@ -262,7 +262,9 @@ export function CancelRideSheet({
           <View style={[styles.handle, { backgroundColor: handleColor }]} />
 
           <Text style={[styles.title, { color: palette.text }]}>Cancel this ride?</Text>
-          <Text style={[styles.subtitle, { color: palette.muted }]}>{subtitle}</Text>
+          {subtitle ? (
+            <Text style={[styles.subtitle, { color: palette.muted }]}>{subtitle}</Text>
+          ) : null}
 
           {policy.keepPercent > 0 ? (
             <View

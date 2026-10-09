@@ -3,6 +3,8 @@ export const STOP_CHARGE = 20;
 export const CHILD_SEAT_CHARGE = 25;
 /** GTAA pre-arranged airport pickup fee (sedans / vans / SUVs). */
 export const AIRPORT_PICKUP_FEE = 17.25;
+/** Pearson inside-terminal Meet & Greet (keep in sync with web reservation-pricing). */
+export const MEET_GREET_CHARGE = 110;
 export const HST_RATE = 0.13;
 export const APP_GRATUITY_PERCENTS = [15, 20, 25] as const;
 /** 0 = no tip selected (customer chooses on confirm). */
@@ -25,6 +27,7 @@ export type AppFareResult = {
   stopCharge: number;
   childSeatCharge: number;
   airportPickupFee: number;
+  meetGreetCharge: number;
   subtotal: number;
   hst: number;
   gratuity: number;
@@ -92,6 +95,7 @@ function finalizeAppFare(input: {
   gratuityPercent?: number;
   airportPickup?: boolean;
   pickupLocation?: string;
+  meetGreet?: boolean;
   km?: number;
   hours?: number;
 }): AppFareResult | null {
@@ -105,7 +109,8 @@ function finalizeAppFare(input: {
     input.airportPickup === true || isAirportPickupLocation(input.pickupLocation)
       ? AIRPORT_PICKUP_FEE
       : 0;
-  const subtotal = rideFare + stopCharge + childSeatCharge + airportPickupFee;
+  const meetGreetCharge = input.meetGreet === true ? MEET_GREET_CHARGE : 0;
+  const subtotal = rideFare + stopCharge + childSeatCharge + airportPickupFee + meetGreetCharge;
   const hst = subtotal * HST_RATE;
 
   let gratuityPercent = Number(input.gratuityPercent);
@@ -127,6 +132,7 @@ function finalizeAppFare(input: {
     stopCharge,
     childSeatCharge,
     airportPickupFee,
+    meetGreetCharge,
     subtotal,
     hst,
     gratuity,
@@ -156,6 +162,7 @@ export function calculateAppDistanceFare(input: {
   gratuityPercent?: number;
   airportPickup?: boolean;
   pickupLocation?: string;
+  meetGreet?: boolean;
 }): AppFareResult | null {
   const meters = Number(input.distanceMeters) || 0;
   if (meters <= 0) return null;
@@ -182,6 +189,7 @@ export function calculateAppDistanceFare(input: {
     gratuityPercent: input.gratuityPercent,
     airportPickup: input.airportPickup,
     pickupLocation: input.pickupLocation,
+    meetGreet: input.meetGreet,
     km,
   });
 }
@@ -197,6 +205,7 @@ export function calculateAppHourlyFare(input: {
   gratuityPercent?: number;
   airportPickup?: boolean;
   pickupLocation?: string;
+  meetGreet?: boolean;
 }): AppFareResult | null {
   const hours = Math.floor(Number(input.hours) || 0);
   const rate = Number(input.hourlyRate) || 0;
@@ -210,6 +219,7 @@ export function calculateAppHourlyFare(input: {
     gratuityPercent: input.gratuityPercent,
     airportPickup: input.airportPickup,
     pickupLocation: input.pickupLocation,
+    meetGreet: input.meetGreet,
     km: 0,
     hours,
   });

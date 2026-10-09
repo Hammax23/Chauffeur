@@ -14,6 +14,10 @@ import {
 } from "@/lib/promotions";
 import { applyReferralCreditToPricing } from "@/lib/referrals";
 
+function parseMeetGreetFlag(raw: unknown): boolean {
+  return raw === true || raw === "true" || raw === 1 || raw === "1";
+}
+
 export type AppReservationFareInput = {
   vehicleId?: unknown;
   vehicle?: unknown;
@@ -24,6 +28,8 @@ export type AppReservationFareInput = {
   pickupLocation?: unknown;
   bookingMode?: unknown;
   hourlyDuration?: unknown;
+  /** Meet & Greet add-on (airport From pickups). */
+  meetGreet?: unknown;
   /** Optional promo code (mobile checkout). */
   promoCode?: unknown;
   /** Required when applying a promo or referral credit. */
@@ -108,6 +114,7 @@ export async function resolveAppReservationFare(
     return Number.isFinite(n) && n >= 0 ? n : APP_DEFAULT_GRATUITY_PERCENT;
   })();
   const childSeatCount = Number(input.childSeats) || 0;
+  const meetGreet = parseMeetGreetFlag(input.meetGreet);
 
   let basePricing: ReservationPricingResult | null = null;
 
@@ -123,6 +130,7 @@ export async function resolveAppReservationFare(
       childSeatCount,
       gratuityPercent,
       pickupLocation,
+      meetGreet,
     });
     if (!basePricing) {
       return { error: "Unable to calculate hourly fare" };
@@ -143,6 +151,7 @@ export async function resolveAppReservationFare(
       childSeatCount,
       gratuityPercent,
       pickupLocation,
+      meetGreet,
     });
 
     if (!basePricing) {

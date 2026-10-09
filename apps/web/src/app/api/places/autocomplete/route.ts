@@ -24,6 +24,10 @@ export async function GET(req: NextRequest) {
 
   const input = (req.nextUrl.searchParams.get("input") || "").trim();
   const session = (req.nextUrl.searchParams.get("session") || "").trim();
+  const typesRaw = (req.nextUrl.searchParams.get("types") || "").trim().toLowerCase();
+  const worldwide =
+    req.nextUrl.searchParams.get("worldwide") === "1" ||
+    req.nextUrl.searchParams.get("worldwide") === "true";
 
   if (input.length < 2) {
     return NextResponse.json({ success: true, predictions: [] });
@@ -32,12 +36,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Input too long." }, { status: 400 });
   }
 
+  // Only allow the known Places Autocomplete type we use for airport composer.
+  const types = typesRaw === "airport" ? "airport" : "";
+
   const params = new URLSearchParams({
     input,
     key,
     language: "en",
-    components: "country:ca",
   });
+  // Default CA bias for normal address search; airport composer may go worldwide.
+  if (!worldwide) {
+    params.set("components", "country:ca");
+  }
+  if (types) {
+    params.set("types", types);
+  }
   if (session.length >= 8 && session.length <= 128) {
     params.set("sessiontoken", session);
   }

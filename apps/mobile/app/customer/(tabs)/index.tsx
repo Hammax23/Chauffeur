@@ -557,10 +557,9 @@ export default function CustomerHomeScreen() {
   const openAirport = useCallback(
     () =>
       router.push({
-        pathname: "/customer/create-reservation",
-        params: bookingParams({ prefill: "airport" }),
+        pathname: "/customer/airport-transfer",
       }),
-    [bookingParams]
+    []
   );
 
   const openWithDropoff = useCallback(
@@ -1222,7 +1221,9 @@ export default function CustomerHomeScreen() {
                         pressed && { opacity: 0.85 },
                       ]}
                     >
-                      <Ionicons name="home-outline" size={14} color={isDark ? CONCIERGE_GOLD : "#5C5348"} />
+                      <View style={styles.conciergeQuickIcon}>
+                        <Ionicons name="home-outline" size={14} color={isDark ? CONCIERGE_GOLD : "#5C5348"} />
+                      </View>
                       <View style={styles.conciergeQuickTextCol}>
                         <Text
                           style={[
@@ -1261,11 +1262,13 @@ export default function CustomerHomeScreen() {
                         pressed && { opacity: 0.85 },
                       ]}
                     >
-                      <Ionicons
-                        name="briefcase-outline"
-                        size={14}
-                        color={isDark ? CONCIERGE_GOLD : "#5C5348"}
-                      />
+                      <View style={styles.conciergeQuickIcon}>
+                        <Ionicons
+                          name="briefcase-outline"
+                          size={14}
+                          color={isDark ? CONCIERGE_GOLD : "#5C5348"}
+                        />
+                      </View>
                       <View style={styles.conciergeQuickTextCol}>
                         <Text
                           style={[
@@ -1300,11 +1303,13 @@ export default function CustomerHomeScreen() {
                         pressed && { opacity: 0.85 },
                       ]}
                     >
-                      <Ionicons
-                        name="airplane-outline"
-                        size={14}
-                        color={isDark ? CONCIERGE_GOLD : "#5C5348"}
-                      />
+                      <View style={styles.conciergeQuickIcon}>
+                        <Ionicons
+                          name="airplane-outline"
+                          size={14}
+                          color={isDark ? CONCIERGE_GOLD : "#5C5348"}
+                        />
+                      </View>
                       <Text
                         style={[
                           styles.conciergeQuickText,
@@ -2110,12 +2115,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
     paddingVertical: 10,
+    paddingHorizontal: 8,
     borderRadius: 12,
+  },
+  conciergeQuickIcon: {
+    width: 16,
+    height: 16,
+    flexShrink: 0,
+    alignItems: "center",
+    justifyContent: "center",
   },
   conciergeQuickTextCol: {
     flexShrink: 1,
     minWidth: 0,
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   conciergeQuickText: {
     fontSize: 12.5,

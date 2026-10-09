@@ -15,6 +15,9 @@ import {
   Keyboard,
   Dimensions,
   StatusBar,
+  Switch,
+  useWindowDimensions,
+  Animated,
   type NativeSyntheticEvent,
   type NativeScrollEvent,
   type TextInputProps,
@@ -22,7 +25,7 @@ import {
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -49,6 +52,8 @@ import {
   APP_DEFAULT_GRATUITY_PERCENT,
   APP_HOURLY_DURATIONS,
   APP_MIN_HOURLY_HOURS,
+  MEET_GREET_CHARGE,
+  isAirportPickupLocation,
   parseMaxPassengers,
   BASE_DISTANCE_KM,
   EXTRA_KM_RATE,
@@ -217,6 +222,9 @@ const SERVICE_PREFILL_MAP: Record<string, string> = {
 export default function CreateReservationScreen() {
   const { user } = useAuth();
   const { palette, isDark } = useCustomerTheme();
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const routeMapAnim = useRef(new Animated.Value(0)).current;
   const params = useLocalSearchParams<{
     prefill?: string | string[];
     vehicleId?: string | string[];
@@ -226,6 +234,10 @@ export default function CreateReservationScreen() {
     dropoff?: string | string[];
     dropoffLat?: string | string[];
     dropoffLng?: string | string[];
+    airline?: string | string[];
+    flightNumber?: string | string[];
+    flightNote?: string | string[];
+    meetGreet?: string | string[];
   }>();
   // Ensures we only honour a `vehicleId` param once — after the user has
   // possibly changed the selection, navigating back here shouldn't yank it
@@ -284,6 +296,8 @@ export default function CreateReservationScreen() {
   const [pickupLocating, setPickupLocating] = useState(false);
   const [pickupLocationHint, setPickupLocationHint] = useState<string | null>(null);
   const [dropoffAddress, setDropoffAddress] = useState("");
+  /** Optional coords from airport composer / quick places — improves Directions accuracy. */
+  const [dropoffCoords, setDropoffCoords] = useState<{ lat: number; lng: number } | null>(null);
   /** Intermediate stops (empty slots allowed while editing). */
   const [stops, setStops] = useState<string[]>([]);
   const [pickupAt, setPickupAt] = useState<Date>(defaultPickupDate);
@@ -301,6 +315,10 @@ export default function CreateReservationScreen() {
   const [recipientPhone, setRecipientPhone] = useState("");
   const [parcelWeight, setParcelWeight] = useState("");
   const [parcelNote, setParcelNote] = useState("");
+  const [airline, setAirline] = useState("");
+  const [flightNumber, setFlightNumber] = useState("");
+  const [flightNote, setFlightNote] = useState("");
+  const [meetGreet, setMeetGreet] = useState(false);
   const [fleetVehicles, setFleetVehicles] = useState<AppFleetVehicleDto[]>([]);
   const [distancePricing, setDistancePricing] = useState<AppDistancePricing>({
     baseDistanceKm: BASE_DISTANCE_KM,
@@ -313,6 +331,16 @@ export default function CreateReservationScreen() {
   const isParcel = isParcelServiceType(serviceType);
   const isHourly = !isParcel && bookingMode === "hourly";
   const showDropoff = !isHourly;
+  const isAirportTransfer =
+    !isParcel &&
+    (serviceType.toLowerCase().includes("airport") ||
+      !!airline.trim() ||
+      !!flightNumber.trim() ||
+      meetGreet ||
+      isAirportPickupLocation(pickupAddress) ||
+      isAirportPickupLocation(dropoffAddress));
+  /** Meet & Greet only makes sense for airport pickups (From airport). */
+  const allowMeetGreet = isAirportPickupLocation(pickupAddress);
 
   const vehicleTiers = useMemo(() => {
     const all = buildVehicleTiersFromAppFleet(fleetVehicles);
@@ -339,6 +367,34 @@ export default function CreateReservationScreen() {
   } | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
+  /** Uber-style: route map only after both ends are set (never empty placeholder). */
+  const addressesReadyForMap =
+    !isHourly &&
+    pickupAddress.trim().length >= 8 &&
+    dropoffAddress.trim().length >= 8;
+  const showRouteHero =
+    addressesReadyForMap &&
+    !routeError &&
+    (!!routeSummary?.mapImageUrl || routeLoading);
+  /** Top pinned map plane (Uber) — taller than mid-card for “wow” presence. */
+  const routeHeroHeight = Math.round(
+    Math.min(360, Math.max(240, windowHeight * 0.42))
+  );
+
+  useEffect(() => {
+    Animated.spring(routeMapAnim, {
+      toValue: showRouteHero ? 1 : 0,
+      friction: 8,
+      tension: 64,
+      useNativeDriver: true,
+    }).start();
+    if (showRouteHero) {
+      // Reveal map at the very top when both ends lock in.
+      requestAnimationFrame(() => {
+        scrollRef.current?.scrollTo({ y: 0, animated: true });
+      });
+    }
+  }, [showRouteHero, routeMapAnim]);
   const [childSeatCount, setChildSeatCount] = useState(0);
   const [rideFor, setRideFor] = useState<"me" | "someone" | "child">("me");
   const [showRideForMenu, setShowRideForMenu] = useState(false);
@@ -513,6 +569,8 @@ export default function CreateReservationScreen() {
     setPickupLocationHint(null);
     try {
       const result = await resolveCurrentPickup();
+      // Param prefill (Home / airport composer) may have won while GPS was resolving.
+      if (!opts?.force && pickupAutoFilledRef.current) return;
       if (!result) {
         setPickupLocationHint("Location permission needed — tap My location again to allow access");
         if (opts?.force) {
@@ -551,7 +609,7 @@ export default function CreateReservationScreen() {
 
     pickupAutoFilledRef.current = true;
     setPickupAddress(pickup.trim());
-    setPickupLocationHint("Pickup from Home map");
+    setPickupLocationHint("Pickup from booking");
 
     const rawLat = params.pickupLat;
     const rawLng = params.pickupLng;
@@ -561,17 +619,46 @@ export default function CreateReservationScreen() {
     const lng = lngStr ? parseFloat(lngStr) : NaN;
     if (Number.isFinite(lat) && Number.isFinite(lng)) {
       setPickupCoords({ lat, lng });
-      setPickupLocationHint("Using Home pickup — route uses exact coordinates");
+      setPickupLocationHint("Using booked pickup — route uses exact coordinates");
     }
   }, [params.pickup, params.pickupLat, params.pickupLng]);
 
-  // Prefill drop-off from Home trip editor / quick places
+  // Prefill drop-off from Home trip editor / quick places / airport composer
   useEffect(() => {
     const raw = params.dropoff;
     const dropoff = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : "";
     if (!dropoff?.trim()) return;
     setDropoffAddress(dropoff.trim());
-  }, [params.dropoff]);
+
+    const rawLat = params.dropoffLat;
+    const rawLng = params.dropoffLng;
+    const latStr = typeof rawLat === "string" ? rawLat : Array.isArray(rawLat) ? rawLat[0] : undefined;
+    const lngStr = typeof rawLng === "string" ? rawLng : Array.isArray(rawLng) ? rawLng[0] : undefined;
+    const lat = latStr ? parseFloat(latStr) : NaN;
+    const lng = lngStr ? parseFloat(lngStr) : NaN;
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      setDropoffCoords({ lat, lng });
+    }
+  }, [params.dropoff, params.dropoffLat, params.dropoffLng]);
+
+  // Airport composer: airline / flight / M&G
+  useEffect(() => {
+    const paramStr = (v?: string | string[]) =>
+      typeof v === "string" ? v : Array.isArray(v) ? v[0] || "" : "";
+    const a = paramStr(params.airline).trim();
+    const f = paramStr(params.flightNumber).trim();
+    const n = paramStr(params.flightNote).trim();
+    const mg = paramStr(params.meetGreet).trim();
+    if (a) setAirline(a);
+    if (f) setFlightNumber(f);
+    if (n) setFlightNote(n);
+    if (mg === "1" || mg === "true") setMeetGreet(true);
+  }, [params.airline, params.flightNumber, params.flightNote, params.meetGreet]);
+
+  // If pickup is no longer an airport, drop Meet & Greet (To-airport / edited pickup).
+  useEffect(() => {
+    if (!allowMeetGreet && meetGreet) setMeetGreet(false);
+  }, [allowMeetGreet, meetGreet]);
 
   // Auto-detect pickup once when the screen opens (skipped if Home already set pickup)
   useEffect(() => {
@@ -622,9 +709,14 @@ export default function CreateReservationScreen() {
       pickupCoords != null
         ? `${pickupCoords.lat.toFixed(6)},${pickupCoords.lng.toFixed(6)}`
         : pickup;
+    const destination =
+      dropoffCoords != null
+        ? `${dropoffCoords.lat.toFixed(6)},${dropoffCoords.lng.toFixed(6)}`
+        : dropoff;
 
     const pickupReady = pickupCoords != null || pickup.length >= 8;
-    if (!pickupReady || dropoff.length < 8) {
+    const dropoffReady = dropoffCoords != null || dropoff.length >= 8;
+    if (!pickupReady || !dropoffReady) {
       setRouteSummary(null);
       setRouteError(null);
       setRouteLoading(false);
@@ -637,14 +729,23 @@ export default function CreateReservationScreen() {
       setRouteLoading(true);
       setRouteError(null);
       try {
+        const mapW = Math.min(900, Math.max(640, Math.round(windowWidth * 2)));
+        const planeH = Math.round(
+          Math.min(360, Math.max(240, windowHeight * 0.42)) + 48
+        );
+        const mapH = Math.min(
+          800,
+          Math.max(360, Math.round(mapW * (planeH / Math.max(windowWidth, 1))))
+        );
         const r = await fetchDirectionsSummary(
           {
             origin,
-            destination: dropoff,
+            destination,
             waypoints,
             avoidTolls: !tollRoute,
-            mapWidth: 800,
-            mapHeight: 460,
+            mapWidth: mapW,
+            mapHeight: mapH,
+            mapPad: "hero",
           },
           ac.signal
         );
@@ -683,6 +784,7 @@ export default function CreateReservationScreen() {
     pickupAddress,
     pickupCoords,
     dropoffAddress,
+    dropoffCoords,
     stops,
     tollRoute,
   ]);
@@ -713,6 +815,7 @@ export default function CreateReservationScreen() {
         childSeatCount,
         gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
         pickupLocation: pickupAddress,
+        meetGreet: allowMeetGreet && meetGreet,
       });
     }
     const meters = routeSummary?.distanceMeters ?? null;
@@ -727,6 +830,7 @@ export default function CreateReservationScreen() {
       childSeatCount,
       gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
       pickupLocation: pickupAddress,
+      meetGreet: allowMeetGreet && meetGreet,
     });
   }, [
     selectedTier,
@@ -737,6 +841,8 @@ export default function CreateReservationScreen() {
     childSeatCount,
     distancePricing,
     pickupAddress,
+    allowMeetGreet,
+    meetGreet,
   ]);
 
   const maxPassengers = useMemo(
@@ -1037,6 +1143,10 @@ export default function CreateReservationScreen() {
       recipientPhone: isParcel ? recipientPhone.trim() : undefined,
       parcelWeight: isParcel ? formatParcelWeight(parcelWeight) || undefined : undefined,
       parcelNote: isParcel ? parcelNote.trim() : undefined,
+      airline: airline.trim() || undefined,
+      flightNumber: flightNumber.trim() || undefined,
+      flightNote: flightNote.trim() || undefined,
+      meetGreet: allowMeetGreet && meetGreet ? "1" : undefined,
     });
 
     router.push("/customer/reservation-confirm");
@@ -1044,26 +1154,184 @@ export default function CreateReservationScreen() {
 
   const styles = useMemo(() => makeStyles(palette, isDark), [palette, isDark]);
 
+  const mapPlaneH = routeHeroHeight + insets.top;
+  const headerBlock = (
+    <View style={[styles.header, showRouteHero && styles.headerOverMap]}>
+      <TouchableOpacity
+        onPress={() => router.back()}
+        style={[styles.backBtn, showRouteHero && styles.headerGlassBtn]}
+        hitSlop={8}
+      >
+        <Ionicons
+          name="chevron-back"
+          size={20}
+          color={showRouteHero ? (isDark ? "#fff" : "#1C1916") : palette.text}
+        />
+        {!showRouteHero ? <Text style={styles.backText}>Back</Text> : null}
+      </TouchableOpacity>
+      <Text
+        style={[
+          styles.headerTitle,
+          showRouteHero && styles.headerTitleOverMap,
+          showRouteHero && { color: isDark ? "#fff" : "#1C1916" },
+        ]}
+        numberOfLines={1}
+      >
+        {isParcel ? "Send a Parcel" : isHourly ? "Hourly Reservation" : "Create Reservation"}
+      </Text>
+      <TouchableOpacity
+        style={[styles.riderHeaderBtn, showRouteHero && styles.headerGlassBtn]}
+        onPress={() => setShowRideForMenu(true)}
+        activeOpacity={0.85}
+        accessibilityLabel={`Riding for ${rideForLabel}. Change who is riding.`}
+        accessibilityRole="button"
+      >
+        {rideFor === "me" && user?.photo ? (
+          <Image
+            source={{ uri: user.photo }}
+            style={styles.riderHeaderAvatar}
+            resizeMode="cover"
+          />
+        ) : (
+          <View
+            style={[
+              styles.riderHeaderAvatar,
+              rideFor === "child" && styles.riderHeaderAvatarChild,
+              rideFor === "someone" && styles.riderHeaderAvatarSomeone,
+            ]}
+          >
+            {rideFor === "me" ? (
+              <Text style={styles.riderHeaderInitials}>{rideForInitials}</Text>
+            ) : (
+              <Ionicons
+                name={rideFor === "child" ? "happy-outline" : "people-outline"}
+                size={18}
+                color="#fff"
+              />
+            )}
+          </View>
+        )}
+        <Ionicons
+          name="chevron-down"
+          size={12}
+          color={showRouteHero ? (isDark ? "rgba(255,255,255,0.75)" : "#5C5348") : palette.muted}
+        />
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
     <View style={[styles.root, { backgroundColor: palette.root }]}>
-      <StatusBar barStyle={palette.statusBar} backgroundColor={palette.root} />
-      <LinearGradient colors={[...palette.bg]} style={StyleSheet.absoluteFill} />
-      <View style={styles.ambientGlow} pointerEvents="none">
-        <LinearGradient
-          colors={[...palette.glow]}
-          style={StyleSheet.absoluteFill}
-          start={{ x: 0.2, y: 0 }}
-          end={{ x: 0.85, y: 0.45 }}
-        />
-      </View>
+      <StatusBar
+        barStyle={showRouteHero && !isDark ? "dark-content" : palette.statusBar}
+        backgroundColor={showRouteHero ? "transparent" : palette.root}
+        translucent={showRouteHero}
+      />
+      {!showRouteHero ? (
+        <>
+          <LinearGradient colors={[...palette.bg]} style={StyleSheet.absoluteFill} />
+          <View style={styles.ambientGlow} pointerEvents="none">
+            <LinearGradient
+              colors={[...palette.glow]}
+              style={StyleSheet.absoluteFill}
+              start={{ x: 0.2, y: 0 }}
+              end={{ x: 0.85, y: 0.45 }}
+            />
+          </View>
+        </>
+      ) : null}
 
-      <SafeAreaView style={styles.safe} edges={["top"]}>
+      {/* Absolute TOP map plane — Uber backdrop */}
+      {showRouteHero ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.routeMapPlane,
+            {
+              height: mapPlaneH,
+              opacity: routeMapAnim,
+              transform: [
+                {
+                  translateY: routeMapAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-28, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          {routeSummary?.mapImageUrl ? (
+            <Image
+              source={{ uri: routeSummary.mapImageUrl }}
+              style={StyleSheet.absoluteFillObject}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[StyleSheet.absoluteFillObject, styles.routeHeroLoadingBg]} />
+          )}
+          <LinearGradient
+            colors={["rgba(0,0,0,0.28)", "transparent"]}
+            style={styles.routeMapTopVignette}
+            pointerEvents="none"
+          />
+          <LinearGradient
+            colors={[
+              "transparent",
+              isDark ? "rgba(10,9,8,0.45)" : "rgba(245,242,234,0.55)",
+              palette.root,
+            ]}
+            locations={[0.4, 0.78, 1]}
+            style={styles.routeHeroFade}
+            pointerEvents="none"
+          />
+          <View style={[styles.routeHeroChips, { bottom: 64 }]}>
+            <View style={styles.routeHeroChip}>
+              <Ionicons name="navigate" size={13} color={GOLD} />
+              <Text style={styles.routeHeroChipText} numberOfLines={1}>
+                {routeLoading && !routeSummary?.distanceText
+                  ? "…"
+                  : routeSummary?.distanceText || "—"}
+              </Text>
+            </View>
+            <View style={styles.routeHeroChip}>
+              <Ionicons name="time" size={13} color={GOLD} />
+              <Text style={styles.routeHeroChipText} numberOfLines={1}>
+                {routeLoading && !routeSummary?.durationText
+                  ? "…"
+                  : routeSummary?.durationText || "—"}
+              </Text>
+            </View>
+          </View>
+          {routeLoading ? (
+            <View style={[styles.routeHeroSpinner, { top: insets.top + 56 }]}>
+              <ActivityIndicator size="small" color={GOLD} />
+            </View>
+          ) : null}
+        </Animated.View>
+      ) : null}
+
+      <SafeAreaView
+        style={[styles.safe, showRouteHero && styles.safeOverMap]}
+        edges={showRouteHero ? [] : ["top"]}
+      >
+      {/* Floating glass chrome over map */}
+      {showRouteHero ? (
+        <View style={[styles.floatingChrome, { paddingTop: insets.top + 4 }]}>
+          {headerBlock}
+        </View>
+      ) : null}
+
       <ScrollView
         ref={scrollRef}
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: keyboardVisible ? 32 : 120 },
+          {
+            paddingBottom: keyboardVisible ? 32 : 120,
+            // Pull sheet up under the map fade so chips sit tight above Ride Details.
+            paddingTop: showRouteHero ? mapPlaneH - 88 : 0,
+          },
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -1072,50 +1340,14 @@ export default function CreateReservationScreen() {
         onScroll={onScrollViewScroll}
         scrollEventThrottle={16}
       >
-        {/* Header — Uber-style rider switcher on the right */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={20} color={palette.text} />
-            <Text style={styles.backText}>Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {isParcel ? "Send a Parcel" : isHourly ? "Hourly Reservation" : "Create Reservation"}
-          </Text>
-          <TouchableOpacity
-            style={styles.riderHeaderBtn}
-            onPress={() => setShowRideForMenu(true)}
-            activeOpacity={0.85}
-            accessibilityLabel={`Riding for ${rideForLabel}. Change who is riding.`}
-            accessibilityRole="button"
-          >
-            {rideFor === "me" && user?.photo ? (
-              <Image
-                source={{ uri: user.photo }}
-                style={styles.riderHeaderAvatar}
-                resizeMode="cover"
-              />
-            ) : (
-              <View
-                style={[
-                  styles.riderHeaderAvatar,
-                  rideFor === "child" && styles.riderHeaderAvatarChild,
-                  rideFor === "someone" && styles.riderHeaderAvatarSomeone,
-                ]}
-              >
-                {rideFor === "me" ? (
-                  <Text style={styles.riderHeaderInitials}>{rideForInitials}</Text>
-                ) : (
-                  <Ionicons
-                    name={rideFor === "child" ? "happy-outline" : "people-outline"}
-                    size={18}
-                    color="#fff"
-                  />
-                )}
-              </View>
-            )}
-            <Ionicons name="chevron-down" size={12} color={palette.muted} />
-          </TouchableOpacity>
-        </View>
+        {/* Header — only inline when map is hidden; sheet handle when map pins top */}
+        {!showRouteHero ? (
+          headerBlock
+        ) : (
+          <View style={styles.sheetHandleRow}>
+            <View style={styles.sheetHandle} />
+          </View>
+        )}
 
         <Modal
           visible={showRideForMenu}
@@ -1201,7 +1433,7 @@ export default function CreateReservationScreen() {
         </Modal>
 
         {/* Step Indicator */}
-        <View style={styles.stepIndicator}>
+        <View style={[styles.stepIndicator, showRouteHero && styles.stepIndicatorTight]}>
           <View style={styles.stepActive}>
             <Text style={styles.stepActiveText}>1</Text>
           </View>
@@ -1323,11 +1555,19 @@ export default function CreateReservationScreen() {
               <Text style={styles.inputLabel}>Dropoff Address</Text>
               <GooglePlacesAddressField
                 value={dropoffAddress}
-                onChangeText={setDropoffAddress}
+                onChangeText={(text) => {
+                  setDropoffAddress(text);
+                  setDropoffCoords(null);
+                }}
                 placeholder="Search drop-off address"
                 iconName="location-outline"
                 onPlaceResolved={(place) => {
                   setDropoffAddress(place.address);
+                  if (place.lat != null && place.lng != null) {
+                    setDropoffCoords({ lat: place.lat, lng: place.lng });
+                  } else {
+                    setDropoffCoords(null);
+                  }
                 }}
               />
             </>
@@ -1348,6 +1588,55 @@ export default function CreateReservationScreen() {
               </View>
             </View>
           )}
+
+          {isAirportTransfer ? (
+            <View style={styles.airportExtrasBlock}>
+              <Text style={styles.inputLabel}>Flight details</Text>
+              <View style={styles.inputBox}>
+                <TextInput
+                  style={styles.textInput}
+                  value={airline}
+                  onChangeText={setAirline}
+                  placeholder="Airline"
+                  placeholderTextColor={palette.muted}
+                  autoCapitalize="words"
+                  onFocus={onFormFieldFocus}
+                />
+              </View>
+              <View style={[styles.inputBox, { marginTop: 10 }]}>
+                <TextInput
+                  style={styles.textInput}
+                  value={flightNumber}
+                  onChangeText={setFlightNumber}
+                  placeholder="Flight number"
+                  placeholderTextColor={palette.muted}
+                  autoCapitalize="characters"
+                  onFocus={onFormFieldFocus}
+                />
+              </View>
+              {flightNote ? (
+                <Text style={[styles.pickupHint, { marginTop: 8 }]}>{flightNote}</Text>
+              ) : null}
+              {allowMeetGreet ? (
+                <View style={styles.meetGreetRow}>
+                  <View style={{ flex: 1, minWidth: 0, paddingRight: 4 }}>
+                    <Text style={styles.meetGreetTitle} numberOfLines={1}>
+                      Meet & Greet
+                    </Text>
+                    <Text style={styles.meetGreetSub} numberOfLines={2}>
+                      Personal airport assistance +${MEET_GREET_CHARGE.toFixed(0)}
+                    </Text>
+                  </View>
+                  <Switch
+                    value={meetGreet}
+                    onValueChange={setMeetGreet}
+                    trackColor={{ false: "rgba(150,150,150,0.35)", true: "rgba(201,160,99,0.55)" }}
+                    thumbColor={meetGreet ? GOLD : "#f4f3f4"}
+                  />
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
           {isHourly ? (
             <>
@@ -1486,8 +1775,8 @@ export default function CreateReservationScreen() {
           ) : null}
         </View>
 
-        {/* Vehicle */}
-        <View style={styles.section}>
+        {/* Vehicle — sheet content under top map plane */}
+        <View style={[styles.section, showRouteHero && styles.sectionOverMap]}>
           <Text style={styles.sectionTitle}>
             {isParcel ? "Vehicle" : "Select Vehicle"}
           </Text>
@@ -1794,107 +2083,6 @@ export default function CreateReservationScreen() {
           )}
         </View>
 
-        {/* Map Preview — distance bookings only (hourly has no drop-off route) */}
-        {!isHourly ? (
-        <View style={styles.mapContainer}>
-              <View style={styles.mapImageWrap}>
-                {routeSummary?.mapImageUrl ? (
-                  <Image
-                    source={{ uri: routeSummary.mapImageUrl }}
-                    style={styles.mapImage}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View style={styles.mapPlaceholder}>
-                    <Ionicons name="map-outline" size={28} color={palette.muted} />
-                    <Text style={styles.mapPlaceholderText}>
-                      {pickupAddress.trim().length < 8 || dropoffAddress.trim().length < 8
-                        ? "Enter pickup & drop-off to preview the route"
-                        : routeLoading
-                          ? "Calculating route…"
-                          : routeError
-                            ? "Route preview unavailable"
-                            : "Route will appear here"}
-                    </Text>
-                  </View>
-                )}
-                {routeLoading && routeSummary?.mapImageUrl ? (
-                  <View style={styles.mapImageLoadingOverlay} pointerEvents="none">
-                    <ActivityIndicator size="small" color={GOLD} />
-                  </View>
-                ) : null}
-              </View>
-
-              {/* A / B / C… legend */}
-              {routeSummary && routeSummary.pointCount >= 2 ? (
-                <View style={styles.mapLegend}>
-                  <View style={styles.mapLegendItem}>
-                    <View style={styles.mapLegendDot}>
-                      <Text style={styles.mapLegendDotText}>A</Text>
-                    </View>
-                    <Text style={styles.mapLegendLabel}>From</Text>
-                    <Text style={styles.mapLegendText} numberOfLines={1}>
-                      {pickupAddress || "—"}
-                    </Text>
-                  </View>
-                  {activeStopAddresses(stops).map((addr, i) => {
-                    const letter = String.fromCharCode(66 + i); // B, C, …
-                    return (
-                      <View key={`legend-stop-${i}`} style={styles.mapLegendItem}>
-                        <View style={styles.mapLegendDot}>
-                          <Text style={styles.mapLegendDotText}>{letter}</Text>
-                        </View>
-                        <Text style={styles.mapLegendLabel}>
-                          Stop{activeStopAddresses(stops).length > 1 ? ` ${i + 1}` : ""}
-                        </Text>
-                        <Text style={styles.mapLegendText} numberOfLines={1}>
-                          {addr}
-                        </Text>
-                      </View>
-                    );
-                  })}
-                  <View style={styles.mapLegendItem}>
-                    <View style={styles.mapLegendDot}>
-                      <Text style={styles.mapLegendDotText}>
-                        {String.fromCharCode(65 + 1 + activeStopAddresses(stops).length)}
-                      </Text>
-                    </View>
-                    <Text style={styles.mapLegendLabel}>To</Text>
-                    <Text style={styles.mapLegendText} numberOfLines={1}>
-                      {dropoffAddress || "—"}
-                    </Text>
-                  </View>
-                </View>
-              ) : null}
-
-              {/* Distance & Duration */}
-              <View style={styles.mapInfo}>
-                <View style={styles.mapInfoItem}>
-                  <Text style={styles.mapInfoLabel}>Estimated Distance</Text>
-                  <Text style={styles.mapInfoValue}>
-                    {routeLoading ? "…" : routeSummary?.distanceText ?? "—"}
-                  </Text>
-                </View>
-                <View style={styles.mapInfoItem}>
-                  <Text style={styles.mapInfoLabel}>Estimated Duration</Text>
-                  <Text style={styles.mapInfoValue}>
-                    {routeLoading ? "…" : routeSummary?.durationText ?? "—"}
-                  </Text>
-                </View>
-              </View>
-
-              {routeError ? (
-                <Text style={styles.mapInfoError} numberOfLines={2}>
-                  {routeError}
-                </Text>
-              ) : (
-                <Text style={styles.mapInfoFootnote}>
-                  Driving directions via Google · Typical time (not live traffic)
-                </Text>
-              )}
-        </View>
-        ) : null}
-
         {/* Contact details — rider chosen from header menu */}
         <View style={styles.section}>
           {rideFor === "me" ? (
@@ -2170,6 +2358,9 @@ function makeStyles(palette: DriverPalette, isDark: boolean) {
   safe: {
     flex: 1,
     backgroundColor: "transparent",
+  },
+  safeOverMap: {
+    zIndex: 2,
   },
   scrollView: {
     flex: 1,
@@ -2689,6 +2880,36 @@ function makeStyles(palette: DriverPalette, isDark: boolean) {
     marginTop: 6,
     lineHeight: 15,
   },
+  airportExtrasBlock: {
+    marginTop: 4,
+  },
+  meetGreetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.border,
+    backgroundColor: fieldBg,
+    minHeight: 56,
+  },
+  meetGreetTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: palette.text,
+    flexShrink: 1,
+  },
+  meetGreetSub: {
+    fontSize: 12.5,
+    fontWeight: "500",
+    color: palette.muted,
+    marginTop: 2,
+    lineHeight: 17,
+    flexShrink: 1,
+  },
   dropdown: {
     flexDirection: "row",
     alignItems: "center",
@@ -2794,137 +3015,123 @@ function makeStyles(palette: DriverPalette, isDark: boolean) {
     fontWeight: "700",
     letterSpacing: -0.1,
   },
-  mapContainer: {
-    borderRadius: 16,
-    overflow: "hidden",
-    marginBottom: 24,
-    backgroundColor: card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(15,23,42,0.08)",
-    shadowColor: "#0f172a",
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  mapImageWrap: {
-    width: "100%",
-    height: 200,
-    backgroundColor: fieldBg,
-    overflow: "hidden",
-  },
-  mapImage: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: fieldBg,
-  },
-  mapImageLoadingOverlay: {
+  /** Absolute TOP map plane — full screen width, sits under chrome. */
+  routeMapPlane: {
     position: "absolute",
-    top: 8,
-    right: 8,
-    backgroundColor: "rgba(255,255,255,0.92)",
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: "center",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 0,
+    overflow: "hidden",
+    backgroundColor: "#EEF0F3",
+  },
+  routeMapTopVignette: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+  },
+  routeHeroLoadingBg: {
+    backgroundColor: isDark ? "#1C1916" : "#E8E4DC",
+  },
+  routeHeroFade: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  routeHeroChips: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    flexDirection: "row",
     justifyContent: "center",
-    shadowColor: "#0f172a",
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    gap: 8,
   },
-  mapPlaceholder: {
-    width: "100%",
-    height: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-  },
-  mapPlaceholderText: {
-    marginTop: 8,
-    fontSize: 12,
-    color: palette.muted,
-    textAlign: "center",
-    fontWeight: "500",
-  },
-  mapLegend: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    backgroundColor: card,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(15,23,42,0.08)",
-  },
-  mapLegendItem: {
+  routeHeroChip: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 4,
+    gap: 6,
+    maxWidth: "44%",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: isDark ? "rgba(28,25,22,0.9)" : "rgba(255,255,255,0.95)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(15,23,42,0.08)",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.14,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 4 },
+      },
+      android: { elevation: 4 },
+    }),
   },
-  mapLegendDot: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "#0F172A",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 10,
-  },
-  mapLegendDotText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-  },
-  mapLegendLabel: {
-    fontSize: 11,
-    color: palette.muted,
-    fontWeight: "600",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-    width: 38,
-  },
-  mapLegendText: {
-    flex: 1,
+  routeHeroChipText: {
+    flexShrink: 1,
     fontSize: 13,
+    fontWeight: "700",
     color: palette.text,
-    fontWeight: "500",
+    letterSpacing: -0.2,
   },
-  mapInfo: {
-    flexDirection: "row",
-    backgroundColor: card,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(15,23,42,0.08)",
+  routeHeroSpinner: {
+    position: "absolute",
+    right: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: isDark ? "rgba(28,25,22,0.9)" : "rgba(255,255,255,0.94)",
   },
-  mapInfoFootnote: {
-    fontSize: 10,
-    color: palette.muted,
-    paddingHorizontal: 16,
-    paddingBottom: 10,
+  floatingChrome: {
+    zIndex: 4,
+    paddingHorizontal: 12,
+  },
+  headerOverMap: {
+    paddingVertical: 6,
+  },
+  headerGlassBtn: {
+    backgroundColor: isDark ? "rgba(28,25,22,0.72)" : "rgba(255,255,255,0.88)",
+    borderRadius: 22,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minWidth: 44,
+    minHeight: 40,
+    justifyContent: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.12,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
+      },
+      android: { elevation: 3 },
+    }),
+  },
+  headerTitleOverMap: {
+    textShadowColor: "rgba(255,255,255,0.55)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  sheetHandleRow: {
+    alignItems: "center",
     paddingTop: 2,
-    lineHeight: 14,
+    paddingBottom: 4,
   },
-  mapInfoError: {
-    fontSize: 11,
-    color: "#b45309",
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-    paddingTop: 2,
-    lineHeight: 15,
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: isDark ? "rgba(255,255,255,0.28)" : "rgba(28,25,22,0.18)",
   },
-  mapInfoItem: {
-    flex: 1,
+  stepIndicatorTight: {
+    marginTop: 6,
+    marginBottom: 10,
   },
-  mapInfoLabel: {
-    fontSize: 11,
-    color: palette.muted,
-    marginBottom: 2,
-  },
-  mapInfoValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: palette.text,
+  sectionOverMap: {
+    marginTop: 0,
+    zIndex: 2,
   },
   tierList: {
     borderRadius: 14,

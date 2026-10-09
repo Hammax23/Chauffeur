@@ -51,6 +51,12 @@ export type BookingDraft = {
   recipientPhone?: string;
   parcelWeight?: string;
   parcelNote?: string;
+  /** Airport transfer extras */
+  airline?: string;
+  flightNumber?: string;
+  flightNote?: string;
+  /** "1" when Meet & Greet selected */
+  meetGreet?: string;
 };
 
 export async function saveBookingDraft(draft: BookingDraft): Promise<void> {

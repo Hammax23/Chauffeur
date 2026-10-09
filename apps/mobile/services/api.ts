@@ -1240,6 +1240,7 @@ export async function createReservation(params: {
   airline?: string;
   flightNumber?: string;
   flightNote?: string;
+  meetGreet?: boolean;
   rideFare?: number;
   stopCharge?: number;
   childSeatCharge?: number;
@@ -1282,6 +1283,7 @@ export async function createCustomerPaymentIntent(params: {
   email?: string;
   bookingMode?: "distance" | "hourly";
   hourlyDuration?: number;
+  meetGreet?: boolean;
   promoCode?: string;
   useReferralCredit?: boolean;
 }) {
@@ -1310,6 +1312,7 @@ export async function validatePromoCode(params: {
   gratuityPercent: number;
   bookingMode?: "distance" | "hourly";
   hourlyDuration?: number;
+  meetGreet?: boolean;
 }) {
   return apiRequest<{
     success: boolean;
@@ -1320,6 +1323,7 @@ export async function validatePromoCode(params: {
       stopCharge: number;
       childSeatCharge: number;
       airportPickupFee?: number;
+      meetGreetCharge?: number;
       subtotal: number;
       discountAmount: number;
       hst: number;

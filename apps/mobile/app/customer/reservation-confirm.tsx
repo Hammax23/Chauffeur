@@ -124,6 +124,7 @@ export default function ReservationConfirmScreen() {
   );
   const stopCount = stopList.length;
   const stopsPayload = stopCount > 0 ? draft?.stopAddress?.trim() : undefined;
+  const meetGreet = draft?.meetGreet === "1" || draft?.meetGreet === "true";
 
   const fare = useMemo(() => {
     if (!draft) return null;
@@ -136,6 +137,7 @@ export default function ReservationConfirmScreen() {
         childSeatCount: childSeats,
         gratuityPercent,
         pickupLocation: draft.pickupAddress,
+        meetGreet,
       });
     } else {
       base = calculateAppDistanceFare({
@@ -148,6 +150,7 @@ export default function ReservationConfirmScreen() {
         childSeatCount: childSeats,
         gratuityPercent,
         pickupLocation: draft.pickupAddress,
+        meetGreet,
       });
     }
     if (!base) return null;
@@ -170,6 +173,7 @@ export default function ReservationConfirmScreen() {
     stopCount,
     childSeats,
     gratuityPercent,
+    meetGreet,
     appliedPromoCode,
     promoDiscount,
     useReferralCredit,
@@ -221,6 +225,7 @@ export default function ReservationConfirmScreen() {
         gratuityPercent,
         bookingMode: isHourly ? "hourly" : "distance",
         hourlyDuration: isHourly ? hourlyDuration : undefined,
+        meetGreet: meetGreet || undefined,
       });
       if (!res.success || !res.promoCode || !(res.discountAmount && res.discountAmount > 0)) {
         setAppliedPromoCode(null);
@@ -298,6 +303,7 @@ export default function ReservationConfirmScreen() {
             gratuityPercent,
             bookingMode: isHourly ? "hourly" : "distance",
             hourlyDuration: isHourly ? hourlyDuration : undefined,
+            meetGreet: meetGreet || undefined,
           });
           if (res.success && res.promoCode && res.discountAmount && res.discountAmount > 0) {
             setAppliedPromoCode(res.promoCode);
@@ -388,6 +394,7 @@ export default function ReservationConfirmScreen() {
           email: draft.email,
           bookingMode: isHourly ? "hourly" : "distance",
           hourlyDuration: isHourly ? hourlyDuration : undefined,
+          meetGreet: meetGreet || undefined,
           promoCode: useReferralCredit ? undefined : appliedPromoCode || undefined,
           useReferralCredit: useReferralCredit || undefined,
         });
@@ -460,6 +467,10 @@ export default function ReservationConfirmScreen() {
         gratuityPercent: fare.gratuityPercent,
         bookingMode: isHourly ? "hourly" : "distance",
         hourlyDuration: isHourly ? hourlyDuration : undefined,
+        airline: draft.airline?.trim() || undefined,
+        flightNumber: draft.flightNumber?.trim() || undefined,
+        flightNote: draft.flightNote?.trim() || undefined,
+        meetGreet: meetGreet || undefined,
         specialRequirements,
         firstName: draft.firstName,
         lastName: draft.lastName,
@@ -691,6 +702,27 @@ export default function ReservationConfirmScreen() {
                 </View>
               </View>
             ) : null}
+            {!isParcel && (draft.airline || draft.flightNumber) ? (
+              <View style={styles.metaItem}>
+                <Ionicons name="airplane-outline" size={15} color={palette.muted} />
+                <View style={styles.metaTextWrap}>
+                  <Text style={styles.metaLabel}>Flight</Text>
+                  <Text style={styles.metaValue} numberOfLines={2}>
+                    {[draft.airline, draft.flightNumber].filter(Boolean).join(" · ")}
+                    {draft.flightNote ? ` · ${draft.flightNote}` : ""}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+            {!isParcel && meetGreet ? (
+              <View style={styles.metaItem}>
+                <Ionicons name="hand-left-outline" size={15} color={palette.muted} />
+                <View style={styles.metaTextWrap}>
+                  <Text style={styles.metaLabel}>Meet & Greet</Text>
+                  <Text style={styles.metaValue}>Yes</Text>
+                </View>
+              </View>
+            ) : null}
           </View>
 
           {!isHourly && (draft.distanceText || draft.durationText) ? (
@@ -774,6 +806,12 @@ export default function ReservationConfirmScreen() {
                 <View style={styles.fareRow}>
                   <Text style={styles.fareLabel}>Airport pickup fee</Text>
                   <Text style={styles.fareValue}>${fare.airportPickupFee.toFixed(2)}</Text>
+                </View>
+              ) : null}
+              {(fare.meetGreetCharge || 0) > 0 ? (
+                <View style={styles.fareRow}>
+                  <Text style={styles.fareLabel}>Meet & Greet</Text>
+                  <Text style={styles.fareValue}>${fare.meetGreetCharge.toFixed(2)}</Text>
                 </View>
               ) : null}
               <View style={styles.fareRow}>

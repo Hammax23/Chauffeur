@@ -87,6 +87,7 @@ export function calculateAppDistanceFare(input: {
   gratuityPercent?: number;
   airportPickup?: boolean;
   pickupLocation?: string;
+  meetGreet?: boolean;
 }): ReservationPricingResult | null {
   const meters = Number(input.distanceMeters) || 0;
   if (meters <= 0) return null;
@@ -113,7 +114,8 @@ export function calculateAppDistanceFare(input: {
     input.airportPickup === true || isAirportPickupLocation(input.pickupLocation)
       ? AIRPORT_PICKUP_FEE
       : 0;
-  const subtotal = rideFare + stopCharge + childSeatCharge + airportPickupFee;
+  const meetGreetCharge = input.meetGreet === true ? MEET_GREET_CHARGE : 0;
+  const subtotal = rideFare + stopCharge + childSeatCharge + airportPickupFee + meetGreetCharge;
   const hst = subtotal * HST_RATE;
 
   let gratuityPercent = Number(input.gratuityPercent);
@@ -134,7 +136,7 @@ export function calculateAppDistanceFare(input: {
     rideFare,
     stopCharge,
     childSeatCharge,
-    meetGreetCharge: 0,
+    meetGreetCharge,
     bouquetCharge: 0,
     airportPickupFee,
     subtotal,
@@ -156,6 +158,7 @@ export function calculateAppHourlyFare(input: {
   gratuityPercent?: number;
   airportPickup?: boolean;
   pickupLocation?: string;
+  meetGreet?: boolean;
 }): ReservationPricingResult | null {
   const hours = Math.floor(Number(input.hours) || 0);
   const rate = Number(input.hourlyRate) || 0;
@@ -169,7 +172,8 @@ export function calculateAppHourlyFare(input: {
     input.airportPickup === true || isAirportPickupLocation(input.pickupLocation)
       ? AIRPORT_PICKUP_FEE
       : 0;
-  const subtotal = rideFare + stopCharge + childSeatCharge + airportPickupFee;
+  const meetGreetCharge = input.meetGreet === true ? MEET_GREET_CHARGE : 0;
+  const subtotal = rideFare + stopCharge + childSeatCharge + airportPickupFee + meetGreetCharge;
   const hst = subtotal * HST_RATE;
 
   let gratuityPercent = Number(input.gratuityPercent);
@@ -190,7 +194,7 @@ export function calculateAppHourlyFare(input: {
     rideFare,
     stopCharge,
     childSeatCharge,
-    meetGreetCharge: 0,
+    meetGreetCharge,
     bouquetCharge: 0,
     airportPickupFee,
     subtotal,

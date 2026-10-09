@@ -45,6 +45,10 @@ export interface GooglePlacesAddressFieldProps {
   maxPanelHeight?: number;
   /** Tighter input padding for dense layouts. */
   compact?: boolean;
+  /** Restrict autocomplete to airports (server supports `airport` only). */
+  placeTypes?: "airport";
+  /** Omit Canada-only filter — used with airport composer (Uber-style). */
+  worldwide?: boolean;
 }
 
 export function GooglePlacesAddressField({
@@ -57,6 +61,8 @@ export function GooglePlacesAddressField({
   autoFocus,
   maxPanelHeight = 260,
   compact = false,
+  placeTypes,
+  worldwide = false,
 }: GooglePlacesAddressFieldProps) {
   const theme = useOptionalCustomerTheme();
   const palette = theme?.palette ?? FALLBACK_PALETTE;
@@ -84,29 +90,35 @@ export function GooglePlacesAddressField({
     abortRef.current = null;
   };
 
-  const runAutocomplete = useCallback(async (text: string) => {
-    const q = text.trim();
-    if (q.length < 2) {
-      setPredictions([]);
-      setLoading(false);
-      return;
-    }
-    cancelInFlight();
-    const ac = new AbortController();
-    abortRef.current = ac;
-    setLoading(true);
-    setBanner(null);
-    try {
-      const list = await fetchPlacePredictions(q, sessionRef.current, ac.signal);
-      setPredictions(list);
-    } catch (e) {
-      if ((e as Error).name === "AbortError") return;
-      setPredictions([]);
-      setBanner(e instanceof Error ? e.message : "Suggestions unavailable");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const runAutocomplete = useCallback(
+    async (text: string) => {
+      const q = text.trim();
+      if (q.length < 2) {
+        setPredictions([]);
+        setLoading(false);
+        return;
+      }
+      cancelInFlight();
+      const ac = new AbortController();
+      abortRef.current = ac;
+      setLoading(true);
+      setBanner(null);
+      try {
+        const list = await fetchPlacePredictions(q, sessionRef.current, ac.signal, {
+          types: placeTypes,
+          worldwide,
+        });
+        setPredictions(list);
+      } catch (e) {
+        if ((e as Error).name === "AbortError") return;
+        setPredictions([]);
+        setBanner(e instanceof Error ? e.message : "Suggestions unavailable");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [placeTypes, worldwide]
+  );
 
   useEffect(() => {
     return () => {

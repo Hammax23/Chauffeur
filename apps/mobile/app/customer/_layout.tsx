@@ -72,6 +72,7 @@ export default function CustomerLayout() {
             name="plan-ride"
             options={{ animation: "slide_from_right" }}
           />
+          <Stack.Screen name="airport-transfer" />
           <Stack.Screen name="create-reservation" />
           <Stack.Screen name="reservation-confirm" />
           <Stack.Screen name="reservation-pending" />
