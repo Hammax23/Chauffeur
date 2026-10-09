@@ -437,6 +437,13 @@ export default function CustomerProfileScreen() {
           ) : null}
           <MenuGroup {...groupCommon}>
             <MenuRow
+              label="Saved places"
+              icon="location-outline"
+              onPress={() => router.push("/customer/saved-places")}
+              showDivider
+              {...rowCommon}
+            />
+            <MenuRow
               label="Payment methods"
               icon="wallet-outline"
               onPress={() => router.push("/customer/payment-methods")}

@@ -962,6 +962,50 @@ export async function updateProfile(params: {
   return data;
 }
 
+// ==================== SAVED PLACES API ====================
+
+export type SavedPlaceKind = "HOME" | "OFFICE";
+
+export interface SavedPlaceDTO {
+  kind: SavedPlaceKind;
+  address: string;
+  lat: number | null;
+  lng: number | null;
+}
+
+export async function getSavedPlaces() {
+  return apiRequest<{ success: boolean; places: SavedPlaceDTO[] }>(
+    "/customer/saved-places"
+  );
+}
+
+export async function upsertSavedPlace(params: {
+  kind: SavedPlaceKind;
+  address: string;
+  lat?: number | null;
+  lng?: number | null;
+}) {
+  return apiRequest<{ success: boolean; place: SavedPlaceDTO; error?: string }>(
+    "/customer/saved-places",
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        kind: params.kind,
+        address: params.address,
+        lat: typeof params.lat === "number" ? params.lat : undefined,
+        lng: typeof params.lng === "number" ? params.lng : undefined,
+      }),
+    }
+  );
+}
+
+export async function deleteSavedPlace(kind: SavedPlaceKind) {
+  return apiRequest<{ success: boolean; error?: string }>(
+    `/customer/saved-places?kind=${encodeURIComponent(kind)}`,
+    { method: "DELETE" }
+  );
+}
+
 /** Authenticated phone OTP (OAuth / incomplete profile). */
 export async function sendCustomerPhoneOtp(phone: string) {
   return apiRequestWithResponse<{

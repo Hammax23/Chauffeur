@@ -565,7 +565,7 @@ export default function CreateReservationScreen() {
     }
   }, [params.pickup, params.pickupLat, params.pickupLng]);
 
-  // Prefill drop-off from Home trip editor
+  // Prefill drop-off from Home trip editor / quick places
   useEffect(() => {
     const raw = params.dropoff;
     const dropoff = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : "";

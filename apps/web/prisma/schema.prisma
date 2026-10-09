@@ -261,6 +261,7 @@ model Customer {
   reservations         Reservation[]
   tripReviews          TripReview[]
   supportTickets       SupportTicket[]
+  savedPlaces          CustomerSavedPlace[]
   promotionRedemptions PromotionRedemption[]
   referredBy           Customer?   @relation("CustomerReferrals", fields: [referredByCustomerId], references: [id], onDelete: SetNull)
   referralsMade        Customer[]  @relation("CustomerReferrals")
@@ -274,6 +275,23 @@ model Customer {
   @@index([registrationSource])
   @@index([referredByCustomerId])
   @@index([outstandingBalance])
+}
+
+/// Customer saved destinations (Home / Office) for one-tap booking — synced across devices.
+model CustomerSavedPlace {
+  id         String   @id @default(cuid())
+  customerId String
+  /// HOME | OFFICE
+  kind       String
+  address    String
+  lat        Float?
+  lng        Float?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, kind])
+  @@index([customerId])
 }
 
 /// In-app Contact Us / support messages from the customer mobile app.
