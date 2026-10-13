@@ -81,6 +81,33 @@ export async function GET(req: NextRequest) {
     });
   } catch (e: unknown) {
     console.error("[customer payment-methods GET]", e);
+    const code =
+      e && typeof e === "object" && "code" in e
+        ? String((e as { code?: string }).code)
+        : "";
+    if (code === "P2024") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Server is busy. Please wait a moment and try again.",
+        },
+        { status: 503 }
+      );
+    }
+    const stripeMsg =
+      e && typeof e === "object" && "message" in e
+        ? String((e as { message?: string }).message)
+        : "";
+    // Live Stripe customer id + test secret (or reverse) — clearest recovery path.
+    if (/no such customer/i.test(stripeMsg)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Payment profile needs refresh. Pull to refresh or re-open this screen.",
+        },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { success: false, error: "Could not load payment methods." },
       { status: 500 }

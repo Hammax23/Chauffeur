@@ -8,21 +8,13 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import {
   getCustomerPaymentMethods,
   type SavedPaymentMethod,
 } from "../services/api";
 import { GOLD } from "../theme/driver-theme";
-
-function brandLabel(brand: string) {
-  const b = brand.toLowerCase();
-  if (b === "visa") return "Visa";
-  if (b === "mastercard") return "Mastercard";
-  if (b === "amex") return "Amex";
-  if (b === "discover") return "Discover";
-  return brand ? brand.charAt(0).toUpperCase() + brand.slice(1) : "Card";
-}
+import { SavedCardPicker } from "./SavedCardPicker";
+import { router } from "expo-router";
 
 type Props = {
   visible: boolean;
@@ -98,51 +90,21 @@ export function PayOutstandingSheet({
             Charge ${amount.toFixed(2)} CAD to a saved card
           </Text>
 
-          {loading ? (
-            <View style={styles.center}>
-              <ActivityIndicator color={GOLD} />
-            </View>
-          ) : error ? (
-            <Text style={styles.err}>{error}</Text>
-          ) : cards.length === 0 ? (
-            <Text style={[styles.empty, { color: mutedColor }]}>
-              No saved cards. Add a card under Payment methods, then try again.
-            </Text>
-          ) : (
-            <View style={styles.list}>
-              {cards.map((c) => {
-                const selected = selectedId === c.id;
-                return (
-                  <Pressable
-                    key={c.id}
-                    style={[
-                      styles.cardRow,
-                      selected && { borderColor: GOLD, backgroundColor: "rgba(201,160,99,0.08)" },
-                    ]}
-                    onPress={() => setSelectedId(c.id)}
-                    disabled={!!busy}
-                  >
-                    <Ionicons
-                      name={selected ? "radio-button-on" : "radio-button-off"}
-                      size={22}
-                      color={selected ? GOLD : mutedColor}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.cardTitle, { color: textColor }]}>
-                        {brandLabel(c.brand)} ···· {c.last4}
-                        {c.isDefault ? "  · Default" : ""}
-                      </Text>
-                      {c.expMonth && c.expYear ? (
-                        <Text style={[styles.cardMeta, { color: mutedColor }]}>
-                          Exp {String(c.expMonth).padStart(2, "0")}/{c.expYear}
-                        </Text>
-                      ) : null}
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
+          <SavedCardPicker
+            cards={cards}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onAddCard={() => {
+              onClose();
+              router.push("/customer/payment-methods");
+            }}
+            loading={loading}
+            disabled={!!busy}
+            error={error}
+            textColor={textColor}
+            mutedColor={mutedColor}
+            borderColor="rgba(0,0,0,0.08)"
+          />
 
           <View style={styles.actions}>
             <Pressable
@@ -194,23 +156,7 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 18, fontWeight: "700", marginBottom: 4 },
   sub: { fontSize: 14, marginBottom: 16 },
-  center: { paddingVertical: 28, alignItems: "center" },
-  err: { color: "#DC2626", marginBottom: 12 },
-  empty: { fontSize: 14, lineHeight: 20, marginBottom: 12 },
-  list: { gap: 8, marginBottom: 16 },
-  cardRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: "rgba(0,0,0,0.08)",
-  },
-  cardTitle: { fontSize: 15, fontWeight: "600" },
-  cardMeta: { fontSize: 12, marginTop: 2 },
-  actions: { flexDirection: "row", gap: 10 },
+  actions: { flexDirection: "row", gap: 10, marginTop: 16 },
   btnGhost: {
     flex: 1,
     paddingVertical: 14,

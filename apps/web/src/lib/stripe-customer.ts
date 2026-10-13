@@ -19,6 +19,7 @@ export type AppCustomerForStripe = {
 
 /**
  * Ensure the app Customer has a durable Stripe Customer id (for PaymentSheet + saved cards).
+ * Clears stale ids when switching Stripe mode (live cus_… vs test sk_test).
  */
 export async function ensureStripeCustomer(
   customer: AppCustomerForStripe,
@@ -30,8 +31,15 @@ export async function ensureStripeCustomer(
       if (!("deleted" in existing && existing.deleted)) {
         return customer.stripeCustomerId;
       }
-    } catch {
-      // Stale / missing id — recreate below
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Wrong mode / deleted — wipe and create under current secret key.
+      if (/no such customer|resource_missing/i.test(msg)) {
+        await prisma.customer.update({
+          where: { id: customer.id },
+          data: { stripeCustomerId: null },
+        });
+      }
     }
   }
 

@@ -43,6 +43,36 @@ function roundMoney(n: number): number {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
 
+/** Scale a unit-vehicle fare for N identical cars on the same trip. */
+export function scaleFareForVehicleCount(
+  fare: AppFareResult,
+  vehicleCount: number
+): AppFareResult {
+  const n = Math.max(1, Math.min(5, Math.floor(Number(vehicleCount) || 1)));
+  if (n <= 1) return fare;
+  const mul = (x: number) => roundMoney(x * n);
+  return {
+    ...fare,
+    rideFare: mul(fare.rideFare),
+    stopCharge: mul(fare.stopCharge),
+    childSeatCharge: mul(fare.childSeatCharge),
+    airportPickupFee: mul(fare.airportPickupFee),
+    meetGreetCharge: mul(fare.meetGreetCharge),
+    subtotal: mul(fare.subtotal),
+    hst: mul(fare.hst),
+    gratuity: mul(fare.gratuity),
+    total: mul(fare.total),
+    discountAmount:
+      fare.discountAmount != null ? mul(fare.discountAmount) : fare.discountAmount,
+  };
+}
+
+export function parseVehicleCount(raw?: string | number | null): number {
+  const n = typeof raw === "number" ? raw : parseInt(String(raw || "1"), 10);
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return Math.min(5, Math.floor(n));
+}
+
 /**
  * Apply promo discount to an existing fare (mirrors server promotions.ts).
  * Discount off subtotal; HST on discounted amount; tip stays on original subtotal.

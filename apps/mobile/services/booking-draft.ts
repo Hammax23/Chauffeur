@@ -1,4 +1,5 @@
 import * as SecureStore from "expo-secure-store";
+import type { RidePrefs } from "../utils/ride-prefs";
 
 /**
  * Booking draft between create → confirm. Avoids putting PII in Expo Router params.
@@ -22,6 +23,8 @@ export type BookingDraft = {
   vehicleId: string;
   vehicleSubtitle: string;
   vehiclePrice: string;
+  /** Same-type units for this trip (default 1). */
+  vehicleCount?: string;
   rideFare: string;
   pricePerKm: string;
   hourlyRate: string;
@@ -57,6 +60,8 @@ export type BookingDraft = {
   flightNote?: string;
   /** "1" when Meet & Greet selected */
   meetGreet?: string;
+  /** Uber-style ride preferences (Confirm sheet). */
+  ridePrefs?: RidePrefs;
 };
 
 export async function saveBookingDraft(draft: BookingDraft): Promise<void> {

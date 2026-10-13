@@ -42,6 +42,7 @@ import {
   findTierById,
   formatTierDisplayTitle,
   getTierCapacity,
+  getTierLuggage,
   getTierSubtitle,
   resolveTierIdFromFleetVehicleId,
   type VehicleTierOption,
@@ -49,6 +50,7 @@ import {
 import {
   calculateAppDistanceFare,
   calculateAppHourlyFare,
+  parseVehicleCount,
   APP_DEFAULT_GRATUITY_PERCENT,
   APP_HOURLY_DURATIONS,
   APP_MIN_HOURLY_HOURS,
@@ -327,6 +329,8 @@ export default function CreateReservationScreen() {
   const [fleetLoading, setFleetLoading] = useState(true);
   const [fleetError, setFleetError] = useState("");
   const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
+  /** Same-type cars on this trip (Add another vehicle). */
+  const [vehicleCount, setVehicleCount] = useState(1);
   const [showTierDropdown, setShowTierDropdown] = useState(false);
   const isParcel = isParcelServiceType(serviceType);
   const isHourly = !isParcel && bookingMode === "hourly";
@@ -845,15 +849,20 @@ export default function CreateReservationScreen() {
     meetGreet,
   ]);
 
-  const maxPassengers = useMemo(
+  const maxPassengersPerVehicle = useMemo(
     () => parseMaxPassengers(selectedTier?.seating) ?? 8,
     [selectedTier]
   );
+  const maxPassengers = maxPassengersPerVehicle * Math.max(1, vehicleCount);
 
   useEffect(() => {
     setPassengersCount((n) => Math.min(Math.max(n, 1), maxPassengers));
     setChildSeatCount((n) => Math.min(n, maxPassengers));
   }, [maxPassengers]);
+
+  useEffect(() => {
+    setVehicleCount(1);
+  }, [selectedTierId]);
 
   /** Per-tier ride fare for the list (Uber-style price on the right). */
   const tierFareById = useMemo(() => {
@@ -1039,14 +1048,16 @@ export default function CreateReservationScreen() {
       if (passengersCount > maxPassengers) {
         Alert.alert(
           "Too many passengers",
-          `This vehicle seats up to ${maxPassengers} passengers.`
+          vehicleCount > 1
+            ? `${vehicleCount} vehicles seat up to ${maxPassengers} passengers total.`
+            : `This vehicle seats up to ${maxPassengers} passengers.`
         );
         return;
       }
       if (childSeatCount > maxPassengers) {
         Alert.alert(
           "Child seats",
-          `This vehicle allows up to ${maxPassengers} child seats.`
+          `This booking allows up to ${maxPassengers} child seats.`
         );
         return;
       }
@@ -1110,7 +1121,10 @@ export default function CreateReservationScreen() {
         : selectedTier!.hourlyRate > 0
           ? `From $${selectedTier!.hourlyRate.toFixed(2)}`
           : `$${selectedTier!.pricePerKm.toFixed(2)}/km`,
-      rideFare: String(fareEstimate!.rideFare ?? 0),
+      vehicleCount: String(parseVehicleCount(isParcel ? 1 : vehicleCount)),
+      rideFare: String(
+        (fareEstimate!.rideFare ?? 0) * parseVehicleCount(isParcel ? 1 : vehicleCount)
+      ),
       pricePerKm: String(selectedTier!.pricePerKm),
       hourlyRate: String(selectedTier!.hourlyRate),
       baseDistanceKm: String(selectedTier!.baseDistanceKm || distancePricing.baseDistanceKm),
@@ -1328,7 +1342,10 @@ export default function CreateReservationScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingBottom: keyboardVisible ? 32 : 120,
+            // Only clear the sticky CTA — old 120px left a big empty strip when scrolled to end.
+            paddingBottom: keyboardVisible
+              ? 24
+              : 72 + Math.max(insets.bottom, 10),
             // Pull sheet up under the map fade so chips sit tight above Ride Details.
             paddingTop: showRouteHero ? mapPlaneH - 88 : 0,
           },
@@ -1608,7 +1625,7 @@ export default function CreateReservationScreen() {
                   style={styles.textInput}
                   value={flightNumber}
                   onChangeText={setFlightNumber}
-                  placeholder="Flight number"
+                  placeholder="Flight/Trail number"
                   placeholderTextColor={palette.muted}
                   autoCapitalize="characters"
                   onFocus={onFormFieldFocus}
@@ -1811,7 +1828,7 @@ export default function CreateReservationScreen() {
                 onPress={() =>
                   !isParcel &&
                   vehicleTiers.length > 1 &&
-                  setShowTierDropdown(!showTierDropdown)
+                  setShowTierDropdown(true)
                 }
                 disabled={isParcel || vehicleTiers.length <= 1}
                 activeOpacity={isParcel || vehicleTiers.length <= 1 ? 1 : 0.85}
@@ -1826,11 +1843,22 @@ export default function CreateReservationScreen() {
                     <Text style={styles.carName} numberOfLines={2}>
                       {formatTierDisplayTitle(selectedTier.title)}
                     </Text>
-                    <View style={styles.capacityInline} accessibilityLabel={`${getTierCapacity(selectedTier)} passengers`}>
-                      <Ionicons name="person" size={13} color={palette.muted} />
-                      <Text style={styles.capacityInlineText}>
-                        {getTierCapacity(selectedTier)}
-                      </Text>
+                    <View
+                      style={styles.capacityBadges}
+                      accessibilityLabel={`${getTierCapacity(selectedTier)} passengers, ${getTierLuggage(selectedTier)} luggage`}
+                    >
+                      <View style={styles.capacityInline}>
+                        <Ionicons name="person" size={13} color={palette.muted} />
+                        <Text style={styles.capacityInlineText}>
+                          {getTierCapacity(selectedTier)}
+                        </Text>
+                      </View>
+                      <View style={styles.capacityInline}>
+                        <Ionicons name="briefcase" size={13} color={palette.muted} />
+                        <Text style={styles.capacityInlineText}>
+                          {getTierLuggage(selectedTier)}
+                        </Text>
+                      </View>
                     </View>
                   </View>
                   {(() => {
@@ -1849,7 +1877,11 @@ export default function CreateReservationScreen() {
                 <View style={styles.carSelectorTrailing}>
                   {tierFareById[selectedTier.id] != null ? (
                     <Text style={styles.carPriceText} numberOfLines={1}>
-                      ${tierFareById[selectedTier.id].toFixed(0)}
+                      $
+                      {(
+                        tierFareById[selectedTier.id] *
+                        parseVehicleCount(isParcel ? 1 : vehicleCount)
+                      ).toFixed(0)}
                     </Text>
                   ) : (
                     <Text style={styles.carPriceText} numberOfLines={1}>
@@ -1863,7 +1895,7 @@ export default function CreateReservationScreen() {
                   {vehicleTiers.length > 1 ? (
                     <View style={styles.carChevronWrap}>
                       <Ionicons
-                        name={showTierDropdown ? "chevron-up" : "chevron-down"}
+                        name="chevron-forward"
                         size={18}
                         color={palette.text}
                       />
@@ -1872,120 +1904,200 @@ export default function CreateReservationScreen() {
                 </View>
               </TouchableOpacity>
 
-              {showTierDropdown && vehicleTiers.length > 1 ? (
-                <ScrollView
-                  style={styles.carDropdownList}
-                  nestedScrollEnabled
-                  keyboardShouldPersistTaps="handled"
-                  showsVerticalScrollIndicator
-                >
-                  {vehicleTiers.map((tier) => {
-                    const selected = selectedTierId === tier.id;
-                    const tierFare = tierFareById[tier.id];
-                    const tierLine = getTierSubtitle(
-                      tier.id,
-                      tier.subtitle,
-                      tier.description
-                    );
-                    return (
-                      <TouchableOpacity
-                        key={tier.id}
-                        style={[
-                          styles.carDropdownItem,
-                          selected && styles.carDropdownItemActive,
+              {!isParcel ? (
+                <View style={styles.vehicleCountBlock}>
+                  {vehicleCount > 1 ? (
+                    <View style={styles.vehicleCountSummary}>
+                      <Text style={styles.vehicleCountSummaryText}>
+                        {formatTierDisplayTitle(selectedTier.title)} × {vehicleCount}
+                      </Text>
+                      <Pressable
+                        onPress={() => setVehicleCount((n) => Math.max(1, n - 1))}
+                        hitSlop={8}
+                        style={({ pressed }) => [
+                          styles.vehicleCountRemove,
+                          pressed && { opacity: 0.7 },
                         ]}
-                        onPress={() => {
-                          setSelectedTierId(tier.id);
-                          setShowTierDropdown(false);
-                        }}
-                        activeOpacity={0.85}
+                        accessibilityLabel="Remove one vehicle"
                       >
-                        <Image
-                          source={{ uri: tier.imageUrl }}
-                          style={styles.carDropdownThumb}
-                          resizeMode="contain"
-                        />
-                        <View style={styles.carDropdownCopy}>
-                          <View style={styles.carTitleRow}>
-                            <Text
-                              style={[
-                                styles.carDropdownName,
-                                selected && styles.carDropdownNameActive,
-                              ]}
-                              numberOfLines={2}
-                            >
-                              {formatTierDisplayTitle(tier.title)}
-                            </Text>
-                            <View
-                              style={styles.capacityInline}
-                              accessibilityLabel={`${getTierCapacity(tier)} passengers`}
-                            >
-                              <Ionicons
-                                name="person"
-                                size={13}
-                                color={selected ? (isDark ? GOLD : "#8B6914") : palette.muted}
-                              />
+                        <Text style={styles.vehicleCountRemoveText}>Remove one</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
+                  {vehicleCount < 5 ? (
+                    <Pressable
+                      onPress={() => setVehicleCount((n) => Math.min(5, n + 1))}
+                      style={({ pressed }) => [
+                        styles.vehicleCountAdd,
+                        {
+                          backgroundColor: isDark
+                            ? "rgba(255,255,255,0.06)"
+                            : "#F3EFE7",
+                          borderColor: isDark
+                            ? "rgba(255,255,255,0.1)"
+                            : "rgba(0,0,0,0.06)",
+                        },
+                        pressed && { opacity: 0.85 },
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Add another vehicle"
+                    >
+                      <Ionicons name="add-circle-outline" size={18} color={GOLD} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={[styles.vehicleCountAddTitle, { color: palette.text }]}>
+                          Need another vehicle?
+                        </Text>
+                        <Text style={[styles.vehicleCountAddSub, { color: palette.muted }]}>
+                          Add another {formatTierDisplayTitle(selectedTier.title)}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
+
+              <Modal
+                visible={showTierDropdown && vehicleTiers.length > 1}
+                animationType="slide"
+                presentationStyle="fullScreen"
+                onRequestClose={() => setShowTierDropdown(false)}
+              >
+                <View
+                  style={[
+                    styles.carPickerRoot,
+                    { backgroundColor: isDark ? palette.root : "#F7F4EF" },
+                  ]}
+                >
+                  <SafeAreaView style={styles.carPickerSafe} edges={["bottom"]}>
+                    <View
+                      style={[
+                        styles.carPickerHeader,
+                        // Full-screen Modal often reports 0 top inset via SafeAreaView alone.
+                        { paddingTop: Math.max(insets.top, 12) },
+                      ]}
+                    >
+                      <TouchableOpacity
+                        onPress={() => setShowTierDropdown(false)}
+                        hitSlop={12}
+                        style={styles.carPickerCloseBtn}
+                        accessibilityLabel="Close"
+                      >
+                        <Ionicons name="close" size={24} color={palette.text} />
+                      </TouchableOpacity>
+                      <Text style={[styles.carPickerTitle, { color: palette.text }]}>
+                        Select Car
+                      </Text>
+                      <View style={{ width: 40 }} />
+                    </View>
+                    <ScrollView
+                      contentContainerStyle={styles.carPickerList}
+                      keyboardShouldPersistTaps="handled"
+                      showsVerticalScrollIndicator
+                    >
+                      {vehicleTiers.map((tier) => {
+                        const selected = selectedTierId === tier.id;
+                        const tierFare = tierFareById[tier.id];
+                        const tierLine = getTierSubtitle(
+                          tier.id,
+                          tier.subtitle,
+                          tier.description
+                        );
+                        return (
+                          <TouchableOpacity
+                            key={tier.id}
+                            style={[
+                              styles.carPickerCard,
+                              {
+                                backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "#FFFFFF",
+                                borderColor: selected
+                                  ? GOLD
+                                  : isDark
+                                    ? "rgba(255,255,255,0.1)"
+                                    : "rgba(0,0,0,0.06)",
+                              },
+                              selected && styles.carPickerCardSelected,
+                            ]}
+                            onPress={() => {
+                              setSelectedTierId(tier.id);
+                              setShowTierDropdown(false);
+                            }}
+                            activeOpacity={0.88}
+                          >
+                            <Image
+                              source={{ uri: tier.imageUrl }}
+                              style={styles.carPickerThumb}
+                              resizeMode="contain"
+                            />
+                            <View style={styles.carPickerCopy}>
+                              <View style={styles.carTitleRow}>
+                                <Text
+                                  style={[styles.carPickerName, { color: palette.text }]}
+                                  numberOfLines={2}
+                                >
+                                  {formatTierDisplayTitle(tier.title)}
+                                </Text>
+                                <View
+                                  style={styles.capacityBadges}
+                                  accessibilityLabel={`${getTierCapacity(tier)} passengers, ${getTierLuggage(tier)} luggage`}
+                                >
+                                  <View style={styles.capacityInline}>
+                                    <Ionicons name="person" size={13} color={palette.muted} />
+                                    <Text style={styles.capacityInlineText}>
+                                      {getTierCapacity(tier)}
+                                    </Text>
+                                  </View>
+                                  <View style={styles.capacityInline}>
+                                    <Ionicons name="briefcase" size={13} color={palette.muted} />
+                                    <Text style={styles.capacityInlineText}>
+                                      {getTierLuggage(tier)}
+                                    </Text>
+                                  </View>
+                                </View>
+                              </View>
+                              {tierLine ? (
+                                <Text
+                                  style={[styles.carPickerSub, { color: palette.muted }]}
+                                  numberOfLines={2}
+                                >
+                                  {tierLine}
+                                </Text>
+                              ) : null}
+                            </View>
+                            <View style={styles.carPickerMeta}>
                               <Text
+                                style={[styles.carPickerPrice, { color: palette.text }]}
+                                numberOfLines={1}
+                              >
+                                {tierFare != null
+                                  ? `$${tierFare.toFixed(0)}`
+                                  : tier.hourlyRate > 0
+                                    ? isHourly
+                                      ? `$${tier.hourlyRate.toFixed(0)}/hr`
+                                      : `$${tier.hourlyRate.toFixed(0)}`
+                                    : `$${tier.pricePerKm.toFixed(2)}`}
+                              </Text>
+                              <View
                                 style={[
-                                  styles.capacityInlineText,
-                                  selected && {
-                                    color: isDark ? GOLD : "#8B6914",
-                                  },
+                                  styles.carRadio,
+                                  selected && styles.carRadioSelected,
                                 ]}
                               >
-                                {getTierCapacity(tier)}
-                              </Text>
+                                {selected ? (
+                                  <Ionicons
+                                    name="checkmark"
+                                    size={12}
+                                    color={isDark ? "#1A1208" : "#fff"}
+                                  />
+                                ) : null}
+                              </View>
                             </View>
-                          </View>
-                          {tierLine ? (
-                            <Text
-                              style={[
-                                styles.tierDropdownSubtitle,
-                                selected &&
-                                  !isDark && { color: "rgba(26,21,16,0.55)" },
-                              ]}
-                              numberOfLines={2}
-                            >
-                              {tierLine}
-                            </Text>
-                          ) : null}
-                        </View>
-                        <View style={styles.carDropdownPriceCol}>
-                          <Text
-                            style={[
-                              styles.carDropdownPrice,
-                              selected && styles.carDropdownPriceActive,
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {tierFare != null
-                              ? `$${tierFare.toFixed(0)}`
-                              : tier.hourlyRate > 0
-                                ? isHourly
-                                  ? `$${tier.hourlyRate.toFixed(0)}/hr`
-                                  : `$${tier.hourlyRate.toFixed(0)}`
-                                : `$${tier.pricePerKm.toFixed(2)}`}
-                          </Text>
-                          <View
-                            style={[
-                              styles.carRadio,
-                              selected && styles.carRadioSelected,
-                            ]}
-                          >
-                            {selected ? (
-                              <Ionicons
-                                name="checkmark"
-                                size={12}
-                                color={isDark ? "#1A1208" : "#fff"}
-                              />
-                            ) : null}
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              ) : null}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  </SafeAreaView>
+                </View>
+              </Modal>
             </>
           ) : (
             <Text style={styles.fleetErrorText}>
@@ -2308,12 +2420,16 @@ export default function CreateReservationScreen() {
           )}
         </View>
 
-        <View style={{ height: 24 }} />
       </ScrollView>
 
       {/* Continue — hide while typing so keyboard never covers the active field */}
       {!keyboardVisible ? (
-        <View style={styles.bottomContainer}>
+        <View
+          style={[
+            styles.bottomContainer,
+            { paddingBottom: Math.max(insets.bottom, 10) + 8 },
+          ]}
+        >
           <TouchableOpacity
             style={[styles.continueBtn, continueDisabled && styles.continueBtnDisabled]}
             activeOpacity={0.9}
@@ -3270,16 +3386,21 @@ function makeStyles(palette: DriverPalette, isDark: boolean) {
   },
   carTitleRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 6,
+    alignItems: "center",
+    gap: 8,
     flexWrap: "nowrap",
+  },
+  capacityBadges: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 0,
   },
   capacityInline: {
     flexDirection: "row",
     alignItems: "center",
     gap: 2,
     flexShrink: 0,
-    marginTop: 2,
   },
   capacityInlineText: {
     fontSize: 13,
@@ -3303,8 +3424,55 @@ function makeStyles(palette: DriverPalette, isDark: boolean) {
     alignItems: "center",
     justifyContent: "center",
   },
-  carName: {
+  vehicleCountBlock: {
+    marginTop: 10,
+    gap: 8,
+  },
+  vehicleCountSummary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingHorizontal: 4,
+  },
+  vehicleCountSummaryText: {
     flex: 1,
+    minWidth: 0,
+    fontSize: 14,
+    fontWeight: "700",
+    color: palette.text,
+  },
+  vehicleCountRemove: {
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  vehicleCountRemoveText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: palette.muted,
+    textDecorationLine: "underline",
+  },
+  vehicleCountAdd: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  vehicleCountAddTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+  },
+  vehicleCountAddSub: {
+    marginTop: 2,
+    fontSize: 12.5,
+    fontWeight: "500",
+  },
+  carName: {
+    flexShrink: 1,
     minWidth: 0,
     fontSize: 16,
     fontWeight: "700",
@@ -3487,6 +3655,81 @@ function makeStyles(palette: DriverPalette, isDark: boolean) {
   carRadioSelected: {
     borderColor: primaryBtnBg,
     backgroundColor: primaryBtnBg,
+  },
+  carPickerRoot: {
+    flex: 1,
+  },
+  carPickerSafe: {
+    flex: 1,
+  },
+  carPickerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+  },
+  carPickerCloseBtn: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  carPickerTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
+  carPickerList: {
+    paddingHorizontal: 16,
+    paddingBottom: 28,
+    gap: 12,
+  },
+  carPickerCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+  },
+  carPickerCardSelected: {
+    borderWidth: 2,
+  },
+  carPickerThumb: {
+    width: 88,
+    height: 64,
+    backgroundColor: "transparent",
+    flexShrink: 0,
+  },
+  carPickerCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4,
+  },
+  carPickerName: {
+    flexShrink: 1,
+    minWidth: 0,
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+  },
+  carPickerSub: {
+    fontSize: 13,
+    fontWeight: "400",
+    lineHeight: 18,
+  },
+  carPickerMeta: {
+    alignItems: "flex-end",
+    gap: 6,
+    flexShrink: 0,
+    minWidth: 56,
+  },
+  carPickerPrice: {
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: -0.2,
   },
   toggleRow: {
     flexDirection: "row",
@@ -3716,15 +3959,11 @@ function makeStyles(palette: DriverPalette, isDark: boolean) {
     left: 0,
     right: 0,
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
     backgroundColor: isDark ? "rgba(10,9,8,0.94)" : card,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: palette.border,
-    ...Platform.select({
-      ios: {
-        paddingBottom: 30,
-      },
-    }),
   },
   continueBtn: {
     backgroundColor: GOLD,

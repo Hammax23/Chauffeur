@@ -36,6 +36,8 @@ export type AppReservationFareInput = {
   customerId?: unknown;
   /** Apply one-time referral $20 credit (mutually exclusive with promoCode). */
   useReferralCredit?: unknown;
+  /** Same-type vehicle units on one trip (1–5). */
+  vehicleCount?: unknown;
 };
 
 export type { AppFareWithPromo };
@@ -115,6 +117,11 @@ export async function resolveAppReservationFare(
   })();
   const childSeatCount = Number(input.childSeats) || 0;
   const meetGreet = parseMeetGreetFlag(input.meetGreet);
+  const vehicleCount = (() => {
+    const n = Math.floor(Number(input.vehicleCount) || 1);
+    if (!Number.isFinite(n) || n < 1) return 1;
+    return Math.min(5, n);
+  })();
 
   let basePricing: ReservationPricingResult | null = null;
 
@@ -157,6 +164,23 @@ export async function resolveAppReservationFare(
     if (!basePricing) {
       return { error: "Unable to calculate fare" };
     }
+  }
+
+  if (vehicleCount > 1 && basePricing) {
+    const mul = (x: number) => Math.round((x || 0) * vehicleCount * 100) / 100;
+    basePricing = {
+      ...basePricing,
+      rideFare: mul(basePricing.rideFare),
+      stopCharge: mul(basePricing.stopCharge),
+      childSeatCharge: mul(basePricing.childSeatCharge),
+      airportPickupFee: mul(basePricing.airportPickupFee),
+      meetGreetCharge: mul(basePricing.meetGreetCharge),
+      bouquetCharge: mul(basePricing.bouquetCharge),
+      subtotal: mul(basePricing.subtotal),
+      hst: mul(basePricing.hst),
+      gratuity: mul(basePricing.gratuity),
+      total: mul(basePricing.total),
+    };
   }
 
   const useReferral =

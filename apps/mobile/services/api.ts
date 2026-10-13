@@ -1275,6 +1275,8 @@ export async function createReservation(params: {
 export async function createCustomerPaymentIntent(params: {
   vehicle: string;
   vehicleId?: string;
+  /** Same-type vehicles on one trip (1–5). */
+  vehicleCount?: number;
   childSeats?: number;
   pickupLocation: string;
   stops?: string;
@@ -1286,13 +1288,18 @@ export async function createCustomerPaymentIntent(params: {
   meetGreet?: boolean;
   promoCode?: string;
   useReferralCredit?: boolean;
+  /** When set, charge this saved card (Uber-style); omit for PaymentSheet. */
+  paymentMethodId?: string;
 }) {
   return apiRequest<{
     success: boolean;
-    clientSecret: string;
+    /** succeeded | requires_action | requires_payment_method */
+    status?: "succeeded" | "requires_action" | "requires_payment_method";
+    clientSecret?: string;
     paymentIntentId: string;
+    paymentMethodId?: string;
     customerId: string;
-    ephemeralKeySecret: string;
+    ephemeralKeySecret?: string;
     amountCents: number;
     error?: string;
   }>("/customer/create-payment-intent", {
@@ -1305,6 +1312,7 @@ export async function validatePromoCode(params: {
   code: string;
   vehicle: string;
   vehicleId?: string;
+  vehicleCount?: number;
   childSeats?: number;
   pickupLocation: string;
   stops?: string;
@@ -1366,13 +1374,51 @@ export type SavedPaymentMethod = {
   isDefault: boolean;
 };
 
-export async function getCustomerPaymentMethods() {
-  return apiRequest<{
-    success: boolean;
-    customerId?: string;
-    paymentMethods: SavedPaymentMethod[];
-    error?: string;
-  }>("/customer/payment-methods");
+type PaymentMethodsResponse = {
+  success: boolean;
+  customerId?: string;
+  paymentMethods: SavedPaymentMethod[];
+  error?: string;
+};
+
+/** Coalesce parallel GETs — Confirm + wallet focus were exhausting the DB pool. */
+let paymentMethodsInFlight: Promise<PaymentMethodsResponse> | null = null;
+let paymentMethodsCache: { at: number; data: PaymentMethodsResponse } | null = null;
+const PAYMENT_METHODS_CACHE_MS = 4000;
+
+export async function getCustomerPaymentMethods(opts?: {
+  /** Skip short cache (after add/remove/default). */
+  force?: boolean;
+}) {
+  const force = opts?.force === true;
+  const now = Date.now();
+  if (
+    !force &&
+    paymentMethodsCache &&
+    now - paymentMethodsCache.at < PAYMENT_METHODS_CACHE_MS
+  ) {
+    return paymentMethodsCache.data;
+  }
+  if (!force && paymentMethodsInFlight) {
+    return paymentMethodsInFlight;
+  }
+
+  paymentMethodsInFlight = apiRequest<PaymentMethodsResponse>(
+    "/customer/payment-methods"
+  )
+    .then((data) => {
+      paymentMethodsCache = { at: Date.now(), data };
+      return data;
+    })
+    .finally(() => {
+      paymentMethodsInFlight = null;
+    });
+
+  return paymentMethodsInFlight;
+}
+
+export function invalidateCustomerPaymentMethodsCache() {
+  paymentMethodsCache = null;
 }
 
 export async function createCustomerSetupIntent() {

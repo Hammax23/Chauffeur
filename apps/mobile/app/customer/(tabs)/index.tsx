@@ -14,6 +14,8 @@ import {
   Modal,
   Alert,
   KeyboardAvoidingView,
+  TextInput,
+  Keyboard,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
@@ -30,7 +32,12 @@ import {
   type ActiveAppPromotion,
 } from "../../../services/api";
 import { useReservationStream } from "../../../hooks/useReservationStream";
-import { GooglePlacesAddressField } from "../../../components/GooglePlacesAddressField";
+import {
+  GooglePlacesAddressField,
+  PlacesSuggestionsPanel,
+  type GooglePlacesSuggestionsState,
+} from "../../../components/GooglePlacesAddressField";
+import type { PlacePrediction } from "../../../services/places";
 import { GOLD } from "../../../theme/driver-theme";
 import { isParcelServiceType } from "../../../utils/parcel";
 import {
@@ -48,7 +55,7 @@ import {
 import {
   PrimaryRideCard,
   SecondaryParcelRow,
-} from "./homeServiceCards.legacy";
+} from "../../../components/homeServiceCards.legacy";
 
 /** Flip to `"legacy"` to restore Book a Ride / Send a Parcel dual cards. */
 const HOME_SERVICES_STYLE: "concierge" | "legacy" = "concierge";
@@ -68,7 +75,7 @@ const UPCOMING_STATUSES = new Set([
   "BOOKED",
 ]);
 
-type ConciergeServiceId = "ride" | "executive" | "parcel" | "hourly";
+type ConciergeServiceId = "ride" | "airport" | "parcel" | "hourly";
 const DEFAULT_REGION: Region = {
   latitude: 43.6532,
   longitude: -79.3832,
@@ -130,17 +137,15 @@ function greetingLine(name: string) {
   return `${part}, ${name.split(" ")[0]}`;
 }
 
-/** Uber Classic — destination-first hero; tap opens the existing composer. */
+/** Uber-style service tile — cream face, ink icon, label below. */
 function ConciergeServiceTile({
   icon,
   label,
-  selected,
   isDark,
   onPress,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
-  selected: boolean;
   isDark: boolean;
   onPress: () => void;
 }) {
@@ -148,43 +153,91 @@ function ConciergeServiceTile({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityState={{ selected }}
       accessibilityLabel={label}
       style={({ pressed }) => [styles.conciergeTileCol, pressed && { opacity: 0.88 }]}
     >
       <View
         style={[
           styles.conciergeTileFace,
-          selected
-            ? { backgroundColor: isDark ? "#0E0C0A" : CONCIERGE_INK }
-            : {
-                backgroundColor: isDark ? "#1C1813" : "#FFFFFF",
-                borderColor: isDark ? "rgba(181,148,97,0.2)" : "rgba(28,25,22,0.06)",
-                borderWidth: StyleSheet.hairlineWidth,
-              },
+          {
+            backgroundColor: isDark ? "rgba(255,255,255,0.08)" : CONCIERGE_CREAM,
+          },
         ]}
       >
-        <Ionicons name={icon} size={26} color={CONCIERGE_GOLD} />
+        <Ionicons name={icon} size={28} color={isDark ? "#F5F0E8" : CONCIERGE_INK} />
       </View>
       <Text
         style={[
           styles.conciergeTileLabel,
-          {
-            color: selected
-              ? isDark
-                ? "#F5F0E8"
-                : CONCIERGE_INK
-              : isDark
-                ? "rgba(245,240,232,0.72)"
-                : "#3A342E",
-            fontWeight: selected ? "800" : "600",
-          },
+          { color: isDark ? "#F5F0E8" : CONCIERGE_INK },
         ]}
         numberOfLines={1}
       >
         {label}
       </Text>
     </Pressable>
+  );
+}
+
+function ConciergePlaceRow({
+  icon,
+  title,
+  subtitle,
+  isDark,
+  onPress,
+  onLongPress,
+  showDivider,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  subtitle: string;
+  isDark: boolean;
+  onPress: () => void;
+  onLongPress?: () => void;
+  showDivider?: boolean;
+}) {
+  return (
+    <>
+      <Pressable
+        onPress={onPress}
+        onLongPress={onLongPress}
+        delayLongPress={380}
+        accessibilityRole="button"
+        accessibilityLabel={`${title}. ${subtitle}`}
+        style={({ pressed }) => [styles.conciergePlaceRow, pressed && { opacity: 0.88 }]}
+      >
+        <View
+          style={[
+            styles.conciergePlaceIcon,
+            { backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "#EEEEEE" },
+          ]}
+        >
+          <Ionicons name={icon} size={18} color={isDark ? "#F5F0E8" : CONCIERGE_INK} />
+        </View>
+        <View style={styles.conciergePlaceCopy}>
+          <Text
+            style={[styles.conciergePlaceTitle, { color: isDark ? "#F5F0E8" : CONCIERGE_INK }]}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
+          <Text
+            style={[styles.conciergePlaceSub, { color: isDark ? "#A8A29A" : "#6B6560" }]}
+            numberOfLines={1}
+          >
+            {subtitle}
+          </Text>
+        </View>
+      </Pressable>
+      {showDivider ? (
+        <View
+          style={[
+            styles.conciergePlaceDivider,
+            { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "#EBEBEB" },
+          ]}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -197,8 +250,6 @@ export default function CustomerHomeScreen() {
   const fadeAnim = useMemo(() => new Animated.Value(0), []);
   const slideAnim = useMemo(() => new Animated.Value(24), []);
   const livePulse = useRef(new Animated.Value(0.45)).current;
-  const composerAnim = useRef(new Animated.Value(0)).current;
-  const dropoffEntrance = useRef(new Animated.Value(0)).current;
   const primaryEntry = useRef(new Animated.Value(0)).current;
   const secondaryEntry = useRef(new Animated.Value(0)).current;
 
@@ -254,7 +305,6 @@ export default function CustomerHomeScreen() {
   const [activeRideCount, setActiveRideCount] = useState(0);
   const [upcomingRide, setUpcomingRide] = useState<Reservation | null>(null);
   const [selectedService, setSelectedService] = useState<ConciergeServiceId>("ride");
-  const [sheetContentH, setSheetContentH] = useState(0);
   const [homePromo, setHomePromo] = useState<ActiveAppPromotion | null>(null);
   const [savedHome, setSavedHome] = useState<SavedPlace | null>(null);
   const [savedOffice, setSavedOffice] = useState<SavedPlace | null>(null);
@@ -264,9 +314,48 @@ export default function CustomerHomeScreen() {
     null
   );
   const [placeSaving, setPlaceSaving] = useState(false);
-  const [composerOpen, setComposerOpen] = useState(false);
+  const [whereSearching, setWhereSearching] = useState(false);
+  const [wherePickup, setWherePickup] = useState("");
+  const [wherePickupCoords, setWherePickupCoords] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const [dropoff, setDropoff] = useState("");
   const [dropoffCoords, setDropoffCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [routeFocus, setRouteFocus] = useState<"pickup" | "dropoff">("dropoff");
+  const [routeSuggestions, setRouteSuggestions] = useState<GooglePlacesSuggestionsState | null>(
+    null
+  );
+  const routeFocusRef = useRef<"pickup" | "dropoff">("dropoff");
+  const pickupPickRef = useRef<((p: PlacePrediction) => void) | null>(null);
+  const dropoffPickRef = useRef<((p: PlacePrediction) => void) | null>(null);
+  const pickupDismissRef = useRef<(() => void) | null>(null);
+  const dropoffDismissRef = useRef<(() => void) | null>(null);
+  const dropoffInputRef = useRef<TextInput | null>(null);
+  const [keyboardH, setKeyboardH] = useState(0);
+
+  useEffect(() => {
+    const showEvt = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvt = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const onShow = Keyboard.addListener(showEvt, (e) => {
+      setKeyboardH(e.endCoordinates?.height ?? 0);
+    });
+    const onHide = Keyboard.addListener(hideEvt, () => setKeyboardH(0));
+    return () => {
+      onShow.remove();
+      onHide.remove();
+    };
+  }, []);
+
+  const isUsablePickupLabel = useCallback((label: string) => {
+    const t = label.trim();
+    return (
+      !!t &&
+      t !== "Finding your location…" &&
+      t !== "Enable location for pickup" &&
+      t !== "Couldn’t detect location"
+    );
+  }, []);
 
   const fullName = displayFullName(user?.firstName, user?.lastName);
 
@@ -469,58 +558,79 @@ export default function CustomerHomeScreen() {
     [pickupAddress, pickupLabel, coords]
   );
 
-  const openComposer = useCallback(() => {
-    setComposerOpen(true);
-    composerAnim.setValue(0);
-    dropoffEntrance.setValue(0);
-    Animated.parallel([
-      Animated.timing(composerAnim, {
-        toValue: 1,
-        duration: 320,
-        useNativeDriver: true,
-      }),
-      Animated.timing(dropoffEntrance, {
-        toValue: 1,
-        duration: 420,
-        delay: 130,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [composerAnim, dropoffEntrance]);
+  const cancelWhereSearch = useCallback(() => {
+    setWhereSearching(false);
+    setWherePickup("");
+    setWherePickupCoords(null);
+    setDropoff("");
+    setDropoffCoords(null);
+    setRouteSuggestions(null);
+    routeFocusRef.current = "dropoff";
+    setRouteFocus("dropoff");
+  }, []);
 
-  const closeComposer = useCallback(() => {
-    Animated.timing(composerAnim, {
-      toValue: 0,
-      duration: 240,
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished) setComposerOpen(false);
-    });
-  }, [composerAnim]);
-
-  const onComposerPickupResolved = useCallback(
+  const bookWithDropoff = useCallback(
     (place: { address: string; lat?: number; lng?: number }) => {
-      if (place.lat != null && place.lng != null) {
-        void applyLocation(place.lat, place.lng, { manual: true, label: place.address });
+      const params: Record<string, string> = {};
+      const pickupText = wherePickup.trim();
+      if (pickupText && isUsablePickupLabel(pickupText)) {
+        params.pickup = pickupText;
       } else {
-        setPickupLabel(place.address);
-        setPickupAddress(place.address);
-        setPickupManual(true);
+        Object.assign(params, bookingParams());
       }
+      if (wherePickupCoords) {
+        params.pickupLat = String(wherePickupCoords.lat);
+        params.pickupLng = String(wherePickupCoords.lng);
+      } else if (coords) {
+        params.pickupLat = String(coords.lat);
+        params.pickupLng = String(coords.lng);
+      }
+      const address = place.address.trim();
+      if (address) params.dropoff = address;
+      if (place.lat != null && place.lng != null) {
+        params.dropoffLat = String(place.lat);
+        params.dropoffLng = String(place.lng);
+      }
+      setWhereSearching(false);
+      setDropoff(address);
+      setDropoffCoords(
+        place.lat != null && place.lng != null ? { lat: place.lat, lng: place.lng } : null
+      );
+      setRouteSuggestions(null);
+      router.push({ pathname: "/customer/create-reservation", params });
     },
-    [applyLocation]
+    [bookingParams, wherePickup, wherePickupCoords, coords, isUsablePickupLabel]
   );
 
-  const continueBooking = useCallback(() => {
-    const params = bookingParams();
-    const drop = dropoff.trim();
-    if (drop) params.dropoff = drop;
-    if (dropoffCoords) {
-      params.dropoffLat = String(dropoffCoords.lat);
-      params.dropoffLng = String(dropoffCoords.lng);
-    }
-    router.push({ pathname: "/customer/create-reservation", params });
-  }, [bookingParams, dropoff, dropoffCoords]);
+  const onWherePickupResolved = useCallback(
+    (place: { address: string; lat?: number; lng?: number }) => {
+      setWherePickup(place.address);
+      const nextCoords =
+        place.lat != null && place.lng != null ? { lat: place.lat, lng: place.lng } : null;
+      setWherePickupCoords(nextCoords);
+      setPickupAddress(place.address);
+      setPickupLabel(place.address);
+      setPickupManual(true);
+      if (nextCoords) {
+        setCoords(nextCoords);
+        setMyCoords(nextCoords);
+      }
+      pickupDismissRef.current?.();
+      setRouteSuggestions(null);
+      routeFocusRef.current = "dropoff";
+      setRouteFocus("dropoff");
+      setTimeout(() => dropoffInputRef.current?.focus(), 80);
+    },
+    []
+  );
+
+  const onRouteSuggestionsFrom = useCallback(
+    (field: "pickup" | "dropoff", state: GooglePlacesSuggestionsState | null) => {
+      if (routeFocusRef.current !== field) return;
+      setRouteSuggestions(state);
+    },
+    []
+  );
 
   const openRide = useCallback(
     () =>
@@ -639,23 +749,6 @@ export default function CustomerHomeScreen() {
     [savedHome, savedOffice, openWithDropoff, openPlaceModal]
   );
 
-  const launchSelectedService = useCallback(() => {
-    if (selectedService === "parcel") openParcel();
-    else if (selectedService === "executive") openExecutive();
-    else if (selectedService === "hourly") openHourly();
-    else openComposer();
-  }, [selectedService, openParcel, openExecutive, openHourly, openComposer]);
-  const onConciergeServicePress = useCallback(
-    (id: ConciergeServiceId) => {
-      setSelectedService(id);
-      if (id === "ride") openRide();
-      else if (id === "parcel") openParcel();
-      else if (id === "executive") openExecutive();
-      else openHourly();
-    },
-    [openRide, openParcel, openExecutive, openHourly]
-  );
-
   const useHomePromo = useCallback(async () => {
     if (!homePromo) return;
     await setPendingPromoCode(homePromo.code);
@@ -684,41 +777,98 @@ export default function CustomerHomeScreen() {
     void resolveLocation();
   }, [coords, myCoords, pickupManual, resolveLocation]);
 
-  // Floating pill sits ON the cream sheet — pad content above the pill, sheet goes to bottom:0
-  // so map never peeks behind/under the tab. Extra gap keeps service tiles from hugging the pill.
-  const floatingTabClearance = 96 + Math.max(insets.bottom, 10);
+  // Footer bar height + visible gap between Services chips and the tab.
+  const tabBarH = 46 + Math.max(insets.bottom - 4, 4); // matches tabs/_layout bottom pad
+  const servicesFooterGap = 28;
+  const floatingTabClearance = tabBarH + servicesFooterGap;
   const isConciergeSheet = HOME_SERVICES_STYLE === "concierge";
+  // While typing addresses, keyboard covers the tab bar — drop heavy footer clearance.
   const sheetPadBottom = isConciergeSheet
-    ? floatingTabClearance
+    ? whereSearching && keyboardH > 0
+      ? Math.max(insets.bottom, 12) + 8
+      : floatingTabClearance
     : (Platform.OS === "ios" ? 88 : 78) + insets.bottom;
-  const conciergeSheetH =
-    sheetContentH > 0 ? Math.min(sheetContentH, windowHeight * 0.78) : 0;
-  const effectiveSheetTop =
-    isConciergeSheet && conciergeSheetH > 0
-      ? Math.max(windowHeight * 0.28, windowHeight - conciergeSheetH)
-      : layout.sheetTop;
+  // Fixed height from content — must grow with pad or the gap gets clipped (invisible).
+  const sheetInnerW =
+    Math.min(windowWidth, 560) - layout.sheetContentPad * 2;
+  const serviceTileH = Math.round(sheetInnerW / 4) + 22; // tile face + label
+  const homeIdleContentH =
+    16 + // handle
+    40 + // greeting
+    12 + // greeting gap
+    56 + // Where to?
+    8 + // stack gap
+    120 + // Office + Home
+    6 + // services block top
+    34 + // Services header
+    serviceTileH + // service tiles
+    (homePromo ? 70 : 0);
+  // Search mode hides Office/Home/Services — size for dual fields + shared suggestions only.
+  const routeSuggestMaxH = Math.round(
+    Math.min(
+      layout.isShort ? 160 : 220,
+      Math.max(120, windowHeight * (layout.isShort ? 0.22 : 0.28) - (keyboardH > 0 ? 40 : 0))
+    )
+  );
+  const homeSearchContentH =
+    16 + // handle
+    40 + // greeting
+    12 + // greeting gap
+    36 + // Plan your ride header
+    118 + // Uber pickup + dropoff card
+    10 + // gap
+    routeSuggestMaxH +
+    28; // panel chrome
+  const searchSheetCap = layout.isShort ? 0.78 : layout.isTablet ? 0.7 : 0.8;
+  const idleSheetCap = layout.isShort ? 0.7 : 0.64;
+  // iOS: lift sheet above keyboard. Android usually resizes the window already.
+  const sheetKeyboardLift =
+    Platform.OS === "ios" && whereSearching && keyboardH > 0 ? keyboardH : 0;
+  const availableH = Math.max(300, windowHeight - sheetKeyboardLift);
+  const conciergeSheetH = Math.round(
+    Math.min(
+      availableH * (whereSearching ? searchSheetCap : idleSheetCap),
+      (whereSearching ? homeSearchContentH : homeIdleContentH) +
+        (whereSearching && keyboardH > 0 ? sheetPadBottom : floatingTabClearance)
+    )
+  );
+  const effectiveSheetTop = isConciergeSheet
+    ? windowHeight - sheetKeyboardLift - conciergeSheetH
+    : layout.sheetTop;
   mapTopRatioRef.current = effectiveSheetTop / windowHeight;
 
-  const pickupText = (pickupAddress || pickupLabel).trim();
-  const pickupValid =
-    pickupText.length > 0 &&
-    pickupText !== "Finding your location…" &&
-    pickupText !== "Enable location for pickup" &&
-    pickupText !== "Couldn’t detect location";
-  const canContinue = pickupValid && dropoff.trim().length >= 3;
-  const composerTop = Math.max(insets.top + 56, windowHeight * 0.26);
-  const backdropOpacity = composerAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-  });
-  const composerTranslate = composerAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [60, 0],
-  });
-  const dropoffTranslate = dropoffEntrance.interpolate({
-    inputRange: [0, 1],
-    outputRange: [14, 0],
-  });
+  const startWhereSearch = useCallback(() => {
+    const address = (pickupAddress || pickupLabel).trim();
+    const hasPickup = isUsablePickupLabel(address);
+    setWherePickup(hasPickup ? address : "");
+    setWherePickupCoords(coords);
+    setDropoff("");
+    setDropoffCoords(null);
+    setRouteSuggestions(null);
+    const focus: "pickup" | "dropoff" = hasPickup ? "dropoff" : "pickup";
+    routeFocusRef.current = focus;
+    setRouteFocus(focus);
+    setWhereSearching(true);
+    setSelectedService("ride");
+  }, [pickupAddress, pickupLabel, coords, isUsablePickupLabel]);
+
+  const launchSelectedService = useCallback(() => {
+    if (selectedService === "parcel") openParcel();
+    else if (selectedService === "airport") openAirport();
+    else if (selectedService === "hourly") openHourly();
+    else startWhereSearch();
+  }, [selectedService, openParcel, openAirport, openHourly, startWhereSearch]);
+
+  const onConciergeServicePress = useCallback(
+    (id: ConciergeServiceId) => {
+      setSelectedService(id);
+      if (id === "ride") openRide();
+      else if (id === "parcel") openParcel();
+      else if (id === "airport") openAirport();
+      else openHourly();
+    },
+    [openRide, openParcel, openAirport, openHourly]
+  );
 
   return (
     <View style={styles.root}>
@@ -779,7 +929,7 @@ export default function CustomerHomeScreen() {
         colors={
           isDark
             ? ["transparent", "rgba(20,18,16,0.35)", "rgba(20,18,16,0.92)"]
-            : ["transparent", "rgba(255,255,255,0.28)", "rgba(248,246,242,0.92)"]
+            : ["transparent", "rgba(255,255,255,0.28)", "rgba(255,255,255,0.95)"]
         }
         locations={[0, 0.5, 1]}
         style={[styles.mapFade, { top: effectiveSheetTop - 56, height: 72 }]}
@@ -794,6 +944,7 @@ export default function CustomerHomeScreen() {
             {
               paddingHorizontal: layout.padH,
               gap: layout.topGap,
+              justifyContent: "flex-end",
             },
           ]}
           pointerEvents="box-none"
@@ -805,6 +956,7 @@ export default function CustomerHomeScreen() {
               { width: layout.fabSize, height: layout.fabSize, borderRadius: layout.fabSize / 2 },
               pressed && styles.pressed,
             ]}
+            accessibilityLabel="Profile"
           >
             {user?.photo ? (
               <Image
@@ -833,57 +985,6 @@ export default function CustomerHomeScreen() {
               </LinearGradient>
             )}
           </Pressable>
-
-          <Pressable
-            onPress={openComposer}
-            accessibilityRole="button"
-            accessibilityLabel="Edit pickup location"
-            style={({ pressed }) => [
-              styles.pickupChip,
-              {
-                minHeight: layout.pickupMinH,
-                paddingVertical: layout.isCompact ? 8 : 9,
-                paddingHorizontal: layout.isCompact ? 10 : 12,
-              },
-              pressed && styles.pressed,
-            ]}
-          >
-            <View style={styles.pickupDotWrap}>
-              <View style={styles.pickupDot} />
-            </View>
-            <View style={styles.pickupCopy}>
-              <Text style={styles.pickupEyebrow}>PICKUP</Text>
-              <Text
-                style={[styles.pickupLabel, layout.isCompact && { fontSize: 13 }]}
-                numberOfLines={1}
-              >
-                {pickupValid ? formatPlaceShort(pickupAddress || pickupLabel) : pickupLabel}
-              </Text>
-            </View>
-            {locating ? (
-              <ActivityIndicator size="small" color={ACCENT} />
-            ) : (
-              <View style={styles.pickupChevronBtn}>
-                <Ionicons name="chevron-down" size={16} color="#6B6560" />
-              </View>
-            )}
-          </Pressable>
-
-          <Pressable
-            onPress={toggleTheme}
-            style={({ pressed }) => [
-              styles.fab,
-              { width: layout.fabSize, height: layout.fabSize, borderRadius: layout.fabSize / 2 },
-              pressed && styles.pressed,
-            ]}
-            accessibilityLabel={isDark ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            <Ionicons
-              name={isDark ? "sunny-outline" : "moon-outline"}
-              size={layout.isCompact ? 18 : 20}
-              color="#1C1C1E"
-            />
-          </Pressable>
         </View>
 
         {locationDenied ? (
@@ -902,29 +1003,111 @@ export default function CustomerHomeScreen() {
         ) : null}
       </SafeAreaView>
 
-      {/* Recenter FAB — sits above sheet */}
-      <Pressable
-        onPress={recenter}
+      {/* Upcoming — floats on the map above the sheet (does not grow sheet height) */}
+      {isConciergeSheet && upcomingRide && !activeRide && !whereSearching ? (
+        <Pressable
+          onPress={() =>
+            router.push({
+              pathname: "/customer/track-ride",
+              params: { bookingId: upcomingRide.bookingId },
+            })
+          }
+          style={({ pressed }) => [
+            styles.upcomingFloat,
+            {
+              bottom: windowHeight - effectiveSheetTop + 10,
+              left: layout.isTablet
+                ? (windowWidth - Math.min(windowWidth, 560)) / 2 + layout.padH
+                : layout.padH,
+              right: layout.isTablet
+                ? (windowWidth - Math.min(windowWidth, 560)) / 2 + layout.padH
+                : layout.padH,
+              backgroundColor: isDark ? "#1C1813" : "#FFFFFF",
+              borderColor: isDark ? "rgba(181,148,97,0.18)" : "rgba(28,25,22,0.08)",
+            },
+            pressed && { opacity: 0.92 },
+          ]}
+        >
+          <View
+            style={[
+              styles.upcomingFloatIcon,
+              { backgroundColor: isDark ? "rgba(181,148,97,0.12)" : CONCIERGE_CREAM },
+            ]}
+          >
+            <Ionicons name="calendar-outline" size={16} color={CONCIERGE_GOLD} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.upcomingFloatEyebrow} numberOfLines={1}>
+              UPCOMING · {upcomingRide.serviceDate}
+              {upcomingRide.serviceTime ? `, ${upcomingRide.serviceTime}` : ""}
+            </Text>
+            <Text
+              style={[
+                styles.upcomingFloatTitle,
+                { color: isDark ? "#F5F0E8" : CONCIERGE_INK },
+              ]}
+              numberOfLines={1}
+            >
+              {formatPlaceShort(
+                upcomingRide.dropoffLocation || upcomingRide.pickupLocation
+              )}
+              {" · "}
+              <Text style={{ fontWeight: "500", color: isDark ? "#A8A29A" : "#8A847C" }}>
+                {upcomingRide.driver ? "Chauffeur assigned" : "Awaiting chauffeur"}
+              </Text>
+            </Text>
+          </View>
+          <Ionicons
+            name="chevron-forward"
+            size={16}
+            color={isDark ? "rgba(245,240,232,0.35)" : "#A8A29A"}
+          />
+        </Pressable>
+      ) : null}
+
+      {/* Theme + recenter — stacked on map right; dark icon above arrow */}
+      <View
         style={[
-          styles.recenterFab,
+          styles.mapFabStack,
           {
-            bottom: windowHeight - effectiveSheetTop + 18,
+            bottom:
+              windowHeight -
+              effectiveSheetTop +
+              (isConciergeSheet && upcomingRide && !activeRide && !whereSearching
+                ? 78
+                : 18),
             right: layout.padH,
           },
         ]}
       >
-        <Ionicons name="navigate" size={18} color="#1C1C1E" />
-      </Pressable>
+        <Pressable
+          onPress={toggleTheme}
+          style={({ pressed }) => [styles.recenterFab, pressed && styles.pressed]}
+          accessibilityLabel={isDark ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          <Ionicons
+            name={isDark ? "sunny-outline" : "moon-outline"}
+            size={18}
+            color="#1C1C1E"
+          />
+        </Pressable>
+        <Pressable
+          onPress={recenter}
+          style={({ pressed }) => [styles.recenterFab, pressed && styles.pressed]}
+          accessibilityLabel="Recenter map"
+        >
+          <Ionicons name="navigate" size={18} color="#1C1C1E" />
+        </Pressable>
+      </View>
 
-      {/* Bottom sheet — hugs content; cream extends to screen bottom under floating tab */}
+      {/* Bottom sheet — fixed height; no swipe move */}
       <Animated.View
         style={[
           styles.sheet,
           isConciergeSheet
             ? {
-                bottom: 0,
-                maxHeight: windowHeight * 0.78,
-                ...(conciergeSheetH > 0 ? { height: conciergeSheetH } : null),
+                bottom: sheetKeyboardLift,
+                height: conciergeSheetH,
               }
             : {
                 top: layout.sheetTop,
@@ -938,91 +1121,66 @@ export default function CustomerHomeScreen() {
             backgroundColor: isDark
               ? "#141210"
               : isConciergeSheet
-                ? CONCIERGE_CREAM
+                ? "#FFFFFF"
                 : "#F8F6F2",
           },
         ]}
       >
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-          overScrollMode="never"
-          style={isConciergeSheet ? { flexGrow: 0 } : undefined}
-        >
-          <View
-            onLayout={(e) => {
-              if (!isConciergeSheet) return;
-              const h = e.nativeEvent.layout.height;
-              if (h > 0 && Math.abs(h - sheetContentH) > 2) setSheetContentH(h);
-            }}
-            style={[
-              styles.sheetContent,
-              {
-                paddingBottom: sheetPadBottom,
-                paddingHorizontal: layout.sheetContentPad,
-              },
-            ]}
-          >
+        {isConciergeSheet ? (
+          <View style={styles.sheetHandleHit}>
             <View style={styles.sheetHandleWrap}>
               <View
                 style={[styles.sheetHandle, { backgroundColor: isDark ? "#3A3530" : "#D6D0C6" }]}
               />
             </View>
-          <View style={styles.greetingRow}>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text
-                style={[
-                  styles.brandMark,
-                  {
-                    color: HOME_SERVICES_STYLE === "concierge" ? CONCIERGE_GOLD : ACCENT,
-                    fontFamily: HOME_SERVICES_STYLE === "concierge" ? SERIF : undefined,
-                  },
-                ]}
-              >
-                SARJ WORLDWIDE
-              </Text>
-              <Text
-                style={[
-                  styles.greeting,
-                  {
-                    color: isDark ? "#F5F5F7" : CONCIERGE_INK,
-                    fontSize: layout.isCompact
-                      ? HOME_SERVICES_STYLE === "concierge"
-                        ? 16
-                        : 16
-                      : HOME_SERVICES_STYLE === "concierge"
-                        ? 18
-                        : 18,
-                    fontFamily: HOME_SERVICES_STYLE === "concierge" ? SERIF : undefined,
-                    fontWeight: HOME_SERVICES_STYLE === "concierge" ? "700" : "800",
-                    letterSpacing: HOME_SERVICES_STYLE === "concierge" ? -0.4 : -0.3,
-                  },
-                ]}
-                numberOfLines={1}
-              >
-                {greetingLine(fullName)}
-              </Text>
-            </View>
-            <Pressable
-              onPress={() => router.push("/customer/reservations")}
-              style={({ pressed }) => [
-                styles.bookingsPill,
-                {
-                  backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "#FFF",
-                  borderColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.06)",
-                },
-                pressed && styles.pressed,
-              ]}
-            >
-              <Ionicons
-                name="calendar-outline"
-                size={15}
-                color={HOME_SERVICES_STYLE === "concierge" ? CONCIERGE_GOLD : ACCENT}
+          </View>
+        ) : null}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          overScrollMode="never"
+          scrollEnabled={whereSearching}
+          keyboardShouldPersistTaps={whereSearching ? "always" : "handled"}
+          keyboardDismissMode={whereSearching ? "on-drag" : "none"}
+          // Sheet already lifts above the iOS keyboard — avoid double inset.
+          automaticallyAdjustKeyboardInsets={false}
+          style={isConciergeSheet ? { flex: 1 } : undefined}
+          contentContainerStyle={
+            isConciergeSheet && whereSearching ? { flexGrow: 1, paddingBottom: 8 } : undefined
+          }
+        >
+          <View
+            style={[
+              styles.sheetContent,
+              {
+                paddingBottom: sheetPadBottom,
+                paddingHorizontal: layout.sheetContentPad,
+                paddingTop: isConciergeSheet ? 0 : undefined,
+              },
+            ]}
+          >
+            {!isConciergeSheet ? (
+            <View style={styles.sheetHandleWrap}>
+              <View
+                style={[styles.sheetHandle, { backgroundColor: isDark ? "#3A3530" : "#D6D0C6" }]}
               />
-              <Text style={[styles.bookingsPillText, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]}>
-                Bookings
-              </Text>
-            </Pressable>
+            </View>
+            ) : null}
+          <View style={styles.greetingRow}>
+            <Text
+              style={[
+                styles.greeting,
+                {
+                  color: isDark ? "#F5F5F7" : CONCIERGE_INK,
+                  fontSize: layout.isCompact ? 20 : 22,
+                  fontWeight: "700",
+                  letterSpacing: -0.4,
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {greetingLine(fullName)}
+            </Text>
           </View>
 
           {homePromo ? (
@@ -1146,18 +1304,152 @@ export default function CustomerHomeScreen() {
                 />
               </>
             ) : (
-              <Animated.View style={{ opacity: primaryEntry, gap: 14 }}>
-                {/* Where to? card + quick places */}
-                <View
-                  style={[
-                    styles.conciergeSearchCard,
-                    {
-                      backgroundColor: isDark ? "#1C1813" : "#FFFFFF",
-                      borderColor: isDark ? "rgba(181,148,97,0.16)" : "rgba(28,25,22,0.05)",
-                    },
-                  ]}
-                >
-                  <View style={styles.conciergeWhereRow}>
+              <Animated.View style={{ opacity: primaryEntry, gap: 8 }}>
+                {/* Where to? — type + suggestions stay inside this sheet */}
+                {whereSearching ? (
+                  <View style={styles.conciergeWhereSearch}>
+                    <View style={styles.conciergeWhereSearchTop}>
+                      <Pressable
+                        onPress={cancelWhereSearch}
+                        hitSlop={10}
+                        style={({ pressed }) => [
+                          styles.conciergeWhereBack,
+                          pressed && { opacity: 0.7 },
+                        ]}
+                        accessibilityLabel="Cancel search"
+                      >
+                        <Ionicons
+                          name="chevron-back"
+                          size={22}
+                          color={isDark ? "#F5F0E8" : CONCIERGE_INK}
+                        />
+                      </Pressable>
+                      <Text
+                        style={[
+                          styles.conciergeWhereSearchLabel,
+                          layout.isCompact && { fontSize: 15 },
+                          { color: isDark ? "#F5F0E8" : CONCIERGE_INK },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        Plan your ride
+                      </Text>
+                      <View style={{ width: 34 }} />
+                    </View>
+
+                    <View
+                      style={[
+                        styles.uberRouteCard,
+                        {
+                          backgroundColor: isDark ? "rgba(255,255,255,0.06)" : CONCIERGE_CREAM,
+                          borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
+                        },
+                      ]}
+                    >
+                      <View style={styles.uberRouteRail} pointerEvents="none">
+                        <View
+                          style={[
+                            styles.uberPickupDot,
+                            { backgroundColor: isDark ? "#F5F0E8" : CONCIERGE_INK },
+                          ]}
+                        />
+                        <View
+                          style={[
+                            styles.uberRailLine,
+                            { backgroundColor: isDark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.18)" },
+                          ]}
+                        />
+                        <View
+                          style={[
+                            styles.uberDropoffSquare,
+                            { backgroundColor: GOLD },
+                          ]}
+                        />
+                      </View>
+                      <View style={styles.uberRouteFields}>
+                        <GooglePlacesAddressField
+                          value={wherePickup}
+                          onChangeText={(t) => {
+                            setWherePickup(t);
+                            setWherePickupCoords(null);
+                          }}
+                          placeholder="Pickup location"
+                          iconName="radio-button-on"
+                          compact
+                          hidePanel
+                          autoFocus={routeFocus === "pickup"}
+                          pickHandlerRef={pickupPickRef}
+                          dismissHandlerRef={pickupDismissRef}
+                          onFocusChange={(focused) => {
+                            if (!focused) return;
+                            routeFocusRef.current = "pickup";
+                            setRouteFocus("pickup");
+                            dropoffDismissRef.current?.();
+                          }}
+                          onSuggestionsChange={(state) =>
+                            onRouteSuggestionsFrom("pickup", state)
+                          }
+                          onPlaceResolved={onWherePickupResolved}
+                          containerStyle={styles.conciergeWhereField}
+                        />
+                        <GooglePlacesAddressField
+                          value={dropoff}
+                          onChangeText={(t) => {
+                            setDropoff(t);
+                            setDropoffCoords(null);
+                          }}
+                          placeholder="Dropoff location"
+                          iconName="square"
+                          compact
+                          hidePanel
+                          autoFocus={routeFocus === "dropoff"}
+                          inputRef={dropoffInputRef}
+                          pickHandlerRef={dropoffPickRef}
+                          dismissHandlerRef={dropoffDismissRef}
+                          onFocusChange={(focused) => {
+                            if (!focused) return;
+                            routeFocusRef.current = "dropoff";
+                            setRouteFocus("dropoff");
+                            pickupDismissRef.current?.();
+                          }}
+                          onSuggestionsChange={(state) =>
+                            onRouteSuggestionsFrom("dropoff", state)
+                          }
+                          onPlaceResolved={bookWithDropoff}
+                          containerStyle={styles.conciergeWhereField}
+                        />
+                      </View>
+                    </View>
+
+                    {routeSuggestions?.showPanel ? (
+                      <PlacesSuggestionsPanel
+                        predictions={routeSuggestions.predictions}
+                        loading={routeSuggestions.loading}
+                        banner={routeSuggestions.banner}
+                        value={routeSuggestions.value}
+                        maxPanelHeight={routeSuggestMaxH}
+                        compact
+                        onDismiss={() => {
+                          if (routeFocus === "pickup") pickupDismissRef.current?.();
+                          else dropoffDismissRef.current?.();
+                          setRouteSuggestions(null);
+                        }}
+                        onPick={(item) => {
+                          if (routeFocus === "pickup") pickupPickRef.current?.(item);
+                          else dropoffPickRef.current?.(item);
+                        }}
+                      />
+                    ) : null}
+                  </View>
+                ) : (
+                  <View
+                    style={[
+                      styles.conciergeWhereBar,
+                      {
+                        backgroundColor: isDark ? "rgba(255,255,255,0.08)" : CONCIERGE_CREAM,
+                      },
+                    ]}
+                  >
                     <Pressable
                       onPress={launchSelectedService}
                       accessibilityRole="button"
@@ -1167,9 +1459,11 @@ export default function CustomerHomeScreen() {
                         pressed && { opacity: 0.9 },
                       ]}
                     >
-                      <View style={styles.conciergeSearchBtn}>
-                        <Ionicons name="search" size={18} color={CONCIERGE_INK} />
-                      </View>
+                      <Ionicons
+                        name="search"
+                        size={20}
+                        color={isDark ? "#F5F0E8" : CONCIERGE_INK}
+                      />
                       <Text
                         style={[
                           styles.conciergeWhereTitle,
@@ -1185,231 +1479,94 @@ export default function CustomerHomeScreen() {
                       style={({ pressed }) => [
                         styles.conciergeNowPill,
                         {
-                          backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "#F3F0EA",
+                          backgroundColor: isDark ? "rgba(255,255,255,0.12)" : "#FFFFFF",
                         },
                         pressed && { opacity: 0.85 },
                       ]}
                       accessibilityLabel="Schedule for now"
                     >
-                      <Ionicons name="time-outline" size={13} color={isDark ? "#C9B8A0" : "#6B6560"} />
+                      <Ionicons
+                        name="time-outline"
+                        size={14}
+                        color={isDark ? "#C9B8A0" : CONCIERGE_INK}
+                      />
                       <Text
                         style={[
                           styles.conciergeNowText,
-                          { color: isDark ? "#E8DED0" : "#3A342E" },
+                          { color: isDark ? "#E8DED0" : CONCIERGE_INK },
                         ]}
                       >
                         Now
                       </Text>
-                      <Ionicons name="chevron-down" size={12} color={isDark ? "#C9B8A0" : "#8A847C"} />
                     </Pressable>
                   </View>
+                )}
 
-                  <View style={styles.conciergeQuickRow}>
-                    <Pressable
-                      onPress={() => onQuickPlacePress("home")}
-                      onLongPress={() => openPlaceModal("home")}
-                      delayLongPress={380}
-                      accessibilityRole="button"
-                      accessibilityLabel={
-                        savedHome ? `Book to Home, ${savedHome.address}` : "Set Home address"
-                      }
-                      style={({ pressed }) => [
-                        styles.conciergeQuickChip,
-                        {
-                          backgroundColor: isDark ? "rgba(255,255,255,0.06)" : CONCIERGE_CREAM,
-                        },
-                        pressed && { opacity: 0.85 },
-                      ]}
-                    >
-                      <View style={styles.conciergeQuickIcon}>
-                        <Ionicons name="home-outline" size={14} color={isDark ? CONCIERGE_GOLD : "#5C5348"} />
-                      </View>
-                      <View style={styles.conciergeQuickTextCol}>
-                        <Text
-                          style={[
-                            styles.conciergeQuickText,
-                            { color: isDark ? "#E8DED0" : "#3A342E" },
-                          ]}
-                        >
-                          Home
-                        </Text>
-                        {savedHome?.address ? (
-                          <Text
-                            numberOfLines={1}
-                            style={[
-                              styles.conciergeQuickSub,
-                              { color: isDark ? "#A89B86" : "#8A847C" },
-                            ]}
-                          >
-                            {savedHome.address}
-                          </Text>
-                        ) : null}
-                      </View>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => onQuickPlacePress("office")}
-                      onLongPress={() => openPlaceModal("office")}
-                      delayLongPress={380}
-                      accessibilityRole="button"
-                      accessibilityLabel={
-                        savedOffice ? `Book to Office, ${savedOffice.address}` : "Set Office address"
-                      }
-                      style={({ pressed }) => [
-                        styles.conciergeQuickChip,
-                        {
-                          backgroundColor: isDark ? "rgba(255,255,255,0.06)" : CONCIERGE_CREAM,
-                        },
-                        pressed && { opacity: 0.85 },
-                      ]}
-                    >
-                      <View style={styles.conciergeQuickIcon}>
-                        <Ionicons
-                          name="briefcase-outline"
-                          size={14}
-                          color={isDark ? CONCIERGE_GOLD : "#5C5348"}
-                        />
-                      </View>
-                      <View style={styles.conciergeQuickTextCol}>
-                        <Text
-                          style={[
-                            styles.conciergeQuickText,
-                            { color: isDark ? "#E8DED0" : "#3A342E" },
-                          ]}
-                        >
-                          Office
-                        </Text>
-                        {savedOffice?.address ? (
-                          <Text
-                            numberOfLines={1}
-                            style={[
-                              styles.conciergeQuickSub,
-                              { color: isDark ? "#A89B86" : "#8A847C" },
-                            ]}
-                          >
-                            {savedOffice.address}
-                          </Text>
-                        ) : null}
-                      </View>
-                    </Pressable>
-                    <Pressable
-                      onPress={openAirport}
-                      accessibilityRole="button"
-                      accessibilityLabel="Book airport transfer"
-                      style={({ pressed }) => [
-                        styles.conciergeQuickChip,
-                        {
-                          backgroundColor: isDark ? "rgba(255,255,255,0.06)" : CONCIERGE_CREAM,
-                        },
-                        pressed && { opacity: 0.85 },
-                      ]}
-                    >
-                      <View style={styles.conciergeQuickIcon}>
-                        <Ionicons
-                          name="airplane-outline"
-                          size={14}
-                          color={isDark ? CONCIERGE_GOLD : "#5C5348"}
-                        />
-                      </View>
-                      <Text
-                        style={[
-                          styles.conciergeQuickText,
-                          { color: isDark ? "#E8DED0" : "#3A342E" },
-                        ]}
-                      >
-                        Airport
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-
-                {/* Ride / Executive / Parcel / Hourly */}
-                <View style={styles.conciergeServiceRow}>
-                  <ConciergeServiceTile
-                    icon="car-outline"
-                    label="Ride"
-                    selected={selectedService === "ride"}
-                    isDark={isDark}
-                    onPress={() => onConciergeServicePress("ride")}
-                  />
-                  <ConciergeServiceTile
-                    icon="car-sport-outline"
-                    label="Executive"
-                    selected={selectedService === "executive"}
-                    isDark={isDark}
-                    onPress={() => onConciergeServicePress("executive")}
-                  />
-                  <ConciergeServiceTile
-                    icon="cube-outline"
-                    label="Parcel"
-                    selected={selectedService === "parcel"}
-                    isDark={isDark}
-                    onPress={() => onConciergeServicePress("parcel")}
-                  />
-                  <ConciergeServiceTile
-                    icon="time-outline"
-                    label="Hourly"
-                    selected={selectedService === "hourly"}
-                    isDark={isDark}
-                    onPress={() => onConciergeServicePress("hourly")}
-                  />
-                </View>
-
-                {/* Upcoming booking */}
-                {upcomingRide && !activeRide ? (
-                  <Pressable
-                    onPress={() =>
-                      router.push({
-                        pathname: "/customer/track-ride",
-                        params: { bookingId: upcomingRide.bookingId },
-                      })
+                {!whereSearching ? (
+                  <>
+                {/* Saved places — list rows */}
+                <View style={styles.conciergePlaceList}>
+                  <ConciergePlaceRow
+                    icon="briefcase-outline"
+                    title="Office"
+                    subtitle={
+                      savedOffice?.address?.trim() || "Set your office address"
                     }
-                    style={({ pressed }) => [
-                      styles.conciergeUpcoming,
-                      {
-                        backgroundColor: isDark ? "#1C1813" : "#FFFFFF",
-                        borderColor: isDark ? "rgba(181,148,97,0.18)" : "rgba(28,25,22,0.08)",
-                      },
-                      pressed && { opacity: 0.92 },
-                    ]}
-                  >
-                    <View
+                    isDark={isDark}
+                    onPress={() => onQuickPlacePress("office")}
+                    onLongPress={() => openPlaceModal("office")}
+                    showDivider
+                  />
+                  <ConciergePlaceRow
+                    icon="home-outline"
+                    title="Home"
+                    subtitle={savedHome?.address?.trim() || "Set your home address"}
+                    isDark={isDark}
+                    onPress={() => onQuickPlacePress("home")}
+                    onLongPress={() => openPlaceModal("home")}
+                  />
+                </View>
+
+                {/* Services */}
+                <View style={styles.conciergeServicesBlock}>
+                  <View style={styles.conciergeServicesHeader}>
+                    <Text
                       style={[
-                        styles.conciergeUpcomingIcon,
-                        { backgroundColor: isDark ? "rgba(181,148,97,0.12)" : CONCIERGE_CREAM },
+                        styles.conciergeServicesTitle,
+                        { color: isDark ? "#F5F0E8" : CONCIERGE_INK },
                       ]}
                     >
-                      <Ionicons name="calendar-outline" size={18} color={CONCIERGE_GOLD} />
-                    </View>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.conciergeUpcomingEyebrow} numberOfLines={1}>
-                        UPCOMING · {upcomingRide.serviceDate}
-                        {upcomingRide.serviceTime ? `, ${upcomingRide.serviceTime}` : ""}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.conciergeUpcomingTitle,
-                          { color: isDark ? "#F5F0E8" : CONCIERGE_INK },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {formatPlaceShort(upcomingRide.dropoffLocation || upcomingRide.pickupLocation)}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.conciergeUpcomingSub,
-                          { color: isDark ? "rgba(245,240,232,0.45)" : "#8A847C" },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {upcomingRide.driver ? "Chauffeur assigned" : "Awaiting chauffeur"}
-                      </Text>
-                    </View>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={18}
-                      color={isDark ? "rgba(245,240,232,0.35)" : "#A8A29A"}
+                      Services
+                    </Text>
+                  </View>
+                  <View style={styles.conciergeServiceRow}>
+                    <ConciergeServiceTile
+                      icon="car-outline"
+                      label="Ride"
+                      isDark={isDark}
+                      onPress={() => onConciergeServicePress("ride")}
                     />
-                  </Pressable>
+                    <ConciergeServiceTile
+                      icon="airplane-outline"
+                      label="Airport"
+                      isDark={isDark}
+                      onPress={() => onConciergeServicePress("airport")}
+                    />
+                    <ConciergeServiceTile
+                      icon="time-outline"
+                      label="Hourly"
+                      isDark={isDark}
+                      onPress={() => onConciergeServicePress("hourly")}
+                    />
+                    <ConciergeServiceTile
+                      icon="cube-outline"
+                      label="Parcel"
+                      isDark={isDark}
+                      onPress={() => onConciergeServicePress("parcel")}
+                    />
+                  </View>
+                </View>
+                  </>
                 ) : null}
               </Animated.View>
             )}
@@ -1418,157 +1575,7 @@ export default function CustomerHomeScreen() {
         </ScrollView>
       </Animated.View>
 
-      {/* Uber-style destination composer (in-place, no navigation) */}
-      {composerOpen ? (
-        <>
-          <Animated.View
-            style={[styles.composerBackdrop, { opacity: backdropOpacity }]}
-          >
-            <Pressable
-              style={StyleSheet.absoluteFill}
-              onPress={closeComposer}
-              accessibilityLabel="Close destination composer"
-            />
-          </Animated.View>
-
-          <Animated.View
-            style={[
-              styles.composer,
-              {
-                top: composerTop,
-                left: layout.isTablet ? (windowWidth - Math.min(windowWidth, 560)) / 2 : 0,
-                right: layout.isTablet ? (windowWidth - Math.min(windowWidth, 560)) / 2 : 0,
-                backgroundColor: isDark ? "#141210" : "#F8F6F2",
-                opacity: composerAnim,
-                transform: [{ translateY: composerTranslate }],
-              },
-            ]}
-          >
-            <View style={styles.composerHeader}>
-              <Pressable
-                onPress={closeComposer}
-                hitSlop={12}
-                style={({ pressed }) => [styles.composerIconBtn, pressed && styles.pressed]}
-                accessibilityLabel="Back"
-              >
-                <Ionicons name="chevron-back" size={22} color={isDark ? "#F5F5F7" : "#1C1C1E"} />
-              </Pressable>
-              <Text style={[styles.composerTitle, { color: isDark ? "#F5F5F7" : "#1C1C1E" }]}>
-                Plan your ride
-              </Text>
-              <Pressable
-                onPress={closeComposer}
-                hitSlop={12}
-                style={({ pressed }) => [styles.composerIconBtn, pressed && styles.pressed]}
-                accessibilityLabel="Close"
-              >
-                <Ionicons name="close" size={22} color={isDark ? "#A8A29A" : "#8A847C"} />
-              </Pressable>
-            </View>
-
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-              contentContainerStyle={{
-                paddingHorizontal: layout.sheetContentPad,
-                paddingBottom: sheetPadBottom + 12,
-              }}
-            >
-              <View style={styles.composerFields}>
-                <Text style={[styles.composerFieldLabel, { color: isDark ? "#A8A29A" : "#6B6560" }]}>
-                  PICKUP
-                </Text>
-                <GooglePlacesAddressField
-                  value={pickupText === "Finding your location…" ? "" : pickupText}
-                  onChangeText={(t) => {
-                    setPickupLabel(t);
-                    setPickupAddress(t);
-                    setPickupManual(true);
-                  }}
-                  placeholder="Pickup location"
-                  iconName="navigate-outline"
-                  onPlaceResolved={onComposerPickupResolved}
-                  maxPanelHeight={220}
-                />
-
-                <Pressable
-                  onPress={() => void resolveLocation()}
-                  disabled={locating}
-                  style={({ pressed }) => [
-                    styles.composerGpsBtn,
-                    {
-                      backgroundColor: isDark ? "rgba(201,160,99,0.12)" : "#FBF6EE",
-                      borderColor: isDark ? "rgba(201,160,99,0.26)" : "rgba(168,120,48,0.2)",
-                    },
-                    pressed && styles.pressed,
-                    locating && { opacity: 0.7 },
-                  ]}
-                >
-                  {locating ? (
-                    <ActivityIndicator size="small" color={ACCENT} />
-                  ) : (
-                    <Ionicons name="navigate" size={15} color={ACCENT} />
-                  )}
-                  <Text style={[styles.composerGpsText, { color: ACCENT_DARK }]}>
-                    {locating ? "Getting location…" : "Use current location"}
-                  </Text>
-                </Pressable>
-
-                <Animated.View
-                  style={{
-                    marginTop: 18,
-                    opacity: dropoffEntrance,
-                    transform: [{ translateY: dropoffTranslate }],
-                  }}
-                >
-                  <Text style={[styles.composerFieldLabel, { color: isDark ? "#A8A29A" : "#6B6560" }]}>
-                    DROP-OFF
-                  </Text>
-                  <GooglePlacesAddressField
-                    value={dropoff}
-                    onChangeText={(t) => {
-                      setDropoff(t);
-                      setDropoffCoords(null);
-                    }}
-                    placeholder="Where to?"
-                    iconName="location-outline"
-                    onPlaceResolved={(place) => {
-                      setDropoff(place.address);
-                      setDropoffCoords(
-                        place.lat != null && place.lng != null
-                          ? { lat: place.lat, lng: place.lng }
-                          : null
-                      );
-                    }}
-                    maxPanelHeight={220}
-                  />
-                </Animated.View>
-
-                <Pressable
-                  onPress={continueBooking}
-                  disabled={!canContinue}
-                  style={({ pressed }) => [
-                    styles.composerContinue,
-                    !canContinue && styles.composerContinueDisabled,
-                    pressed && canContinue && styles.pressed,
-                  ]}
-                >
-                  <LinearGradient
-                    colors={["#E8C078", ACCENT, "#B8862E"]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.composerContinueGrad}
-                  >
-                    <Text style={styles.composerContinueText}>Continue</Text>
-                    <Ionicons name="arrow-forward" size={18} color="#1A1208" />
-                  </LinearGradient>
-                </Pressable>
-              </View>
-            </ScrollView>
-          </Animated.View>
-        </>
-      ) : null}
+      {/* Destination composer renders inline in the top header (see topRow). */}
 
       {/* Set / edit Home or Office address */}
       <Modal
@@ -1746,6 +1753,32 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingTop: 6,
   },
+  inlineComposer: {
+    marginTop: 6,
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 14,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.12,
+        shadowRadius: 16,
+      },
+      android: { elevation: 6 },
+    }),
+  },
+  inlineBackBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+    marginLeft: -4,
+  },
   fab: {
     backgroundColor: "#FFF",
     alignItems: "center",
@@ -1849,9 +1882,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1C1C1E",
   },
-  recenterFab: {
+  mapFabStack: {
     position: "absolute",
     zIndex: 15,
+    alignItems: "center",
+    gap: 10,
+  },
+  recenterFab: {
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -1884,6 +1921,10 @@ const styles = StyleSheet.create({
       android: { elevation: 14 },
     }),
   },
+  sheetHandleHit: {
+    paddingTop: 2,
+    paddingBottom: 2,
+  },
   sheetHandleWrap: {
     alignItems: "center",
     paddingTop: 4,
@@ -1900,8 +1941,7 @@ const styles = StyleSheet.create({
   greetingRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    marginBottom: 14,
+    marginBottom: 10,
   },
   promoBanner: {
     flexDirection: "row",
@@ -2051,25 +2091,80 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 0,
   },
-  conciergeSearchCard: {
-    borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 12,
-    gap: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#1C1916",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.06,
-        shadowRadius: 12,
-      },
-      android: { elevation: 2 },
-    }),
+  conciergeWhereSearch: {
+    gap: 10,
   },
-  conciergeWhereRow: {
+  conciergeWhereSearchTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 2,
+  },
+  conciergeWhereBack: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: -6,
+  },
+  conciergeWhereSearchLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+  },
+  conciergeWhereField: {
+    zIndex: 1,
+  },
+  uberRouteCard: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 10,
+    paddingRight: 10,
+    paddingLeft: 4,
+    gap: 8,
+  },
+  uberRouteRail: {
+    width: 22,
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 16,
+    paddingBottom: 16,
+    alignSelf: "stretch",
+  },
+  uberPickupDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  uberRailLine: {
+    flex: 1,
+    width: 2,
+    borderRadius: 1,
+    marginVertical: 6,
+    minHeight: 18,
+  },
+  uberDropoffSquare: {
+    width: 10,
+    height: 10,
+    borderRadius: 2,
+  },
+  uberRouteFields: {
+    flex: 1,
+    minWidth: 0,
+    gap: 8,
+  },
+  conciergeWhereBar: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    borderRadius: 28,
+    paddingLeft: 16,
+    paddingRight: 8,
+    paddingVertical: 6,
+    minHeight: 50,
   },
   conciergeWhereMain: {
     flex: 1,
@@ -2077,14 +2172,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-  },
-  conciergeSearchBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: CONCIERGE_GOLD,
-    alignItems: "center",
-    justifyContent: "center",
+    paddingVertical: 6,
   },
   conciergeWhereTitle: {
     flex: 1,
@@ -2095,50 +2183,69 @@ const styles = StyleSheet.create({
   conciergeNowPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 18,
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 22,
+    flexShrink: 0,
   },
   conciergeNowText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "600",
   },
-  conciergeQuickRow: {
-    flexDirection: "row",
-    gap: 8,
+  conciergePlaceList: {
+    marginTop: 0,
   },
-  conciergeQuickChip: {
-    flex: 1,
+  conciergePlaceRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderRadius: 12,
+    gap: 14,
+    paddingVertical: 8,
   },
-  conciergeQuickIcon: {
-    width: 16,
-    height: 16,
+  conciergePlaceIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
     flexShrink: 0,
-    alignItems: "center",
-    justifyContent: "center",
   },
-  conciergeQuickTextCol: {
-    flexShrink: 1,
+  conciergePlaceCopy: {
+    flex: 1,
     minWidth: 0,
-    alignItems: "flex-start",
   },
-  conciergeQuickText: {
-    fontSize: 12.5,
+  conciergePlaceTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+  },
+  conciergePlaceSub: {
+    fontSize: 13,
+    fontWeight: "400",
+    marginTop: 2,
+  },
+  conciergePlaceDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 54,
+  },
+  conciergeServicesBlock: {
+    marginTop: 6,
+    marginBottom: 8,
+  },
+  conciergeServicesHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  conciergeServicesTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
+  conciergeSeeAll: {
+    fontSize: 14,
     fontWeight: "600",
-  },
-  conciergeQuickSub: {
-    fontSize: 9.5,
-    fontWeight: "500",
-    marginTop: 1,
-    maxWidth: "100%",
   },
   placeModalRoot: {
     flex: 1,
@@ -2204,7 +2311,7 @@ const styles = StyleSheet.create({
   },
   conciergeServiceRow: {
     flexDirection: "row",
-    gap: 10,
+    gap: 12,
   },
   conciergeTileCol: {
     flex: 1,
@@ -2214,74 +2321,73 @@ const styles = StyleSheet.create({
   conciergeTileFace: {
     width: "100%",
     aspectRatio: 1,
-    borderRadius: 16,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#1C1916",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 6,
-      },
-      android: { elevation: 1 },
-    }),
   },
   conciergeTileLabel: {
-    fontSize: 12.5,
+    fontSize: 13,
+    fontWeight: "500",
     letterSpacing: -0.1,
   },
-  conciergeUpcoming: {
+  upcomingFloat: {
+    position: "absolute",
+    zIndex: 14,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
     borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 10,
+      },
+      android: { elevation: 6 },
+    }),
   },
-  conciergeUpcomingIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
+  upcomingFloatIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
-  conciergeUpcomingEyebrow: {
+  upcomingFloatEyebrow: {
     fontSize: 10,
     fontWeight: "800",
-    letterSpacing: 0.8,
+    letterSpacing: 0.7,
     color: CONCIERGE_GOLD,
-    marginBottom: 2,
+    marginBottom: 1,
   },
-  conciergeUpcomingTitle: {
-    fontSize: 15,
+  upcomingFloatTitle: {
+    fontSize: 13.5,
     fontWeight: "700",
     letterSpacing: -0.2,
-  },
-  conciergeUpcomingSub: {
-    marginTop: 2,
-    fontSize: 12,
-    fontWeight: "500",
   },
   pressed: {
     opacity: 0.92,
   },
   composerBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.38)",
+    backgroundColor: "rgba(0,0,0,0.18)",
     zIndex: 25,
   },
   composer: {
     position: "absolute",
-    bottom: 0,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    marginHorizontal: 12,
+    maxHeight: "82%",
+    borderRadius: 22,
     zIndex: 30,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: -8 },
+        shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.18,
         shadowRadius: 20,
       },

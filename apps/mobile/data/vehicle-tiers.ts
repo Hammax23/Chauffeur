@@ -256,6 +256,30 @@ export function getTierCapacity(tier: {
   }
 }
 
+/** First number from luggage string (e.g. "2 large, 2 medium" → 2). */
+export function getTierLuggage(tier: {
+  id?: string;
+  luggage?: string;
+}): number {
+  const raw = String(tier.luggage || "").trim();
+  if (raw) {
+    const n = parseInt(raw.match(/(\d+)/)?.[1] || "", 10);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  switch (tier.id) {
+    case "black-suv":
+    case "cadillac-escalade":
+    case "exec-black-suv":
+      return 4;
+    case "xlarge-suv":
+      return 5;
+    case "exec-sprinter-van-14":
+      return 8;
+    default:
+      return 2;
+  }
+}
+
 /** Display title without trailing " · 3" capacity suffix. */
 export function formatTierDisplayTitle(title: string): string {
   return String(title || "")
