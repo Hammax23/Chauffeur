@@ -8,7 +8,7 @@ import { evaluateCustomerLocationSharing, CUSTOMER_LOCATION_LEAD_MINUTES } from 
 
 /**
  * Live chauffeur GPS for a booking owned by this customer.
- * Gated: accepted driver + (T-10min before pickup OR status ARRIVED/CIC/STOP).
+ * Gated: driver visible + status ON THE WAY / ARRIVED / CIC / STOP.
  */
 export async function GET(
   req: NextRequest,

@@ -48,6 +48,48 @@ export async function notifyCustomerDriverAssigned(bookingId: string): Promise<v
   }
 }
 
+/** Notify the customer that live tracking unlocked — chauffeur is On the Way. */
+export async function notifyCustomerDriverOnTheWay(bookingId: string): Promise<void> {
+  try {
+    const reservation = await prisma.reservation.findUnique({
+      where: { bookingId },
+      select: {
+        bookingId: true,
+        status: true,
+        customer: { select: { pushToken: true } },
+        assignedDriver: { select: { name: true } },
+      },
+    });
+
+    const token = reservation?.customer?.pushToken;
+    if (!token || !reservation) {
+      console.warn(
+        `[notifyCustomerDriverOnTheWay] skip — no pushToken bookingId=${bookingId}`
+      );
+      return;
+    }
+
+    const driverName =
+      reservation.assignedDriver?.name?.trim() || "Your chauffeur";
+
+    await sendPushNotification(
+      token,
+      "Driver on the way",
+      `${driverName} is heading to pickup. Live location is now available.`,
+      {
+        type: "driver_on_the_way",
+        bookingId: reservation.bookingId,
+        channelId: "reservations",
+        collapseId: `driver_on_the_way:${reservation.bookingId}`,
+        eventId: `driver_on_the_way:${reservation.bookingId}:${Date.now()}`,
+        screen: "customer/track-ride",
+      }
+    );
+  } catch (error) {
+    console.error("[notifyCustomerDriverOnTheWay]", error);
+  }
+}
+
 export async function notifyCustomerReservationCancelled(bookingId: string): Promise<void> {
   try {
     const reservation = await prisma.reservation.findUnique({

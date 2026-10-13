@@ -47,6 +47,7 @@ export async function GET(
         canSend: false,
         status: data.status,
         unreadCount: 0,
+        peer: data.peer,
       });
     }
     return NextResponse.json({ success: true, ...data });

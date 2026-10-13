@@ -1625,7 +1625,7 @@ export default function CreateReservationScreen() {
                   style={styles.textInput}
                   value={flightNumber}
                   onChangeText={setFlightNumber}
-                  placeholder="Flight/Trail number"
+                  placeholder="Flight/Tail number"
                   placeholderTextColor={palette.muted}
                   autoCapitalize="characters"
                   onFocus={onFormFieldFocus}
@@ -1940,12 +1940,12 @@ export default function CreateReservationScreen() {
                         pressed && { opacity: 0.85 },
                       ]}
                       accessibilityRole="button"
-                      accessibilityLabel="Add another vehicle"
+                      accessibilityLabel="Request another vehicle"
                     >
                       <Ionicons name="add-circle-outline" size={18} color={GOLD} />
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={[styles.vehicleCountAddTitle, { color: palette.text }]}>
-                          Need another vehicle?
+                          Request another vehicle?
                         </Text>
                         <Text style={[styles.vehicleCountAddSub, { color: palette.muted }]}>
                           Add another {formatTierDisplayTitle(selectedTier.title)}

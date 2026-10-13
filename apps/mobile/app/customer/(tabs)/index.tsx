@@ -1003,6 +1003,55 @@ export default function CustomerHomeScreen() {
         ) : null}
       </SafeAreaView>
 
+      {/* Live trip — floats above bottom sheet (never under it, even after driver assigned) */}
+      {activeRide && !whereSearching ? (
+        <Pressable
+          onPress={() =>
+            router.push({
+              pathname: "/customer/track-ride",
+              params: { bookingId: activeRide.bookingId },
+            })
+          }
+          style={({ pressed }) => [
+            styles.liveFloat,
+            {
+              bottom: windowHeight - effectiveSheetTop + 10,
+              left: layout.isTablet
+                ? (windowWidth - Math.min(windowWidth, 560)) / 2 + layout.padH
+                : layout.padH,
+              right: layout.isTablet
+                ? (windowWidth - Math.min(windowWidth, 560)) / 2 + layout.padH
+                : layout.padH,
+            },
+            pressed && { opacity: 0.92 },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Live trip"
+        >
+          <View style={styles.liveTop}>
+            <View style={styles.liveDotWrap}>
+              <Animated.View style={[styles.liveDotHalo, { opacity: livePulse }]} />
+              <View style={styles.liveDot} />
+            </View>
+            <Text style={styles.liveEyebrow}>LIVE TRIP</Text>
+            <View style={styles.liveChip}>
+              <Text style={styles.liveChipText} numberOfLines={1}>
+                {friendlyStatus(activeRide.status)}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.liveRoute} numberOfLines={1}>
+            {formatPlaceShort(activeRide.pickupLocation)} →{" "}
+            {formatPlaceShort(activeRide.dropoffLocation)}
+          </Text>
+          <Text style={styles.liveMeta} numberOfLines={1}>
+            {activeRide.bookingId}
+            {activeRideCount > 1 ? ` · +${activeRideCount - 1} more` : ""}
+            {isParcelServiceType(activeRide.serviceType) ? " · Parcel" : ""}
+          </Text>
+        </Pressable>
+      ) : null}
+
       {/* Upcoming — floats on the map above the sheet (does not grow sheet height) */}
       {isConciergeSheet && upcomingRide && !activeRide && !whereSearching ? (
         <Pressable
@@ -1073,9 +1122,13 @@ export default function CustomerHomeScreen() {
             bottom:
               windowHeight -
               effectiveSheetTop +
-              (isConciergeSheet && upcomingRide && !activeRide && !whereSearching
-                ? 78
-                : 18),
+              (whereSearching
+                ? 18
+                : activeRide
+                  ? 100
+                  : isConciergeSheet && upcomingRide
+                    ? 78
+                    : 18),
             right: layout.padH,
           },
         ]}
@@ -1252,39 +1305,6 @@ export default function CustomerHomeScreen() {
                 <Ionicons name="close" size={16} color={isDark ? "#A8A29A" : "#8A847C"} />
               </Pressable>
             </View>
-          ) : null}
-
-          {/* Live trip */}
-          {activeRide ? (
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: "/customer/track-ride",
-                  params: { bookingId: activeRide.bookingId },
-                })
-              }
-              style={({ pressed }) => [styles.liveCard, pressed && styles.pressed]}
-            >
-              <View style={styles.liveTop}>
-                <View style={styles.liveDotWrap}>
-                  <Animated.View style={[styles.liveDotHalo, { opacity: livePulse }]} />
-                  <View style={styles.liveDot} />
-                </View>
-                <Text style={styles.liveEyebrow}>LIVE TRIP</Text>
-                <View style={styles.liveChip}>
-                  <Text style={styles.liveChipText}>{friendlyStatus(activeRide.status)}</Text>
-                </View>
-              </View>
-              <Text style={styles.liveRoute} numberOfLines={1}>
-                {formatPlaceShort(activeRide.pickupLocation)} →{" "}
-                {formatPlaceShort(activeRide.dropoffLocation)}
-              </Text>
-              <Text style={styles.liveMeta}>
-                {activeRide.bookingId}
-                {activeRideCount > 1 ? ` · +${activeRideCount - 1} more` : ""}
-                {isParcelServiceType(activeRide.serviceType) ? " · Parcel" : ""}
-              </Text>
-            </Pressable>
           ) : null}
 
           {/* Service actions — concierge mock (default) or legacy dual cards */}
@@ -2027,11 +2047,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
-  liveCard: {
+  liveFloat: {
+    position: "absolute",
+    zIndex: 16,
     borderRadius: 16,
     padding: 14,
-    marginBottom: 12,
     backgroundColor: "#0F1A12",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.18,
+        shadowRadius: 12,
+      },
+      android: { elevation: 8 },
+    }),
   },
   liveTop: {
     flexDirection: "row",
@@ -2044,6 +2074,7 @@ const styles = StyleSheet.create({
     height: 14,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
   liveDotHalo: {
     position: "absolute",
@@ -2060,12 +2091,15 @@ const styles = StyleSheet.create({
   },
   liveEyebrow: {
     flex: 1,
+    minWidth: 0,
     fontSize: 11,
     fontWeight: "800",
     color: "rgba(255,255,255,0.55)",
     letterSpacing: 1.1,
   },
   liveChip: {
+    flexShrink: 1,
+    maxWidth: "52%",
     backgroundColor: "rgba(52,199,89,0.16)",
     paddingHorizontal: 8,
     paddingVertical: 3,

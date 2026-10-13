@@ -39,13 +39,12 @@ const SLATE_200 = "#e2e8f0";
 type RideStatus = "pending" | "accepted" | "on_the_way" | "arrived" | "customer_in_car" | "stop" | "done" | "cancelled";
 
 interface StatusStep {
-  id: Exclude<RideStatus, "pending" | "cancelled">;
+  id: Exclude<RideStatus, "pending" | "accepted" | "cancelled">;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
 }
 
 const statusSteps: StatusStep[] = [
-  { id: "accepted", label: "Driver assigned", icon: "person-outline" },
   { id: "on_the_way", label: "On the way", icon: "car-outline" },
   { id: "arrived", label: "Arrived at pickup", icon: "location-outline" },
   { id: "customer_in_car", label: "In car", icon: "people-outline" },
@@ -74,12 +73,12 @@ const friendlyStatus = (status: RideStatus) => {
 
 const statusSubtitle = (status: RideStatus) => {
   switch (status) {
-    case "pending": return "We're matching you with a chauffeur.";
-    case "accepted": return "Your chauffeur has accepted the request.";
-    case "on_the_way": return "Your chauffeur is heading to pickup.";
-    case "arrived": return "Your chauffeur is at the pickup location.";
-    case "customer_in_car": return "Enjoy the ride — sit back and relax.";
-    case "stop": return "Trip is currently paused.";
+    case "pending": return "Matching you with a chauffeur.";
+    case "accepted": return ""; // Title "Driver assigned" is enough
+    case "on_the_way": return "Heading to pickup.";
+    case "arrived": return "At the pickup location.";
+    case "customer_in_car": return "Enjoy the ride.";
+    case "stop": return "Trip paused.";
     case "done": return "Thanks for riding with SARJ.";
     case "cancelled": return "This reservation was cancelled.";
     default: return "";
@@ -138,7 +137,7 @@ function formatRelative(iso: string | null | undefined): string | null {
   return `${Math.floor(diffSec / 86400)}d ago`;
 }
 
-/** Statuses that may eventually share GPS (after T-10 / arrived). */
+/** Statuses that may show locked / live location UI. */
 const LOCATION_ELIGIBLE_STATUSES = new Set([
   "ACCEPTED",
   "ON THE WAY",
@@ -147,7 +146,13 @@ const LOCATION_ELIGIBLE_STATUSES = new Set([
   "STOP",
 ]);
 
-const LOCATION_ALWAYS_STATUSES = new Set(["ARRIVED", "CIC", "STOP"]);
+/** Live GPS unlocks when chauffeur is On the Way (stays on for Arrived/CIC/STOP). */
+const LOCATION_UNLOCK_STATUSES = new Set([
+  "ON THE WAY",
+  "ARRIVED",
+  "CIC",
+  "STOP",
+]);
 
 type LocationSharingInfo = {
   unlocked: boolean;
@@ -162,28 +167,9 @@ function isLocationUnlockedClient(
   sharing: LocationSharingInfo | null
 ): boolean {
   if (!status || !LOCATION_ELIGIBLE_STATUSES.has(status)) return false;
-  // Trust server flag first (clock-skew safe).
+  // Trust server flag first.
   if (sharing?.unlocked) return true;
-  if (LOCATION_ALWAYS_STATUSES.has(status)) return true;
-  // Local timer wake-up: unlockAt reached but poll not yet refreshed.
-  if (sharing?.unlockAt) {
-    const t = new Date(sharing.unlockAt).getTime();
-    if (!Number.isNaN(t) && Date.now() >= t) return true;
-  }
-  return false;
-}
-
-function formatUnlockCountdown(unlockAt: string | null): string | null {
-  if (!unlockAt) return null;
-  const t = new Date(unlockAt).getTime();
-  if (Number.isNaN(t)) return null;
-  const ms = t - Date.now();
-  if (ms <= 0) return null;
-  const mins = Math.ceil(ms / 60_000);
-  if (mins < 60) return `${mins} min`;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  return LOCATION_UNLOCK_STATUSES.has(status);
 }
 
 export default function TrackRideScreen() {
@@ -199,7 +185,6 @@ export default function TrackRideScreen() {
     driverName: string;
   } | null>(null);
   const [locationSharing, setLocationSharing] = useState<LocationSharingInfo | null>(null);
-  const [locTick, setLocTick] = useState(0);
 
   const reload = useCallback(async () => {
     if (!bookingId) {
@@ -254,18 +239,7 @@ export default function TrackRideScreen() {
 
   const locationUnlocked = isLocationUnlockedClient(reservation?.status, locationSharing);
 
-  // Wake up when the T-10 unlock instant arrives so map appears without pull-to-refresh.
-  useEffect(() => {
-    if (locationUnlocked || !locationSharing?.unlockAt) return;
-    const t = new Date(locationSharing.unlockAt).getTime();
-    if (Number.isNaN(t)) return;
-    const delay = Math.max(500, t - Date.now() + 250);
-    if (delay > 6 * 60 * 60 * 1000) return; // ignore absurd far-future
-    const id = setTimeout(() => setLocTick((n) => n + 1), delay);
-    return () => clearTimeout(id);
-  }, [locationSharing?.unlockAt, locationUnlocked]);
-
-  // Apply live GPS from SSE only when the sharing window is open.
+  // Apply live GPS from SSE only when On the Way (or Arrived/CIC/STOP).
   useEffect(() => {
     if (!live.location || !reservation) return;
     if (!isLocationUnlockedClient(reservation.status, locationSharing)) {
@@ -278,9 +252,9 @@ export default function TrackRideScreen() {
       updatedAt: live.location.updatedAt,
       driverName: reservation.driver?.name || "Driver",
     });
-  }, [live.location, reservation?.status, reservation?.driver?.name, locationSharing, locTick]);
+  }, [live.location, reservation?.status, reservation?.driver?.name, locationSharing]);
 
-  // Poll driver GPS while eligible — server enforces the T-10 gate.
+  // Poll driver GPS while eligible — server enforces On-the-Way gate.
   useEffect(() => {
     if (!bookingId || !reservation) return;
     const eligible = LOCATION_ELIGIBLE_STATUSES.has(reservation.status);
@@ -300,7 +274,7 @@ export default function TrackRideScreen() {
             unlockAt: res.locationSharing.unlockAt,
             serviceAt: res.locationSharing.serviceAt,
             reason: res.locationSharing.reason,
-            leadMinutes: res.locationSharing.leadMinutes ?? 10,
+            leadMinutes: res.locationSharing.leadMinutes ?? 0,
           });
         }
         if (res.success && res.location) {
@@ -314,19 +288,19 @@ export default function TrackRideScreen() {
       }
     };
     void tick();
-    // Before unlock: poll every 30s to pick up the window. After: follow SSE health.
+    // Before On the Way: poll for status change. After: follow SSE health.
     const unlocked = isLocationUnlockedClient(reservation.status, locationSharing);
     const pollMs = unlocked
       ? live.status === "open"
         ? 40_000
         : 8_000
-      : 30_000;
+      : 15_000;
     const id = setInterval(tick, pollMs);
     return () => {
       cancelled = true;
       clearInterval(id);
     };
-  }, [bookingId, reservation?.status, live.status, locTick, locationUnlocked]);
+  }, [bookingId, reservation?.status, live.status, locationUnlocked]);
 
   // Merge live data into the existing reservation snapshot (status, driver, etc.).
   useEffect(() => {
@@ -704,7 +678,7 @@ export default function TrackRideScreen() {
             </Pressable>
           ) : null}
 
-          {/* Live location map — only after T-10 / arrived */}
+          {/* Live location map — only after chauffeur marks On the Way */}
           {locationUnlocked && driverLoc && mapUrl ? (
             <View style={styles.section}>
               <Text style={styles.sectionEyebrow}>LIVE LOCATION</Text>
@@ -740,7 +714,7 @@ export default function TrackRideScreen() {
             </View>
           ) : reservation?.driver &&
             LOCATION_ELIGIBLE_STATUSES.has(reservation.status) &&
-            !LOCATION_ALWAYS_STATUSES.has(reservation.status) &&
+            !LOCATION_UNLOCK_STATUSES.has(reservation.status) &&
             locationSharing?.unlocked !== true ? (
             <View style={styles.section}>
               <Text style={styles.sectionEyebrow}>LIVE LOCATION</Text>
@@ -749,14 +723,9 @@ export default function TrackRideScreen() {
                   <Ionicons name="navigate-circle-outline" size={22} color={ACCENT_DARK} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.locationLockedTitle}>Tracking starts soon</Text>
+                  <Text style={styles.locationLockedTitle}>Waiting for departure</Text>
                   <Text style={styles.locationLockedBody}>
-                    Your chauffeur's live location unlocks{" "}
-                    {locationSharing?.leadMinutes ?? 10} minutes before pickup
-                    {formatUnlockCountdown(locationSharing?.unlockAt ?? null)
-                      ? ` · in ${formatUnlockCountdown(locationSharing?.unlockAt ?? null)}`
-                      : ""}
-                    .
+                    Live location unlocks when your chauffeur is On the way.
                   </Text>
                 </View>
               </View>
@@ -819,6 +788,7 @@ export default function TrackRideScreen() {
                       params: {
                         bookingId: reservation.bookingId,
                         name: reservation.driver?.name || "Driver",
+                        photo: reservation.driver?.photo || "",
                       },
                     });
                   }}
@@ -1187,32 +1157,32 @@ const styles = StyleSheet.create({
   liveBadgeTextWarn: { color: "#B45309" },
   liveBadgeTextOff: { color: "#475569" },
 
-  /* ───── status hero ───── */
+  /* ───── status hero (slim) ───── */
   statusHero: {
     position: "relative",
-    borderRadius: 20,
+    borderRadius: 16,
     overflow: "hidden",
-    marginBottom: 22,
+    marginBottom: 16,
     backgroundColor: "#0A1120",
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(255,255,255,0.06)",
     ...Platform.select({
       ios: {
         shadowColor: "#020617",
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.22,
-        shadowRadius: 22,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.18,
+        shadowRadius: 14,
       },
-      android: { elevation: 8 },
+      android: { elevation: 5 },
     }),
   },
   statusHeroGlow: {
     position: "absolute",
-    top: -30,
-    right: -40,
-    width: 220,
-    height: 180,
-    borderRadius: 220,
+    top: -36,
+    right: -48,
+    width: 160,
+    height: 120,
+    borderRadius: 160,
   },
   statusHeroTopHairline: {
     position: "absolute",
@@ -1223,44 +1193,44 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.12)",
   },
   statusHeroInner: {
-    paddingHorizontal: 18,
-    paddingVertical: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   statusHeroEyebrowRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 10,
+    gap: 6,
+    marginBottom: 6,
   },
   statusHeroEyebrowBar: {
-    width: 16,
+    width: 12,
     height: 2,
     borderRadius: 1,
     backgroundColor: ACCENT,
     opacity: 0.85,
   },
   statusHeroEyebrow: {
-    fontSize: 10.5,
+    fontSize: 9.5,
     fontWeight: "800",
-    color: "rgba(255,255,255,0.62)",
-    letterSpacing: 2.4,
+    color: "rgba(255,255,255,0.55)",
+    letterSpacing: 2,
   },
   statusHeroTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
   },
   statusHeroTitle: {
     flex: 1,
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "800",
     color: "#fff",
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
   },
   statusHeroTonePill: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "rgba(148,163,184,0.18)",
@@ -1283,21 +1253,21 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(220,38,38,0.20)",
     borderColor: "rgba(220,38,38,0.45)",
   },
-  statusHeroToneDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: SLATE_400 },
+  statusHeroToneDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: SLATE_400 },
   statusHeroToneDotActive: { backgroundColor: ACCENT },
   statusHeroToneDotInfo: { backgroundColor: "#60A5FA" },
   statusHeroToneDotSuccess: { backgroundColor: "#10B981" },
   statusHeroToneDotWarn: { backgroundColor: "#F87171" },
   statusHeroSub: {
-    fontSize: 13,
-    color: "rgba(226,232,240,0.66)",
-    lineHeight: 18,
-    marginTop: 6,
+    fontSize: 12,
+    color: "rgba(226,232,240,0.62)",
+    lineHeight: 16,
+    marginTop: 4,
   },
   statusHeroMeta: {
-    fontSize: 11,
-    color: "rgba(226,232,240,0.46)",
-    marginTop: 10,
+    fontSize: 10,
+    color: "rgba(226,232,240,0.42)",
+    marginTop: 6,
     letterSpacing: 0.2,
   },
   statusHeroFlash: {

@@ -202,8 +202,9 @@ export async function PATCH(
     };
 
     const periods = parseStopPeriods(reservation.driverStopPeriodsJson);
+    const firstOnTheWay = status === "ON THE WAY" && !reservation.driverOnTheWayAt;
 
-    if (status === "ON THE WAY" && !reservation.driverOnTheWayAt) {
+    if (firstOnTheWay) {
       updateData.driverOnTheWayAt = now;
     }
 
@@ -311,6 +312,15 @@ export async function PATCH(
     }
 
     await publishReservationFromDb(bookingId, "status_changed");
+
+    // First On the Way — tell customer live location is unlocked (works if app is closed).
+    if (firstOnTheWay) {
+      void import("@/lib/customer-push")
+        .then(({ notifyCustomerDriverOnTheWay }) =>
+          notifyCustomerDriverOnTheWay(bookingId)
+        )
+        .catch((err) => console.error("[on-the-way] customer push", err));
+    }
 
     return NextResponse.json({ success: true, message: `Status updated to ${status}` });
   } catch (error) {

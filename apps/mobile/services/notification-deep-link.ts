@@ -258,12 +258,17 @@ export async function routeDriverNotificationResponse(
 
     if (type === "chat") {
       const bookingId = String(data.bookingId || "").trim();
+      const name =
+        typeof data.name === "string" && data.name.trim() ? data.name.trim() : "";
       await clearBadgeSafely();
       if (!bookingId) return { kind: "ignored" as const };
       await dismissPresentedForEntity({ bookingId });
       router.push({
         pathname: "/driver/chat",
-        params: { bookingId },
+        params: {
+          bookingId,
+          ...(name ? { name } : {}),
+        },
       });
       return { kind: "navigated" as const, bookingId };
     }

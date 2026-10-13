@@ -1,23 +1,20 @@
 /**
  * Customer live GPS sharing policy.
  *
- * Location is shared only after the chauffeur is customer-visible (accepted)
- * AND the booking has entered the pre-arrival window:
- *   now >= (serviceDate + serviceTime in America/Toronto) − 10 minutes
- *
- * Once the trip has reached ARRIVED / CIC / STOP, location stays unlocked
- * even if the scheduled clock was wrong (ops already marked on-site).
+ * Location unlocks when the chauffeur marks On the Way, and stays unlocked
+ * through ARRIVED / CIC / STOP. ACCEPTED stays locked — no schedule / T−10 window.
  */
 
 import { isDriverVisibleToCustomer } from "@/lib/customer-visible-driver";
 
 export const CUSTOMER_LOCATION_TZ = "America/Toronto";
-/** Minutes before scheduled pickup when live GPS unlocks for the customer. */
-export const CUSTOMER_LOCATION_LEAD_MINUTES = 10;
+/**
+ * Legacy field kept for API compatibility. Status-based policy → always 0
+ * (no pre-pickup lead window).
+ */
+export const CUSTOMER_LOCATION_LEAD_MINUTES = 0;
 
-const LEAD_MS = CUSTOMER_LOCATION_LEAD_MINUTES * 60 * 1000;
-
-/** Statuses where GPS may be shared (after accept + time window / arrived). */
+/** Statuses that may show locked / live location UI on the client. */
 export const CUSTOMER_LOCATION_ELIGIBLE_STATUSES = new Set([
   "ACCEPTED",
   "ON THE WAY",
@@ -26,8 +23,8 @@ export const CUSTOMER_LOCATION_ELIGIBLE_STATUSES = new Set([
   "STOP",
 ]);
 
-/** On-site / in-trip — always unlock (scheduled time no longer matters). */
-const ALWAYS_UNLOCK_STATUSES = new Set(["ARRIVED", "CIC", "STOP"]);
+/** En route / on-site / in-trip — share live GPS with the customer. */
+const UNLOCK_STATUSES = new Set(["ON THE WAY", "ARRIVED", "CIC", "STOP"]);
 
 export type CustomerLocationSharingInput = {
   status: string;
@@ -40,7 +37,7 @@ export type CustomerLocationSharingInput = {
 
 export type CustomerLocationSharingResult = {
   unlocked: boolean;
-  /** ISO timestamp when sharing opens (null if unknown / N/A). */
+  /** Always null under arrived-only policy (no schedule unlock). */
   unlockAt: string | null;
   /** Scheduled pickup instant in UTC (null if unparseable). */
   serviceAt: string | null;
@@ -49,6 +46,8 @@ export type CustomerLocationSharingResult = {
     | "arrived_status"
     | "not_eligible_status"
     | "driver_not_visible"
+    | "awaiting_on_the_way"
+    | "awaiting_arrived"
     | "before_window"
     | "unparseable_schedule";
 };
@@ -187,29 +186,25 @@ export function parseServiceInstantUtc(
   return zonedWallTimeToUtc(d.y, d.m, d.d, t.h, t.min, t.s, timeZone);
 }
 
+/** @deprecated Status-based policy — no schedule unlock; always returns null. */
 export function getCustomerLocationUnlockAt(
-  serviceDate: string | null | undefined,
-  serviceTime: string | null | undefined
+  _serviceDate: string | null | undefined,
+  _serviceTime: string | null | undefined
 ): Date | null {
-  const serviceAt = parseServiceInstantUtc(serviceDate, serviceTime);
-  if (!serviceAt) return null;
-  return new Date(serviceAt.getTime() - LEAD_MS);
+  return null;
 }
 
 /**
  * Enterprise gate for sharing chauffeur GPS with the customer.
+ * Unlocks on ON THE WAY / ARRIVED / CIC / STOP.
  */
 export function evaluateCustomerLocationSharing(
   input: CustomerLocationSharingInput
 ): CustomerLocationSharingResult {
-  const nowMs = input.nowMs ?? Date.now();
   const serviceAt = parseServiceInstantUtc(input.serviceDate, input.serviceTime);
-  const unlockAtDate = serviceAt
-    ? new Date(serviceAt.getTime() - LEAD_MS)
-    : null;
 
   const base = {
-    unlockAt: unlockAtDate?.toISOString() ?? null,
+    unlockAt: null as string | null,
     serviceAt: serviceAt?.toISOString() ?? null,
   };
 
@@ -226,26 +221,16 @@ export function evaluateCustomerLocationSharing(
     return { ...base, unlocked: false, reason: "driver_not_visible" };
   }
 
-  // Already on-site / in trip — always share.
-  if (ALWAYS_UNLOCK_STATUSES.has(input.status)) {
-    return { ...base, unlocked: true, reason: "arrived_status" };
+  if (UNLOCK_STATUSES.has(input.status)) {
+    return {
+      ...base,
+      unlocked: true,
+      reason: input.status === "ON THE WAY" ? "unlocked" : "arrived_status",
+    };
   }
 
-  // ACCEPTED / ON THE WAY — require schedule window.
-  if (!unlockAtDate || !serviceAt) {
-    // Bad/legacy schedule strings: if chauffeur is already en route, share GPS
-    // rather than blocking until ARRIVED. ACCEPTED alone stays locked (fail closed).
-    if (input.status === "ON THE WAY") {
-      return { ...base, unlocked: true, reason: "unlocked" };
-    }
-    return { ...base, unlocked: false, reason: "unparseable_schedule" };
-  }
-
-  if (nowMs < unlockAtDate.getTime()) {
-    return { ...base, unlocked: false, reason: "before_window" };
-  }
-
-  return { ...base, unlocked: true, reason: "unlocked" };
+  // ACCEPTED — locked until chauffeur marks On the Way.
+  return { ...base, unlocked: false, reason: "awaiting_on_the_way" };
 }
 
 export function isCustomerDriverLocationUnlocked(
@@ -270,13 +255,12 @@ export function formatTorontoWall(isoUtc: string | null): string | null {
   }).format(d);
 }
 
-/** Debug helper — e.g. unlock window description. */
+/** Debug helper — schedule context (unlock is status-based, not schedule-based). */
 export function describeUnlockWindow(
   serviceDate: string,
   serviceTime: string
 ): string {
   const serviceAt = parseServiceInstantUtc(serviceDate, serviceTime);
-  const unlockAt = getCustomerLocationUnlockAt(serviceDate, serviceTime);
-  return `pickup=${formatTorontoWall(serviceAt?.toISOString() ?? null) ?? "?"} unlock=${formatTorontoWall(unlockAt?.toISOString() ?? null) ?? "?"} lead=${CUSTOMER_LOCATION_LEAD_MINUTES}m tz=${CUSTOMER_LOCATION_TZ}`;
+  return `pickup=${formatTorontoWall(serviceAt?.toISOString() ?? null) ?? "?"} unlock=on_ON_THE_WAY lead=${CUSTOMER_LOCATION_LEAD_MINUTES}m tz=${CUSTOMER_LOCATION_TZ}`;
 }
 

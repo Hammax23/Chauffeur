@@ -30,6 +30,11 @@ export type ChatMessageDto = {
   readAt: string | null;
 };
 
+export type ChatPeerDto = {
+  name: string;
+  photo: string | null;
+};
+
 export function isChatOpen(status: string): boolean {
   return (CHAT_OPEN_STATUSES as readonly string[]).includes(status);
 }
@@ -122,6 +127,7 @@ export async function listMessagesForBooking(
   canSend: boolean;
   status: string;
   unreadCount: number;
+  peer: ChatPeerDto | null;
 }> {
   const limit = Math.min(options?.limit ?? DEFAULT_MESSAGE_LIMIT, MAX_MESSAGE_LIMIT);
   let sinceDate: Date | undefined;
@@ -144,6 +150,10 @@ export async function listMessagesForBooking(
     select: {
       id: true,
       status: true,
+      firstName: true,
+      lastName: true,
+      assignedDriver: { select: { name: true, photo: true } },
+      customer: { select: { firstName: true, lastName: true, photo: true } },
       chatThread: {
         select: {
           id: true,
@@ -169,6 +179,33 @@ export async function listMessagesForBooking(
     throw new Error("NOT_FOUND");
   }
 
+  const peer: ChatPeerDto | null =
+    options?.viewerType === "CUSTOMER"
+      ? reservation.assignedDriver
+        ? {
+            name: reservation.assignedDriver.name,
+            photo: reservation.assignedDriver.photo ?? null,
+          }
+        : null
+      : options?.viewerType === "DRIVER"
+        ? (() => {
+            const fromCustomer = reservation.customer
+              ? `${reservation.customer.firstName} ${reservation.customer.lastName}`.trim()
+              : "";
+            const fromReservation = `${reservation.firstName || ""} ${reservation.lastName || ""}`.trim();
+            const name = fromCustomer || fromReservation || "Customer";
+            return {
+              name,
+              photo: reservation.customer?.photo ?? null,
+            };
+          })()
+        : reservation.assignedDriver
+          ? {
+              name: reservation.assignedDriver.name,
+              photo: reservation.assignedDriver.photo ?? null,
+            }
+          : null;
+
   const canSend = isChatOpen(reservation.status);
   if (!reservation.chatThread) {
     return {
@@ -177,6 +214,7 @@ export async function listMessagesForBooking(
       canSend,
       status: reservation.status,
       unreadCount: 0,
+      peer,
     };
   }
 
@@ -198,6 +236,7 @@ export async function listMessagesForBooking(
     canSend,
     status: reservation.status,
     unreadCount,
+    peer,
   };
 }
 
@@ -263,56 +302,90 @@ export async function postChatMessage(params: {
 
   const preview = previewBody(body);
 
-  if (params.senderType === "CUSTOMER" && reservation.assignedDriver?.pushToken) {
+  if (params.senderType === "CUSTOMER") {
     const guestName =
       [reservation.firstName, reservation.lastName].filter(Boolean).join(" ").trim() ||
       "Passenger";
-    void sendPushNotification(
-      reservation.assignedDriver.pushToken,
-      `Message from ${guestName}`,
-      preview,
-      {
-        type: "chat",
-        bookingId: reservation.bookingId,
-        messageId: message.id,
-        channelId: "chat",
-        collapseId: `chat:${reservation.bookingId}`,
-        eventId: `chat:${message.id}`,
-        screen: "driver/chat",
-      }
-    ).catch((err) => console.error("[chat] driver push failed", err));
-  }
-
-  if (params.senderType === "DRIVER" && reservation.customerId) {
-    void (async () => {
-      try {
-        const customer = await prisma.customer.findUnique({
-          where: { id: reservation.customerId! },
-          select: { pushToken: true },
-        });
-        if (!customer?.pushToken) return;
-
-        const chauffeurName =
-          reservation.assignedDriver?.name?.trim() || "Your chauffeur";
-
-        await sendPushNotification(
-          customer.pushToken,
-          `Message from ${chauffeurName}`,
-          preview,
-          {
+    const driverToken = reservation.assignedDriver?.pushToken;
+    if (!driverToken) {
+      console.warn(
+        `[chat] skip driver push — no pushToken bookingId=${reservation.bookingId}`
+      );
+    } else {
+      void (async () => {
+        try {
+          const unread = await countUnreadForViewer({
+            bookingId: reservation.bookingId,
+            viewerType: "DRIVER",
+          });
+          const title =
+            unread > 1
+              ? `${guestName} · ${unread} messages`
+              : `Message from ${guestName}`;
+          await sendPushNotification(driverToken, title, preview, {
             type: "chat",
             bookingId: reservation.bookingId,
             messageId: message.id,
+            name: guestName,
+            channelId: "chat",
+            collapseId: `chat:${reservation.bookingId}`,
+            eventId: `chat:${message.id}`,
+            screen: "driver/chat",
+            badge: unread,
+          });
+        } catch (err) {
+          console.error("[chat] driver push failed", err);
+        }
+      })();
+    }
+  }
+
+  if (params.senderType === "DRIVER") {
+    if (!reservation.customerId) {
+      console.warn(
+        `[chat] skip customer push — no customerId bookingId=${reservation.bookingId}`
+      );
+    } else {
+      void (async () => {
+        try {
+          const customer = await prisma.customer.findUnique({
+            where: { id: reservation.customerId! },
+            select: { pushToken: true },
+          });
+          if (!customer?.pushToken) {
+            console.warn(
+              `[chat] skip customer push — no pushToken bookingId=${reservation.bookingId}`
+            );
+            return;
+          }
+
+          const chauffeurName =
+            reservation.assignedDriver?.name?.trim() || "Your chauffeur";
+          const unread = await countUnreadForViewer({
+            bookingId: reservation.bookingId,
+            viewerType: "CUSTOMER",
+          });
+          const title =
+            unread > 1
+              ? `${chauffeurName} · ${unread} messages`
+              : `Message from ${chauffeurName}`;
+
+          await sendPushNotification(customer.pushToken, title, preview, {
+            type: "chat",
+            bookingId: reservation.bookingId,
+            messageId: message.id,
+            name: chauffeurName,
             channelId: "chat",
             collapseId: `chat:${reservation.bookingId}`,
             eventId: `chat:${message.id}`,
             screen: "customer/chat",
-          }
-        );
-      } catch (err) {
-        console.error("[chat] customer push failed", err);
-      }
-    })();
+            badge: unread,
+          });
+        } catch (err) {
+          console.error("[chat] customer push failed", err);
+        }
+      })();
+    }
   }
 
   return dto;

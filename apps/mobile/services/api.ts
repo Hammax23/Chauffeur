@@ -1661,6 +1661,11 @@ export type ChatMessage = {
   readAt: string | null;
 };
 
+export type ChatPeer = {
+  name: string;
+  photo: string | null;
+};
+
 export type ChatThreadPayload = {
   success: boolean;
   threadId: string | null;
@@ -1668,6 +1673,7 @@ export type ChatThreadPayload = {
   canSend: boolean;
   status: string;
   unreadCount?: number;
+  peer?: ChatPeer | null;
   error?: string;
 };
 

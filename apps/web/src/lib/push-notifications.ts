@@ -77,8 +77,19 @@ function buildMessage(
         ? 60 * 60 * 2
         : 60 * 60 * 24;
 
-  const { ttlSeconds: _ttlSeconds, collapseId: _collapseId, ...restData } =
-    (data || {}) as Record<string, unknown>;
+  const {
+    ttlSeconds: _ttlSeconds,
+    collapseId: _collapseId,
+    badge: badgeRaw,
+    ...restData
+  } = (data || {}) as Record<string, unknown>;
+
+  const badge =
+    typeof badgeRaw === "number" && Number.isFinite(badgeRaw)
+      ? Math.max(0, Math.floor(badgeRaw))
+      : typeof badgeRaw === "string" && /^\d+$/.test(badgeRaw.trim())
+        ? Math.max(0, parseInt(badgeRaw.trim(), 10))
+        : undefined;
 
   return {
     to: pushToken,
@@ -93,10 +104,12 @@ function buildMessage(
       channelId,
       eventId,
       ...(collapseId ? { collapseId } : {}),
+      ...(badge !== undefined ? { badge } : {}),
     },
     priority: "high",
     channelId,
     ttl,
+    ...(badge !== undefined ? { badge } : {}),
     ...(collapseId
       ? {
           collapseId,

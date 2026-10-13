@@ -11,7 +11,7 @@ import {
   toggleDriverActive as apiToggleActive,
   onUnauthorized,
 } from "../services/api";
-import { InteractionManager } from "react-native";
+import { AppState, InteractionManager } from "react-native";
 import { registerDriverPushToken, subscribeDriverPushTokenRefresh, resetPushTokenRegistrationCache } from "../services/notifications";
 import { stopDriverLocationTracking } from "../services/driver-location";
 
@@ -48,6 +48,18 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
   // Re-register when FCM/APNs rotates the device token (app closed delivery depends on this)
   useEffect(() => {
     return subscribeDriverPushTokenRefresh(getDriverToken);
+  }, []);
+
+  // Foreground resume — keep server token fresh for killed-app delivery
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      void (async () => {
+        const token = await getDriverToken();
+        if (token) scheduleDriverPush(token);
+      })();
+    });
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {

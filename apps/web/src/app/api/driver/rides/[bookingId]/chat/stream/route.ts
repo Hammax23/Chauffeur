@@ -71,7 +71,9 @@ export async function GET(
       }
 
       try {
-        const snapshot = await listMessagesForBooking(bookingId);
+        const snapshot = await listMessagesForBooking(bookingId, {
+          viewerType: "DRIVER",
+        });
         send("snapshot", snapshot);
       } catch {
         send("snapshot", { threadId: null, messages: [], canSend: false, status: "UNKNOWN" });

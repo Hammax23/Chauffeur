@@ -78,7 +78,9 @@ export async function GET(
 
       let historyLocked = false;
       try {
-        const snapshot = await listMessagesForBooking(bookingId);
+        const snapshot = await listMessagesForBooking(bookingId, {
+          viewerType: "CUSTOMER",
+        });
         historyLocked = isCustomerTripHistoryLocked(snapshot.status);
         if (historyLocked) {
           send("snapshot", {
@@ -86,6 +88,7 @@ export async function GET(
             messages: [],
             canSend: false,
             status: snapshot.status,
+            peer: snapshot.peer,
           });
         } else {
           send("snapshot", snapshot);

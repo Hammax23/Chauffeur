@@ -3,21 +3,39 @@ import * as Device from "expo-device";
 import { Platform } from "react-native";
 import { API_BASE_URL } from "./api";
 import Constants from "expo-constants";
+import { isActiveTripChat } from "./active-trip-chat";
 
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
-    const type = notification.request.content.data?.type;
+    const data = notification.request.content.data as
+      | Record<string, unknown>
+      | undefined;
+    const type = data?.type;
     // Custom in-app banner handles SARJ assignment/live offers while foregrounded —
     // don't also dump a duplicate into the notification tray.
     const isRideAlert = type === "new_assignment" || type === "live_offer";
     const isChat = type === "chat";
+    const chatBookingId =
+      typeof data?.bookingId === "string" ? data.bookingId : "";
+    // WhatsApp-style: no OS banner/sound while already viewing this thread (SSE handles UI).
+    const suppressActiveChat = isChat && isActiveTripChat(chatBookingId);
+
+    if (suppressActiveChat) {
+      return {
+        shouldShowAlert: false,
+        shouldShowBanner: false,
+        shouldShowList: false,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      };
+    }
+
     return {
       shouldShowAlert: !isRideAlert,
       shouldShowBanner: !isRideAlert,
       shouldShowList: !isRideAlert,
       shouldPlaySound: true,
       shouldSetBadge: !isRideAlert,
-      // Chat should interrupt politely while the app is open
       ...(isChat
         ? {
             shouldShowAlert: true,
@@ -49,7 +67,7 @@ async function ensureNotificationChannels() {
   await Notifications.setNotificationChannelAsync("chat", {
     name: "Trip messages",
     description: "Messages between you and your chauffeur or passenger",
-    importance: Notifications.AndroidImportance.HIGH,
+    importance: Notifications.AndroidImportance.MAX,
     vibrationPattern: [0, 180, 100, 180],
     lightColor: "#C9A063",
     sound: "default",
@@ -263,6 +281,38 @@ export function subscribeDriverPushTokenRefresh(
           const auth = await getAuthToken();
           if (!auth) return;
           await registerDriverPushToken(auth);
+        } catch {
+          // ignore
+        }
+      })();
+    }, 1500);
+  });
+
+  return () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    sub.remove();
+  };
+}
+
+/** Same as driver refresh — keeps customer tokens alive across FCM/APNs rotation. */
+export function subscribeCustomerPushTokenRefresh(
+  getAuthToken: () => Promise<string | null>
+): () => void {
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const sub = Notifications.addPushTokenListener(() => {
+    if (suppressPushTokenListener > 0) return;
+
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      debounceTimer = null;
+      void (async () => {
+        try {
+          cachedExpoPushToken = null;
+          lastPostedCustomerToken = null;
+          const auth = await getAuthToken();
+          if (!auth) return;
+          await registerCustomerPushToken(auth);
         } catch {
           // ignore
         }

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   StyleSheet,
   FlatList,
   Platform,
@@ -13,8 +12,11 @@ import {
   Easing,
   Keyboard,
   Vibration,
+  Image,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -30,11 +32,29 @@ import {
   sendDriverChatMessage,
 } from "../services/api";
 import { openSseStream, type SseConnectionStatus, type SseStreamHandle } from "../services/sse-client";
+import { setActiveTripChat } from "../services/active-trip-chat";
 
 const GOLD = "#D4A04A";
-const INK = "#0B0B0B";
+const GOLD_DEEP = "#B8893A";
+const INK = "#12100E";
 const FALLBACK_POLL_MS = 6_000;
 const SSE_BOOTSTRAP_MS = 1_800;
+
+const CUSTOMER_SUGGESTIONS = [
+  "I'm outside",
+  "On my way",
+  "Running 5 min late",
+  "Where are you?",
+  "Thank you",
+];
+
+const DRIVER_SUGGESTIONS = [
+  "I've arrived",
+  "On my way",
+  "Looking for you",
+  "Slight delay",
+  "Please wait",
+];
 
 type Role = "driver" | "customer";
 
@@ -42,6 +62,7 @@ type Props = {
   bookingId: string;
   role: Role;
   title?: string;
+  peerPhoto?: string;
 };
 
 function formatTime(iso: string) {
@@ -92,14 +113,61 @@ function replaceMessage(prev: ChatMessage[], tempId: string, next: ChatMessage):
   return uniqueById([...withoutTemp, next]);
 }
 
+type PeerAvatarProps = {
+  name: string;
+  photo?: string | null;
+  size?: number;
+};
+
+const PeerAvatar = memo(function PeerAvatar({ name, photo, size = 42 }: PeerAvatarProps) {
+  const initial = (name || "?").trim().charAt(0).toUpperCase() || "?";
+  if (photo) {
+    return (
+      <View style={[styles.avatarRing, { width: size + 4, height: size + 4, borderRadius: (size + 4) / 2 }]}>
+        <Image
+          source={{ uri: photo }}
+          style={{ width: size, height: size, borderRadius: size / 2 }}
+        />
+      </View>
+    );
+  }
+  return (
+    <View style={[styles.avatarRing, { width: size + 4, height: size + 4, borderRadius: (size + 4) / 2 }]}>
+      <LinearGradient
+        colors={[GOLD, GOLD_DEEP]}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Text style={[styles.avatarText, { fontSize: size * 0.38 }]}>{initial}</Text>
+      </LinearGradient>
+    </View>
+  );
+});
+
 type ChatBubbleProps = {
   item: ChatMessage;
   isMine: boolean;
   pending?: boolean;
   animateIn?: boolean;
+  peerPhoto?: string | null;
+  peerName?: string;
+  showAvatar?: boolean;
 };
 
-const ChatBubble = memo(function ChatBubble({ item, isMine, pending, animateIn }: ChatBubbleProps) {
+const ChatBubble = memo(function ChatBubble({
+  item,
+  isMine,
+  pending,
+  animateIn,
+  peerPhoto,
+  peerName,
+  showAvatar,
+}: ChatBubbleProps) {
   const opacity = useRef(new Animated.Value(animateIn ? 0 : 1)).current;
   const translateY = useRef(new Animated.Value(animateIn ? 10 : 0)).current;
 
@@ -130,6 +198,11 @@ const ChatBubble = memo(function ChatBubble({ item, isMine, pending, animateIn }
         { opacity, transform: [{ translateY }] },
       ]}
     >
+      {!isMine && showAvatar ? (
+        <PeerAvatar name={peerName || "D"} photo={peerPhoto} size={28} />
+      ) : !isMine ? (
+        <View style={{ width: 32 }} />
+      ) : null}
       <View
         style={[
           styles.bubble,
@@ -139,7 +212,7 @@ const ChatBubble = memo(function ChatBubble({ item, isMine, pending, animateIn }
       >
         {isMine ? (
           <LinearGradient
-            colors={["#E8C48A", GOLD, "#B8893A"]}
+            colors={["#E8C48A", GOLD, GOLD_DEEP]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.bubbleGrad}
@@ -153,7 +226,7 @@ const ChatBubble = memo(function ChatBubble({ item, isMine, pending, animateIn }
                 {formatTime(item.createdAt)}
               </Text>
               {!pending ? (
-                <Ionicons name="checkmark-done" size={12} color="rgba(255,255,255,0.7)" />
+                <Ionicons name="checkmark-done" size={12} color="rgba(255,255,255,0.75)" />
               ) : null}
             </View>
           </LinearGradient>
@@ -171,7 +244,7 @@ const ChatBubble = memo(function ChatBubble({ item, isMine, pending, animateIn }
   );
 });
 
-export default function TripChatScreen({ bookingId, role, title }: Props) {
+export default function TripChatScreen({ bookingId, role, title, peerPhoto: peerPhotoProp }: Props) {
   const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [canSend, setCanSend] = useState(false);
@@ -182,6 +255,8 @@ export default function TripChatScreen({ bookingId, role, title }: Props) {
   const [connection, setConnection] = useState<SseConnectionStatus>("connecting");
   const [freshIds, setFreshIds] = useState<Set<string>>(new Set());
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [peerName, setPeerName] = useState(title?.trim() || (role === "driver" ? "Customer" : "Driver"));
+  const [peerPhoto, setPeerPhoto] = useState<string | null>(peerPhotoProp?.trim() || null);
 
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const knownIds = useRef<Set<string>>(new Set());
@@ -194,8 +269,25 @@ export default function TripChatScreen({ bookingId, role, title }: Props) {
   const screenFade = useRef(new Animated.Value(0)).current;
 
   const mine = role === "driver" ? "DRIVER" : "CUSTOMER";
-  const blurIntensity = Platform.OS === "ios" ? 48 : 28;
-  const peerLabel = role === "driver" ? "Customer" : "Driver";
+  const blurIntensity = Platform.OS === "ios" ? 52 : 30;
+  const peerLabel = role === "driver" ? "Customer" : "Your chauffeur";
+  const suggestions = role === "driver" ? DRIVER_SUGGESTIONS : CUSTOMER_SUGGESTIONS;
+
+  useEffect(() => {
+    if (title?.trim()) setPeerName(title.trim());
+  }, [title]);
+
+  useEffect(() => {
+    if (peerPhotoProp?.trim()) setPeerPhoto(peerPhotoProp.trim());
+  }, [peerPhotoProp]);
+
+  // Suppress OS chat banners while this thread is focused (SSE still delivers).
+  useFocusEffect(
+    useCallback(() => {
+      if (bookingId) setActiveTripChat(bookingId);
+      return () => setActiveTripChat(null);
+    }, [bookingId])
+  );
 
   useEffect(() => {
     Animated.timing(screenFade, {
@@ -206,7 +298,6 @@ export default function TripChatScreen({ bookingId, role, title }: Props) {
     }).start();
   }, [screenFade]);
 
-  // Keep composer above keyboard (KAV + BlurView was hiding the typed text)
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
@@ -260,8 +351,22 @@ export default function TripChatScreen({ bookingId, role, title }: Props) {
     }, 700);
   }, []);
 
+  const applyPeer = useCallback(
+    (peer?: { name?: string; photo?: string | null } | null) => {
+      if (!peer) return;
+      if (peer.name?.trim()) setPeerName(peer.name.trim());
+      if (peer.photo?.trim()) setPeerPhoto(peer.photo.trim());
+    },
+    []
+  );
+
   const applySnapshot = useCallback(
-    (incoming: ChatMessage[], nextCanSend?: boolean) => {
+    (
+      incoming: ChatMessage[],
+      nextCanSend?: boolean,
+      peer?: { name?: string; photo?: string | null } | null
+    ) => {
+      applyPeer(peer);
       setMessages((prev) => {
         const merged = mergeById(prev, incoming);
         const next = uniqueById(merged ?? prev);
@@ -269,7 +374,6 @@ export default function TripChatScreen({ bookingId, role, title }: Props) {
         if (next.length > 0) {
           lastMessageAt.current = next[next.length - 1].createdAt;
         }
-        // Avoid re-render if content is identical by id order
         if (
           next.length === prev.length &&
           next.every((m, i) => m.id === prev[i]?.id)
@@ -282,7 +386,7 @@ export default function TripChatScreen({ bookingId, role, title }: Props) {
       setBootstrapping(false);
       setError("");
     },
-    []
+    [applyPeer]
   );
 
   const appendLiveMessage = useCallback(
@@ -320,7 +424,7 @@ export default function TripChatScreen({ bookingId, role, title }: Props) {
             ? await getDriverChat(bookingId, since, { markRead: !incremental })
             : await getCustomerChat(bookingId, since, { markRead: !incremental });
         if (res.success) {
-          applySnapshot(res.messages || [], !!res.canSend);
+          applySnapshot(res.messages || [], !!res.canSend, res.peer);
         } else if (!sseReady.current) {
           setError(res.error || "Unable to load chat");
           setBootstrapping(false);
@@ -347,7 +451,6 @@ export default function TripChatScreen({ bookingId, role, title }: Props) {
     return () => sub.remove();
   }, [fetchHttp]);
 
-  // Instant first paint via HTTP, SSE takes over for live
   useEffect(() => {
     if (!bookingId) return;
     void fetchHttp(false);
@@ -375,9 +478,10 @@ export default function TripChatScreen({ bookingId, role, title }: Props) {
               const data = JSON.parse(event.data) as {
                 messages?: ChatMessage[];
                 canSend?: boolean;
+                peer?: { name?: string; photo?: string | null } | null;
               };
               sseReady.current = true;
-              applySnapshot(data.messages || [], data.canSend);
+              applySnapshot(data.messages || [], data.canSend, data.peer);
             } catch {
               /* ignore */
             }
@@ -423,53 +527,60 @@ export default function TripChatScreen({ bookingId, role, title }: Props) {
     });
   }, [messages.length]);
 
-  const onSend = async () => {
-    const body = text.trim();
-    if (!body || sending || !canSend) return;
+  const sendBody = useCallback(
+    async (raw: string) => {
+      const body = raw.trim();
+      if (!body || sending || !canSend) return;
 
-    const tempId = `temp-${Date.now()}`;
-    const optimistic: ChatMessage = {
-      id: tempId,
-      senderType: mine,
-      senderId: "local",
-      body,
-      createdAt: new Date().toISOString(),
-      readAt: null,
-    };
+      const tempId = `temp-${Date.now()}`;
+      const optimistic: ChatMessage = {
+        id: tempId,
+        senderType: mine,
+        senderId: "local",
+        body,
+        createdAt: new Date().toISOString(),
+        readAt: null,
+      };
 
-    pendingTempIds.current.add(tempId);
-    shouldStickToBottom.current = true;
-    setText("");
-    setSending(true);
-    setError("");
-    markFresh([tempId]);
-    setMessages((prev) => uniqueById([...prev, optimistic]));
+      pendingTempIds.current.add(tempId);
+      shouldStickToBottom.current = true;
+      setText("");
+      setSending(true);
+      setError("");
+      markFresh([tempId]);
+      setMessages((prev) => uniqueById([...prev, optimistic]));
 
-    try {
-      const res =
-        role === "driver"
-          ? await sendDriverChatMessage(bookingId, body)
-          : await sendCustomerChatMessage(bookingId, body);
+      try {
+        const res =
+          role === "driver"
+            ? await sendDriverChatMessage(bookingId, body)
+            : await sendCustomerChatMessage(bookingId, body);
 
-      pendingTempIds.current.delete(tempId);
+        pendingTempIds.current.delete(tempId);
 
-      if (res.success && res.message) {
-        knownIds.current.add(res.message.id);
-        lastMessageAt.current = res.message.createdAt;
-        setMessages((prev) => replaceMessage(prev, tempId, res.message));
-      } else {
+        if (res.success && res.message) {
+          knownIds.current.add(res.message.id);
+          lastMessageAt.current = res.message.createdAt;
+          setMessages((prev) => replaceMessage(prev, tempId, res.message));
+        } else {
+          setMessages((prev) => prev.filter((m) => m.id !== tempId));
+          setText(body);
+          setError(res.error || "Failed to send");
+        }
+      } catch (e) {
+        pendingTempIds.current.delete(tempId);
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
         setText(body);
-        setError(res.error || "Failed to send");
+        setError(e instanceof Error ? e.message : "Failed to send");
+      } finally {
+        setSending(false);
       }
-    } catch (e) {
-      pendingTempIds.current.delete(tempId);
-      setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      setText(body);
-      setError(e instanceof Error ? e.message : "Failed to send");
-    } finally {
-      setSending(false);
-    }
+    },
+    [bookingId, canSend, markFresh, mine, role, sending]
+  );
+
+  const onSend = () => {
+    void sendBody(text);
   };
 
   const connectionLabel = useMemo(() => {
@@ -479,15 +590,24 @@ export default function TripChatScreen({ bookingId, role, title }: Props) {
   }, [connection]);
 
   const renderItem = useCallback(
-    ({ item }: { item: ChatMessage }) => (
-      <ChatBubble
-        item={item}
-        isMine={item.senderType === mine}
-        pending={item.id.startsWith("temp-")}
-        animateIn={freshIds.has(item.id)}
-      />
-    ),
-    [freshIds, mine]
+    ({ item, index }: { item: ChatMessage; index: number }) => {
+      const isMine = item.senderType === mine;
+      const prev = messages[index - 1];
+      const showAvatar =
+        !isMine && (!prev || prev.senderType === mine || prev.senderType !== item.senderType);
+      return (
+        <ChatBubble
+          item={item}
+          isMine={isMine}
+          pending={item.id.startsWith("temp-")}
+          animateIn={freshIds.has(item.id)}
+          peerPhoto={peerPhoto}
+          peerName={peerName}
+          showAvatar={showAvatar}
+        />
+      );
+    },
+    [freshIds, messages, mine, peerName, peerPhoto]
   );
 
   const keyExtractor = useCallback((item: ChatMessage, index: number) => {
@@ -495,13 +615,17 @@ export default function TripChatScreen({ bookingId, role, title }: Props) {
   }, []);
 
   const canPressSend = canSend && !!text.trim() && !sending;
-  // Lift whole chat above keyboard; safe-area only on composer when keyboard is closed
   const bottomOffset = keyboardHeight > 0 ? keyboardHeight : 0;
   const composerPadBottom = keyboardHeight > 0 ? 10 : Math.max(insets.bottom, 8);
+  const showSuggestions = canSend && !sending && !text.trim();
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={["#F3F1EE", "#F7F7F8", "#FFFFFF"]} style={StyleSheet.absoluteFill} />
+      <LinearGradient
+        colors={["#EFE8DF", "#F5F2EE", "#FAFAFA"]}
+        locations={[0, 0.35, 1]}
+        style={StyleSheet.absoluteFill}
+      />
       <SafeAreaView style={styles.safe} edges={["top"]}>
         <Animated.View
           style={[
@@ -509,197 +633,215 @@ export default function TripChatScreen({ bookingId, role, title }: Props) {
             { opacity: screenFade, paddingBottom: bottomOffset },
           ]}
         >
-            {/* Frosted header */}
-            <BlurView intensity={blurIntensity} tint="light" style={styles.headerBlur}>
-              <View style={styles.header}>
-                <Pressable
-                  onPress={() => router.back()}
-                  style={({ pressed }) => [
-                    styles.backBtn,
-                    pressed && { opacity: 0.7, transform: [{ scale: 0.96 }] },
-                  ]}
-                  hitSlop={10}
-                >
-                  <Ionicons name="chevron-back" size={20} color={INK} />
-                </Pressable>
+          <BlurView intensity={blurIntensity} tint="light" style={styles.headerBlur}>
+            <View style={styles.header}>
+              <Pressable
+                onPress={() => router.back()}
+                style={({ pressed }) => [
+                  styles.backBtn,
+                  pressed && { opacity: 0.7, transform: [{ scale: 0.96 }] },
+                ]}
+                hitSlop={10}
+              >
+                <Ionicons name="chevron-back" size={20} color={INK} />
+              </Pressable>
 
-                <View style={styles.avatar}>
-                  <LinearGradient colors={[GOLD, "#B8893A"]} style={styles.avatarGrad}>
-                    <Text style={styles.avatarText}>
-                      {(title || peerLabel).trim().charAt(0).toUpperCase()}
-                    </Text>
-                  </LinearGradient>
-                </View>
+              <PeerAvatar name={peerName} photo={peerPhoto} size={42} />
 
-                <View style={styles.headerTextCol}>
-                  <Text style={styles.headerTitle} numberOfLines={1}>
-                    {title || `${peerLabel} chat`}
+              <View style={styles.headerTextCol}>
+                <Text style={styles.headerTitle} numberOfLines={1}>
+                  {peerName}
+                </Text>
+                <View style={styles.headerMetaRow}>
+                  <Text style={styles.headerSub} numberOfLines={1}>
+                    {peerLabel}
                   </Text>
-                  <View style={styles.headerMetaRow}>
-                    <Text style={styles.headerSub} numberOfLines={1}>
-                      {bookingId}
-                    </Text>
-                    <View
-                      style={[
-                        styles.statusPill,
-                        connection === "open" ? styles.statusPillLive : styles.statusPillIdle,
-                      ]}
-                    >
-                      {connection === "open" ? (
-                        <Animated.View
-                          style={[
-                            styles.statusPulse,
-                            {
-                              opacity: livePulse,
-                              transform: [
-                                {
-                                  scale: livePulse.interpolate({
-                                    inputRange: [0.4, 1],
-                                    outputRange: [1, 1.8],
-                                  }),
-                                },
-                              ],
-                            },
-                          ]}
-                        />
-                      ) : null}
-                      <View
+                  <View
+                    style={[
+                      styles.statusPill,
+                      connection === "open" ? styles.statusPillLive : styles.statusPillIdle,
+                    ]}
+                  >
+                    {connection === "open" ? (
+                      <Animated.View
                         style={[
-                          styles.statusDot,
-                          connection === "open" ? styles.statusDotLive : styles.statusDotIdle,
+                          styles.statusPulse,
+                          {
+                            opacity: livePulse,
+                            transform: [
+                              {
+                                scale: livePulse.interpolate({
+                                  inputRange: [0.4, 1],
+                                  outputRange: [1, 1.8],
+                                }),
+                              },
+                            ],
+                          },
                         ]}
                       />
-                      <Text
-                        style={[
-                          styles.statusText,
-                          connection === "open" && styles.statusTextLive,
-                        ]}
-                      >
-                        {connectionLabel}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            </BlurView>
-
-            <FlatList
-              ref={listRef}
-              data={messages}
-              keyExtractor={keyExtractor}
-              renderItem={renderItem}
-              contentContainerStyle={[
-                styles.listContent,
-                messages.length === 0 && styles.listContentEmpty,
-              ]}
-              initialNumToRender={20}
-              maxToRenderPerBatch={16}
-              updateCellsBatchingPeriod={40}
-              windowSize={9}
-              removeClippedSubviews={Platform.OS === "android"}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="interactive"
-              showsVerticalScrollIndicator={false}
-              onScrollBeginDrag={() => {
-                shouldStickToBottom.current = false;
-              }}
-              onMomentumScrollEnd={(e) => {
-                const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-                const dist = contentSize.height - layoutMeasurement.height - contentOffset.y;
-                shouldStickToBottom.current = dist < 80;
-              }}
-              onContentSizeChange={() => {
-                if (shouldStickToBottom.current) {
-                  listRef.current?.scrollToEnd({ animated: false });
-                }
-              }}
-              ListEmptyComponent={
-                bootstrapping ? (
-                  <View style={styles.empty}>
-                    <SlimSpinner size={26} stroke={2} color={GOLD} />
-                    <Text style={styles.emptySub}>Loading conversation…</Text>
-                  </View>
-                ) : (
-                  <View style={styles.empty}>
-                    <View style={styles.emptyIconWrap}>
-                      <Ionicons name="chatbubbles" size={28} color={GOLD} />
-                    </View>
-                    <Text style={styles.emptyTitle}>Start the conversation</Text>
-                    <Text style={styles.emptySub}>
-                      {canSend
-                        ? "Coordinate pickup details instantly."
-                        : "Chat opens after the driver accepts the ride."}
+                    ) : null}
+                    <View
+                      style={[
+                        styles.statusDot,
+                        connection === "open" ? styles.statusDotLive : styles.statusDotIdle,
+                      ]}
+                    />
+                    <Text
+                      style={[
+                        styles.statusText,
+                        connection === "open" && styles.statusTextLive,
+                      ]}
+                    >
+                      {connectionLabel}
                     </Text>
                   </View>
-                )
-              }
-            />
-
-            {error ? (
-              <View style={styles.errorBanner}>
-                <Ionicons name="alert-circle" size={14} color="#DC2626" />
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
-
-            {/* Frosted composer — always stays above keyboard via paddingBottom */}
-            <BlurView intensity={blurIntensity} tint="light" style={styles.composerBlur}>
-              <View style={[styles.composer, { paddingBottom: composerPadBottom }]}>
-                {!canSend ? (
-                  <Text style={styles.closedHint}>Chat is read-only for this ride.</Text>
-                ) : null}
-                <View style={styles.inputRow}>
-                  <View style={styles.inputShell}>
-                    <TextInput
-                      style={styles.input}
-                      value={text}
-                      onChangeText={setText}
-                      placeholder={canSend ? "Type a message…" : "Messaging unavailable"}
-                      placeholderTextColor="#94A3B8"
-                      editable={canSend && !sending}
-                      multiline
-                      maxLength={2000}
-                      returnKeyType="default"
-                      blurOnSubmit={false}
-                    />
-                  </View>
-                  <Animated.View style={{ transform: [{ scale: sendScale }] }}>
-                    <Pressable
-                      disabled={!canPressSend}
-                      onPressIn={() =>
-                        Animated.spring(sendScale, {
-                          toValue: 0.9,
-                          useNativeDriver: true,
-                          speed: 40,
-                          bounciness: 0,
-                        }).start()
-                      }
-                      onPressOut={() =>
-                        Animated.spring(sendScale, {
-                          toValue: 1,
-                          useNativeDriver: true,
-                          speed: 22,
-                          bounciness: 6,
-                        }).start()
-                      }
-                      onPress={onSend}
-                      style={[styles.sendBtn, !canPressSend && styles.sendBtnDisabled]}
-                    >
-                      <LinearGradient
-                        colors={canPressSend ? [GOLD, "#B8893A"] : ["#D1D5DB", "#CBD5E1"]}
-                        style={styles.sendGrad}
-                      >
-                        {sending ? (
-                          <SlimSpinner size={18} stroke={2} color="#fff" />
-                        ) : (
-                          <Ionicons name="arrow-up" size={20} color="#fff" />
-                        )}
-                      </LinearGradient>
-                    </Pressable>
-                  </Animated.View>
                 </View>
               </View>
-            </BlurView>
+            </View>
+          </BlurView>
+
+          <FlatList
+            ref={listRef}
+            data={messages}
+            keyExtractor={keyExtractor}
+            renderItem={renderItem}
+            contentContainerStyle={[
+              styles.listContent,
+              messages.length === 0 && styles.listContentEmpty,
+            ]}
+            initialNumToRender={20}
+            maxToRenderPerBatch={16}
+            updateCellsBatchingPeriod={40}
+            windowSize={9}
+            removeClippedSubviews={Platform.OS === "android"}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            showsVerticalScrollIndicator={false}
+            onScrollBeginDrag={() => {
+              shouldStickToBottom.current = false;
+            }}
+            onMomentumScrollEnd={(e) => {
+              const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+              const dist = contentSize.height - layoutMeasurement.height - contentOffset.y;
+              shouldStickToBottom.current = dist < 80;
+            }}
+            onContentSizeChange={() => {
+              if (shouldStickToBottom.current) {
+                listRef.current?.scrollToEnd({ animated: false });
+              }
+            }}
+            ListEmptyComponent={
+              bootstrapping ? (
+                <View style={styles.empty}>
+                  <SlimSpinner size={26} stroke={2} color={GOLD} />
+                  <Text style={styles.emptySub}>Loading conversation…</Text>
+                </View>
+              ) : (
+                <View style={styles.empty}>
+                  <View style={styles.emptyHero}>
+                    <PeerAvatar name={peerName} photo={peerPhoto} size={72} />
+                    <View style={styles.emptyBadge}>
+                      <Ionicons name="chatbubble-ellipses" size={14} color="#fff" />
+                    </View>
+                  </View>
+                  <Text style={styles.emptyTitle}>Message {peerName.split(" ")[0]}</Text>
+                  <Text style={styles.emptySub}>
+                    {canSend
+                      ? "Coordinate pickup details instantly."
+                      : "Chat opens after the driver accepts the ride."}
+                  </Text>
+                </View>
+              )
+            }
+          />
+
+          {error ? (
+            <View style={styles.errorBanner}>
+              <Ionicons name="alert-circle" size={14} color="#DC2626" />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
+
+          <BlurView intensity={blurIntensity} tint="light" style={styles.composerBlur}>
+            <View style={[styles.composer, { paddingBottom: composerPadBottom }]}>
+              {!canSend ? (
+                <Text style={styles.closedHint}>Chat is read-only for this ride.</Text>
+              ) : null}
+
+              {showSuggestions ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.suggestRow}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {suggestions.map((phrase) => (
+                    <Pressable
+                      key={phrase}
+                      onPress={() => void sendBody(phrase)}
+                      style={({ pressed }) => [
+                        styles.suggestChip,
+                        pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] },
+                      ]}
+                    >
+                      <Text style={styles.suggestText}>{phrase}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              ) : null}
+
+              <View style={styles.inputRow}>
+                <View style={styles.inputShell}>
+                  <TextInput
+                    style={styles.input}
+                    value={text}
+                    onChangeText={setText}
+                    placeholder={canSend ? "Type a message…" : "Messaging unavailable"}
+                    placeholderTextColor="#94A3B8"
+                    editable={canSend && !sending}
+                    multiline
+                    maxLength={2000}
+                    returnKeyType="default"
+                    blurOnSubmit={false}
+                  />
+                </View>
+                <Animated.View style={{ transform: [{ scale: sendScale }] }}>
+                  <Pressable
+                    disabled={!canPressSend}
+                    onPressIn={() =>
+                      Animated.spring(sendScale, {
+                        toValue: 0.9,
+                        useNativeDriver: true,
+                        speed: 40,
+                        bounciness: 0,
+                      }).start()
+                    }
+                    onPressOut={() =>
+                      Animated.spring(sendScale, {
+                        toValue: 1,
+                        useNativeDriver: true,
+                        speed: 22,
+                        bounciness: 6,
+                      }).start()
+                    }
+                    onPress={onSend}
+                    style={[styles.sendBtn, !canPressSend && styles.sendBtnDisabled]}
+                  >
+                    <LinearGradient
+                      colors={canPressSend ? [GOLD, GOLD_DEEP] : ["#D1D5DB", "#CBD5E1"]}
+                      style={styles.sendGrad}
+                    >
+                      {sending ? (
+                        <SlimSpinner size={18} stroke={2} color="#fff" />
+                      ) : (
+                        <Ionicons name="arrow-up" size={20} color="#fff" />
+                      )}
+                    </LinearGradient>
+                  </Pressable>
+                </Animated.View>
+              </View>
+            </View>
+          </BlurView>
         </Animated.View>
       </SafeAreaView>
     </View>
@@ -707,12 +849,12 @@ export default function TripChatScreen({ bookingId, role, title }: Props) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F7F7F8" },
+  root: { flex: 1, backgroundColor: "#F5F2EE" },
   safe: { flex: 1 },
   flex: { flex: 1 },
   headerBlur: {
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(0,0,0,0.08)",
+    borderBottomColor: "rgba(18,16,14,0.08)",
     overflow: "hidden",
   },
   header: {
@@ -726,29 +868,25 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "rgba(0,0,0,0.05)",
+    backgroundColor: "rgba(18,16,14,0.05)",
     alignItems: "center",
     justifyContent: "center",
   },
-  avatar: {
+  avatarRing: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(212,160,74,0.18)",
     ...Platform.select({
       ios: {
         shadowColor: GOLD,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.25,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.22,
         shadowRadius: 6,
       },
       android: { elevation: 2 },
     }),
   },
-  avatarGrad: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  avatarText: { color: "#fff", fontWeight: "800" },
   headerTextCol: { flex: 1, minWidth: 0 },
   headerTitle: {
     fontSize: 17,
@@ -762,7 +900,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 2,
   },
-  headerSub: { fontSize: 11, color: "#64748B", flex: 1, fontWeight: "500" },
+  headerSub: { fontSize: 12, color: "#7A746C", flex: 1, fontWeight: "600" },
   statusPill: {
     flexDirection: "row",
     alignItems: "center",
@@ -794,18 +932,27 @@ const styles = StyleSheet.create({
   listContent: { paddingHorizontal: 14, paddingVertical: 16 },
   listContentEmpty: { flexGrow: 1, justifyContent: "center" },
   empty: { alignItems: "center", paddingHorizontal: 28, paddingVertical: 36 },
-  emptyIconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "rgba(212,160,74,0.12)",
+  emptyHero: {
+    marginBottom: 8,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
+  },
+  emptyBadge: {
+    position: "absolute",
+    right: -2,
+    bottom: -2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: GOLD,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#F5F2EE",
   },
   emptyTitle: {
-    marginTop: 12,
-    fontSize: 17,
+    marginTop: 14,
+    fontSize: 18,
     fontWeight: "800",
     color: INK,
     letterSpacing: -0.3,
@@ -813,15 +960,15 @@ const styles = StyleSheet.create({
   emptySub: {
     marginTop: 8,
     fontSize: 13,
-    color: "#94A3B8",
+    color: "#8A837A",
     textAlign: "center",
     lineHeight: 19,
   },
-  bubbleRow: { marginBottom: 8, flexDirection: "row" },
+  bubbleRow: { marginBottom: 10, flexDirection: "row", alignItems: "flex-end", gap: 8 },
   bubbleRowMine: { justifyContent: "flex-end" },
   bubbleRowOther: { justifyContent: "flex-start" },
   bubble: {
-    maxWidth: "78%",
+    maxWidth: "74%",
     borderRadius: 20,
     overflow: "hidden",
   },
@@ -844,7 +991,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     paddingVertical: 9,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(0,0,0,0.06)",
+    borderColor: "rgba(18,16,14,0.06)",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -886,7 +1033,7 @@ const styles = StyleSheet.create({
   errorText: { color: "#DC2626", fontSize: 12, flex: 1, fontWeight: "600" },
   composerBlur: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(0,0,0,0.08)",
+    borderTopColor: "rgba(18,16,14,0.08)",
     overflow: "hidden",
   },
   composer: {
@@ -900,13 +1047,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     fontWeight: "500",
   },
+  suggestRow: {
+    paddingBottom: 10,
+    gap: 8,
+    paddingRight: 8,
+  },
+  suggestChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(212,160,74,0.35)",
+  },
+  suggestText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: INK,
+    letterSpacing: -0.2,
+  },
   inputRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
   inputShell: {
     flex: 1,
     borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.92)",
+    backgroundColor: "rgba(255,255,255,0.96)",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(0,0,0,0.08)",
+    borderColor: "rgba(18,16,14,0.08)",
     ...Platform.select({
       ios: {
         shadowColor: "#000",

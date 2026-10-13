@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { InteractionManager } from "react-native";
+import { AppState, InteractionManager } from "react-native";
 import {
   CustomerProfile,
   getStoredCustomer,
@@ -17,7 +17,11 @@ import {
   persistCustomerProfile,
   onUnauthorized,
 } from "../services/api";
-import { registerCustomerPushToken } from "../services/notifications";
+import {
+  registerCustomerPushToken,
+  subscribeCustomerPushTokenRefresh,
+  resetPushTokenRegistrationCache,
+} from "../services/notifications";
 
 interface AuthContextType {
   user: CustomerProfile | null;
@@ -85,6 +89,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return onUnauthorized((role) => {
       if (role === "customer") setUser(null);
     });
+  }, []);
+
+  // Re-register when FCM/APNs rotates the device token
+  useEffect(() => {
+    return subscribeCustomerPushTokenRefresh(getCustomerToken);
+  }, []);
+
+  // Foreground resume — keep server token fresh for killed-app delivery
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      void (async () => {
+        const token = await getCustomerToken();
+        if (token) scheduleCustomerPush(token);
+      })();
+    });
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {
@@ -234,6 +255,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    resetPushTokenRegistrationCache();
     await logoutCustomer();
     setUser(null);
   }, []);

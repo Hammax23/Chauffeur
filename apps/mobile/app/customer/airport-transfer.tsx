@@ -512,7 +512,7 @@ export default function AirportTransferScreen() {
                     },
                   ]}
                 />
-                <Text style={[styles.label, { color: palette.muted }]}>Flight/Trail number</Text>
+                <Text style={[styles.label, { color: palette.muted }]}>Flight/Tail number</Text>
                 <TextInput
                   value={flightNumber}
                   onChangeText={setFlightNumber}

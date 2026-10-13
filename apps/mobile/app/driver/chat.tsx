@@ -1,15 +1,28 @@
 import { useLocalSearchParams } from "expo-router";
 import TripChatScreen from "../../components/TripChatScreen";
 
-export default function DriverChatScreen() {
-  const { bookingId, name } = useLocalSearchParams<{ bookingId?: string; name?: string }>();
-  const id = typeof bookingId === "string" ? bookingId : Array.isArray(bookingId) ? bookingId[0] : "";
-  const title =
-    typeof name === "string" && name.trim()
-      ? name
-      : Array.isArray(name) && name[0]
-        ? name[0]
-        : "Customer chat";
+function firstParam(v: string | string[] | undefined): string {
+  if (typeof v === "string") return v;
+  if (Array.isArray(v) && v[0]) return v[0];
+  return "";
+}
 
-  return <TripChatScreen bookingId={id} role="driver" title={title} />;
+export default function DriverChatScreen() {
+  const { bookingId, name, photo } = useLocalSearchParams<{
+    bookingId?: string;
+    name?: string;
+    photo?: string;
+  }>();
+  const id = firstParam(bookingId);
+  const title = firstParam(name).trim() || "Customer";
+  const peerPhoto = firstParam(photo).trim() || undefined;
+
+  return (
+    <TripChatScreen
+      bookingId={id}
+      role="driver"
+      title={title}
+      peerPhoto={peerPhoto}
+    />
+  );
 }
