@@ -8,6 +8,9 @@ import {
   Image,
   Platform,
   Animated,
+  Easing,
+  LayoutAnimation,
+  UIManager,
   Pressable,
   ActivityIndicator,
   useWindowDimensions,
@@ -16,9 +19,10 @@ import {
   KeyboardAvoidingView,
   TextInput,
   Keyboard,
+  Switch,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import MapView, { Marker, PROVIDER_DEFAULT, type Region } from "react-native-maps";
@@ -29,6 +33,7 @@ import {
   getReservations,
   Reservation,
   getActiveAppPromotions,
+  getAppFleetVehicles,
   type ActiveAppPromotion,
 } from "../../../services/api";
 import { useReservationStream } from "../../../hooks/useReservationStream";
@@ -37,9 +42,31 @@ import {
   PlacesSuggestionsPanel,
   type GooglePlacesSuggestionsState,
 } from "../../../components/GooglePlacesAddressField";
+import { VehicleTierSelectList } from "../../../components/VehicleTierSelectList";
 import type { PlacePrediction } from "../../../services/places";
+import { fetchDirectionsSummary } from "../../../services/places";
 import { GOLD } from "../../../theme/driver-theme";
+import {
+  buildVehicleTiersFromAppFleet,
+  type VehicleTierOption,
+} from "../../../data/vehicle-tiers";
+import {
+  BASE_DISTANCE_KM,
+  EXTRA_KM_RATE,
+  MEET_GREET_CHARGE,
+  calculateAppDistanceFare,
+  isAirportPickupLocation,
+  type AppDistancePricing,
+} from "../../../utils/app-fare";
+import {
+  MAX_APP_STOPS,
+  activeStopAddresses,
+  joinAppStops,
+} from "../../../utils/stops";
 import { isParcelServiceType } from "../../../utils/parcel";
+
+/** Home Plan-your-ride focus: pickup, dropoff, or stop index. */
+type WhereRouteFocus = "pickup" | "dropoff" | number;
 import {
   dismissHomePromo,
   isHomePromoDismissed,
@@ -56,6 +83,10 @@ import {
   PrimaryRideCard,
   SecondaryParcelRow,
 } from "../../../components/homeServiceCards.legacy";
+
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 /** Flip to `"legacy"` to restore Book a Ride / Send a Parcel dual cards. */
 const HOME_SERVICES_STYLE: "concierge" | "legacy" = "concierge";
@@ -243,7 +274,8 @@ function ConciergePlaceRow({
 
 export default function CustomerHomeScreen() {
   const { user } = useAuth();
-  const { isDark, toggleTheme } = useCustomerTheme();
+  const { isDark, palette, toggleTheme } = useCustomerTheme();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const mapRef = useRef<MapView | null>(null);
@@ -322,30 +354,125 @@ export default function CustomerHomeScreen() {
   } | null>(null);
   const [dropoff, setDropoff] = useState("");
   const [dropoffCoords, setDropoffCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [routeFocus, setRouteFocus] = useState<"pickup" | "dropoff">("dropoff");
+  /** Intermediate stops between pickup and dropoff (Uber-style). */
+  const [whereStops, setWhereStops] = useState<string[]>([]);
+  /** Airport flight fields — shown under route when pickup/dropoff is an airport. */
+  const [whereAirline, setWhereAirline] = useState("");
+  const [whereFlightNumber, setWhereFlightNumber] = useState("");
+  const [whereMeetGreet, setWhereMeetGreet] = useState(false);
+  /** Autocomplete labels — keep airport signal when formatted address is street-only. */
+  const [wherePickupPlaceLabel, setWherePickupPlaceLabel] = useState("");
+  const [whereDropoffPlaceLabel, setWhereDropoffPlaceLabel] = useState("");
+  /** Who is riding — Plan your ride header pill (replaces profile avatar). */
+  const [whereRideFor, setWhereRideFor] = useState<"me" | "someone" | "child">("me");
+  const [showWhereRideForMenu, setShowWhereRideForMenu] = useState(false);
+  const [routeFocus, setRouteFocus] = useState<WhereRouteFocus>("dropoff");
   const [routeSuggestions, setRouteSuggestions] = useState<GooglePlacesSuggestionsState | null>(
     null
   );
-  const routeFocusRef = useRef<"pickup" | "dropoff">("dropoff");
+  const routeFocusRef = useRef<WhereRouteFocus>("dropoff");
   const pickupPickRef = useRef<((p: PlacePrediction) => void) | null>(null);
   const dropoffPickRef = useRef<((p: PlacePrediction) => void) | null>(null);
   const pickupDismissRef = useRef<(() => void) | null>(null);
   const dropoffDismissRef = useRef<(() => void) | null>(null);
+  const pickupInputRef = useRef<TextInput | null>(null);
   const dropoffInputRef = useRef<TextInput | null>(null);
+  const stopPickRefs = useRef(
+    Array.from({ length: MAX_APP_STOPS }, () => ({
+      current: null as ((p: PlacePrediction) => void) | null,
+    }))
+  );
+  const stopDismissRefs = useRef(
+    Array.from({ length: MAX_APP_STOPS }, () => ({
+      current: null as (() => void) | null,
+    }))
+  );
+  const stopInputRefs = useRef(
+    Array.from({ length: MAX_APP_STOPS }, () => ({
+      current: null as TextInput | null,
+    }))
+  );
   const [keyboardH, setKeyboardH] = useState(0);
+  /**
+   * Plan mode is full-height under the status bar — do NOT translateY the sheet
+   * with the keyboard (that shoved "Plan your ride" off the top of the screen).
+   * Keyboard clearance is padding inside the scroll content instead.
+   */
+
+  const dismissAllWhereFields = useCallback((except?: WhereRouteFocus) => {
+    if (except !== "pickup") pickupDismissRef.current?.();
+    if (except !== "dropoff") dropoffDismissRef.current?.();
+    stopDismissRefs.current.forEach((ref, i) => {
+      if (except !== i) ref.current?.();
+    });
+  }, []);
+
+  const blurWhereInputs = useCallback(() => {
+    pickupInputRef.current?.blur();
+    dropoffInputRef.current?.blur();
+    stopInputRefs.current.forEach((r) => r.current?.blur());
+  }, []);
+
+  /** One gentle dismiss — sheet animates with keyboard; blur after hide. */
+  const softDismissWhereKeyboard = useCallback(() => {
+    Keyboard.dismiss();
+  }, []);
+
+  // Inline Select vehicle (Uber-style) once pickup + dropoff are set on the home sheet
+  const [whereTiers, setWhereTiers] = useState<VehicleTierOption[]>([]);
+  const [whereSelectedTierId, setWhereSelectedTierId] = useState<string | null>(null);
+  const [whereFleetLoading, setWhereFleetLoading] = useState(false);
+  const [whereFleetError, setWhereFleetError] = useState("");
+  const [whereDistancePricing, setWhereDistancePricing] = useState<AppDistancePricing>({
+    baseDistanceKm: BASE_DISTANCE_KM,
+    extraKmRate: EXTRA_KM_RATE,
+  });
+  const [whereDistanceMeters, setWhereDistanceMeters] = useState<number | null>(null);
+  const [whereRouteMeta, setWhereRouteMeta] = useState<{
+    distanceText: string;
+    durationText: string;
+  } | null>(null);
+  const [whereRouteLoading, setWhereRouteLoading] = useState(false);
+  const [whereRouteError, setWhereRouteError] = useState("");
+  const whereVehicleReveal = useRef(new Animated.Value(0)).current;
+  const whereDidScrollVehicles = useRef(false);
+  const whereSearchScrollRef = useRef<ScrollView | null>(null);
 
   useEffect(() => {
     const showEvt = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvt = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
     const onShow = Keyboard.addListener(showEvt, (e) => {
       setKeyboardH(e.endCoordinates?.height ?? 0);
     });
-    const onHide = Keyboard.addListener(hideEvt, () => setKeyboardH(0));
+    const onHide = Keyboard.addListener(hideEvt, () => {
+      setKeyboardH(0);
+      // Blur after keyboard starts hiding — avoids focus fighting the animation.
+      blurWhereInputs();
+    });
     return () => {
       onShow.remove();
       onHide.remove();
     };
-  }, []);
+  }, [blurWhereInputs]);
+
+  // Leave Plan your ride → clear keyboard inset tracking.
+  useEffect(() => {
+    if (whereSearching) return;
+    setKeyboardH(0);
+  }, [whereSearching]);
+
+  // Plan your ride — hide footer tabs (re-apply on focus after Review back).
+  useFocusEffect(
+    useCallback(() => {
+      navigation.setOptions({
+        tabBarStyle: whereSearching ? { display: "none" } : undefined,
+      });
+      return () => {
+        navigation.setOptions({ tabBarStyle: undefined });
+      };
+    }, [navigation, whereSearching])
+  );
 
   const isUsablePickupLabel = useCallback((label: string) => {
     const t = label.trim();
@@ -558,53 +685,118 @@ export default function CustomerHomeScreen() {
     [pickupAddress, pickupLabel, coords]
   );
 
+  const resetWhereVehicleState = useCallback(() => {
+    setWhereTiers([]);
+    setWhereSelectedTierId(null);
+    setWhereFleetLoading(false);
+    setWhereFleetError("");
+    setWhereDistanceMeters(null);
+    setWhereRouteMeta(null);
+    setWhereRouteLoading(false);
+    setWhereRouteError("");
+    whereVehicleReveal.setValue(0);
+    whereDidScrollVehicles.current = false;
+  }, [whereVehicleReveal]);
+
   const cancelWhereSearch = useCallback(() => {
     setWhereSearching(false);
     setWherePickup("");
     setWherePickupCoords(null);
     setDropoff("");
     setDropoffCoords(null);
+    setWhereStops([]);
+    setWhereAirline("");
+    setWhereFlightNumber("");
+    setWhereMeetGreet(false);
+    setWherePickupPlaceLabel("");
+    setWhereDropoffPlaceLabel("");
+    setWhereRideFor("me");
+    setShowWhereRideForMenu(false);
     setRouteSuggestions(null);
     routeFocusRef.current = "dropoff";
     setRouteFocus("dropoff");
-  }, []);
+    resetWhereVehicleState();
+  }, [resetWhereVehicleState]);
 
-  const bookWithDropoff = useCallback(
-    (place: { address: string; lat?: number; lng?: number }) => {
-      const params: Record<string, string> = {};
-      const pickupText = wherePickup.trim();
-      if (pickupText && isUsablePickupLabel(pickupText)) {
-        params.pickup = pickupText;
-      } else {
-        Object.assign(params, bookingParams());
-      }
-      if (wherePickupCoords) {
-        params.pickupLat = String(wherePickupCoords.lat);
-        params.pickupLng = String(wherePickupCoords.lng);
-      } else if (coords) {
-        params.pickupLat = String(coords.lat);
-        params.pickupLng = String(coords.lng);
-      }
+  /** Stay on the sheet after dropoff — Select vehicle appears below the route card. */
+  const onWhereDropoffResolved = useCallback(
+    (place: { address: string; lat?: number; lng?: number; description?: string }) => {
       const address = place.address.trim();
-      if (address) params.dropoff = address;
-      if (place.lat != null && place.lng != null) {
-        params.dropoffLat = String(place.lat);
-        params.dropoffLng = String(place.lng);
-      }
-      setWhereSearching(false);
       setDropoff(address);
+      setWhereDropoffPlaceLabel(place.description?.trim() || address);
       setDropoffCoords(
         place.lat != null && place.lng != null ? { lat: place.lat, lng: place.lng } : null
       );
+      dropoffDismissRef.current?.();
       setRouteSuggestions(null);
-      router.push({ pathname: "/customer/create-reservation", params });
+      Keyboard.dismiss();
     },
-    [bookingParams, wherePickup, wherePickupCoords, coords, isUsablePickupLabel]
+    []
   );
 
+  /** Tap a vehicle → select only; Continue goes to Review. */
+  const selectWhereVehicle = useCallback((vehicleId: string) => {
+    if (!vehicleId) return;
+    setWhereSelectedTierId(vehicleId);
+  }, []);
+
+  const continueWhereToReview = useCallback(() => {
+    if (!whereSelectedTierId) return;
+    const params: Record<string, string> = { fromPlanRide: "1" };
+    const pickupText = wherePickup.trim();
+    if (pickupText && isUsablePickupLabel(pickupText)) {
+      params.pickup = pickupText;
+    } else {
+      Object.assign(params, bookingParams());
+    }
+    if (wherePickupCoords) {
+      params.pickupLat = String(wherePickupCoords.lat);
+      params.pickupLng = String(wherePickupCoords.lng);
+    } else if (coords) {
+      params.pickupLat = String(coords.lat);
+      params.pickupLng = String(coords.lng);
+    }
+    if (dropoff.trim()) params.dropoff = dropoff.trim();
+    if (dropoffCoords) {
+      params.dropoffLat = String(dropoffCoords.lat);
+      params.dropoffLng = String(dropoffCoords.lng);
+    }
+    const stopsJoined = joinAppStops(whereStops);
+    if (stopsJoined) params.stops = stopsJoined;
+    params.vehicleId = whereSelectedTierId;
+    if (whereAirline.trim()) params.airline = whereAirline.trim();
+    if (whereFlightNumber.trim()) params.flightNumber = whereFlightNumber.trim();
+    if (
+      whereMeetGreet &&
+      (isAirportPickupLocation(wherePickup) ||
+        isAirportPickupLocation(wherePickupPlaceLabel))
+    ) {
+      params.meetGreet = "1";
+    }
+    if (whereRideFor !== "me") params.rideFor = whereRideFor;
+    // Keep Plan your ride state — Review back must return here, not idle Home.
+    router.push({ pathname: "/customer/create-reservation", params });
+  }, [
+    whereSelectedTierId,
+    wherePickup,
+    wherePickupCoords,
+    dropoff,
+    dropoffCoords,
+    whereStops,
+    whereAirline,
+    whereFlightNumber,
+    whereMeetGreet,
+    wherePickupPlaceLabel,
+    whereRideFor,
+    coords,
+    bookingParams,
+    isUsablePickupLabel,
+  ]);
+
   const onWherePickupResolved = useCallback(
-    (place: { address: string; lat?: number; lng?: number }) => {
+    (place: { address: string; lat?: number; lng?: number; description?: string }) => {
       setWherePickup(place.address);
+      setWherePickupPlaceLabel(place.description?.trim() || place.address);
       const nextCoords =
         place.lat != null && place.lng != null ? { lat: place.lat, lng: place.lng } : null;
       setWherePickupCoords(nextCoords);
@@ -615,22 +807,283 @@ export default function CustomerHomeScreen() {
         setCoords(nextCoords);
         setMyCoords(nextCoords);
       }
-      pickupDismissRef.current?.();
+      dismissAllWhereFields("pickup");
       setRouteSuggestions(null);
-      routeFocusRef.current = "dropoff";
-      setRouteFocus("dropoff");
-      setTimeout(() => dropoffInputRef.current?.focus(), 80);
+      // After pickup → first empty stop if any, else dropoff
+      const emptyStop = whereStops.findIndex((s) => s.trim().length < 3);
+      if (emptyStop >= 0) {
+        routeFocusRef.current = emptyStop;
+        setRouteFocus(emptyStop);
+        setTimeout(() => stopInputRefs.current[emptyStop]?.current?.focus(), 80);
+      } else {
+        routeFocusRef.current = "dropoff";
+        setRouteFocus("dropoff");
+        setTimeout(() => dropoffInputRef.current?.focus(), 80);
+      }
+    },
+    [dismissAllWhereFields, whereStops]
+  );
+
+  const onWhereStopResolved = useCallback(
+    (index: number, place: { address: string; lat?: number; lng?: number }) => {
+      stopDismissRefs.current[index]?.current?.();
+      setRouteSuggestions(null);
+      setWhereStops((prev) => {
+        const next = prev.map((s, i) => (i === index ? place.address.trim() : s));
+        const nextEmpty = next.findIndex((s, i) => i > index && s.trim().length < 3);
+        requestAnimationFrame(() => {
+          if (nextEmpty >= 0) {
+            routeFocusRef.current = nextEmpty;
+            setRouteFocus(nextEmpty);
+            setTimeout(() => stopInputRefs.current[nextEmpty]?.current?.focus(), 80);
+          } else {
+            routeFocusRef.current = "dropoff";
+            setRouteFocus("dropoff");
+            setTimeout(() => dropoffInputRef.current?.focus(), 80);
+          }
+        });
+        return next;
+      });
+    },
+    []
+  );
+
+  const addWhereStop = useCallback(() => {
+    setWhereStops((prev) => {
+      if (prev.length >= MAX_APP_STOPS) return prev;
+      const next = [...prev, ""];
+      const idx = next.length - 1;
+      routeFocusRef.current = idx;
+      setRouteFocus(idx);
+      setRouteSuggestions(null);
+      setTimeout(() => stopInputRefs.current[idx]?.current?.focus(), 80);
+      return next;
+    });
+  }, []);
+
+  const removeWhereStop = useCallback(
+    (index: number) => {
+      setWhereStops((prev) => prev.filter((_, i) => i !== index));
+      stopDismissRefs.current[index]?.current?.();
+      if (routeFocusRef.current === index) {
+        routeFocusRef.current = "dropoff";
+        setRouteFocus("dropoff");
+      }
+      setRouteSuggestions(null);
     },
     []
   );
 
   const onRouteSuggestionsFrom = useCallback(
-    (field: "pickup" | "dropoff", state: GooglePlacesSuggestionsState | null) => {
+    (field: WhereRouteFocus, state: GooglePlacesSuggestionsState | null) => {
       if (routeFocusRef.current !== field) return;
       setRouteSuggestions(state);
     },
     []
   );
+
+  const whereRouteReady = useMemo(
+    () =>
+      whereSearching &&
+      isUsablePickupLabel(wherePickup.trim()) &&
+      dropoff.trim().length >= 3,
+    [whereSearching, wherePickup, dropoff, isUsablePickupLabel]
+  );
+
+  /** Plan-your-ride airport check — also matches plain "YYZ Terminal 1" labels. */
+  const whereAirportHaystack = [
+    wherePickup,
+    dropoff,
+    wherePickupPlaceLabel,
+    whereDropoffPlaceLabel,
+  ]
+    .join(" ")
+    .toLowerCase();
+  const whereIsAirportTransfer =
+    whereSearching &&
+    (isAirportPickupLocation(wherePickup) ||
+      isAirportPickupLocation(dropoff) ||
+      isAirportPickupLocation(wherePickupPlaceLabel) ||
+      isAirportPickupLocation(whereDropoffPlaceLabel) ||
+      whereAirportHaystack.includes("yyz") ||
+      whereAirportHaystack.includes("airport") ||
+      whereAirportHaystack.includes("pearson") ||
+      /terminal\s*[1-3]/.test(whereAirportHaystack) ||
+      !!whereAirline.trim() ||
+      !!whereFlightNumber.trim() ||
+      whereMeetGreet);
+  const whereAllowMeetGreet =
+    isAirportPickupLocation(wherePickup) ||
+    isAirportPickupLocation(wherePickupPlaceLabel) ||
+    wherePickup.toLowerCase().includes("yyz") ||
+    wherePickupPlaceLabel.toLowerCase().includes("yyz") ||
+    wherePickup.toLowerCase().includes("airport") ||
+    wherePickupPlaceLabel.toLowerCase().includes("airport");
+
+  useEffect(() => {
+    if (!whereAllowMeetGreet && whereMeetGreet) setWhereMeetGreet(false);
+  }, [whereAllowMeetGreet, whereMeetGreet]);
+
+  const whereShowVehicles = whereRouteReady && !routeSuggestions?.showPanel;
+
+  const whereActiveStops = useMemo(
+    () => activeStopAddresses(whereStops),
+    [whereStops]
+  );
+
+  const whereTierFareById = useMemo(() => {
+    const out: Record<string, number> = {};
+    const meters = whereDistanceMeters;
+    if (meters == null || meters <= 0) return out;
+    const stopCount = whereActiveStops.length;
+    for (const tier of whereTiers) {
+      const fare = calculateAppDistanceFare({
+        distanceMeters: meters,
+        hourlyRate: tier.hourlyRate,
+        pricePerKm: tier.pricePerKm,
+        baseDistanceKm: tier.baseDistanceKm || whereDistancePricing.baseDistanceKm,
+        extraKmRate: tier.extraKmRate || whereDistancePricing.extraKmRate,
+        stopCount,
+        childSeatCount: 0,
+      });
+      // Show total estimated (ride + stops) so fares match booking
+      if (fare) out[tier.id] = fare.rideFare + fare.stopCharge;
+    }
+    return out;
+  }, [whereTiers, whereDistanceMeters, whereDistancePricing, whereActiveStops.length]);
+
+  useEffect(() => {
+    if (!whereShowVehicles) {
+      whereVehicleReveal.setValue(0);
+      whereDidScrollVehicles.current = false;
+      return;
+    }
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    Animated.timing(whereVehicleReveal, {
+      toValue: 1,
+      duration: 320,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+    if (!whereDidScrollVehicles.current) {
+      whereDidScrollVehicles.current = true;
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          // Keep Flight details (above vehicles) on screen — don't jump to list end
+          whereSearchScrollRef.current?.scrollTo({ y: 0, animated: true });
+        }, 140);
+      });
+    }
+  }, [whereShowVehicles, whereVehicleReveal]);
+
+  useEffect(() => {
+    if (!whereRouteReady) {
+      setWhereTiers([]);
+      setWhereSelectedTierId(null);
+      setWhereFleetError("");
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setWhereFleetLoading(true);
+      setWhereFleetError("");
+      try {
+        const { vehicles, pricing } = await getAppFleetVehicles();
+        if (cancelled) return;
+        if (pricing) {
+          setWhereDistancePricing({
+            baseDistanceKm: pricing.baseDistanceKm || BASE_DISTANCE_KM,
+            extraKmRate: pricing.extraKmRate || EXTRA_KM_RATE,
+          });
+        }
+        const next = buildVehicleTiersFromAppFleet(vehicles);
+        setWhereTiers(next);
+        setWhereSelectedTierId((prev) => {
+          if (prev && next.some((t) => t.id === prev)) return prev;
+          return next[0]?.id ?? null;
+        });
+      } catch (e) {
+        if (!cancelled) {
+          setWhereFleetError(e instanceof Error ? e.message : "Could not load vehicles");
+          setWhereTiers([]);
+          setWhereSelectedTierId(null);
+        }
+      } finally {
+        if (!cancelled) setWhereFleetLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [whereRouteReady]);
+
+  useEffect(() => {
+    if (!whereRouteReady) {
+      setWhereDistanceMeters(null);
+      setWhereRouteMeta(null);
+      setWhereRouteError("");
+      setWhereRouteLoading(false);
+      return;
+    }
+
+    const origin =
+      wherePickupCoords != null
+        ? `${wherePickupCoords.lat},${wherePickupCoords.lng}`
+        : wherePickup.trim();
+    const destination =
+      dropoffCoords != null
+        ? `${dropoffCoords.lat},${dropoffCoords.lng}`
+        : dropoff.trim();
+    const waypoints = activeStopAddresses(whereStops);
+
+    let cancelled = false;
+    const ac = new AbortController();
+    const timer = setTimeout(async () => {
+      setWhereRouteLoading(true);
+      setWhereRouteError("");
+      try {
+        const r = await fetchDirectionsSummary(
+          {
+            origin,
+            destination,
+            waypoints: waypoints.length > 0 ? waypoints : undefined,
+            avoidTolls: false,
+            mapWidth: 640,
+            mapHeight: 360,
+          },
+          ac.signal
+        );
+        if (cancelled) return;
+        if (r.distanceMeters == null || r.distanceMeters <= 0) {
+          setWhereDistanceMeters(null);
+          setWhereRouteMeta(null);
+          setWhereRouteError("Could not calculate distance. You can still continue.");
+          return;
+        }
+        setWhereDistanceMeters(r.distanceMeters);
+        setWhereRouteMeta({
+          distanceText: r.distanceText || "",
+          durationText: r.durationText || "",
+        });
+      } catch (e) {
+        if (!cancelled && (e as { name?: string })?.name !== "AbortError") {
+          setWhereDistanceMeters(null);
+          setWhereRouteMeta(null);
+          setWhereRouteError(
+            e instanceof Error ? e.message : "Route unavailable — fares may show base rates."
+          );
+        }
+      } finally {
+        if (!cancelled) setWhereRouteLoading(false);
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      ac.abort();
+      clearTimeout(timer);
+    };
+  }, [whereRouteReady, wherePickup, dropoff, wherePickupCoords, dropoffCoords, whereStops]);
 
   const openRide = useCallback(
     () =>
@@ -782,10 +1235,10 @@ export default function CustomerHomeScreen() {
   const servicesFooterGap = 28;
   const floatingTabClearance = tabBarH + servicesFooterGap;
   const isConciergeSheet = HOME_SERVICES_STYLE === "concierge";
-  // While typing addresses, keyboard covers the tab bar — drop heavy footer clearance.
+  // Plan mode: pad above the keyboard (sheet stays pinned under status bar).
   const sheetPadBottom = isConciergeSheet
-    ? whereSearching && keyboardH > 0
-      ? Math.max(insets.bottom, 12) + 8
+    ? whereSearching
+      ? (keyboardH > 0 ? keyboardH : Math.max(insets.bottom, 12)) + 12
       : floatingTabClearance
     : (Platform.OS === "ios" ? 88 : 78) + insets.bottom;
   // Fixed height from content — must grow with pad or the gap gets clipped (invisible).
@@ -803,37 +1256,28 @@ export default function CustomerHomeScreen() {
     34 + // Services header
     serviceTileH + // service tiles
     (homePromo ? 70 : 0);
-  // Search mode hides Office/Home/Services — size for dual fields + shared suggestions only.
+  // Search mode hides Office/Home/Services — size for dual fields + suggestions or vehicles.
   const routeSuggestMaxH = Math.round(
     Math.min(
       layout.isShort ? 160 : 220,
       Math.max(120, windowHeight * (layout.isShort ? 0.22 : 0.28) - (keyboardH > 0 ? 40 : 0))
     )
   );
-  const homeSearchContentH =
-    16 + // handle
-    40 + // greeting
-    12 + // greeting gap
-    36 + // Plan your ride header
-    118 + // Uber pickup + dropoff card
-    10 + // gap
-    routeSuggestMaxH +
-    28; // panel chrome
-  const searchSheetCap = layout.isShort ? 0.78 : layout.isTablet ? 0.7 : 0.8;
   const idleSheetCap = layout.isShort ? 0.7 : 0.64;
-  // iOS: lift sheet above keyboard. Android usually resizes the window already.
-  const sheetKeyboardLift =
-    Platform.OS === "ios" && whereSearching && keyboardH > 0 ? keyboardH : 0;
-  const availableH = Math.max(300, windowHeight - sheetKeyboardLift);
-  const conciergeSheetH = Math.round(
-    Math.min(
-      availableH * (whereSearching ? searchSheetCap : idleSheetCap),
-      (whereSearching ? homeSearchContentH : homeIdleContentH) +
-        (whereSearching && keyboardH > 0 ? sheetPadBottom : floatingTabClearance)
-    )
-  );
+  /**
+   * Plan your ride = full height under the status bar so the header never
+   * leaves the screen when the keyboard opens. Idle home stays a bottom sheet.
+   */
+  const conciergeSheetH = whereSearching
+    ? Math.round(windowHeight - insets.top)
+    : Math.round(
+        Math.min(
+          windowHeight * idleSheetCap,
+          homeIdleContentH + floatingTabClearance
+        )
+      );
   const effectiveSheetTop = isConciergeSheet
-    ? windowHeight - sheetKeyboardLift - conciergeSheetH
+    ? windowHeight - conciergeSheetH
     : layout.sheetTop;
   mapTopRatioRef.current = effectiveSheetTop / windowHeight;
 
@@ -844,13 +1288,15 @@ export default function CustomerHomeScreen() {
     setWherePickupCoords(coords);
     setDropoff("");
     setDropoffCoords(null);
+    setWhereStops([]);
     setRouteSuggestions(null);
-    const focus: "pickup" | "dropoff" = hasPickup ? "dropoff" : "pickup";
+    resetWhereVehicleState();
+    const focus: WhereRouteFocus = hasPickup ? "dropoff" : "pickup";
     routeFocusRef.current = focus;
     setRouteFocus(focus);
     setWhereSearching(true);
     setSelectedService("ride");
-  }, [pickupAddress, pickupLabel, coords, isUsablePickupLabel]);
+  }, [pickupAddress, pickupLabel, coords, isUsablePickupLabel, resetWhereVehicleState]);
 
   const launchSelectedService = useCallback(() => {
     if (selectedService === "parcel") openParcel();
@@ -936,56 +1382,62 @@ export default function CustomerHomeScreen() {
         pointerEvents="none"
       />
 
-      {/* Top floating chrome */}
+      {/* Top floating chrome — profile only on main home (not Plan your ride) */}
       <SafeAreaView style={styles.topSafe} edges={["top"]} pointerEvents="box-none">
-        <View
-          style={[
-            styles.topRow,
-            {
-              paddingHorizontal: layout.padH,
-              gap: layout.topGap,
-              justifyContent: "flex-end",
-            },
-          ]}
-          pointerEvents="box-none"
-        >
-          <Pressable
-            onPress={() => router.push("/customer/profile")}
-            style={({ pressed }) => [
-              styles.fab,
-              { width: layout.fabSize, height: layout.fabSize, borderRadius: layout.fabSize / 2 },
-              pressed && styles.pressed,
+        {!whereSearching ? (
+          <View
+            style={[
+              styles.topRow,
+              {
+                paddingHorizontal: layout.padH,
+                gap: layout.topGap,
+                justifyContent: "flex-end",
+              },
             ]}
-            accessibilityLabel="Profile"
+            pointerEvents="box-none"
           >
-            {user?.photo ? (
-              <Image
-                source={{ uri: user.photo }}
-                style={{
+            <Pressable
+              onPress={() => router.push("/customer/profile")}
+              style={({ pressed }) => [
+                styles.fab,
+                {
                   width: layout.fabSize,
                   height: layout.fabSize,
                   borderRadius: layout.fabSize / 2,
-                }}
-              />
-            ) : (
-              <LinearGradient
-                colors={[ACCENT, ACCENT_DARK]}
-                style={{
-                  width: layout.fabSize,
-                  height: layout.fabSize,
-                  borderRadius: layout.fabSize / 2,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Text style={[styles.fabInitials, layout.isCompact && { fontSize: 13 }]}>
-                  {(user?.firstName?.[0] || "S")}
-                  {(user?.lastName?.[0] || "")}
-                </Text>
-              </LinearGradient>
-            )}
-          </Pressable>
-        </View>
+                },
+                pressed && styles.pressed,
+              ]}
+              accessibilityLabel="Profile"
+            >
+              {user?.photo ? (
+                <Image
+                  source={{ uri: user.photo }}
+                  style={{
+                    width: layout.fabSize,
+                    height: layout.fabSize,
+                    borderRadius: layout.fabSize / 2,
+                  }}
+                />
+              ) : (
+                <LinearGradient
+                  colors={[ACCENT, ACCENT_DARK]}
+                  style={{
+                    width: layout.fabSize,
+                    height: layout.fabSize,
+                    borderRadius: layout.fabSize / 2,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text style={[styles.fabInitials, layout.isCompact && { fontSize: 13 }]}>
+                    {(user?.firstName?.[0] || "S")}
+                    {(user?.lastName?.[0] || "")}
+                  </Text>
+                </LinearGradient>
+              )}
+            </Pressable>
+          </View>
+        ) : null}
 
         {locationDenied ? (
           <Pressable
@@ -1159,7 +1611,7 @@ export default function CustomerHomeScreen() {
           styles.sheet,
           isConciergeSheet
             ? {
-                bottom: sheetKeyboardLift,
+                bottom: 0,
                 height: conciergeSheetH,
               }
             : {
@@ -1179,7 +1631,7 @@ export default function CustomerHomeScreen() {
           },
         ]}
       >
-        {isConciergeSheet ? (
+        {isConciergeSheet && !whereSearching ? (
           <View style={styles.sheetHandleHit}>
             <View style={styles.sheetHandleWrap}>
               <View
@@ -1188,25 +1640,119 @@ export default function CustomerHomeScreen() {
             </View>
           </View>
         ) : null}
+        {whereSearching ? (
+          <View
+            style={[
+              styles.conciergeWhereSearchTop,
+              {
+                paddingHorizontal: layout.sheetContentPad,
+                paddingTop: 6,
+                paddingBottom: 4,
+              },
+            ]}
+          >
+            <Pressable
+              onPress={cancelWhereSearch}
+              hitSlop={10}
+              style={({ pressed }) => [
+                styles.conciergeWhereBack,
+                pressed && { opacity: 0.7 },
+              ]}
+              accessibilityLabel="Cancel search"
+            >
+              <Ionicons
+                name="chevron-back"
+                size={22}
+                color={isDark ? "#F5F0E8" : CONCIERGE_INK}
+              />
+            </Pressable>
+            <Text
+              style={[
+                styles.conciergeWhereSearchLabel,
+                layout.isCompact && { fontSize: 15 },
+                { color: isDark ? "#F5F0E8" : CONCIERGE_INK },
+              ]}
+              numberOfLines={1}
+            >
+              Plan your ride
+            </Text>
+            <Pressable
+              onPress={() => setShowWhereRideForMenu(true)}
+              style={({ pressed }) => [
+                styles.whereRideForAvatarBtn,
+                pressed && styles.pressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={`Riding for ${
+                whereRideFor === "me"
+                  ? "me"
+                  : whereRideFor === "child"
+                    ? "child"
+                    : "someone else"
+              }. Change who is riding.`}
+            >
+              {whereRideFor === "me" && user?.photo ? (
+                <Image
+                  source={{ uri: user.photo }}
+                  style={styles.whereRideForAvatar}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View
+                  style={[
+                    styles.whereRideForAvatar,
+                    whereRideFor === "me" && styles.whereRideForAvatarMe,
+                    whereRideFor === "child" && styles.whereRideForAvatarChild,
+                    whereRideFor === "someone" && styles.whereRideForAvatarSomeone,
+                  ]}
+                >
+                  {whereRideFor === "me" ? (
+                    <Text style={styles.whereRideForInitials}>
+                      {`${(user?.firstName?.[0] || "Y").toUpperCase()}${(
+                        user?.lastName?.[0] || ""
+                      ).toUpperCase()}`}
+                    </Text>
+                  ) : (
+                    <Ionicons
+                      name={
+                        whereRideFor === "child" ? "happy-outline" : "people-outline"
+                      }
+                      size={18}
+                      color="#fff"
+                    />
+                  )}
+                </View>
+              )}
+              <Ionicons
+                name="chevron-down"
+                size={12}
+                color={isDark ? "rgba(255,255,255,0.75)" : "#5C5348"}
+              />
+            </Pressable>
+          </View>
+        ) : null}
         <ScrollView
+          ref={whereSearchScrollRef}
           showsVerticalScrollIndicator={false}
           bounces={false}
           overScrollMode="never"
           scrollEnabled={whereSearching}
-          keyboardShouldPersistTaps={whereSearching ? "always" : "handled"}
+          keyboardShouldPersistTaps="handled"
           keyboardDismissMode={whereSearching ? "on-drag" : "none"}
-          // Sheet already lifts above the iOS keyboard — avoid double inset.
           automaticallyAdjustKeyboardInsets={false}
           style={isConciergeSheet ? { flex: 1 } : undefined}
           contentContainerStyle={
-            isConciergeSheet && whereSearching ? { flexGrow: 1, paddingBottom: 8 } : undefined
+            isConciergeSheet && whereSearching
+              ? { flexGrow: 1, paddingBottom: 8 }
+              : undefined
           }
         >
           <View
             style={[
               styles.sheetContent,
               {
-                paddingBottom: sheetPadBottom,
+                // Sticky Continue sits below the scroll — don't pad for keyboard here.
+                paddingBottom: whereShowVehicles ? 12 : sheetPadBottom,
                 paddingHorizontal: layout.sheetContentPad,
                 paddingTop: isConciergeSheet ? 0 : undefined,
               },
@@ -1219,24 +1765,29 @@ export default function CustomerHomeScreen() {
               />
             </View>
             ) : null}
+          {!whereSearching ? (
           <View style={styles.greetingRow}>
-            <Text
-              style={[
-                styles.greeting,
-                {
-                  color: isDark ? "#F5F5F7" : CONCIERGE_INK,
-                  fontSize: layout.isCompact ? 20 : 22,
-                  fontWeight: "700",
-                  letterSpacing: -0.4,
-                },
-              ]}
-              numberOfLines={1}
-            >
-              {greetingLine(fullName)}
-            </Text>
+            <View style={styles.greetingTextWrap}>
+              <Text
+                style={[
+                  styles.greeting,
+                  {
+                    color: isDark ? "#F5F5F7" : CONCIERGE_INK,
+                    fontSize: layout.isCompact ? 20 : 22,
+                    fontWeight: "700",
+                    letterSpacing: -0.4,
+                  },
+                ]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {greetingLine(fullName)}
+              </Text>
+            </View>
           </View>
+          ) : null}
 
-          {homePromo ? (
+          {!whereSearching && homePromo ? (
             <View
               style={[
                 styles.promoBanner,
@@ -1328,41 +1879,12 @@ export default function CustomerHomeScreen() {
                 {/* Where to? — type + suggestions stay inside this sheet */}
                 {whereSearching ? (
                   <View style={styles.conciergeWhereSearch}>
-                    <View style={styles.conciergeWhereSearchTop}>
-                      <Pressable
-                        onPress={cancelWhereSearch}
-                        hitSlop={10}
-                        style={({ pressed }) => [
-                          styles.conciergeWhereBack,
-                          pressed && { opacity: 0.7 },
-                        ]}
-                        accessibilityLabel="Cancel search"
-                      >
-                        <Ionicons
-                          name="chevron-back"
-                          size={22}
-                          color={isDark ? "#F5F0E8" : CONCIERGE_INK}
-                        />
-                      </Pressable>
-                      <Text
-                        style={[
-                          styles.conciergeWhereSearchLabel,
-                          layout.isCompact && { fontSize: 15 },
-                          { color: isDark ? "#F5F0E8" : CONCIERGE_INK },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        Plan your ride
-                      </Text>
-                      <View style={{ width: 34 }} />
-                    </View>
-
                     <View
                       style={[
                         styles.uberRouteCard,
                         {
-                          backgroundColor: isDark ? "rgba(255,255,255,0.06)" : CONCIERGE_CREAM,
-                          borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
+                          backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "#FFFFFF",
+                          borderColor: isDark ? "rgba(255,255,255,0.14)" : "#1C1916",
                         },
                       ]}
                     >
@@ -1376,9 +1898,38 @@ export default function CustomerHomeScreen() {
                         <View
                           style={[
                             styles.uberRailLine,
-                            { backgroundColor: isDark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.18)" },
+                            {
+                              backgroundColor: isDark
+                                ? "rgba(255,255,255,0.22)"
+                                : "rgba(0,0,0,0.18)",
+                            },
                           ]}
                         />
+                        {whereStops.map((_, i) => (
+                          <View key={`rail-stop-${i}`} style={styles.uberRailStopWrap}>
+                            <View
+                              style={[
+                                styles.uberStopDot,
+                                {
+                                  borderColor: isDark ? "#C9B8A0" : ACCENT_DARK,
+                                  backgroundColor: isDark
+                                    ? "rgba(201,184,160,0.2)"
+                                    : "rgba(168,120,48,0.15)",
+                                },
+                              ]}
+                            />
+                            <View
+                              style={[
+                                styles.uberRailLine,
+                                {
+                                  backgroundColor: isDark
+                                    ? "rgba(255,255,255,0.22)"
+                                    : "rgba(0,0,0,0.18)",
+                                },
+                              ]}
+                            />
+                          </View>
+                        ))}
                         <View
                           style={[
                             styles.uberDropoffSquare,
@@ -1392,19 +1943,21 @@ export default function CustomerHomeScreen() {
                           onChangeText={(t) => {
                             setWherePickup(t);
                             setWherePickupCoords(null);
+                            setWherePickupPlaceLabel("");
                           }}
-                          placeholder="Pickup location"
+                          placeholder="Pickup"
                           iconName="radio-button-on"
-                          compact
+                          embedded
                           hidePanel
                           autoFocus={routeFocus === "pickup"}
+                          inputRef={pickupInputRef}
                           pickHandlerRef={pickupPickRef}
                           dismissHandlerRef={pickupDismissRef}
                           onFocusChange={(focused) => {
                             if (!focused) return;
                             routeFocusRef.current = "pickup";
                             setRouteFocus("pickup");
-                            dropoffDismissRef.current?.();
+                            dismissAllWhereFields("pickup");
                           }}
                           onSuggestionsChange={(state) =>
                             onRouteSuggestionsFrom("pickup", state)
@@ -1412,15 +1965,94 @@ export default function CustomerHomeScreen() {
                           onPlaceResolved={onWherePickupResolved}
                           containerStyle={styles.conciergeWhereField}
                         />
+
+                        {whereStops.map((stop, index) => (
+                          <View key={`where-stop-${index}`} style={styles.whereStopRow}>
+                            <GooglePlacesAddressField
+                              value={stop}
+                              onChangeText={(t) =>
+                                setWhereStops((prev) =>
+                                  prev.map((s, i) => (i === index ? t : s))
+                                )
+                              }
+                              placeholder={
+                                whereStops.length > 1
+                                  ? `Stop ${index + 1}`
+                                  : "Add a stop"
+                              }
+                              iconName="ellipse-outline"
+                              embedded
+                              hidePanel
+                              autoFocus={routeFocus === index}
+                              inputRef={stopInputRefs.current[index]}
+                              pickHandlerRef={stopPickRefs.current[index]}
+                              dismissHandlerRef={stopDismissRefs.current[index]}
+                              onFocusChange={(focused) => {
+                                if (!focused) return;
+                                routeFocusRef.current = index;
+                                setRouteFocus(index);
+                                dismissAllWhereFields(index);
+                              }}
+                              onSuggestionsChange={(state) =>
+                                onRouteSuggestionsFrom(index, state)
+                              }
+                              onPlaceResolved={(place) =>
+                                onWhereStopResolved(index, place)
+                              }
+                              containerStyle={styles.whereStopField}
+                            />
+                            <Pressable
+                              onPress={() => removeWhereStop(index)}
+                              hitSlop={8}
+                              style={styles.whereStopRemove}
+                              accessibilityLabel={`Remove stop ${index + 1}`}
+                            >
+                              <Ionicons
+                                name="close-circle"
+                                size={22}
+                                color={isDark ? "#A8A29A" : "#8A847C"}
+                              />
+                            </Pressable>
+                          </View>
+                        ))}
+
+                        {whereStops.length < MAX_APP_STOPS ? (
+                          <Pressable
+                            onPress={addWhereStop}
+                            style={({ pressed }) => [
+                              styles.whereAddStopBtn,
+                              pressed && { opacity: 0.75 },
+                            ]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Add stop"
+                          >
+                            <Ionicons
+                              name="add"
+                              size={18}
+                              color={isDark ? GOLD : ACCENT_DARK}
+                            />
+                            <Text
+                              style={[
+                                styles.whereAddStopText,
+                                { color: isDark ? GOLD : ACCENT_DARK },
+                              ]}
+                            >
+                              {whereStops.length === 0 ? "Add stop" : "Add another stop"}
+                            </Text>
+                          </Pressable>
+                        ) : null}
+
                         <GooglePlacesAddressField
                           value={dropoff}
                           onChangeText={(t) => {
                             setDropoff(t);
                             setDropoffCoords(null);
+                            setWhereDropoffPlaceLabel("");
                           }}
-                          placeholder="Dropoff location"
+                          placeholder="Where to?"
                           iconName="square"
-                          compact
+                          embedded
+                          embeddedDivider={false}
                           hidePanel
                           autoFocus={routeFocus === "dropoff"}
                           inputRef={dropoffInputRef}
@@ -1430,16 +2062,126 @@ export default function CustomerHomeScreen() {
                             if (!focused) return;
                             routeFocusRef.current = "dropoff";
                             setRouteFocus("dropoff");
-                            pickupDismissRef.current?.();
+                            dismissAllWhereFields("dropoff");
                           }}
                           onSuggestionsChange={(state) =>
                             onRouteSuggestionsFrom("dropoff", state)
                           }
-                          onPlaceResolved={bookWithDropoff}
+                          onPlaceResolved={onWhereDropoffResolved}
                           containerStyle={styles.conciergeWhereField}
                         />
                       </View>
                     </View>
+
+                    {whereIsAirportTransfer && !routeSuggestions?.showPanel ? (
+                      <View
+                        style={[
+                          styles.whereFlightBlock,
+                          {
+                            backgroundColor: isDark
+                              ? "rgba(255,255,255,0.06)"
+                              : CONCIERGE_CREAM,
+                            borderColor: isDark
+                              ? "rgba(255,255,255,0.1)"
+                              : "rgba(0,0,0,0.06)",
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.whereFlightTitle,
+                            { color: isDark ? "#F5F0E8" : CONCIERGE_INK },
+                          ]}
+                        >
+                          Flight details
+                        </Text>
+                        <TextInput
+                          style={[
+                            styles.whereFlightInput,
+                            {
+                              color: isDark ? "#F5F0E8" : CONCIERGE_INK,
+                              backgroundColor: isDark
+                                ? "rgba(255,255,255,0.06)"
+                                : "#fff",
+                              borderColor: isDark
+                                ? "rgba(255,255,255,0.12)"
+                                : "rgba(0,0,0,0.08)",
+                            },
+                          ]}
+                          value={whereAirline}
+                          onChangeText={setWhereAirline}
+                          placeholder="Airline"
+                          placeholderTextColor={isDark ? "#A8A29A" : "#8A847C"}
+                          autoCapitalize="words"
+                        />
+                        <TextInput
+                          style={[
+                            styles.whereFlightInput,
+                            {
+                              marginTop: 8,
+                              color: isDark ? "#F5F0E8" : CONCIERGE_INK,
+                              backgroundColor: isDark
+                                ? "rgba(255,255,255,0.06)"
+                                : "#fff",
+                              borderColor: isDark
+                                ? "rgba(255,255,255,0.12)"
+                                : "rgba(0,0,0,0.08)",
+                            },
+                          ]}
+                          value={whereFlightNumber}
+                          onChangeText={setWhereFlightNumber}
+                          placeholder="Flight/Tail number"
+                          placeholderTextColor={isDark ? "#A8A29A" : "#8A847C"}
+                          autoCapitalize="characters"
+                        />
+                        {whereAllowMeetGreet ? (
+                          <View
+                            style={[
+                              styles.whereMeetGreetRow,
+                              {
+                                borderColor: isDark
+                                  ? "rgba(255,255,255,0.12)"
+                                  : "rgba(0,0,0,0.08)",
+                                backgroundColor: isDark
+                                  ? "rgba(255,255,255,0.04)"
+                                  : "#fff",
+                              },
+                            ]}
+                          >
+                            <View style={{ flex: 1, minWidth: 0, paddingRight: 4 }}>
+                              <Text
+                                style={[
+                                  styles.whereMeetGreetTitle,
+                                  { color: isDark ? "#F5F0E8" : CONCIERGE_INK },
+                                ]}
+                                numberOfLines={1}
+                              >
+                                Meet & Greet
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.whereMeetGreetSub,
+                                  { color: isDark ? "#A8A29A" : "#6B6560" },
+                                ]}
+                                numberOfLines={2}
+                              >
+                                Personal airport assistance +$
+                                {MEET_GREET_CHARGE.toFixed(0)}
+                              </Text>
+                            </View>
+                            <Switch
+                              value={whereMeetGreet}
+                              onValueChange={setWhereMeetGreet}
+                              trackColor={{
+                                false: "rgba(150,150,150,0.35)",
+                                true: "rgba(201,160,99,0.55)",
+                              }}
+                              thumbColor={whereMeetGreet ? GOLD : "#f4f3f4"}
+                            />
+                          </View>
+                        ) : null}
+                      </View>
+                    ) : null}
 
                     {routeSuggestions?.showPanel ? (
                       <PlacesSuggestionsPanel
@@ -1447,18 +2189,112 @@ export default function CustomerHomeScreen() {
                         loading={routeSuggestions.loading}
                         banner={routeSuggestions.banner}
                         value={routeSuggestions.value}
-                        maxPanelHeight={routeSuggestMaxH}
-                        compact
+                        maxPanelHeight={Math.max(routeSuggestMaxH, 320)}
+                        flat
+                        onInteract={softDismissWhereKeyboard}
                         onDismiss={() => {
+                          softDismissWhereKeyboard();
                           if (routeFocus === "pickup") pickupDismissRef.current?.();
-                          else dropoffDismissRef.current?.();
+                          else if (routeFocus === "dropoff") dropoffDismissRef.current?.();
+                          else if (typeof routeFocus === "number") {
+                            stopDismissRefs.current[routeFocus]?.current?.();
+                          }
                           setRouteSuggestions(null);
                         }}
                         onPick={(item) => {
+                          softDismissWhereKeyboard();
                           if (routeFocus === "pickup") pickupPickRef.current?.(item);
-                          else dropoffPickRef.current?.(item);
+                          else if (routeFocus === "dropoff") dropoffPickRef.current?.(item);
+                          else if (typeof routeFocus === "number") {
+                            stopPickRefs.current[routeFocus]?.current?.(item);
+                          }
                         }}
                       />
+                    ) : whereShowVehicles ? (
+                      <Animated.View
+                        style={[
+                          styles.whereVehicleBlock,
+                          {
+                            opacity: whereVehicleReveal,
+                            transform: [
+                              {
+                                translateY: whereVehicleReveal.interpolate({
+                                  inputRange: [0, 1],
+                                  outputRange: [14, 0],
+                                }),
+                              },
+                            ],
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.whereVehicleHairline,
+                            {
+                              backgroundColor: isDark
+                                ? "rgba(255,255,255,0.12)"
+                                : "rgba(0,0,0,0.08)",
+                            },
+                          ]}
+                        />
+                        <Text
+                          style={[
+                            styles.whereVehicleEyebrow,
+                            { color: isDark ? GOLD : palette.hintBold },
+                          ]}
+                        >
+                          VEHICLE
+                        </Text>
+                        <Text
+                          style={[
+                            styles.whereVehicleTitle,
+                            { color: isDark ? "#F5F0E8" : CONCIERGE_INK },
+                          ]}
+                        >
+                          Select vehicle
+                        </Text>
+                        <Text
+                          style={[
+                            styles.whereVehicleSub,
+                            { color: isDark ? "#A8A29A" : "#6B6560" },
+                          ]}
+                        >
+                          Estimated fare for this route
+                          {whereRouteMeta?.distanceText
+                            ? ` · ${whereRouteMeta.distanceText}`
+                            : whereRouteLoading
+                              ? " · calculating…"
+                              : ""}
+                          {whereRouteMeta?.durationText
+                            ? ` · ${whereRouteMeta.durationText}`
+                            : ""}
+                        </Text>
+
+                        {whereFleetError ? (
+                          <Text style={styles.whereVehicleError}>{whereFleetError}</Text>
+                        ) : null}
+                        {whereRouteError && !whereRouteLoading ? (
+                          <Text
+                            style={[
+                              styles.whereVehicleHint,
+                              { color: isDark ? "#A8A29A" : "#6B6560" },
+                            ]}
+                          >
+                            {whereRouteError}
+                          </Text>
+                        ) : null}
+
+                        <VehicleTierSelectList
+                          tiers={whereTiers}
+                          selectedId={whereSelectedTierId}
+                          fares={whereTierFareById}
+                          onSelect={selectWhereVehicle}
+                          loading={whereFleetLoading}
+                          textColor={isDark ? "#F5F0E8" : CONCIERGE_INK}
+                          mutedColor={isDark ? "#A8A29A" : "#6B6560"}
+                          isDark={isDark}
+                        />
+                      </Animated.View>
                     ) : null}
                   </View>
                 ) : (
@@ -1593,6 +2429,58 @@ export default function CustomerHomeScreen() {
           </View>
           </View>
         </ScrollView>
+        {whereSearching && whereShowVehicles ? (
+          <View
+            style={[
+              styles.whereContinueFooter,
+              {
+                paddingHorizontal: layout.sheetContentPad,
+                paddingBottom:
+                  (keyboardH > 0 ? keyboardH : Math.max(insets.bottom, 12)) + 10,
+                backgroundColor: isDark ? "#141210" : "#FFFFFF",
+                borderTopColor: isDark
+                  ? "rgba(255,255,255,0.08)"
+                  : "rgba(0,0,0,0.06)",
+              },
+            ]}
+          >
+            <Pressable
+              onPress={continueWhereToReview}
+              disabled={!whereSelectedTierId || whereFleetLoading || whereRouteLoading}
+              style={({ pressed }) => [
+                styles.whereContinueBtn,
+                (!whereSelectedTierId ||
+                  whereFleetLoading ||
+                  whereRouteLoading) &&
+                  styles.whereContinueBtnDisabled,
+                pressed &&
+                  whereSelectedTierId &&
+                  !whereFleetLoading &&
+                  !whereRouteLoading && { opacity: 0.92 },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Continue to review"
+            >
+              <LinearGradient
+                colors={["#E8C078", ACCENT, ACCENT_DARK]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.whereContinueBtnGrad}
+              >
+                <Text style={styles.whereContinueBtnText}>
+                  {!whereSelectedTierId
+                    ? "Select a vehicle"
+                    : whereRouteLoading
+                      ? "Calculating route…"
+                      : "Continue"}
+                </Text>
+                {whereSelectedTierId && !whereRouteLoading ? (
+                  <Ionicons name="arrow-forward" size={18} color="#1A1208" />
+                ) : null}
+              </LinearGradient>
+            </Pressable>
+          </View>
+        ) : null}
       </Animated.View>
 
       {/* Destination composer renders inline in the top header (see topRow). */}
@@ -1672,6 +2560,122 @@ export default function CustomerHomeScreen() {
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Who is riding — Plan your ride */}
+      <Modal
+        visible={showWhereRideForMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowWhereRideForMenu(false)}
+      >
+        <Pressable
+          style={styles.whereRideForModalRoot}
+          onPress={() => setShowWhereRideForMenu(false)}
+        >
+          <View
+            style={[
+              styles.whereRideForMenuCard,
+              {
+                backgroundColor: isDark ? "#2A2622" : "#FFF",
+                borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.whereRideForMenuTitle,
+                { color: isDark ? "#F5F0E8" : CONCIERGE_INK },
+              ]}
+            >
+              Who is riding?
+            </Text>
+
+            {(
+              [
+                {
+                  id: "me" as const,
+                  title: "For me",
+                  sub:
+                    [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
+                    "Your account",
+                  icon: "person-outline" as const,
+                },
+                {
+                  id: "child" as const,
+                  title: "Child",
+                  sub: "Book a ride for your child",
+                  icon: "happy-outline" as const,
+                },
+                {
+                  id: "someone" as const,
+                  title: "Someone else",
+                  sub: "Ride for a guest",
+                  icon: "people-outline" as const,
+                },
+              ] as const
+            ).map((opt) => {
+              const on = whereRideFor === opt.id;
+              return (
+                <Pressable
+                  key={opt.id}
+                  onPress={() => {
+                    setWhereRideFor(opt.id);
+                    setShowWhereRideForMenu(false);
+                  }}
+                  style={({ pressed }) => [
+                    styles.whereRideForMenuItem,
+                    on && {
+                      backgroundColor: isDark
+                        ? "rgba(201,160,99,0.14)"
+                        : "rgba(201,160,99,0.12)",
+                    },
+                    pressed && { opacity: 0.85 },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.whereRideForMenuIcon,
+                      {
+                        backgroundColor: isDark
+                          ? "rgba(255,255,255,0.08)"
+                          : CONCIERGE_CREAM,
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={opt.icon}
+                      size={18}
+                      color={isDark ? "#F5F0E8" : CONCIERGE_INK}
+                    />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text
+                      style={[
+                        styles.whereRideForMenuItemTitle,
+                        { color: isDark ? "#F5F0E8" : CONCIERGE_INK },
+                      ]}
+                    >
+                      {opt.title}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.whereRideForMenuItemSub,
+                        { color: isDark ? "#A8A29A" : "#6B6560" },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {opt.sub}
+                    </Text>
+                  </View>
+                  {on ? (
+                    <Ionicons name="checkmark-circle" size={22} color={GOLD} />
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
+        </Pressable>
       </Modal>
     </View>
   );
@@ -1824,6 +2828,95 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
+  /** Review-style avatar + chevron (no "For me" text). */
+  whereRideForAvatarBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    flexGrow: 0,
+    flexShrink: 0,
+    paddingVertical: 2,
+    paddingLeft: 2,
+  },
+  whereRideForAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    backgroundColor: "#111827",
+  },
+  whereRideForAvatarMe: {
+    backgroundColor: "#111827",
+  },
+  whereRideForAvatarChild: {
+    backgroundColor: "#C9A063",
+  },
+  whereRideForAvatarSomeone: {
+    backgroundColor: "#4B5563",
+  },
+  whereRideForInitials: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#fff",
+    letterSpacing: 0.2,
+  },
+  whereRideForModalRoot: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "flex-start",
+    paddingTop: 140,
+    paddingHorizontal: 20,
+  },
+  whereRideForMenuCard: {
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 12,
+    gap: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.18,
+        shadowRadius: 16,
+      },
+      android: { elevation: 8 },
+    }),
+  },
+  whereRideForMenuTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+    marginBottom: 6,
+    marginLeft: 4,
+    opacity: 0.7,
+  },
+  whereRideForMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+  },
+  whereRideForMenuIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  whereRideForMenuItemTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+  },
+  whereRideForMenuItemSub: {
+    fontSize: 12.5,
+    fontWeight: "500",
+    marginTop: 1,
+  },
   pickupChip: {
     flex: 1,
     minWidth: 0,
@@ -1961,7 +3054,14 @@ const styles = StyleSheet.create({
   greetingRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
     marginBottom: 10,
+    width: "100%",
+  },
+  greetingTextWrap: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 4,
   },
   promoBanner: {
     flexDirection: "row",
@@ -2153,19 +3253,19 @@ const styles = StyleSheet.create({
   uberRouteCard: {
     flexDirection: "row",
     alignItems: "stretch",
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 10,
-    paddingRight: 10,
-    paddingLeft: 4,
-    gap: 8,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    paddingVertical: 6,
+    paddingRight: 12,
+    paddingLeft: 6,
+    gap: 10,
   },
   uberRouteRail: {
     width: 22,
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: 16,
-    paddingBottom: 16,
+    paddingTop: 22,
+    paddingBottom: 22,
     alignSelf: "stretch",
   },
   uberPickupDot: {
@@ -2178,17 +3278,168 @@ const styles = StyleSheet.create({
     width: 2,
     borderRadius: 1,
     marginVertical: 6,
-    minHeight: 18,
+    minHeight: 22,
   },
   uberDropoffSquare: {
     width: 10,
     height: 10,
     borderRadius: 2,
   },
+  uberRailStopWrap: {
+    alignItems: "center",
+    alignSelf: "stretch",
+    width: 22,
+  },
+  uberStopDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 1.5,
+  },
   uberRouteFields: {
     flex: 1,
     minWidth: 0,
+    gap: 0,
+  },
+  whereStopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  whereStopField: {
+    flex: 1,
+    minWidth: 0,
+  },
+  whereStopRemove: {
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  whereAddStopBtn: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+  },
+  whereFlightBlock: {
+    marginTop: 10,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  whereFlightTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: -0.1,
+    marginBottom: 8,
+  },
+  whereFlightInput: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === "ios" ? 12 : 10,
+    fontSize: 15,
+    fontWeight: "500",
+  },
+  whereMeetGreetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    minHeight: 52,
+  },
+  whereMeetGreetTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+  whereMeetGreetSub: {
+    fontSize: 12,
+    fontWeight: "500",
+    marginTop: 2,
+    lineHeight: 16,
+    flexShrink: 1,
+  },
+  whereContinueFooter: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 12,
+  },
+  whereContinueBtn: {
+    borderRadius: 14,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: ACCENT,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.28,
+        shadowRadius: 10,
+      },
+      android: { elevation: 2 },
+    }),
+  },
+  whereContinueBtnDisabled: {
+    opacity: 0.45,
+  },
+  whereContinueBtnGrad: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+  },
+  whereContinueBtnText: {
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+    color: "#1A1208",
+  },
+  whereAddStopText: {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: -0.1,
+  },
+  whereVehicleBlock: {
+    marginTop: 6,
+    paddingBottom: 4,
+  },
+  whereVehicleHairline: {
+    height: StyleSheet.hairlineWidth,
+    marginBottom: 16,
+  },
+  whereVehicleEyebrow: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.4,
+    marginBottom: 4,
+  },
+  whereVehicleTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    letterSpacing: -0.35,
+    marginBottom: 3,
+  },
+  whereVehicleSub: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 12,
+  },
+  whereVehicleError: {
+    color: "#DC2626",
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  whereVehicleHint: {
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 8,
   },
   conciergeWhereBar: {
     flexDirection: "row",

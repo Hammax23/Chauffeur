@@ -10,10 +10,18 @@ export const CHILD_SEAT_CHARGE = 25;
 export const AIRPORT_PICKUP_FEE = 17.25;
 export const HST_RATE = 0.13;
 
-/** Allowed tip percents (web + app confirm step). */
-export const APP_GRATUITY_PERCENTS = [15, 20, 25] as const;
+/** Quick picks (keep in sync with mobile app-fare). */
+export const APP_GRATUITY_PERCENTS = [18, 20, 25] as const;
+export const APP_MAX_GRATUITY_PERCENT = 100;
 /** 0 = no tip selected yet. */
 export const APP_DEFAULT_GRATUITY_PERCENT = 0;
+
+/** Presets or any whole percent 1–100 (Set your own). */
+export function normalizeAppGratuityPercent(raw?: number | null): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(APP_MAX_GRATUITY_PERCENT, Math.max(0, Math.round(n)));
+}
 
 // Distance-based pricing: Base price covers first X km, then extra per km after
 export const BASE_DISTANCE_KM = 17;
@@ -118,17 +126,7 @@ export function calculateAppDistanceFare(input: {
   const subtotal = rideFare + stopCharge + childSeatCharge + airportPickupFee + meetGreetCharge;
   const hst = subtotal * HST_RATE;
 
-  let gratuityPercent = Number(input.gratuityPercent);
-  if (!Number.isFinite(gratuityPercent) || gratuityPercent < 0) {
-    gratuityPercent = 0;
-  } else if (
-    gratuityPercent > 0 &&
-    !(APP_GRATUITY_PERCENTS as readonly number[]).includes(gratuityPercent)
-  ) {
-    gratuityPercent = APP_DEFAULT_GRATUITY_PERCENT;
-  } else {
-    gratuityPercent = Math.round(gratuityPercent);
-  }
+  const gratuityPercent = normalizeAppGratuityPercent(input.gratuityPercent);
   const gratuity = (subtotal * gratuityPercent) / 100;
   const total = subtotal + hst + gratuity;
 
@@ -176,17 +174,7 @@ export function calculateAppHourlyFare(input: {
   const subtotal = rideFare + stopCharge + childSeatCharge + airportPickupFee + meetGreetCharge;
   const hst = subtotal * HST_RATE;
 
-  let gratuityPercent = Number(input.gratuityPercent);
-  if (!Number.isFinite(gratuityPercent) || gratuityPercent < 0) {
-    gratuityPercent = 0;
-  } else if (
-    gratuityPercent > 0 &&
-    !(APP_GRATUITY_PERCENTS as readonly number[]).includes(gratuityPercent)
-  ) {
-    gratuityPercent = APP_DEFAULT_GRATUITY_PERCENT;
-  } else {
-    gratuityPercent = Math.round(gratuityPercent);
-  }
+  const gratuityPercent = normalizeAppGratuityPercent(input.gratuityPercent);
   const gratuity = (subtotal * gratuityPercent) / 100;
   const total = subtotal + hst + gratuity;
 

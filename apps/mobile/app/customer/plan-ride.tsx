@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -9,17 +9,40 @@ import {
   StatusBar,
   Alert,
   ActivityIndicator,
+  Animated,
+  Easing,
+  LayoutAnimation,
+  UIManager,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { GooglePlacesAddressField } from "../../components/GooglePlacesAddressField";
+import { VehicleTierSelectList } from "../../components/VehicleTierSelectList";
 import { useCustomerTheme } from "../../contexts/CustomerThemeContext";
 import { GOLD } from "../../theme/driver-theme";
+import { getAppFleetVehicles } from "../../services/api";
+import { fetchDirectionsSummary } from "../../services/places";
+import {
+  buildVehicleTiersFromAppFleet,
+  findTierById,
+  formatTierDisplayTitle,
+  type VehicleTierOption,
+} from "../../data/vehicle-tiers";
+import {
+  BASE_DISTANCE_KM,
+  EXTRA_KM_RATE,
+  calculateAppDistanceFare,
+  type AppDistancePricing,
+} from "../../utils/app-fare";
 
 const ACCENT = GOLD;
+
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 function paramStr(value: string | string[] | undefined): string {
   if (typeof value === "string") return value;
@@ -40,11 +63,12 @@ function formatReverseGeocodeAddress(
 }
 
 /**
- * Plan your ride — same ScrollView pattern as create-reservation
- * (no Modal / KeyboardAvoidingView — those break the iOS soft keyboard).
+ * Plan your ride — route fields, then inline Select vehicle when both ends set.
+ * (ScrollView + keyboard insets — no Modal / KAV that break iOS keyboard.)
  */
 export default function PlanRideScreen() {
   const { palette, isDark } = useCustomerTheme();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
     focus?: string | string[];
     pickup?: string | string[];
@@ -66,27 +90,210 @@ export default function PlanRideScreen() {
   const [dropoffCoords, setDropoffCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
 
-  const canContinue = useMemo(() => dropoff.trim().length >= 3, [dropoff]);
-
-  const goCreate = useCallback(
-    (drop: string, dropC?: { lat?: number; lng?: number } | null) => {
-      const next: Record<string, string> = {};
-      if (pickup.trim()) next.pickup = pickup.trim();
-      if (pickupCoords) {
-        next.pickupLat = String(pickupCoords.lat);
-        next.pickupLng = String(pickupCoords.lng);
-      }
-      next.dropoff = drop.trim();
-      const lat = dropC?.lat ?? dropoffCoords?.lat;
-      const lng = dropC?.lng ?? dropoffCoords?.lng;
-      if (lat != null && lng != null) {
-        next.dropoffLat = String(lat);
-        next.dropoffLng = String(lng);
-      }
-      router.replace({ pathname: "/customer/create-reservation", params: next });
-    },
-    [pickup, pickupCoords, dropoffCoords]
+  const [tiers, setTiers] = useState<VehicleTierOption[]>([]);
+  const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
+  const [fleetLoading, setFleetLoading] = useState(false);
+  const [fleetError, setFleetError] = useState("");
+  const [distancePricing, setDistancePricing] = useState<AppDistancePricing>({
+    baseDistanceKm: BASE_DISTANCE_KM,
+    extraKmRate: EXTRA_KM_RATE,
+  });
+  const [distanceMeters, setDistanceMeters] = useState<number | null>(null);
+  const [routeMeta, setRouteMeta] = useState<{ distanceText: string; durationText: string } | null>(
+    null
   );
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [routeError, setRouteError] = useState("");
+
+  const scrollRef = useRef<ScrollView>(null);
+  const vehicleReveal = useRef(new Animated.Value(0)).current;
+  const didScrollToVehicles = useRef(false);
+
+  const routeReady = useMemo(
+    () => pickup.trim().length >= 3 && dropoff.trim().length >= 3,
+    [pickup, dropoff]
+  );
+
+  const selectedTier = useMemo(
+    () => (selectedTierId ? findTierById(tiers, selectedTierId) : null),
+    [tiers, selectedTierId]
+  );
+
+  const tierFareById = useMemo(() => {
+    const out: Record<string, number> = {};
+    const meters = distanceMeters;
+    if (meters == null || meters <= 0) return out;
+    for (const tier of tiers) {
+      const fare = calculateAppDistanceFare({
+        distanceMeters: meters,
+        hourlyRate: tier.hourlyRate,
+        pricePerKm: tier.pricePerKm,
+        baseDistanceKm: tier.baseDistanceKm || distancePricing.baseDistanceKm,
+        extraKmRate: tier.extraKmRate || distancePricing.extraKmRate,
+        childSeatCount: 0,
+      });
+      if (fare) out[tier.id] = fare.rideFare;
+    }
+    return out;
+  }, [tiers, distanceMeters, distancePricing]);
+
+  const selectedFare =
+    selectedTierId && tierFareById[selectedTierId] != null
+      ? tierFareById[selectedTierId]
+      : null;
+
+  const canContinue = !!selectedTier && routeReady;
+
+  // Reveal animation when both addresses are ready
+  useEffect(() => {
+    if (!routeReady) {
+      vehicleReveal.setValue(0);
+      didScrollToVehicles.current = false;
+      return;
+    }
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    Animated.timing(vehicleReveal, {
+      toValue: 1,
+      duration: 320,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+    if (!didScrollToVehicles.current) {
+      didScrollToVehicles.current = true;
+      requestAnimationFrame(() => {
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120);
+      });
+    }
+  }, [routeReady, vehicleReveal]);
+
+  // Fleet load once route is ready
+  useEffect(() => {
+    if (!routeReady) {
+      setTiers([]);
+      setSelectedTierId(null);
+      setFleetError("");
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setFleetLoading(true);
+      setFleetError("");
+      try {
+        const { vehicles, pricing } = await getAppFleetVehicles();
+        if (cancelled) return;
+        if (pricing) {
+          setDistancePricing({
+            baseDistanceKm: pricing.baseDistanceKm || BASE_DISTANCE_KM,
+            extraKmRate: pricing.extraKmRate || EXTRA_KM_RATE,
+          });
+        }
+        const next = buildVehicleTiersFromAppFleet(vehicles);
+        setTiers(next);
+        setSelectedTierId((prev) => {
+          if (prev && next.some((t) => t.id === prev)) return prev;
+          return next[0]?.id ?? null;
+        });
+      } catch (e) {
+        if (!cancelled) {
+          setFleetError(e instanceof Error ? e.message : "Could not load vehicles");
+          setTiers([]);
+          setSelectedTierId(null);
+        }
+      } finally {
+        if (!cancelled) setFleetLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [routeReady]);
+
+  // Driving route for fares
+  useEffect(() => {
+    if (!routeReady) {
+      setDistanceMeters(null);
+      setRouteMeta(null);
+      setRouteError("");
+      setRouteLoading(false);
+      return;
+    }
+
+    const origin =
+      pickupCoords != null
+        ? `${pickupCoords.lat},${pickupCoords.lng}`
+        : pickup.trim();
+    const destination =
+      dropoffCoords != null
+        ? `${dropoffCoords.lat},${dropoffCoords.lng}`
+        : dropoff.trim();
+
+    let cancelled = false;
+    const ac = new AbortController();
+    const timer = setTimeout(async () => {
+      setRouteLoading(true);
+      setRouteError("");
+      try {
+        const r = await fetchDirectionsSummary(
+          {
+            origin,
+            destination,
+            avoidTolls: false,
+            mapWidth: 640,
+            mapHeight: 360,
+          },
+          ac.signal
+        );
+        if (cancelled) return;
+        if (r.distanceMeters == null || r.distanceMeters <= 0) {
+          setDistanceMeters(null);
+          setRouteMeta(null);
+          setRouteError("Could not calculate distance. You can still continue.");
+          return;
+        }
+        setDistanceMeters(r.distanceMeters);
+        setRouteMeta({
+          distanceText: r.distanceText || "",
+          durationText: r.durationText || "",
+        });
+      } catch (e) {
+        if (!cancelled && (e as { name?: string })?.name !== "AbortError") {
+          setDistanceMeters(null);
+          setRouteMeta(null);
+          setRouteError(
+            e instanceof Error ? e.message : "Route unavailable — fares may show base rates."
+          );
+        }
+      } finally {
+        if (!cancelled) setRouteLoading(false);
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      ac.abort();
+      clearTimeout(timer);
+    };
+  }, [routeReady, pickup, dropoff, pickupCoords, dropoffCoords]);
+
+  const goCreate = useCallback(() => {
+    if (!selectedTier) {
+      Alert.alert("Select a vehicle", "Choose a vehicle to continue.");
+      return;
+    }
+    const next: Record<string, string> = {};
+    if (pickup.trim()) next.pickup = pickup.trim();
+    if (pickupCoords) {
+      next.pickupLat = String(pickupCoords.lat);
+      next.pickupLng = String(pickupCoords.lng);
+    }
+    next.dropoff = dropoff.trim();
+    if (dropoffCoords) {
+      next.dropoffLat = String(dropoffCoords.lat);
+      next.dropoffLng = String(dropoffCoords.lng);
+    }
+    next.vehicleId = selectedTier.id;
+    router.replace({ pathname: "/customer/create-reservation", params: next });
+  }, [pickup, pickupCoords, dropoff, dropoffCoords, selectedTier]);
 
   const useCurrentLocation = useCallback(async () => {
     setLocating(true);
@@ -123,6 +330,8 @@ export default function PlanRideScreen() {
     }
   }, []);
 
+  const footerPad = Math.max(insets.bottom, 10) + (canContinue ? 78 : 16);
+
   return (
     <View style={[styles.root, { backgroundColor: palette.root }]}>
       <StatusBar barStyle={palette.statusBar} backgroundColor={palette.root} />
@@ -136,10 +345,11 @@ export default function PlanRideScreen() {
         />
       </View>
 
-      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+      <SafeAreaView style={styles.safe} edges={["top"]}>
         <ScrollView
+          ref={scrollRef}
           style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: footerPad }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
@@ -220,30 +430,96 @@ export default function PlanRideScreen() {
                   ? { lat: place.lat, lng: place.lng }
                   : null;
               setDropoffCoords(coords);
-              goCreate(place.address, coords);
+              // Stay on this screen — vehicle list appears below
             }}
           />
 
-          <Pressable
-            onPress={() => goCreate(dropoff)}
-            disabled={!canContinue}
-            style={({ pressed }) => [
-              styles.continueBtn,
-              !canContinue && styles.continueDisabled,
-              pressed && canContinue && styles.pressed,
+          {routeReady ? (
+            <Animated.View
+              style={[
+                styles.vehicleBlock,
+                {
+                  opacity: vehicleReveal,
+                  transform: [
+                    {
+                      translateY: vehicleReveal.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [16, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <View style={styles.vehicleHairline} />
+              <Text style={[styles.eyebrow, { color: isDark ? GOLD : palette.hintBold }]}>
+                VEHICLE
+              </Text>
+              <Text style={[styles.sectionTitle, { color: palette.text }]}>Select vehicle</Text>
+              <Text style={[styles.sectionSub, { color: palette.muted }]}>
+                Estimated fare for this route
+                {routeMeta?.distanceText
+                  ? ` · ${routeMeta.distanceText}`
+                  : routeLoading
+                    ? " · calculating…"
+                    : ""}
+                {routeMeta?.durationText ? ` · ${routeMeta.durationText}` : ""}
+              </Text>
+
+              {fleetError ? (
+                <Text style={styles.errorText}>{fleetError}</Text>
+              ) : null}
+              {routeError && !routeLoading ? (
+                <Text style={[styles.routeHint, { color: palette.muted }]}>{routeError}</Text>
+              ) : null}
+
+              <VehicleTierSelectList
+                tiers={tiers}
+                selectedId={selectedTierId}
+                fares={tierFareById}
+                onSelect={setSelectedTierId}
+                loading={fleetLoading}
+                textColor={palette.text}
+                mutedColor={palette.muted}
+                isDark={isDark}
+              />
+            </Animated.View>
+          ) : null}
+        </ScrollView>
+
+        {canContinue && selectedTier ? (
+          <View
+            style={[
+              styles.footer,
+              {
+                paddingBottom: Math.max(insets.bottom, 10),
+                borderTopColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+                backgroundColor: isDark ? "rgba(10,12,16,0.96)" : "rgba(255,255,255,0.96)",
+              },
             ]}
           >
-            <LinearGradient
-              colors={["#E8C078", ACCENT, "#B8862E"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.continueGrad}
+            <Pressable
+              onPress={goCreate}
+              style={({ pressed }) => [styles.continueBtn, pressed && styles.pressed]}
             >
-              <Text style={styles.continueText}>Continue</Text>
-              <Ionicons name="arrow-forward" size={18} color="#1A1208" />
-            </LinearGradient>
-          </Pressable>
-        </ScrollView>
+              <LinearGradient
+                colors={["#E8C078", ACCENT, "#B8862E"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.continueGrad}
+              >
+                <View style={styles.continueCopy}>
+                  <Text style={styles.continueText}>Continue</Text>
+                  <Text style={styles.continueMeta} numberOfLines={1}>
+                    {formatTierDisplayTitle(selectedTier.title)}
+                    {selectedFare != null ? ` · $${selectedFare.toFixed(0)}` : ""}
+                  </Text>
+                </View>
+                <Ionicons name="arrow-forward" size={18} color="#1A1208" />
+              </LinearGradient>
+            </Pressable>
+          </View>
+        ) : null}
       </SafeAreaView>
     </View>
   );
@@ -321,8 +597,31 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
-  continueBtn: {
+  vehicleBlock: {
     marginTop: 28,
+  },
+  vehicleHairline: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(128,128,128,0.28)",
+    marginBottom: 22,
+  },
+  errorText: {
+    color: "#DC2626",
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 10,
+  },
+  routeHint: {
+    fontSize: 12,
+    marginBottom: 10,
+    lineHeight: 17,
+  },
+  footer: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+  },
+  continueBtn: {
     borderRadius: 14,
     overflow: "hidden",
     ...Platform.select({
@@ -338,17 +637,22 @@ const styles = StyleSheet.create({
   continueGrad: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
     gap: 8,
-    paddingVertical: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
   },
-  continueDisabled: {
-    opacity: 0.45,
-  },
+  continueCopy: { flex: 1, minWidth: 0 },
   continueText: {
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#1A1208",
+  },
+  continueMeta: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: "600",
+    color: "rgba(26,18,8,0.72)",
   },
   pressed: {
     opacity: 0.9,

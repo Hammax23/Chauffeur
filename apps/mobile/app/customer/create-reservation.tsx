@@ -13,6 +13,8 @@ import {
   Modal,
   ActivityIndicator,
   Keyboard,
+  KeyboardAvoidingView,
+  InputAccessoryView,
   Dimensions,
   StatusBar,
   Switch,
@@ -27,15 +29,38 @@ import DateTimePicker, {
 } from "@react-native-community/datetimepicker";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { usePaymentSheet, useStripe } from "@stripe/stripe-react-native";
 import { useCustomerTheme } from "../../contexts/CustomerThemeContext";
 import { GOLD, type DriverPalette } from "../../theme/driver-theme";
 import * as Location from "expo-location";
 import { useAuth } from "../../contexts/AuthContext";
 import { GooglePlacesAddressField } from "../../components/GooglePlacesAddressField";
-import { fetchDirectionsSummary } from "../../services/places";
-import { getAppFleetVehicles, type AppFleetVehicleDto } from "../../services/api";
+import { ScheduleRideSheet } from "../../components/ScheduleRideSheet";
+import { PlanRideReviewPanel } from "../../components/PlanRideReviewPanel";
+import { RidePreferencesSheet } from "../../components/RidePreferencesSheet";
+import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from "react-native-maps";
+import { fetchDirectionsSummary, type DirectionsLatLng } from "../../services/places";
+import { decodePolyline } from "../../utils/decode-polyline";
+import {
+  getAppFleetVehicles,
+  getCustomerPaymentMethods,
+  type AppFleetVehicleDto,
+  type SavedPaymentMethod,
+} from "../../services/api";
+import {
+  APP_PAYMENTS_ENABLED,
+  runBookingCheckout,
+} from "../../services/booking-checkout";
+import { type BookingDraft } from "../../services/booking-draft";
+import {
+  DEFAULT_RIDE_PREFS,
+  normalizeRidePrefs,
+  type RidePrefs,
+} from "../../utils/ride-prefs";
+import { resetToReservationConfirmed } from "../../utils/booking-nav-reset";
+import { brandLabel } from "../../components/SavedCardPicker";
 import {
   buildVehicleTiersFromAppFleet,
   filterVehicleTiersForParcel,
@@ -51,7 +76,11 @@ import {
   calculateAppDistanceFare,
   calculateAppHourlyFare,
   parseVehicleCount,
+  scaleFareForVehicleCount,
   APP_DEFAULT_GRATUITY_PERCENT,
+  APP_GRATUITY_PERCENTS,
+  APP_MAX_GRATUITY_PERCENT,
+  normalizeAppGratuityPercent,
   APP_HOURLY_DURATIONS,
   APP_MIN_HOURLY_HOURS,
   MEET_GREET_CHARGE,
@@ -61,11 +90,23 @@ import {
   EXTRA_KM_RATE,
   type AppBookingMode,
   type AppDistancePricing,
+  type AppFareResult,
 } from "../../utils/app-fare";
+import {
+  formatFleetLinesLabel,
+  MAX_FLEET_UNITS,
+  normalizeFleetLines,
+  removeFleetLine,
+  setFleetLineQuantity,
+  totalFleetUnits,
+  upsertFleetLine,
+  type FleetLine,
+} from "../../utils/fleet-lines";
 import {
   MAX_APP_STOPS,
   activeStopAddresses,
   joinAppStops,
+  parseAppStops,
 } from "../../utils/stops";
 import { saveBookingDraft } from "../../services/booking-draft";
 import {
@@ -83,6 +124,8 @@ import {
 const DEFAULT_SERVICE_TYPE = "Point-to-Point transportation";
 const HOURLY_SERVICE_TYPE = "Hourly ride";
 const AS_DIRECTED_DROPOFF = "As directed";
+/** iOS number-pad has no return key — attach a real Done toolbar to this input. */
+const TIP_INPUT_ACCESSORY_ID = "sarj_review_tip_percent_accessory";
 
 /** Earliest allowed pick-up (now + small lead so past times can't be chosen). */
 function earliestPickupAt(from: Date = new Date()): Date {
@@ -223,10 +266,13 @@ const SERVICE_PREFILL_MAP: Record<string, string> = {
 
 export default function CreateReservationScreen() {
   const { user } = useAuth();
+  const navigation = useNavigation();
   const { palette, isDark } = useCustomerTheme();
   const insets = useSafeAreaInsets();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const routeMapAnim = useRef(new Animated.Value(0)).current;
+  const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
+  const { handleNextAction } = useStripe();
   const params = useLocalSearchParams<{
     prefill?: string | string[];
     vehicleId?: string | string[];
@@ -236,15 +282,28 @@ export default function CreateReservationScreen() {
     dropoff?: string | string[];
     dropoffLat?: string | string[];
     dropoffLng?: string | string[];
+    /** Joined intermediate stops from Plan your ride (`addr1 | addr2`). */
+    stops?: string | string[];
     airline?: string | string[];
     flightNumber?: string | string[];
     flightNote?: string | string[];
     meetGreet?: string | string[];
+    /** From Plan your ride who-is-riding pill: me | someone | child */
+    rideFor?: string | string[];
+    /** Plan your ride → Review (opens schedule sheet on entry). */
+    fromPlanRide?: string | string[];
   }>();
+  const fromPlanRide = useMemo(() => {
+    const v = params.fromPlanRide;
+    const raw = typeof v === "string" ? v : Array.isArray(v) ? v[0] || "" : "";
+    return raw === "1" || raw === "true";
+  }, [params.fromPlanRide]);
   // Ensures we only honour a `vehicleId` param once — after the user has
   // possibly changed the selection, navigating back here shouldn't yank it
   // back to whatever the URL says.
   const consumedVehicleParamRef = useRef(false);
+  const consumedRideForParamRef = useRef(false);
+  const scheduleUserClosedRef = useRef(false);
   const pickupAutoFilledRef = useRef(false);
   const scrollRef = useRef<ScrollView>(null);
   const scrollYRef = useRef(0);
@@ -304,14 +363,9 @@ export default function CreateReservationScreen() {
   const [stops, setStops] = useState<string[]>([]);
   const [pickupAt, setPickupAt] = useState<Date>(defaultPickupDate);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  /** Open immediately on Review entry from Plan your ride (avoid timeout/remount races). */
+  const [showScheduleSheet, setShowScheduleSheet] = useState(fromPlanRide);
   const [pickerMinDate, setPickerMinDate] = useState(() => earliestPickupAt());
-
-  const openPickupTimePicker = useCallback(() => {
-    const min = earliestPickupAt();
-    setPickerMinDate(min);
-    setPickupAt((prev) => (prev.getTime() < min.getTime() ? min : prev));
-    setShowDatePicker(true);
-  }, []);
   const [passengersCount, setPassengersCount] = useState(1);
   const [recipientName, setRecipientName] = useState("");
   const [recipientPhone, setRecipientPhone] = useState("");
@@ -331,6 +385,8 @@ export default function CreateReservationScreen() {
   const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
   /** Same-type cars on this trip (Add another vehicle). */
   const [vehicleCount, setVehicleCount] = useState(1);
+  /** Mixed fleets for Plan→Review (any available types · max 5 units). */
+  const [fleetLines, setFleetLines] = useState<FleetLine[]>([]);
   const [showTierDropdown, setShowTierDropdown] = useState(false);
   const isParcel = isParcelServiceType(serviceType);
   const isHourly = !isParcel && bookingMode === "hourly";
@@ -367,8 +423,11 @@ export default function CreateReservationScreen() {
     distanceMeters: number | null;
     durationSeconds: number | null;
     mapImageUrl: string | null;
+    polyline: string | null;
+    points: DirectionsLatLng[];
     pointCount: number;
   } | null>(null);
+  const reviewMapRef = useRef<MapView | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   /** Uber-style: route map only after both ends are set (never empty placeholder). */
@@ -407,6 +466,73 @@ export default function CreateReservationScreen() {
   const [lastName, setLastName] = useState(user?.lastName || "");
   const [phoneNumber, setPhoneNumber] = useState(user?.phone || "");
   const [email, setEmail] = useState(user?.email || "");
+  /** Checkout on Review — cards + tip + ride prefs popup */
+  const [savedCards, setSavedCards] = useState<SavedPaymentMethod[]>([]);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [cardsLoading, setCardsLoading] = useState(false);
+  const [gratuityPercent, setGratuityPercent] = useState(APP_DEFAULT_GRATUITY_PERCENT);
+  const [tipModalOpen, setTipModalOpen] = useState(false);
+  const [customTipInput, setCustomTipInput] = useState("");
+  const tipInputRef = useRef<TextInput>(null);
+  const [prefsOpen, setPrefsOpen] = useState(false);
+  const [ridePrefs, setRidePrefs] = useState<RidePrefs>(DEFAULT_RIDE_PREFS);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const savedCardsCountRef = useRef(0);
+  savedCardsCountRef.current = savedCards.length;
+  const pendingChildSeatsRef = useRef<number | null>(null);
+
+  const reloadSavedCards = useCallback(async (opts?: { force?: boolean }) => {
+    if (!APP_PAYMENTS_ENABLED) return;
+    const force = opts?.force === true;
+    const hadCards = savedCardsCountRef.current > 0;
+    if (!hadCards) setCardsLoading(true);
+    try {
+      const res = await getCustomerPaymentMethods({ force });
+      if (!res.success) return;
+      const list = res.paymentMethods || [];
+      setSavedCards(list);
+      setSelectedCardId((prev) => {
+        if (prev && list.some((c) => c.id === prev)) return prev;
+        return list.find((c) => c.isDefault)?.id || list[0]?.id || null;
+      });
+    } catch {
+      /* keep prior list */
+    } finally {
+      setCardsLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void reloadSavedCards();
+    }, [reloadSavedCards])
+  );
+
+  const selectedCard = useMemo(
+    () => savedCards.find((c) => c.id === selectedCardId) || null,
+    [savedCards, selectedCardId]
+  );
+
+  const openPickupTimePicker = useCallback(() => {
+    const min = earliestPickupAt();
+    setPickerMinDate(min);
+    setPickupAt((prev) => (prev.getTime() < min.getTime() ? min : prev));
+    scheduleUserClosedRef.current = false;
+    if (fromPlanRide) {
+      setShowScheduleSheet(true);
+    } else {
+      setShowDatePicker(true);
+    }
+  }, [fromPlanRide]);
+
+  // Keep Schedule sheet open on Review until user closes / confirms (no timeout race).
+  useEffect(() => {
+    if (!fromPlanRide || scheduleUserClosedRef.current) return;
+    const min = earliestPickupAt();
+    setPickerMinDate(min);
+    setPickupAt((prev) => (prev.getTime() < min.getTime() ? min : prev));
+    setShowScheduleSheet(true);
+  }, [fromPlanRide]);
 
   const setModeDistance = useCallback(() => {
     setBookingMode("distance");
@@ -477,6 +603,20 @@ export default function CreateReservationScreen() {
     },
     [rideFor, applyAccountContact, user?.email]
   );
+
+  // Plan your ride → honour who-is-riding once
+  useEffect(() => {
+    if (consumedRideForParamRef.current) return;
+    const raw = typeof params.rideFor === "string"
+      ? params.rideFor
+      : Array.isArray(params.rideFor)
+        ? params.rideFor[0] || ""
+        : "";
+    const next = raw.trim().toLowerCase();
+    if (next !== "someone" && next !== "child") return;
+    consumedRideForParamRef.current = true;
+    selectRideFor(next);
+  }, [params.rideFor, selectRideFor]);
 
   const rideForLabel = useMemo(() => {
     if (isParcel) {
@@ -645,6 +785,15 @@ export default function CreateReservationScreen() {
     }
   }, [params.dropoff, params.dropoffLat, params.dropoffLng]);
 
+  // Prefill intermediate stops from Plan your ride
+  useEffect(() => {
+    const raw = params.stops;
+    const stopsRaw = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : "";
+    if (!stopsRaw?.trim()) return;
+    const parsed = parseAppStops(stopsRaw);
+    if (parsed.length > 0) setStops(parsed);
+  }, [params.stops]);
+
   // Airport composer: airline / flight / M&G
   useEffect(() => {
     const paramStr = (v?: string | string[]) =>
@@ -765,6 +914,8 @@ export default function CreateReservationScreen() {
             distanceMeters: r.distanceMeters,
             durationSeconds: r.durationSeconds,
             mapImageUrl: r.mapImageUrl,
+            polyline: r.polyline,
+            points: r.points,
             pointCount: r.points.length,
           });
         }
@@ -794,50 +945,108 @@ export default function CreateReservationScreen() {
   ]);
 
   const serviceDateStr = pickupAt.toLocaleDateString("en-CA");
-  const serviceTimeStr = pickupAt.toLocaleTimeString("en-US", {
+  /** Server expects 24h HH:mm — keep separate from customer-facing AM/PM display. */
+  const serviceTimeStr = pickupAt.toLocaleTimeString("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   });
-  const pickupTimeDisplay = pickupAt.toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  const pickupTimeDisplay = fromPlanRide
+    ? `${pickupAt.toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })} · ${pickupAt.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })}`
+    : pickupAt.toLocaleString(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+
+  const addFareResults = (a: AppFareResult, b: AppFareResult): AppFareResult => {
+    const add = (x: number, y: number) => Math.round(((x || 0) + (y || 0)) * 100) / 100;
+    return {
+      ...a,
+      rideFare: add(a.rideFare, b.rideFare),
+      stopCharge: add(a.stopCharge, b.stopCharge),
+      childSeatCharge: add(a.childSeatCharge, b.childSeatCharge),
+      airportPickupFee: add(a.airportPickupFee, b.airportPickupFee),
+      meetGreetCharge: add(a.meetGreetCharge, b.meetGreetCharge),
+      subtotal: add(a.subtotal, b.subtotal),
+      hst: add(a.hst, b.hst),
+      gratuity: add(a.gratuity, b.gratuity),
+      total: add(a.total, b.total),
+      discountAmount:
+        a.discountAmount != null || b.discountAmount != null
+          ? add(a.discountAmount || 0, b.discountAmount || 0)
+          : a.discountAmount,
+    };
+  };
 
   /**
-   * Live fare estimate (same formula as confirm + server).
-   * Gratuity preview uses default tip percent.
+   * Live fare (same formula as server). Supports mixed fleet lines on Review.
    */
   const fareEstimate = useMemo(() => {
-    if (!selectedTier) return null;
+    const lines =
+      fromPlanRide && fleetLines.length > 0
+        ? normalizeFleetLines(fleetLines)
+        : selectedTierId
+          ? [
+              {
+                tierId: selectedTierId,
+                quantity: parseVehicleCount(isParcel ? 1 : vehicleCount),
+              },
+            ]
+          : [];
+    if (lines.length === 0) return null;
+
     const stopCount = activeStopAddresses(stops).length;
-    if (isHourly) {
-      return calculateAppHourlyFare({
-        hours: hourlyDuration,
-        hourlyRate: selectedTier.hourlyRate,
-        stopCount,
-        childSeatCount,
-        gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
-        pickupLocation: pickupAddress,
-        meetGreet: allowMeetGreet && meetGreet,
-      });
-    }
     const meters = routeSummary?.distanceMeters ?? null;
-    if (meters == null || meters <= 0) return null;
-    return calculateAppDistanceFare({
-      distanceMeters: meters,
-      hourlyRate: selectedTier.hourlyRate,
-      pricePerKm: selectedTier.pricePerKm,
-      baseDistanceKm: selectedTier.baseDistanceKm || distancePricing.baseDistanceKm,
-      extraKmRate: selectedTier.extraKmRate || distancePricing.extraKmRate,
-      stopCount,
-      childSeatCount,
-      gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
-      pickupLocation: pickupAddress,
-      meetGreet: allowMeetGreet && meetGreet,
-    });
+    if (!isHourly && (meters == null || meters <= 0)) return null;
+
+    let combined: AppFareResult | null = null;
+    for (let i = 0; i < lines.length; i++) {
+      const tier = findTierById(vehicleTiers, lines[i].tierId);
+      if (!tier) continue;
+      let base: AppFareResult | null = null;
+      if (isHourly) {
+        base = calculateAppHourlyFare({
+          hours: hourlyDuration,
+          hourlyRate: tier.hourlyRate,
+          stopCount,
+          childSeatCount: i === 0 ? childSeatCount : 0,
+          gratuityPercent,
+          pickupLocation: pickupAddress,
+          meetGreet: i === 0 && allowMeetGreet && meetGreet,
+        });
+      } else {
+        base = calculateAppDistanceFare({
+          distanceMeters: meters!,
+          hourlyRate: tier.hourlyRate,
+          pricePerKm: tier.pricePerKm,
+          baseDistanceKm: tier.baseDistanceKm || distancePricing.baseDistanceKm,
+          extraKmRate: tier.extraKmRate || distancePricing.extraKmRate,
+          stopCount,
+          childSeatCount: i === 0 ? childSeatCount : 0,
+          gratuityPercent,
+          pickupLocation: pickupAddress,
+          meetGreet: i === 0 && allowMeetGreet && meetGreet,
+        });
+      }
+      if (!base) continue;
+      const scaled = scaleFareForVehicleCount(base, lines[i].quantity);
+      combined = combined ? addFareResults(combined, scaled) : scaled;
+    }
+    return combined;
   }, [
-    selectedTier,
+    fromPlanRide,
+    fleetLines,
+    selectedTierId,
+    vehicleTiers,
     isHourly,
     hourlyDuration,
     routeSummary,
@@ -847,22 +1056,55 @@ export default function CreateReservationScreen() {
     pickupAddress,
     allowMeetGreet,
     meetGreet,
+    gratuityPercent,
+    vehicleCount,
+    isParcel,
   ]);
 
   const maxPassengersPerVehicle = useMemo(
     () => parseMaxPassengers(selectedTier?.seating) ?? 8,
     [selectedTier]
   );
-  const maxPassengers = maxPassengersPerVehicle * Math.max(1, vehicleCount);
+  const fleetUnitTotal = fromPlanRide
+    ? Math.max(1, totalFleetUnits(fleetLines))
+    : Math.max(1, vehicleCount);
+  const maxPassengers = maxPassengersPerVehicle * fleetUnitTotal;
 
   useEffect(() => {
     setPassengersCount((n) => Math.min(Math.max(n, 1), maxPassengers));
     setChildSeatCount((n) => Math.min(n, maxPassengers));
   }, [maxPassengers]);
 
+  // Keep fleet lines aligned with the primary selected vehicle.
   useEffect(() => {
-    setVehicleCount(1);
+    if (!selectedTierId) {
+      setFleetLines([]);
+      return;
+    }
+    setFleetLines((prev) => {
+      if (prev.length === 0) {
+        return [{ tierId: selectedTierId, quantity: 1 }];
+      }
+      const hit = prev.find((l) => l.tierId === selectedTierId);
+      if (hit) {
+        return normalizeFleetLines([
+          hit,
+          ...prev.filter((l) => l.tierId !== selectedTierId),
+        ]);
+      }
+      const rest = prev.slice(1);
+      return normalizeFleetLines([
+        { tierId: selectedTierId, quantity: prev[0]?.quantity || 1 },
+        ...rest,
+      ]);
+    });
   }, [selectedTierId]);
+
+  useEffect(() => {
+    if (!fromPlanRide) return;
+    const units = totalFleetUnits(fleetLines);
+    if (units >= 1) setVehicleCount(units);
+  }, [fromPlanRide, fleetLines]);
 
   /** Per-tier ride fare for the list (Uber-style price on the right). */
   const tierFareById = useMemo(() => {
@@ -924,6 +1166,7 @@ export default function CreateReservationScreen() {
   }, []);
 
   const continueDisabled =
+    isSubmitting ||
     fleetLoading ||
     !selectedTier ||
     !pickupAddress.trim() ||
@@ -932,6 +1175,7 @@ export default function CreateReservationScreen() {
     (!isHourly && (!!routeLoading || !routeSummary?.distanceMeters));
 
   const continueLabel = (() => {
+    if (isSubmitting) return "Processing…";
     if (fleetLoading) return "Loading vehicles…";
     if (!selectedTier) {
       if (isHourly && vehicleTiers.length === 0) return "No hourly vehicles";
@@ -942,6 +1186,11 @@ export default function CreateReservationScreen() {
     if (!isHourly && routeLoading) return "Calculating route…";
     if (!fareEstimate) {
       return isHourly ? "Fare unavailable" : "Route needed to continue";
+    }
+    if (fromPlanRide) {
+      return APP_PAYMENTS_ENABLED
+        ? `Confirm & pay · $${fareEstimate.total.toFixed(2)}`
+        : `Confirm · $${fareEstimate.total.toFixed(2)}`;
     }
     return `Continue · $${fareEstimate.total.toFixed(2)}`;
   })();
@@ -1066,12 +1315,16 @@ export default function CreateReservationScreen() {
           "Child seat recommended",
           "Most children require an approved child seat. Add one to this booking?",
           [
-            { text: "Not now", style: "cancel", onPress: () => void persistDraftAndContinue() },
+            {
+              text: "Not now",
+              style: "cancel",
+              onPress: () => void beginCheckout(),
+            },
             {
               text: "Add child seat",
               onPress: () => {
                 setChildSeatCount(1);
-                void persistDraftAndContinue({ childSeatsOverride: 1 });
+                void beginCheckout({ childSeatsOverride: 1 });
               },
             },
           ]
@@ -1085,10 +1338,14 @@ export default function CreateReservationScreen() {
       }
     }
 
-    await persistDraftAndContinue();
+    await beginCheckout();
   };
 
-  const persistDraftAndContinue = async (opts?: { childSeatsOverride?: number }) => {
+  const buildBookingDraft = (opts?: {
+    childSeatsOverride?: number;
+    prefsOverride?: RidePrefs;
+  }): BookingDraft | null => {
+    if (!selectedTier || !fareEstimate) return null;
     const bookingPhone =
       rideFor === "me" && user?.phone?.trim()
         ? user.phone.trim()
@@ -1101,8 +1358,17 @@ export default function CreateReservationScreen() {
         ? opts.childSeatsOverride
         : childSeatCount;
     const bookerRide = rideFor === "someone" || rideFor === "child";
+    const lines =
+      fromPlanRide && fleetLines.length > 0
+        ? normalizeFleetLines(fleetLines)
+        : [{ tierId: selectedTier.id, quantity: parseVehicleCount(isParcel ? 1 : vehicleCount) }];
+    const units = totalFleetUnits(lines);
+    const vehicleLabel = formatFleetLinesLabel(lines, (id) => {
+      const t = findTierById(vehicleTiers, id);
+      return t ? formatTierDisplayTitle(t.title) : selectedTier.title;
+    });
 
-    await saveBookingDraft({
+    return {
       serviceType,
       bookingMode: isHourly ? "hourly" : "distance",
       hourlyDuration: isHourly ? String(hourlyDuration) : undefined,
@@ -1113,22 +1379,20 @@ export default function CreateReservationScreen() {
       serviceTime: serviceTimeStr,
       pickupTimeDisplay,
       passengers: isParcel ? "1" : String(Math.max(passengersCount, seats, 1)),
-      vehicle: selectedTier!.title,
-      vehicleId: selectedTier!.id,
-      vehicleSubtitle: selectedTier!.subtitle,
+      vehicle: vehicleLabel || selectedTier.title,
+      vehicleId: lines[0]?.tierId || selectedTier.id,
+      vehicleSubtitle: selectedTier.subtitle,
       vehiclePrice: isHourly
-        ? `$${selectedTier!.hourlyRate.toFixed(2)}/hr · ${hourlyDuration}h`
-        : selectedTier!.hourlyRate > 0
-          ? `From $${selectedTier!.hourlyRate.toFixed(2)}`
-          : `$${selectedTier!.pricePerKm.toFixed(2)}/km`,
-      vehicleCount: String(parseVehicleCount(isParcel ? 1 : vehicleCount)),
-      rideFare: String(
-        (fareEstimate!.rideFare ?? 0) * parseVehicleCount(isParcel ? 1 : vehicleCount)
-      ),
-      pricePerKm: String(selectedTier!.pricePerKm),
-      hourlyRate: String(selectedTier!.hourlyRate),
-      baseDistanceKm: String(selectedTier!.baseDistanceKm || distancePricing.baseDistanceKm),
-      extraKmRate: String(selectedTier!.extraKmRate || distancePricing.extraKmRate),
+        ? `$${selectedTier.hourlyRate.toFixed(2)}/hr · ${hourlyDuration}h`
+        : selectedTier.hourlyRate > 0
+          ? `From $${selectedTier.hourlyRate.toFixed(2)}`
+          : `$${selectedTier.pricePerKm.toFixed(2)}/km`,
+      vehicleCount: String(units),
+      rideFare: String(fareEstimate.rideFare ?? 0),
+      pricePerKm: String(selectedTier.pricePerKm),
+      hourlyRate: String(selectedTier.hourlyRate),
+      baseDistanceKm: String(selectedTier.baseDistanceKm || distancePricing.baseDistanceKm),
+      extraKmRate: String(selectedTier.extraKmRate || distancePricing.extraKmRate),
       distanceText: isHourly
         ? `Hourly · ${hourlyDuration}h`
         : routeSummary?.distanceText ?? "",
@@ -1152,7 +1416,7 @@ export default function CreateReservationScreen() {
         : undefined,
       bookerEmail: bookerRide ? (user?.email || email).trim() || undefined : undefined,
       bookerPhone: bookerRide ? user?.phone || bookingPhone || undefined : undefined,
-      seating: selectedTier!.seating || "",
+      seating: selectedTier.seating || "",
       recipientName: isParcel ? recipientName.trim() : undefined,
       recipientPhone: isParcel ? recipientPhone.trim() : undefined,
       parcelWeight: isParcel ? formatParcelWeight(parcelWeight) || undefined : undefined,
@@ -1161,40 +1425,222 @@ export default function CreateReservationScreen() {
       flightNumber: flightNumber.trim() || undefined,
       flightNote: flightNote.trim() || undefined,
       meetGreet: allowMeetGreet && meetGreet ? "1" : undefined,
-    });
+      ridePrefs: normalizeRidePrefs(opts?.prefsOverride ?? ridePrefs),
+    };
+  };
 
-    router.push("/customer/reservation-confirm");
+  const submitCheckout = async (opts?: {
+    childSeatsOverride?: number;
+    prefsOverride?: RidePrefs;
+  }) => {
+    if (!fareEstimate || !selectedTier || isSubmitting) return;
+    const draft = buildBookingDraft(opts);
+    if (!draft) return;
+
+    setIsSubmitting(true);
+    try {
+      await saveBookingDraft(draft);
+      const seats =
+        typeof opts?.childSeatsOverride === "number"
+          ? opts.childSeatsOverride
+          : childSeatCount;
+      const checkoutLines =
+        fromPlanRide && fleetLines.length > 0
+          ? normalizeFleetLines(fleetLines)
+          : selectedTier
+            ? [
+                {
+                  tierId: selectedTier.id,
+                  quantity: parseVehicleCount(isParcel ? 1 : vehicleCount),
+                },
+              ]
+            : [];
+      const units = Math.max(1, totalFleetUnits(checkoutLines));
+      const stopAddrs = activeStopAddresses(stops);
+      const result = await runBookingCheckout({
+        draft,
+        fare: { gratuityPercent: fareEstimate.gratuityPercent },
+        childSeats: isParcel ? 0 : seats,
+        vehicleCount: units,
+        fleetLines: checkoutLines.map((l) => ({
+          vehicleId: l.tierId,
+          quantity: l.quantity,
+        })),
+        isHourly,
+        hourlyDuration,
+        distanceMeters: routeSummary?.distanceMeters ?? 0,
+        pricePerKm: selectedTier.pricePerKm,
+        dropoffDisplay: draft.dropoffAddress,
+        stopsPayload: stopAddrs.length > 0 ? draft.stopAddress : undefined,
+        meetGreet: allowMeetGreet && meetGreet,
+        guestName: [draft.firstName, draft.lastName].filter(Boolean).join(" "),
+        selectedCardId,
+        savedCards,
+        prefs: normalizeRidePrefs(opts?.prefsOverride ?? ridePrefs),
+        stripe: {
+          initPaymentSheet,
+          presentPaymentSheet,
+          handleNextAction,
+        },
+        onCardsChanged: () => void reloadSavedCards({ force: true }),
+      });
+      if (result.ok) {
+        resetToReservationConfirmed(navigation as never, result.bookingId);
+      }
+    } catch (e) {
+      Alert.alert(
+        "Error",
+        e instanceof Error ? e.message : "Something went wrong. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  /** Review: prefs popup then pay (no separate Confirm screen). */
+  const beginCheckout = async (opts?: { childSeatsOverride?: number }) => {
+    if (APP_PAYMENTS_ENABLED && !selectedCard) {
+      router.push("/customer/payment-methods");
+      return;
+    }
+    if (typeof opts?.childSeatsOverride === "number") {
+      pendingChildSeatsRef.current = opts.childSeatsOverride;
+      setChildSeatCount(opts.childSeatsOverride);
+    } else {
+      pendingChildSeatsRef.current = null;
+    }
+    if (isParcel) {
+      await submitCheckout(opts);
+      return;
+    }
+    setPrefsOpen(true);
   };
 
   const styles = useMemo(() => makeStyles(palette, isDark), [palette, isDark]);
 
   const mapPlaneH = routeHeroHeight + insets.top;
+  /**
+   * Uber Review: compact-but-readable map band (~30% of screen).
+   * Sheet still owns most of the screen; panel overlaps slightly.
+   */
+  const reviewMapH = Math.round(
+    Math.min(280, Math.max(200, windowHeight * 0.3)) + insets.top
+  );
+
+  /** Decoded route for interactive MapView (pan / zoom / real tiles). */
+  const reviewRouteCoords = useMemo(() => {
+    if (routeSummary?.polyline) {
+      const decoded = decodePolyline(routeSummary.polyline);
+      if (decoded.length >= 2) return decoded;
+    }
+    if (routeSummary?.points && routeSummary.points.length >= 2) {
+      return routeSummary.points.map((p) => ({
+        latitude: p.lat,
+        longitude: p.lng,
+      }));
+    }
+    const fallback: { latitude: number; longitude: number }[] = [];
+    if (pickupCoords) {
+      fallback.push({ latitude: pickupCoords.lat, longitude: pickupCoords.lng });
+    }
+    if (dropoffCoords) {
+      fallback.push({
+        latitude: dropoffCoords.lat,
+        longitude: dropoffCoords.lng,
+      });
+    }
+    return fallback;
+  }, [routeSummary?.polyline, routeSummary?.points, pickupCoords, dropoffCoords]);
+
+  const reviewMarkerPoints = useMemo(() => {
+    if (routeSummary?.points && routeSummary.points.length >= 2) {
+      return routeSummary.points;
+    }
+    const pts: DirectionsLatLng[] = [];
+    if (pickupCoords) pts.push(pickupCoords);
+    if (dropoffCoords) pts.push(dropoffCoords);
+    return pts;
+  }, [routeSummary?.points, pickupCoords, dropoffCoords]);
+
+  /**
+   * Tight camera for the short Review map band.
+   * fitToCoordinates + large padding on a short viewport zooms way out —
+   * compute deltas from the route bounds instead.
+   */
+  const reviewMapRegion = useMemo(() => {
+    if (reviewRouteCoords.length < 2) return null;
+    let minLat = Infinity;
+    let maxLat = -Infinity;
+    let minLng = Infinity;
+    let maxLng = -Infinity;
+    for (const c of reviewRouteCoords) {
+      minLat = Math.min(minLat, c.latitude);
+      maxLat = Math.max(maxLat, c.latitude);
+      minLng = Math.min(minLng, c.longitude);
+      maxLng = Math.max(maxLng, c.longitude);
+    }
+    const latSpan = Math.max(maxLat - minLat, 0.0025);
+    const lngSpan = Math.max(maxLng - minLng, 0.0025);
+    // ~40% padding around the route — close enough to read the path.
+    const latitudeDelta = Math.min(Math.max(latSpan * 1.4, 0.006), 0.18);
+    const longitudeDelta = Math.min(Math.max(lngSpan * 1.4, 0.006), 0.18);
+    return {
+      latitude: (minLat + maxLat) / 2,
+      longitude: (minLng + maxLng) / 2,
+      latitudeDelta,
+      longitudeDelta,
+    };
+  }, [reviewRouteCoords]);
+
+  const fitReviewMap = useCallback(() => {
+    if (!reviewMapRegion) return;
+    reviewMapRef.current?.animateToRegion(reviewMapRegion, 280);
+  }, [reviewMapRegion]);
+
+  useEffect(() => {
+    if (!fromPlanRide || !reviewMapRegion) return;
+    const t1 = setTimeout(fitReviewMap, 160);
+    const t2 = setTimeout(fitReviewMap, 480);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [fromPlanRide, reviewMapRegion, fitReviewMap, reviewMapH]);
+  const headerOverMap = fromPlanRide || showRouteHero;
   const headerBlock = (
-    <View style={[styles.header, showRouteHero && styles.headerOverMap]}>
+    <View style={[styles.header, headerOverMap && styles.headerOverMap]}>
       <TouchableOpacity
         onPress={() => router.back()}
-        style={[styles.backBtn, showRouteHero && styles.headerGlassBtn]}
+        style={[styles.backBtn, headerOverMap && styles.headerGlassBtn]}
         hitSlop={8}
       >
         <Ionicons
           name="chevron-back"
           size={20}
-          color={showRouteHero ? (isDark ? "#fff" : "#1C1916") : palette.text}
+          color={headerOverMap ? (isDark ? "#fff" : "#1C1916") : palette.text}
         />
-        {!showRouteHero ? <Text style={styles.backText}>Back</Text> : null}
+        {!headerOverMap ? <Text style={styles.backText}>Back</Text> : null}
       </TouchableOpacity>
-      <Text
-        style={[
-          styles.headerTitle,
-          showRouteHero && styles.headerTitleOverMap,
-          showRouteHero && { color: isDark ? "#fff" : "#1C1916" },
-        ]}
-        numberOfLines={1}
-      >
-        {isParcel ? "Send a Parcel" : isHourly ? "Hourly Reservation" : "Create Reservation"}
-      </Text>
+      {fromPlanRide ? (
+        <View style={styles.headerTitleSpacer} />
+      ) : (
+        <Text
+          style={[
+            styles.headerTitle,
+            headerOverMap && styles.headerTitleOverMap,
+            headerOverMap && { color: isDark ? "#fff" : "#1C1916" },
+          ]}
+          numberOfLines={1}
+        >
+          {isParcel
+            ? "Send a Parcel"
+            : isHourly
+              ? "Hourly Reservation"
+              : "Create Reservation"}
+        </Text>
+      )}
       <TouchableOpacity
-        style={[styles.riderHeaderBtn, showRouteHero && styles.headerGlassBtn]}
+        style={[styles.riderHeaderBtn, headerOverMap && styles.headerGlassBtn]}
         onPress={() => setShowRideForMenu(true)}
         activeOpacity={0.85}
         accessibilityLabel={`Riding for ${rideForLabel}. Change who is riding.`}
@@ -1228,20 +1674,191 @@ export default function CreateReservationScreen() {
         <Ionicons
           name="chevron-down"
           size={12}
-          color={showRouteHero ? (isDark ? "rgba(255,255,255,0.75)" : "#5C5348") : palette.muted}
+          color={headerOverMap ? (isDark ? "rgba(255,255,255,0.75)" : "#5C5348") : palette.muted}
         />
       </TouchableOpacity>
     </View>
   );
 
-  return (
-    <View style={[styles.root, { backgroundColor: palette.root }]}>
-      <StatusBar
-        barStyle={showRouteHero && !isDark ? "dark-content" : palette.statusBar}
-        backgroundColor={showRouteHero ? "transparent" : palette.root}
-        translucent={showRouteHero}
+  const routeMetaChips = (
+      <View style={[styles.routeHeroChips, { bottom: fromPlanRide ? 14 : 64 }]}>
+      <View style={styles.routeHeroChip}>
+        <Ionicons name="navigate" size={13} color={GOLD} />
+        <Text style={styles.routeHeroChipText} numberOfLines={1}>
+          {routeLoading && !routeSummary?.distanceText
+            ? "…"
+            : routeSummary?.distanceText || "—"}
+        </Text>
+      </View>
+      <View style={styles.routeHeroChip}>
+        <Ionicons name="time" size={13} color={GOLD} />
+        <Text style={styles.routeHeroChipText} numberOfLines={1}>
+          {routeLoading && !routeSummary?.durationText
+            ? "…"
+            : routeSummary?.durationText || "—"}
+        </Text>
+      </View>
+    </View>
+  );
+
+  /** Interactive live map for Plan→Review (pan, zoom, real tiles + route). */
+  const interactiveReviewMap = (
+    <>
+      {reviewRouteCoords.length >= 2 ? (
+        <MapView
+          ref={reviewMapRef}
+          key={`review-map-${routeSummary?.polyline?.slice(0, 24) || "pts"}`}
+          style={styles.reviewMapView}
+          provider={PROVIDER_DEFAULT}
+          initialRegion={
+            reviewMapRegion ?? {
+              latitude: reviewRouteCoords[0].latitude,
+              longitude: reviewRouteCoords[0].longitude,
+              latitudeDelta: 0.02,
+              longitudeDelta: 0.02,
+            }
+          }
+          onMapReady={fitReviewMap}
+          scrollEnabled
+          zoomEnabled
+          rotateEnabled={false}
+          pitchEnabled={false}
+          showsCompass={false}
+          showsScale={false}
+          showsTraffic={false}
+          showsBuildings
+          toolbarEnabled={false}
+          userInterfaceStyle={isDark ? "dark" : "light"}
+        >
+          {/* Dual-stroke route (white casing + brand line) — reads like Uber. */}
+          <Polyline
+            coordinates={reviewRouteCoords}
+            strokeColor="rgba(255,255,255,0.92)"
+            strokeWidth={7}
+            geodesic
+            lineJoin="round"
+            lineCap="round"
+            zIndex={1}
+          />
+          <Polyline
+            coordinates={reviewRouteCoords}
+            strokeColor={isDark ? GOLD : "#1C1916"}
+            strokeWidth={4}
+            geodesic
+            lineJoin="round"
+            lineCap="round"
+            zIndex={2}
+          />
+          {reviewMarkerPoints.map((pt, i) => {
+            const isPickup = i === 0;
+            const isDropoff = i === reviewMarkerPoints.length - 1;
+            const lat = Number(pt.lat);
+            const lng = Number(pt.lng);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+            return (
+              <Marker
+                key={`review-pin-${i}-${lat}-${lng}`}
+                coordinate={{ latitude: lat, longitude: lng }}
+                pinColor={isPickup ? "#1C1916" : isDropoff ? GOLD : "#8A847C"}
+                title={isPickup ? "Pickup" : isDropoff ? "Drop-off" : `Stop ${i}`}
+                identifier={`pin-${i}`}
+                zIndex={10 + i}
+              />
+            );
+          })}
+        </MapView>
+      ) : routeSummary?.mapImageUrl ? (
+        // Fallback while coords decode / load — keep previous static route visible.
+        <Image
+          source={{ uri: routeSummary.mapImageUrl }}
+          style={styles.reviewMapView}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={[styles.reviewMapView, styles.routeHeroLoadingBg]} />
+      )}
+      <LinearGradient
+        colors={
+          isDark
+            ? ["rgba(0,0,0,0.4)", "transparent"]
+            : ["rgba(0,0,0,0.16)", "transparent"]
+        }
+        style={styles.routeMapTopVignette}
+        pointerEvents="none"
       />
-      {!showRouteHero ? (
+      {routeMetaChips}
+      {reviewRouteCoords.length >= 2 ? (
+        <Pressable
+          onPress={fitReviewMap}
+          style={({ pressed }) => [
+            styles.reviewMapRecenter,
+            pressed && { opacity: 0.85 },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Recenter route on map"
+          hitSlop={8}
+        >
+          <Ionicons name="navigate" size={16} color={isDark ? "#F5F0E8" : "#1C1916"} />
+        </Pressable>
+      ) : null}
+      {routeLoading ? (
+        <View style={[styles.routeHeroSpinner, { top: insets.top + 56 }]}>
+          <ActivityIndicator size="small" color={GOLD} />
+        </View>
+      ) : null}
+    </>
+  );
+
+  const mapMedia = (
+    <>
+      {routeSummary?.mapImageUrl ? (
+        <Image
+          source={{ uri: routeSummary.mapImageUrl }}
+          style={StyleSheet.absoluteFillObject}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={[StyleSheet.absoluteFillObject, styles.routeHeroLoadingBg]} />
+      )}
+      <LinearGradient
+        colors={["rgba(0,0,0,0.22)", "transparent"]}
+        style={styles.routeMapTopVignette}
+        pointerEvents="none"
+      />
+      {routeMetaChips}
+      {routeLoading ? (
+        <View style={[styles.routeHeroSpinner, { top: insets.top + 56 }]}>
+          <ActivityIndicator size="small" color={GOLD} />
+        </View>
+      ) : null}
+    </>
+  );
+
+  return (
+    <View
+      style={[
+        styles.root,
+        {
+          backgroundColor: fromPlanRide
+            ? isDark
+              ? "#12100E"
+              : "#F6F6F6"
+            : palette.root,
+        },
+      ]}
+    >
+      <StatusBar
+        barStyle={
+          fromPlanRide || showRouteHero
+            ? isDark
+              ? "light-content"
+              : "dark-content"
+            : palette.statusBar
+        }
+        backgroundColor={fromPlanRide || showRouteHero ? "transparent" : palette.root}
+        translucent={fromPlanRide || showRouteHero}
+      />
+      {!showRouteHero && !fromPlanRide ? (
         <>
           <LinearGradient colors={[...palette.bg]} style={StyleSheet.absoluteFill} />
           <View style={styles.ambientGlow} pointerEvents="none">
@@ -1255,8 +1872,25 @@ export default function CreateReservationScreen() {
         </>
       ) : null}
 
-      {/* Absolute TOP map plane — Uber backdrop */}
-      {showRouteHero ? (
+      {/* Uber Review: live interactive map pinned at TOP */}
+      {fromPlanRide ? (
+        <View style={[styles.reviewMapTop, { height: reviewMapH }]}>
+          {interactiveReviewMap}
+          {/* Header only — do NOT absoluteFill over MapView (kills pins/polyline on iOS/Android). */}
+          <View
+            style={[
+              styles.reviewMapChromeTop,
+              { paddingTop: insets.top + 8, paddingHorizontal: 16 },
+            ]}
+            pointerEvents="box-none"
+          >
+            {headerBlock}
+          </View>
+        </View>
+      ) : null}
+
+      {/* Legacy create-reservation: absolute map backdrop */}
+      {!fromPlanRide && showRouteHero ? (
         <Animated.View
           pointerEvents="none"
           style={[
@@ -1275,20 +1909,7 @@ export default function CreateReservationScreen() {
             },
           ]}
         >
-          {routeSummary?.mapImageUrl ? (
-            <Image
-              source={{ uri: routeSummary.mapImageUrl }}
-              style={StyleSheet.absoluteFillObject}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={[StyleSheet.absoluteFillObject, styles.routeHeroLoadingBg]} />
-          )}
-          <LinearGradient
-            colors={["rgba(0,0,0,0.28)", "transparent"]}
-            style={styles.routeMapTopVignette}
-            pointerEvents="none"
-          />
+          {mapMedia}
           <LinearGradient
             colors={[
               "transparent",
@@ -1299,38 +1920,19 @@ export default function CreateReservationScreen() {
             style={styles.routeHeroFade}
             pointerEvents="none"
           />
-          <View style={[styles.routeHeroChips, { bottom: 64 }]}>
-            <View style={styles.routeHeroChip}>
-              <Ionicons name="navigate" size={13} color={GOLD} />
-              <Text style={styles.routeHeroChipText} numberOfLines={1}>
-                {routeLoading && !routeSummary?.distanceText
-                  ? "…"
-                  : routeSummary?.distanceText || "—"}
-              </Text>
-            </View>
-            <View style={styles.routeHeroChip}>
-              <Ionicons name="time" size={13} color={GOLD} />
-              <Text style={styles.routeHeroChipText} numberOfLines={1}>
-                {routeLoading && !routeSummary?.durationText
-                  ? "…"
-                  : routeSummary?.durationText || "—"}
-              </Text>
-            </View>
-          </View>
-          {routeLoading ? (
-            <View style={[styles.routeHeroSpinner, { top: insets.top + 56 }]}>
-              <ActivityIndicator size="small" color={GOLD} />
-            </View>
-          ) : null}
         </Animated.View>
       ) : null}
 
       <SafeAreaView
-        style={[styles.safe, showRouteHero && styles.safeOverMap]}
-        edges={showRouteHero ? [] : ["top"]}
+        style={[
+          styles.safe,
+          fromPlanRide && styles.safeBelowMap,
+          !fromPlanRide && showRouteHero && styles.safeOverMap,
+        ]}
+        edges={fromPlanRide || showRouteHero ? [] : ["top"]}
       >
-      {/* Floating glass chrome over map */}
-      {showRouteHero ? (
+      {/* Floating glass chrome over map (non-Review map-backdrop mode) */}
+      {!fromPlanRide && showRouteHero ? (
         <View style={[styles.floatingChrome, { paddingTop: insets.top + 4 }]}>
           {headerBlock}
         </View>
@@ -1341,13 +1943,14 @@ export default function CreateReservationScreen() {
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
+          fromPlanRide && styles.scrollContentReview,
           {
             // Only clear the sticky CTA — old 120px left a big empty strip when scrolled to end.
             paddingBottom: keyboardVisible
               ? 24
-              : 72 + Math.max(insets.bottom, 10),
-            // Pull sheet up under the map fade so chips sit tight above Ride Details.
-            paddingTop: showRouteHero ? mapPlaneH - 88 : 0,
+              : (fromPlanRide ? 88 : 72) + Math.max(insets.bottom, 10),
+            // Legacy map-backdrop mode only — Review map is already above the scroll.
+            paddingTop: !fromPlanRide && showRouteHero ? mapPlaneH - 88 : 0,
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -1357,14 +1960,14 @@ export default function CreateReservationScreen() {
         onScroll={onScrollViewScroll}
         scrollEventThrottle={16}
       >
-        {/* Header — only inline when map is hidden; sheet handle when map pins top */}
-        {!showRouteHero ? (
+        {/* Header — Review map already has chrome; legacy map uses sheet handle */}
+        {!showRouteHero && !fromPlanRide ? (
           headerBlock
-        ) : (
+        ) : fromPlanRide ? null : showRouteHero ? (
           <View style={styles.sheetHandleRow}>
             <View style={styles.sheetHandle} />
           </View>
-        )}
+        ) : null}
 
         <Modal
           visible={showRideForMenu}
@@ -1449,6 +2052,98 @@ export default function CreateReservationScreen() {
           </View>
         </Modal>
 
+        {fromPlanRide ? (
+          <PlanRideReviewPanel
+            palette={palette}
+            isDark={isDark}
+            pickupAddress={pickupAddress}
+            dropoffAddress={dropoffAddress}
+            stops={stops}
+            selectedTier={selectedTier ?? null}
+            vehicleTiers={vehicleTiers}
+            selectedTierId={selectedTierId}
+            onSelectTier={setSelectedTierId}
+            tierFare={
+              selectedTier && tierFareById[selectedTier.id] != null
+                ? tierFareById[selectedTier.id]
+                : null
+            }
+            fleetFareTotal={fareEstimate?.rideFare ?? null}
+            fleetLines={
+              fleetLines.length > 0
+                ? fleetLines
+                : selectedTierId
+                  ? [{ tierId: selectedTierId, quantity: 1 }]
+                  : []
+            }
+            onSetFleetLineQuantity={(tierId, quantity) => {
+              setFleetLines((prev) => setFleetLineQuantity(prev, tierId, quantity));
+            }}
+            onRemoveFleetLine={(tierId) => {
+              setFleetLines((prev) => {
+                const next = removeFleetLine(prev, tierId);
+                if (next.length === 0 && selectedTierId) {
+                  return [{ tierId: selectedTierId, quantity: 1 }];
+                }
+                if (next[0] && next[0].tierId !== selectedTierId) {
+                  setSelectedTierId(next[0].tierId);
+                }
+                return next;
+              });
+            }}
+            onAddFleetLine={(tierId) => {
+              setFleetLines((prev) => {
+                const base =
+                  prev.length > 0
+                    ? prev
+                    : selectedTierId
+                      ? [{ tierId: selectedTierId, quantity: 1 }]
+                      : [];
+                if (totalFleetUnits(base) >= MAX_FLEET_UNITS) return base;
+                return upsertFleetLine(base, tierId, 1);
+              });
+            }}
+            childSeatCount={childSeatCount}
+            setChildSeatCount={setChildSeatCount}
+            maxPassengers={maxPassengers}
+            pickupTimeDisplay={pickupTimeDisplay}
+            onEditRoute={() => router.back()}
+            onOpenPickupTime={openPickupTimePicker}
+            airline={airline}
+            flightNumber={flightNumber}
+            meetGreet={meetGreet}
+            allowMeetGreet={allowMeetGreet}
+            paymentLoading={cardsLoading}
+            paymentBrand={selectedCard?.brand ?? null}
+            paymentLast4={selectedCard?.last4 ?? null}
+            paymentSubtitle={
+              selectedCard
+                ? selectedCard.isDefault
+                  ? "Default"
+                  : selectedCard.expMonth && selectedCard.expYear
+                    ? `Expires ${String(selectedCard.expMonth).padStart(2, "0")}/${String(
+                        selectedCard.expYear
+                      ).slice(-2)}`
+                    : brandLabel(selectedCard.brand)
+                : undefined
+            }
+            onChangePayment={() => router.push("/customer/payment-methods")}
+            tipSummary={
+              gratuityPercent > 0
+                ? `Tip ${gratuityPercent}%`
+                : "Add a tip"
+            }
+            tipAmountLabel={
+              gratuityPercent > 0 && fareEstimate
+                ? `$${fareEstimate.gratuity.toFixed(2)}`
+                : null
+            }
+            onOpenTip={() => setTipModalOpen(true)}
+          />
+        ) : null}
+
+        {!fromPlanRide ? (
+        <>
         {/* Step Indicator */}
         <View style={[styles.stepIndicator, showRouteHero && styles.stepIndicatorTight]}>
           <View style={styles.stepActive}>
@@ -2194,9 +2889,24 @@ export default function CreateReservationScreen() {
             </View>
           )}
         </View>
+        </>
+        ) : null}
 
-        {/* Contact details — rider chosen from header menu */}
-        <View style={styles.section}>
+        {/* Contact details — rider chosen from header menu.
+            Review (fromPlanRide) uses edge-to-edge scroll; wrap guest/child form in Uber card. */}
+        {!(
+          fromPlanRide &&
+          rideFor === "me" &&
+          user?.firstName &&
+          user?.lastName
+        ) ? (
+        <View
+          style={[
+            styles.section,
+            fromPlanRide && styles.reviewRiderWrap,
+            fromPlanRide && styles.reviewRiderCard,
+          ]}
+        >
           {rideFor === "me" ? (
             user?.firstName && user?.lastName ? (
               <View style={styles.forMeChip}>
@@ -2226,21 +2936,37 @@ export default function CreateReservationScreen() {
                   hitSlop={8}
                   style={styles.forMeChangeBtn}
                 >
-                  <Text style={styles.forMeChangeText}>Switch</Text>
+                  <Text
+                    style={[
+                      styles.forMeChangeText,
+                      fromPlanRide && styles.reviewRiderLink,
+                    ]}
+                  >
+                    Switch
+                  </Text>
                 </TouchableOpacity>
               </View>
             ) : (
               <>
-                <Text style={styles.sectionTitle}>Your details</Text>
-                <View style={styles.forMeCard}>
+                <Text
+                  style={[
+                    styles.sectionTitle,
+                    fromPlanRide && styles.reviewRiderTitle,
+                  ]}
+                >
+                  Your details
+                </Text>
+                <View style={[styles.forMeCard, fromPlanRide && styles.reviewRiderInner]}>
                   <Text style={styles.forMeIncompleteTitle}>Complete your name</Text>
                   <Text style={styles.forMeIncompleteHint}>
                     We’ll save this to your booking details.
                   </Text>
                   <View style={[styles.nameRow, { marginTop: 12 }]}>
                     <View style={styles.nameField}>
-                      <Text style={styles.inputLabel}>First Name*</Text>
-                      <View style={styles.inputBox}>
+                      <Text style={[styles.inputLabel, styles.inputLabelTight]}>
+                        First Name*
+                      </Text>
+                      <View style={[styles.inputBox, fromPlanRide && styles.reviewRiderField]}>
                         <TextInput
                           style={styles.textInput}
                           value={firstName}
@@ -2253,8 +2979,10 @@ export default function CreateReservationScreen() {
                       </View>
                     </View>
                     <View style={styles.nameField}>
-                      <Text style={styles.inputLabel}>Last Name*</Text>
-                      <View style={styles.inputBox}>
+                      <Text style={[styles.inputLabel, styles.inputLabelTight]}>
+                        Last Name*
+                      </Text>
+                      <View style={[styles.inputBox, fromPlanRide && styles.reviewRiderField]}>
                         <TextInput
                           style={styles.textInput}
                           value={lastName}
@@ -2273,14 +3001,43 @@ export default function CreateReservationScreen() {
           ) : rideFor === "child" ? (
             <>
               <View style={styles.riderSectionHead}>
-                <Text style={[styles.sectionTitle, styles.riderSectionHeadTitle]}>Child details</Text>
+                <Text
+                  style={[
+                    styles.sectionTitle,
+                    styles.riderSectionHeadTitle,
+                    fromPlanRide && styles.reviewRiderTitle,
+                  ]}
+                >
+                  Child details
+                </Text>
                 <TouchableOpacity onPress={() => setShowRideForMenu(true)} hitSlop={8}>
-                  <Text style={styles.forMeChangeText}>Switch</Text>
+                  <Text
+                    style={[
+                      styles.forMeChangeText,
+                      fromPlanRide && styles.reviewRiderLink,
+                    ]}
+                  >
+                    Switch
+                  </Text>
                 </TouchableOpacity>
               </View>
-              <View style={styles.childSafetyBanner}>
-                <Ionicons name="shield-checkmark-outline" size={18} color="#A67C32" />
-                <Text style={styles.childSafetyText}>
+              <View
+                style={[
+                  styles.childSafetyBanner,
+                  fromPlanRide && styles.reviewChildBanner,
+                ]}
+              >
+                <Ionicons
+                  name="shield-checkmark-outline"
+                  size={18}
+                  color={fromPlanRide && !isDark ? "#276EF1" : "#A67C32"}
+                />
+                <Text
+                  style={[
+                    styles.childSafetyText,
+                    fromPlanRide && !isDark && { color: "#5C5C5C" },
+                  ]}
+                >
                   You stay the account holder and pay. Enter your child’s details, keep a
                   guardian phone reachable, then share the live trip link with family after
                   booking.
@@ -2289,8 +3046,10 @@ export default function CreateReservationScreen() {
 
               <View style={styles.nameRow}>
                 <View style={styles.nameField}>
-                  <Text style={styles.inputLabel}>Child’s first name*</Text>
-                  <View style={styles.inputBox}>
+                  <Text style={[styles.inputLabel, styles.inputLabelTight]}>
+                    Child’s first name*
+                  </Text>
+                  <View style={[styles.inputBox, fromPlanRide && styles.reviewRiderField]}>
                     <TextInput
                       style={styles.textInput}
                       value={firstName}
@@ -2303,8 +3062,10 @@ export default function CreateReservationScreen() {
                   </View>
                 </View>
                 <View style={styles.nameField}>
-                  <Text style={styles.inputLabel}>Last name*</Text>
-                  <View style={styles.inputBox}>
+                  <Text style={[styles.inputLabel, styles.inputLabelTight]}>
+                    Last name*
+                  </Text>
+                  <View style={[styles.inputBox, fromPlanRide && styles.reviewRiderField]}>
                     <TextInput
                       style={styles.textInput}
                       value={lastName}
@@ -2318,8 +3079,10 @@ export default function CreateReservationScreen() {
                 </View>
               </View>
 
-              <Text style={styles.inputLabel}>Child’s age*</Text>
-              <View style={styles.inputBox}>
+              <Text style={[styles.inputLabel, fromPlanRide && styles.inputLabelReview]}>
+                Child’s age*
+              </Text>
+              <View style={[styles.inputBox, fromPlanRide && styles.reviewRiderField]}>
                 <TextInput
                   style={styles.textInput}
                   value={childAge}
@@ -2332,8 +3095,10 @@ export default function CreateReservationScreen() {
                 />
               </View>
 
-              <Text style={[styles.inputLabel, { marginTop: 12 }]}>Guardian phone*</Text>
-              <View style={styles.phoneInput}>
+              <Text style={[styles.inputLabel, fromPlanRide && styles.inputLabelReview]}>
+                Guardian phone*
+              </Text>
+              <View style={[styles.phoneInput, fromPlanRide && styles.reviewRiderField]}>
                 <View style={styles.countryCode}>
                   <View style={styles.flagIcon}>
                     <Text>🇨🇦</Text>
@@ -2359,17 +3124,32 @@ export default function CreateReservationScreen() {
           ) : (
             <>
               <View style={styles.riderSectionHead}>
-                <Text style={[styles.sectionTitle, styles.riderSectionHeadTitle]}>
+                <Text
+                  style={[
+                    styles.sectionTitle,
+                    styles.riderSectionHeadTitle,
+                    fromPlanRide && styles.reviewRiderTitle,
+                  ]}
+                >
                   {isParcel ? "Sender details" : "Guest details"}
                 </Text>
                 <TouchableOpacity onPress={() => setShowRideForMenu(true)} hitSlop={8}>
-                  <Text style={styles.forMeChangeText}>Switch</Text>
+                  <Text
+                    style={[
+                      styles.forMeChangeText,
+                      fromPlanRide && styles.reviewRiderLink,
+                    ]}
+                  >
+                    Switch
+                  </Text>
                 </TouchableOpacity>
               </View>
               <View style={styles.nameRow}>
                 <View style={styles.nameField}>
-                  <Text style={styles.inputLabel}>First Name*</Text>
-                  <View style={styles.inputBox}>
+                  <Text style={[styles.inputLabel, styles.inputLabelTight]}>
+                    First Name*
+                  </Text>
+                  <View style={[styles.inputBox, fromPlanRide && styles.reviewRiderField]}>
                     <TextInput
                       style={styles.textInput}
                       value={firstName}
@@ -2382,8 +3162,10 @@ export default function CreateReservationScreen() {
                   </View>
                 </View>
                 <View style={styles.nameField}>
-                  <Text style={styles.inputLabel}>Last Name*</Text>
-                  <View style={styles.inputBox}>
+                  <Text style={[styles.inputLabel, styles.inputLabelTight]}>
+                    Last Name*
+                  </Text>
+                  <View style={[styles.inputBox, fromPlanRide && styles.reviewRiderField]}>
                     <TextInput
                       style={styles.textInput}
                       value={lastName}
@@ -2397,8 +3179,10 @@ export default function CreateReservationScreen() {
                 </View>
               </View>
 
-              <Text style={styles.inputLabel}>Phone*</Text>
-              <View style={styles.phoneInput}>
+              <Text style={[styles.inputLabel, fromPlanRide && styles.inputLabelReview]}>
+                Phone*
+              </Text>
+              <View style={[styles.phoneInput, fromPlanRide && styles.reviewRiderField]}>
                 <View style={styles.countryCode}>
                   <View style={styles.flagIcon}>
                     <Text>🇨🇦</Text>
@@ -2419,35 +3203,273 @@ export default function CreateReservationScreen() {
             </>
           )}
         </View>
+        ) : null}
 
       </ScrollView>
 
-      {/* Continue — hide while typing so keyboard never covers the active field */}
-      {!keyboardVisible ? (
+      {/* Confirm & pay — hide while typing or tip sheet open */}
+      {!keyboardVisible && !tipModalOpen ? (
         <View
           style={[
             styles.bottomContainer,
+            fromPlanRide && styles.bottomContainerReview,
             { paddingBottom: Math.max(insets.bottom, 10) + 8 },
           ]}
         >
-          <TouchableOpacity
-            style={[styles.continueBtn, continueDisabled && styles.continueBtnDisabled]}
-            activeOpacity={0.9}
-            onPress={continueToConfirm}
-            disabled={continueDisabled}
-          >
-            <Text
+          {fromPlanRide ? (
+            <TouchableOpacity
               style={[
-                styles.continueBtnText,
-                continueDisabled && styles.continueBtnTextDisabled,
+                styles.payPill,
+                (continueDisabled || isSubmitting) && styles.payPillDisabled,
               ]}
+              activeOpacity={0.9}
+              onPress={continueToConfirm}
+              disabled={continueDisabled}
             >
-              {continueLabel}
-            </Text>
-          </TouchableOpacity>
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <View style={styles.payPillCenter}>
+                    <Text style={styles.payPillTitle} numberOfLines={1}>
+                      {APP_PAYMENTS_ENABLED ? "Confirm & pay" : "Confirm reservation"}
+                    </Text>
+                    <Text style={styles.payPillSub} numberOfLines={1}>
+                      {fareEstimate
+                        ? `$${fareEstimate.total.toFixed(2)}`
+                        : "—"}
+                      {APP_PAYMENTS_ENABLED
+                        ? selectedCard
+                          ? ` · ${brandLabel(selectedCard.brand)} •••• ${selectedCard.last4}`
+                          : cardsLoading
+                            ? " · Loading card…"
+                            : " · Add payment"
+                        : ""}
+                    </Text>
+                  </View>
+                  <View style={styles.payArrowChip}>
+                    <Ionicons name="arrow-forward" size={16} color="#1A1208" />
+                  </View>
+                </>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[
+                styles.continueBtn,
+                continueDisabled && styles.continueBtnDisabled,
+              ]}
+              activeOpacity={0.9}
+              onPress={continueToConfirm}
+              disabled={continueDisabled}
+            >
+              <Text
+                style={[
+                  styles.continueBtnText,
+                  continueDisabled && styles.continueBtnTextDisabled,
+                ]}
+              >
+                {continueLabel}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : null}
       </SafeAreaView>
+
+      <ScheduleRideSheet
+        visible={showScheduleSheet}
+        value={pickupAt.getTime() < pickerMinDate.getTime() ? pickerMinDate : pickupAt}
+        minimumDate={pickerMinDate}
+        isDark={isDark}
+        onClose={() => {
+          scheduleUserClosedRef.current = true;
+          setShowScheduleSheet(false);
+        }}
+        onConfirm={(date) => {
+          scheduleUserClosedRef.current = true;
+          setPickupAt(clampPickupAt(date));
+          setShowScheduleSheet(false);
+        }}
+      />
+
+      <RidePreferencesSheet
+        visible={prefsOpen}
+        value={ridePrefs}
+        onClose={() => {
+          setPrefsOpen(false);
+          pendingChildSeatsRef.current = null;
+        }}
+        onSave={(prefs) => {
+          const nextPrefs = normalizeRidePrefs(prefs);
+          setRidePrefs(nextPrefs);
+          setPrefsOpen(false);
+          const seatsOverride = pendingChildSeatsRef.current;
+          pendingChildSeatsRef.current = null;
+          void submitCheckout({
+            prefsOverride: nextPrefs,
+            childSeatsOverride:
+              typeof seatsOverride === "number" ? seatsOverride : undefined,
+          });
+        }}
+      />
+
+      <Modal
+        visible={tipModalOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setTipModalOpen(false);
+        }}
+        statusBarTranslucent
+        onShow={() => {
+          const isPreset = (APP_GRATUITY_PERCENTS as readonly number[]).includes(
+            gratuityPercent
+          );
+          setCustomTipInput(
+            !isPreset && gratuityPercent > 0 ? String(gratuityPercent) : ""
+          );
+        }}
+      >
+        <KeyboardAvoidingView
+          style={styles.tipModalRoot}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={0}
+        >
+          <Pressable
+            style={styles.tipModalBackdrop}
+            onPress={() => {
+              Keyboard.dismiss();
+              setTipModalOpen(false);
+            }}
+          />
+          <View
+            style={[
+              styles.tipModalSheet,
+              {
+                paddingBottom: Math.max(insets.bottom, 12) + 10,
+              },
+            ]}
+          >
+            <View style={styles.tipModalHandle} />
+            <Text style={styles.tipModalTitle}>Add a tip</Text>
+            <View style={styles.tipModalOptions}>
+              {APP_GRATUITY_PERCENTS.map((pct) => {
+                const selected = gratuityPercent === pct;
+                return (
+                  <TouchableOpacity
+                    key={pct}
+                    style={[
+                      styles.tipModalOption,
+                      selected && styles.tipModalOptionActive,
+                    ]}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setCustomTipInput("");
+                      setGratuityPercent(pct);
+                      setTipModalOpen(false);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Text
+                      style={[
+                        styles.tipModalOptionPct,
+                        selected && styles.tipModalOptionPctActive,
+                      ]}
+                    >
+                      {pct}%
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.tipCustomLabel}>Set your own</Text>
+            <View style={styles.tipCustomRow}>
+              <View style={styles.tipCustomInputBox}>
+                <TextInput
+                  ref={tipInputRef}
+                  style={styles.tipCustomInput}
+                  value={customTipInput}
+                  onChangeText={(t) =>
+                    setCustomTipInput(t.replace(/[^0-9]/g, "").slice(0, 3))
+                  }
+                  keyboardType="number-pad"
+                  placeholder="e.g. 12"
+                  placeholderTextColor={palette.muted}
+                  maxLength={3}
+                  inputAccessoryViewID={
+                    Platform.OS === "ios" ? TIP_INPUT_ACCESSORY_ID : undefined
+                  }
+                />
+                <Text style={styles.tipCustomSuffix}>%</Text>
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.tipCustomApply,
+                  !customTipInput.trim() && styles.tipCustomApplyDisabled,
+                ]}
+                activeOpacity={0.85}
+                disabled={!customTipInput.trim()}
+                onPress={() => {
+                  const next = normalizeAppGratuityPercent(
+                    parseInt(customTipInput.trim(), 10)
+                  );
+                  if (next <= 0) {
+                    Alert.alert(
+                      "Tip",
+                      `Enter a tip between 1% and ${APP_MAX_GRATUITY_PERCENT}%.`
+                    );
+                    return;
+                  }
+                  Keyboard.dismiss();
+                  setGratuityPercent(next);
+                  setTipModalOpen(false);
+                }}
+              >
+                <Text style={styles.tipCustomApplyText}>Apply</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.tipModalNoTip}
+              onPress={() => {
+                Keyboard.dismiss();
+                setCustomTipInput("");
+                setGratuityPercent(0);
+                setTipModalOpen(false);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.tipModalNoTipText}>No tip</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+
+        {Platform.OS === "ios" ? (
+          <InputAccessoryView nativeID={TIP_INPUT_ACCESSORY_ID}>
+            <View
+              style={[
+                styles.tipAccessoryBar,
+                { borderTopColor: isDark ? "rgba(255,255,255,0.12)" : "#D1D3D9" },
+              ]}
+            >
+              <View style={{ flex: 1 }} />
+              <TouchableOpacity
+                onPress={() => {
+                  tipInputRef.current?.blur();
+                  Keyboard.dismiss();
+                }}
+                hitSlop={10}
+                style={styles.tipAccessoryDoneBtn}
+              >
+                <Text style={styles.tipAccessoryDoneText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </InputAccessoryView>
+        ) : null}
+      </Modal>
     </View>
   );
 }
@@ -2478,11 +3500,164 @@ function makeStyles(palette: DriverPalette, isDark: boolean) {
   safeOverMap: {
     zIndex: 2,
   },
+  safeBelowMap: {
+    flex: 1,
+    backgroundColor: "transparent",
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 20,
+  },
+  scrollContentReview: {
+    paddingHorizontal: 0,
+    // Gap under map so sheet handle + TRIP never start clipped.
+    paddingTop: 10,
+  },
+  /** Match PlanRideReviewPanel wrap + sheet on Review */
+  reviewRiderWrap: {
+    marginHorizontal: 12,
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  reviewRiderCard: {
+    backgroundColor: isDark ? palette.cardAndroid : "#FFFFFF",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+      },
+      android: { elevation: 2 },
+    }),
+  },
+  reviewRiderTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+    color: isDark ? palette.text : "#000000",
+  },
+  reviewRiderLink: {
+    color: isDark ? GOLD : "#276EF1",
+    fontWeight: "600",
+  },
+  reviewRiderField: {
+    backgroundColor: isDark ? palette.metaChipBg : "#F3F3F3",
+    borderColor: isDark ? palette.border : "transparent",
+    borderRadius: 10,
+  },
+  reviewRiderInner: {
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    padding: 0,
+  },
+  reviewChildBanner: {
+    backgroundColor: isDark ? "rgba(201,160,99,0.12)" : "#F0F4FF",
+    borderColor: isDark ? "rgba(201,160,99,0.35)" : "#D6E2FF",
+  },
+  inputLabelTight: {
+    marginTop: 0,
+  },
+  inputLabelReview: {
+    marginTop: 14,
+    marginBottom: 8,
+    color: isDark ? palette.text : "#000000",
+  },
+  /** Uber: dedicated top map band (not absolute background). */
+  reviewMapTop: {
+    width: "100%",
+    overflow: "hidden",
+    backgroundColor: "#EEF0F3",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(0,0,0,0.06)",
+  },
+  reviewMapView: {
+    ...StyleSheet.absoluteFillObject,
+    width: "100%",
+    height: "100%",
+  },
+  /** Header strip only — full-screen overlay hides MapView annotations. */
+  reviewMapChromeTop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 4,
+  },
+  reviewMapChrome: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 4,
+    justifyContent: "flex-start",
+  },
+  reviewMapRecenter: {
+    position: "absolute",
+    right: 12,
+    bottom: 28,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: isDark ? "rgba(28,25,22,0.92)" : "rgba(255,255,255,0.96)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: isDark ? "rgba(255,255,255,0.14)" : "rgba(15,23,42,0.1)",
+    zIndex: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.16,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
+      },
+      android: { elevation: 3 },
+    }),
+  },
+  reviewMapPinPickup: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2.5,
+    borderColor: "#1C1916",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewMapPinPickupInner: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "#1C1916",
+  },
+  reviewMapPinDrop: {
+    alignItems: "center",
+  },
+  reviewMapPinDropSquare: {
+    width: 14,
+    height: 14,
+    borderRadius: 2,
+  },
+  reviewMapPinDropStem: {
+    width: 2,
+    height: 6,
+    marginTop: -1,
+  },
+  reviewMapPinStop: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewMapPinStopText: {
+    fontSize: 10,
+    fontWeight: "800",
   },
   header: {
     flexDirection: "row",
@@ -2508,6 +3683,9 @@ function makeStyles(palette: DriverPalette, isDark: boolean) {
     color: palette.text,
     textAlign: "center",
     paddingHorizontal: 8,
+  },
+  headerTitleSpacer: {
+    flex: 1,
   },
   riderHeaderBtn: {
     flexDirection: "row",
@@ -3202,7 +4380,7 @@ function makeStyles(palette: DriverPalette, isDark: boolean) {
   },
   floatingChrome: {
     zIndex: 4,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
   },
   headerOverMap: {
     paddingVertical: 6,
@@ -3965,6 +5143,194 @@ function makeStyles(palette: DriverPalette, isDark: boolean) {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: palette.border,
   },
+  bottomContainerReview: {
+    backgroundColor: isDark ? "rgba(20,18,16,0.98)" : "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 10,
+  },
+  payPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: isDark ? "#2A2622" : "#1C1916",
+    borderRadius: 999,
+    paddingLeft: 20,
+    paddingRight: 6,
+    paddingVertical: 6,
+    minHeight: 58,
+  },
+  payPillDisabled: {
+    opacity: 0.55,
+  },
+  payPillCenter: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 6,
+    paddingRight: 8,
+  },
+  payPillTitle: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+    textAlign: "center",
+  },
+  payPillSub: {
+    marginTop: 3,
+    fontSize: 12.5,
+    fontWeight: "500",
+    color: "rgba(255,255,255,0.55)",
+    textAlign: "center",
+  },
+  payArrowChip: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: GOLD,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tipModalRoot: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  tipModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  tipModalSheet: {
+    backgroundColor: card,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    zIndex: 2,
+    width: "100%",
+  },
+  tipModalHandle: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: palette.border,
+    marginBottom: 14,
+  },
+  tipModalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: palette.text,
+    marginBottom: 16,
+  },
+  tipModalOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  tipModalOption: {
+    width: "30%",
+    flexGrow: 1,
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: "center",
+    backgroundColor: fieldBg,
+    borderWidth: 1.5,
+    borderColor: "transparent",
+  },
+  tipModalOptionActive: {
+    borderColor: isDark ? GOLD : "#000000",
+    backgroundColor: isDark ? "rgba(201,160,99,0.12)" : "#F3F3F3",
+  },
+  tipModalOptionPct: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: palette.text,
+  },
+  tipModalOptionPctActive: { color: isDark ? GOLD : "#000000" },
+  tipCustomLabel: {
+    marginTop: 18,
+    marginBottom: 8,
+    fontSize: 14,
+    fontWeight: "600",
+    color: palette.text,
+  },
+  tipCustomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  tipCustomInputBox: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: fieldBg,
+    paddingHorizontal: 14,
+    minHeight: 48,
+  },
+  tipCustomInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "600",
+    color: palette.text,
+    paddingVertical: 12,
+  },
+  tipCustomSuffix: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: palette.muted,
+    marginLeft: 4,
+  },
+  tipCustomApply: {
+    paddingHorizontal: 18,
+    minHeight: 48,
+    borderRadius: 12,
+    backgroundColor: isDark ? GOLD : "#000000",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tipCustomApplyDisabled: {
+    opacity: 0.4,
+  },
+  tipCustomApplyText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: isDark ? "#1A1208" : "#FFFFFF",
+  },
+  tipModalNoTip: {
+    marginTop: 10,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  tipModalNoTipText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: palette.muted,
+  },
+  tipAccessoryBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minHeight: 44,
+    backgroundColor: isDark ? "#2C2C2E" : "#D1D3D9",
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  tipAccessoryDoneBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: isDark ? "rgba(255,255,255,0.12)" : "#FFFFFF",
+  },
+  tipAccessoryDoneText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: isDark ? GOLD : "#007AFF",
+  },
   continueBtn: {
     backgroundColor: GOLD,
     borderRadius: 12,
@@ -3979,6 +5345,10 @@ function makeStyles(palette: DriverPalette, isDark: boolean) {
     fontSize: 16,
     fontWeight: "700",
     color: "#1A1208",
+  },
+  continueBtnTextUber: {
+    color: isDark ? "#1A1208" : "#FFFFFF",
+    letterSpacing: -0.2,
   },
   continueBtnTextDisabled: {
     color: "rgba(26,18,8,0.55)",

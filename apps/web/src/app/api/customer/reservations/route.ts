@@ -207,6 +207,8 @@ export async function POST(req: NextRequest) {
       hourlyDuration: rawHourlyDuration,
       promoCode: rawPromoCode,
       useReferralCredit: rawUseReferralCredit,
+      vehicleCount: rawVehicleCount,
+      fleetLines: rawFleetLines,
     } = body;
 
     const bookingMode =
@@ -261,6 +263,8 @@ export async function POST(req: NextRequest) {
       promoCode: rawPromoCode,
       useReferralCredit: rawUseReferralCredit,
       customerId: tokenData.id,
+      vehicleCount: rawVehicleCount,
+      fleetLines: rawFleetLines,
     });
     if ("error" in fare) {
       return NextResponse.json({ success: false, error: fare.error }, { status: 400 });

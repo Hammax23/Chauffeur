@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  Keyboard,
   type TextInput as TextInputType,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -44,6 +45,13 @@ export interface PlacesSuggestionsPanelProps {
   value: string;
   maxPanelHeight?: number;
   compact?: boolean;
+  /**
+   * Open Uber-style list — no card/box chrome (Plan your ride).
+   * Larger rows; hairline separators only.
+   */
+  flat?: boolean;
+  /** Soft-dismiss keyboard when user scrolls/taps the list (keep suggestions open). */
+  onInteract?: () => void;
   onDismiss: () => void;
   onPick: (item: PlacePrediction) => void;
 }
@@ -56,6 +64,8 @@ export function PlacesSuggestionsPanel({
   value,
   maxPanelHeight = 260,
   compact = false,
+  flat = false,
+  onInteract,
   onDismiss,
   onPick,
 }: PlacesSuggestionsPanelProps) {
@@ -65,28 +75,44 @@ export function PlacesSuggestionsPanel({
   const panelBg = isDark ? "rgba(28,28,30,0.98)" : "#fff";
   const panelHeaderBg = isDark ? "rgba(255,255,255,0.04)" : "#fafafa";
   const divider = palette.border;
+  const roomy = flat || !compact;
+  const iconBg = isDark ? "rgba(255,255,255,0.08)" : "#F0EBE3";
+  const iconColor = isDark ? "#F5F0E8" : "#1C1916";
+
+  /** Prefer OS drag-dismiss; only nudge keyboard closed — parent animates the sheet. */
+  const softDismissKeyboard = useCallback(() => {
+    Keyboard.dismiss();
+    onInteract?.();
+  }, [onInteract]);
 
   return (
     <View
-      style={[styles.panel, { borderColor: divider, backgroundColor: panelBg }]}
+      style={[
+        flat ? styles.panelFlat : styles.panel,
+        !flat && { borderColor: divider, backgroundColor: panelBg },
+      ]}
       accessibilityRole="list"
     >
-      <View
-        style={[
-          styles.panelHeader,
-          { backgroundColor: panelHeaderBg, borderBottomColor: divider },
-        ]}
-      >
-        <Text style={[styles.panelHeaderTitle, { color: palette.muted }]}>Suggestions</Text>
-        <TouchableOpacity
-          onPress={onDismiss}
-          hitSlop={10}
-          accessibilityLabel="Close suggestions"
-          accessibilityRole="button"
+      {!flat ? (
+        <View
+          style={[
+            styles.panelHeader,
+            { backgroundColor: panelHeaderBg, borderBottomColor: divider },
+          ]}
         >
-          <Ionicons name="close" size={16} color={palette.muted} />
-        </TouchableOpacity>
-      </View>
+          <Text style={[styles.panelHeaderTitle, { color: palette.muted }]}>
+            Suggestions
+          </Text>
+          <TouchableOpacity
+            onPress={onDismiss}
+            hitSlop={10}
+            accessibilityLabel="Close suggestions"
+            accessibilityRole="button"
+          >
+            <Ionicons name="close" size={16} color={palette.muted} />
+          </TouchableOpacity>
+        </View>
+      ) : null}
       {banner ? (
         <View
           style={[
@@ -114,7 +140,9 @@ export function PlacesSuggestionsPanel({
       {!banner && predictions.length > 0 ? (
         <ScrollView
           style={[styles.panelScroll, { maxHeight: maxPanelHeight }]}
-          keyboardShouldPersistTaps="always"
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          onScrollBeginDrag={softDismissKeyboard}
           nestedScrollEnabled
           showsVerticalScrollIndicator={predictions.length > 4}
         >
@@ -123,46 +151,78 @@ export function PlacesSuggestionsPanel({
               key={item.placeId}
               style={[
                 styles.row,
-                compact && styles.rowCompact,
+                compact && !flat && styles.rowCompact,
+                flat && styles.rowFlat,
                 { borderBottomColor: divider },
               ]}
               activeOpacity={0.7}
-              onPress={() => onPick(item)}
+              onPress={() => {
+                softDismissKeyboard();
+                onPick(item);
+              }}
             >
-              <View style={styles.rowIcon}>
-                <Ionicons name={predictionIcon(item.types)} size={20} color={ACCENT} />
+              <View
+                style={[
+                  styles.rowIcon,
+                  flat && styles.rowIconFlat,
+                  flat && { backgroundColor: iconBg },
+                ]}
+              >
+                <Ionicons
+                  name={predictionIcon(item.types)}
+                  size={flat ? 18 : 20}
+                  color={flat ? iconColor : ACCENT}
+                />
               </View>
               <View style={styles.rowText}>
-                <Text style={[styles.main, { color: palette.text }]} numberOfLines={1}>
+                <Text
+                  style={[
+                    styles.main,
+                    flat && styles.mainFlat,
+                    { color: palette.text },
+                  ]}
+                  numberOfLines={1}
+                >
                   {item.mainText}
                 </Text>
                 {item.secondaryText ? (
-                  <Text style={[styles.secondary, { color: palette.muted }]} numberOfLines={2}>
+                  <Text
+                    style={[
+                      styles.secondary,
+                      flat && styles.secondaryFlat,
+                      { color: palette.muted },
+                    ]}
+                    numberOfLines={2}
+                  >
                     {item.secondaryText}
                   </Text>
                 ) : null}
               </View>
-              <Ionicons name="chevron-forward" size={18} color={palette.muted} />
+              {!flat ? (
+                <Ionicons name="chevron-forward" size={18} color={palette.muted} />
+              ) : null}
             </TouchableOpacity>
           ))}
         </ScrollView>
       ) : null}
       {!banner && !loading && predictions.length === 0 && value.trim().length >= 2 ? (
-        <Text style={[styles.empty, { color: palette.muted }]}>
+        <Text style={[styles.empty, roomy && styles.emptyFlat, { color: palette.muted }]}>
           No matches — try street, city, or airport code
         </Text>
       ) : null}
-      <View
-        style={[
-          styles.poweredRow,
-          {
-            backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
-            borderTopColor: divider,
-          },
-        ]}
-      >
-        <Text style={[styles.powered, { color: palette.muted }]}>Google Places</Text>
-      </View>
+      {!flat ? (
+        <View
+          style={[
+            styles.poweredRow,
+            {
+              backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+              borderTopColor: divider,
+            },
+          ]}
+        >
+          <Text style={[styles.powered, { color: palette.muted }]}>Google Places</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -178,12 +238,20 @@ export interface GooglePlacesAddressFieldProps {
     address: string;
     lat?: number;
     lng?: number;
+    /** Autocomplete label — often still has "YYZ" / "Airport" when formatted address is street-only. */
+    description?: string;
   }) => void;
   autoFocus?: boolean;
   /** Cap suggestion list height (modals / small screens). Default 260. */
   maxPanelHeight?: number;
   /** Tighter input padding for dense layouts. */
   compact?: boolean;
+  /**
+   * Plan-your-ride dual card: no nested field chrome — larger type, rail provides the markers.
+   */
+  embedded?: boolean;
+  /** When embedded, draw a hairline under the row (off for last field). */
+  embeddedDivider?: boolean;
   /** Restrict autocomplete to airports (server supports `airport` only). */
   placeTypes?: "airport";
   /** Omit Canada-only filter — used with airport composer (Uber-style). */
@@ -201,6 +269,8 @@ export interface GooglePlacesAddressFieldProps {
   /** Parent shared panel calls this to dismiss this field's suggestions. */
   dismissHandlerRef?: MutableRefObject<(() => void) | null>;
   inputRef?: Ref<TextInputType>;
+  /** Show trailing ✕ to clear the whole address (default true). */
+  clearable?: boolean;
 }
 
 export function GooglePlacesAddressField({
@@ -213,6 +283,8 @@ export function GooglePlacesAddressField({
   autoFocus,
   maxPanelHeight = 260,
   compact = false,
+  embedded = false,
+  embeddedDivider = true,
   placeTypes,
   worldwide = false,
   hidePanel = false,
@@ -221,6 +293,7 @@ export function GooglePlacesAddressField({
   pickHandlerRef,
   dismissHandlerRef,
   inputRef,
+  clearable = true,
 }: GooglePlacesAddressFieldProps) {
   const theme = useOptionalCustomerTheme();
   const palette = theme?.palette ?? FALLBACK_PALETTE;
@@ -228,6 +301,17 @@ export function GooglePlacesAddressField({
   const sessionRef = useRef<string>(randomUUID());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const localInputRef = useRef<TextInputType | null>(null);
+
+  const setInputRef = useCallback(
+    (node: TextInputType | null) => {
+      localInputRef.current = node;
+      if (!inputRef) return;
+      if (typeof inputRef === "function") inputRef(node);
+      else (inputRef as MutableRefObject<TextInputType | null>).current = node;
+    },
+    [inputRef]
+  );
   const onPlaceResolvedRef = useRef(onPlaceResolved);
   onPlaceResolvedRef.current = onPlaceResolved;
   const onSuggestionsChangeRef = useRef(onSuggestionsChange);
@@ -327,12 +411,16 @@ export function GooglePlacesAddressField({
           address: formattedAddress,
           lat: location?.lat,
           lng: location?.lng,
+          description: p.description,
         });
         sessionRef.current = randomUUID();
       } catch (e) {
         setBanner(e instanceof Error ? e.message : "Could not confirm address");
         onChangeText(p.description);
-        onPlaceResolvedRef.current?.({ address: p.description });
+        onPlaceResolvedRef.current?.({
+          address: p.description,
+          description: p.description,
+        });
         sessionRef.current = randomUUID();
       } finally {
         setResolving(false);
@@ -364,6 +452,21 @@ export function GooglePlacesAddressField({
 
   useEffect(() => {
     if (!onSuggestionsChangeRef.current) return;
+    // Shared parent list (hidePanel): keep suggestions after keyboard/blur so user can scroll & pick.
+    if (hidePanel) {
+      if (!panelOpen) {
+        if (!focused) onSuggestionsChangeRef.current(null);
+        return;
+      }
+      onSuggestionsChangeRef.current({
+        predictions,
+        loading,
+        banner,
+        showPanel: true,
+        value,
+      });
+      return;
+    }
     if (!showPanel && !focused) {
       onSuggestionsChangeRef.current(null);
       return;
@@ -375,7 +478,7 @@ export function GooglePlacesAddressField({
       showPanel,
       value,
     });
-  }, [predictions, loading, banner, showPanel, value, focused]);
+  }, [predictions, loading, banner, showPanel, value, focused, hidePanel, panelOpen]);
 
   const onChange = (text: string) => {
     onChangeText(text);
@@ -386,12 +489,30 @@ export function GooglePlacesAddressField({
       setPredictions([]);
       setLoading(false);
       setPanelOpen(false);
+      onSuggestionsChangeRef.current?.(null);
       return;
     }
     setPanelOpen(true);
     setLoading(true);
     scheduleAutocomplete(text);
   };
+
+  /** One tap clears the full selected/typed address so the user can re-search. */
+  const onClear = useCallback(() => {
+    onChangeText("");
+    setBanner(null);
+    clearDebounce();
+    cancelInFlight();
+    setPredictions([]);
+    setLoading(false);
+    setPanelOpen(false);
+    onSuggestionsChangeRef.current?.(null);
+    sessionRef.current = randomUUID();
+    // Keep keyboard open for immediate retype (avoid blur-steal from the ✕ press).
+    requestAnimationFrame(() => {
+      localInputRef.current?.focus();
+    });
+  }, [onChangeText]);
 
   const onFocus = () => {
     setFocused(true);
@@ -410,7 +531,11 @@ export function GooglePlacesAddressField({
     onFocusChangeRef.current?.(false);
   };
 
-  const inputBg = isDark ? "rgba(255,255,255,0.06)" : "#FFFFFF";
+  const inputBg = embedded
+    ? "transparent"
+    : isDark
+      ? "rgba(255,255,255,0.06)"
+      : "#FFFFFF";
   const accentMuted = isDark ? GOLD : "#8B6914";
 
   return (
@@ -424,25 +549,43 @@ export function GooglePlacesAddressField({
       <View
         style={[
           styles.inputRow,
-          compact && styles.inputRowCompact,
+          compact && !embedded && styles.inputRowCompact,
+          embedded && styles.inputRowEmbedded,
           {
-            borderColor: focused
-              ? isDark
-                ? "rgba(212, 160, 74, 0.55)"
-                : "rgba(139, 105, 20, 0.45)"
-              : palette.border,
+            borderColor: embedded
+              ? "transparent"
+              : focused
+                ? isDark
+                  ? "rgba(212, 160, 74, 0.55)"
+                  : "rgba(139, 105, 20, 0.45)"
+                : palette.border,
             backgroundColor: inputBg,
+            borderBottomWidth:
+              embedded && embeddedDivider ? StyleSheet.hairlineWidth : embedded ? 0 : 1,
+            borderBottomColor:
+              embedded && embeddedDivider
+                ? isDark
+                  ? "rgba(255,255,255,0.12)"
+                  : "rgba(0,0,0,0.08)"
+                : undefined,
           },
         ]}
       >
-        <Ionicons
-          name={iconName}
-          size={compact ? 16 : 18}
-          color={focused ? accentMuted : palette.muted}
-        />
+        {!embedded ? (
+          <Ionicons
+            name={iconName}
+            size={compact ? 16 : 18}
+            color={focused ? accentMuted : palette.muted}
+          />
+        ) : null}
         <TextInput
-          ref={inputRef}
-          style={[styles.input, compact && styles.inputCompact, { color: palette.text }]}
+          ref={setInputRef}
+          style={[
+            styles.input,
+            compact && !embedded && styles.inputCompact,
+            embedded && styles.inputEmbedded,
+            { color: palette.text },
+          ]}
           placeholder={placeholder}
           placeholderTextColor={palette.muted}
           value={value}
@@ -456,6 +599,21 @@ export function GooglePlacesAddressField({
           autoFocus={autoFocus}
           accessibilityLabel={placeholder}
         />
+        {clearable && value.trim().length > 0 && !resolving ? (
+          <TouchableOpacity
+            onPress={onClear}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="Clear address"
+            style={styles.clearBtn}
+          >
+            <Ionicons
+              name="close-circle"
+              size={embedded ? 22 : 20}
+              color={isDark ? "rgba(255,255,255,0.45)" : "#9CA3AF"}
+            />
+          </TouchableOpacity>
+        ) : null}
         {(loading || resolving) && (
           <ActivityIndicator size="small" color={accentMuted} style={styles.spinner} />
         )}
@@ -501,6 +659,14 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     minHeight: 44,
   },
+  inputRowEmbedded: {
+    borderWidth: 0,
+    borderRadius: 0,
+    paddingHorizontal: 4,
+    paddingVertical: 14,
+    minHeight: 56,
+    gap: 0,
+  },
   input: {
     flex: 1,
     fontSize: 15,
@@ -511,12 +677,28 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: "400",
   },
+  inputEmbedded: {
+    fontSize: 17,
+    fontWeight: "600",
+    letterSpacing: -0.3,
+  },
+  clearBtn: {
+    marginLeft: 4,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   spinner: { marginLeft: 4 },
   panel: {
     marginTop: 8,
     borderRadius: 12,
     borderWidth: 1,
     overflow: "hidden",
+  },
+  panelFlat: {
+    marginTop: 4,
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    overflow: "visible",
   },
   panelHeader: {
     flexDirection: "row",
@@ -558,6 +740,11 @@ const styles = StyleSheet.create({
   rowCompact: {
     paddingVertical: 10,
   },
+  rowFlat: {
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    gap: 14,
+  },
   rowIcon: {
     width: 40,
     height: 40,
@@ -565,6 +752,11 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(212, 160, 74, 0.12)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  rowIconFlat: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
   rowText: {
     flex: 1,
@@ -574,16 +766,31 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
   },
+  mainFlat: {
+    fontSize: 17,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
   secondary: {
     marginTop: 2,
     fontSize: 12,
     lineHeight: 16,
+  },
+  secondaryFlat: {
+    marginTop: 3,
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: "400",
   },
   empty: {
     paddingHorizontal: 14,
     paddingVertical: 14,
     fontSize: 13,
     textAlign: "center",
+  },
+  emptyFlat: {
+    paddingVertical: 18,
+    fontSize: 14,
   },
   poweredRow: {
     paddingVertical: 8,

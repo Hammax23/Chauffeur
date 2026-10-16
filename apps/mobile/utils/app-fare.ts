@@ -6,9 +6,19 @@ export const AIRPORT_PICKUP_FEE = 17.25;
 /** Pearson inside-terminal Meet & Greet (keep in sync with web reservation-pricing). */
 export const MEET_GREET_CHARGE = 110;
 export const HST_RATE = 0.13;
-export const APP_GRATUITY_PERCENTS = [15, 20, 25] as const;
-/** 0 = no tip selected (customer chooses on confirm). */
+/** Quick picks on Review tip sheet. */
+export const APP_GRATUITY_PERCENTS = [18, 20, 25] as const;
+/** Custom tip max (%). */
+export const APP_MAX_GRATUITY_PERCENT = 100;
+/** 0 = no tip selected (customer chooses on Review). */
 export const APP_DEFAULT_GRATUITY_PERCENT = 0;
+
+/** Presets or any whole percent 1–100 (Set your own). */
+export function normalizeAppGratuityPercent(raw?: number | null): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(APP_MAX_GRATUITY_PERCENT, Math.max(0, Math.round(n)));
+}
 export const BASE_DISTANCE_KM = 17;
 export const EXTRA_KM_RATE = 3.2;
 /** Website / app hourly minimum (same as web reservation). */
@@ -43,7 +53,10 @@ function roundMoney(n: number): number {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
 
-/** Scale a unit-vehicle fare for N identical cars on the same trip. */
+/**
+ * Scale a unit-vehicle fare for N cars on the same trip.
+ * Ride / stops / airport fee scale with cars; child seats + Meet & Greet stay once.
+ */
 export function scaleFareForVehicleCount(
   fare: AppFareResult,
   vehicleCount: number
@@ -51,19 +64,33 @@ export function scaleFareForVehicleCount(
   const n = Math.max(1, Math.min(5, Math.floor(Number(vehicleCount) || 1)));
   if (n <= 1) return fare;
   const mul = (x: number) => roundMoney(x * n);
+  const rideFare = mul(fare.rideFare);
+  const stopCharge = mul(fare.stopCharge);
+  const airportPickupFee = mul(fare.airportPickupFee);
+  // Trip-level add-ons — do not multiply by vehicle count.
+  const childSeatCharge = roundMoney(fare.childSeatCharge);
+  const meetGreetCharge = roundMoney(fare.meetGreetCharge);
+  const subtotal = roundMoney(
+    rideFare + stopCharge + childSeatCharge + airportPickupFee + meetGreetCharge
+  );
+  const taxable = roundMoney(
+    Math.max(0, subtotal - (fare.discountAmount != null ? fare.discountAmount : 0))
+  );
+  // Keep tip % on full subtotal (same as unit fare builder).
+  const gratuity = roundMoney(subtotal * ((fare.gratuityPercent || 0) / 100));
+  const hst = roundMoney(taxable * HST_RATE);
+  const total = roundMoney(taxable + hst + gratuity);
   return {
     ...fare,
-    rideFare: mul(fare.rideFare),
-    stopCharge: mul(fare.stopCharge),
-    childSeatCharge: mul(fare.childSeatCharge),
-    airportPickupFee: mul(fare.airportPickupFee),
-    meetGreetCharge: mul(fare.meetGreetCharge),
-    subtotal: mul(fare.subtotal),
-    hst: mul(fare.hst),
-    gratuity: mul(fare.gratuity),
-    total: mul(fare.total),
-    discountAmount:
-      fare.discountAmount != null ? mul(fare.discountAmount) : fare.discountAmount,
+    rideFare,
+    stopCharge,
+    childSeatCharge,
+    airportPickupFee,
+    meetGreetCharge,
+    subtotal,
+    hst,
+    gratuity,
+    total,
   };
 }
 
@@ -101,11 +128,17 @@ export function applyPromoDiscount(
 export function isAirportPickupLocation(location?: string | null): boolean {
   if (!location?.trim()) return false;
   const t = location.trim().toLowerCase();
-  if (/\b(yyz|ytz|yhm|yul|yow|yvr|yyc|yeg|yqb|yxu|ywg)\b/.test(t)) return true;
+  // IATA / common codes (word or in parentheses e.g. "(YYZ)")
+  if (/(^|[^a-z])(yyz|ytz|yhm|yul|yow|yvr|yyc|yeg|yqb|yxu|ywg)([^a-z]|$)/.test(t)) {
+    return true;
+  }
   if (/\bairport\b/.test(t)) return true;
   if (/\bpearson\b/.test(t)) return true;
   if (/\bbilly\s+bishop\b/.test(t)) return true;
   if (/\btrudeau\b/.test(t)) return true;
+  // Google often returns street-only for YYZ terminals (no "airport" / "YYZ" in formatted address)
+  if (/\bsilver\s*dart\b/.test(t)) return true;
+  if (/\bterminal\s*[1-3]\b/.test(t)) return true;
   if (/\bint(?:ernational)?\.?\s+airport\b/.test(t)) return true;
   return false;
 }
@@ -143,17 +176,7 @@ function finalizeAppFare(input: {
   const subtotal = rideFare + stopCharge + childSeatCharge + airportPickupFee + meetGreetCharge;
   const hst = subtotal * HST_RATE;
 
-  let gratuityPercent = Number(input.gratuityPercent);
-  if (!Number.isFinite(gratuityPercent) || gratuityPercent < 0) {
-    gratuityPercent = 0;
-  } else if (
-    gratuityPercent > 0 &&
-    !(APP_GRATUITY_PERCENTS as readonly number[]).includes(gratuityPercent)
-  ) {
-    gratuityPercent = APP_DEFAULT_GRATUITY_PERCENT;
-  } else {
-    gratuityPercent = Math.round(gratuityPercent);
-  }
+  const gratuityPercent = normalizeAppGratuityPercent(input.gratuityPercent);
   const gratuity = (subtotal * gratuityPercent) / 100;
   const total = subtotal + hst + gratuity;
 

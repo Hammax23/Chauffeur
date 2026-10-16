@@ -30,6 +30,20 @@ function UberFooterTabBar({ state, descriptors, navigation }: BottomTabBarProps)
   const { isDark } = useCustomerTheme();
   const bottomPad = Math.max(insets.bottom - 4, 4);
 
+  const focusedRoute = state.routes[state.index];
+  const focusedOptions = focusedRoute
+    ? descriptors[focusedRoute.key]?.options
+    : undefined;
+  const tabBarStyle = focusedOptions?.tabBarStyle;
+  const styleObj =
+    tabBarStyle && typeof tabBarStyle === "object" && !Array.isArray(tabBarStyle)
+      ? (tabBarStyle as { display?: string })
+      : null;
+  // Plan your ride (and any screen) can hide the footer via tabBarStyle.display: "none".
+  if (styleObj?.display === "none") {
+    return null;
+  }
+
   const barBg = isDark ? "#141210" : "#F5F2EA";
   const divider = isDark ? "rgba(255,255,255,0.1)" : "rgba(28,25,22,0.08)";
   const inactive = isDark ? "#A8A29A" : "#8E887D";

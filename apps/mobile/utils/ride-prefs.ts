@@ -44,7 +44,19 @@ export function temperatureLabel(v: RideTemperaturePref): string {
 export function ridePrefsSummary(prefs: RidePrefs): string {
   const bits: string[] = [conversationLabel(prefs.conversation)];
   if (prefs.temperature !== "none") bits.push(temperatureLabel(prefs.temperature));
-  if (prefs.helpWithLuggage) bits.push("Luggage help");
+  if (prefs.helpWithLuggage) bits.push("Travelling with bags");
+  return bits.join(" · ");
+}
+
+/** Uber Review row subtitle — e.g. "Quiet preferred · Travelling with bags". */
+export function ridePrefsReviewSummary(prefs: RidePrefs): string {
+  const bits: string[] = [];
+  if (prefs.conversation === "quiet") bits.push("Quiet preferred");
+  else if (prefs.conversation === "chat") bits.push("Happy to chat");
+  else bits.push("No conversation preference");
+  if (prefs.temperature === "cool") bits.push("Cool cabin");
+  if (prefs.temperature === "warm") bits.push("Warm cabin");
+  if (prefs.helpWithLuggage) bits.push("Travelling with bags");
   return bits.join(" · ");
 }
 
@@ -54,7 +66,7 @@ export function formatRidePrefsRequirements(prefs: RidePrefs): string {
     "Ride preferences:",
     `Conversation: ${conversationLabel(prefs.conversation)}`,
     `Temperature: ${temperatureLabel(prefs.temperature)}`,
-    `Luggage help: ${prefs.helpWithLuggage ? "Yes" : "No"}`,
+    `Travelling with bags: ${prefs.helpWithLuggage ? "Yes" : "No"}`,
   ].join("\n");
 }
 

@@ -38,13 +38,150 @@ export type AppReservationFareInput = {
   useReferralCredit?: unknown;
   /** Same-type vehicle units on one trip (1–5). */
   vehicleCount?: unknown;
+  /**
+   * Mixed fleets on one trip — each line is a tier + quantity.
+   * When present (2+ lines or explicit), fare is the sum of each line.
+   */
+  fleetLines?: unknown;
 };
 
 export type { AppFareWithPromo };
 
+type FleetLineIn = { vehicleId: string; quantity: number };
+
+function normalizeFleetLinesInput(raw: unknown): FleetLineIn[] | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const merged = new Map<string, number>();
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as { vehicleId?: unknown; tierId?: unknown; quantity?: unknown };
+    const id = String(row.vehicleId || row.tierId || "").trim();
+    if (!id) continue;
+    const q = Math.max(1, Math.min(5, Math.floor(Number(row.quantity) || 1)));
+    merged.set(id, Math.min(5, (merged.get(id) || 0) + q));
+  }
+  const out: FleetLineIn[] = [];
+  let total = 0;
+  for (const [vehicleId, quantity] of merged) {
+    if (total >= 5) break;
+    const q = Math.min(quantity, 5 - total);
+    out.push({ vehicleId, quantity: q });
+    total += q;
+  }
+  return out.length > 0 ? out : null;
+}
+
+function sumReservationPricing(
+  a: ReservationPricingResult,
+  b: ReservationPricingResult
+): ReservationPricingResult {
+  const add = (x: number, y: number) => Math.round(((x || 0) + (y || 0)) * 100) / 100;
+  return {
+    ...a,
+    rideFare: add(a.rideFare, b.rideFare),
+    stopCharge: add(a.stopCharge, b.stopCharge),
+    childSeatCharge: add(a.childSeatCharge, b.childSeatCharge),
+    airportPickupFee: add(a.airportPickupFee, b.airportPickupFee),
+    meetGreetCharge: add(a.meetGreetCharge, b.meetGreetCharge),
+    bouquetCharge: add(a.bouquetCharge, b.bouquetCharge),
+    subtotal: add(a.subtotal, b.subtotal),
+    hst: add(a.hst, b.hst),
+    gratuity: add(a.gratuity, b.gratuity),
+    total: add(a.total, b.total),
+  };
+}
+
 export async function resolveAppReservationFare(
   input: AppReservationFareInput
 ): Promise<{ pricing: AppFareWithPromo } | { error: string }> {
+  const fleetLines = normalizeFleetLinesInput(input.fleetLines);
+  // Mixed fleets: price each line, then apply promo once on the sum.
+  if (fleetLines && fleetLines.length > 1) {
+    let combined: ReservationPricingResult | null = null;
+    for (let i = 0; i < fleetLines.length; i++) {
+      const line = fleetLines[i];
+      const part = await resolveAppReservationFare({
+        ...input,
+        fleetLines: undefined,
+        vehicleId: line.vehicleId,
+        vehicleCount: line.quantity,
+        childSeats: i === 0 ? input.childSeats : 0,
+        meetGreet: i === 0 ? input.meetGreet : false,
+        promoCode: undefined,
+        useReferralCredit: undefined,
+      });
+      if ("error" in part) return part;
+      combined = combined
+        ? sumReservationPricing(combined, part.pricing)
+        : part.pricing;
+    }
+    if (!combined) return { error: "Unable to calculate fare" };
+
+    const useReferral =
+      input.useReferralCredit === true ||
+      input.useReferralCredit === "true" ||
+      input.useReferralCredit === 1 ||
+      input.useReferralCredit === "1";
+    const rawCode = normalizePromoCode(input.promoCode);
+    const customerId =
+      typeof input.customerId === "string" ? input.customerId.trim() : "";
+
+    if (useReferral && rawCode) {
+      return {
+        error: "Use either a promo code or your referral credit, not both.",
+      };
+    }
+    if (useReferral) {
+      if (!customerId) {
+        return { error: "Sign in to apply referral credit." };
+      }
+      const applied = await applyReferralCreditToPricing(combined, customerId, true);
+      if ("error" in applied) return { error: applied.error };
+      return {
+        pricing: {
+          ...applied.pricing,
+          referralRewardId: applied.referralRewardId,
+        },
+      };
+    }
+    if (!rawCode) {
+      return { pricing: applyDiscountToPricing(combined, 0, null, null) };
+    }
+    if (!customerId) {
+      return { error: "Sign in to apply a promo code." };
+    }
+    const eligible = await findEligiblePromotion({
+      code: rawCode,
+      customerId,
+      subtotal: combined.subtotal,
+    });
+    if (!eligible.ok) {
+      return { error: eligible.message };
+    }
+    const discountAmount = computeDiscountAmount(
+      eligible.promotion,
+      combined.subtotal
+    );
+    return {
+      pricing: applyDiscountToPricing(
+        combined,
+        discountAmount,
+        eligible.promotion.code,
+        eligible.promotion.id
+      ),
+    };
+  }
+
+  // Single fleet line → reuse classic vehicleId + vehicleCount path.
+  if (fleetLines && fleetLines.length === 1) {
+    input = {
+      ...input,
+      vehicleId: fleetLines[0].vehicleId,
+      vehicleCount: fleetLines[0].quantity,
+      fleetLines: undefined,
+    };
+  }
+
   const bookingMode =
     String(input.bookingMode || "distance").toLowerCase() === "hourly"
       ? "hourly"
@@ -168,18 +305,39 @@ export async function resolveAppReservationFare(
 
   if (vehicleCount > 1 && basePricing) {
     const mul = (x: number) => Math.round((x || 0) * vehicleCount * 100) / 100;
+    const rideFare = mul(basePricing.rideFare);
+    const stopCharge = mul(basePricing.stopCharge);
+    const airportPickupFee = mul(basePricing.airportPickupFee);
+    const bouquetCharge = mul(basePricing.bouquetCharge);
+    // Trip-level — child seats + Meet & Greet stay once (not × N cars).
+    const childSeatCharge = Math.round((basePricing.childSeatCharge || 0) * 100) / 100;
+    const meetGreetCharge = Math.round((basePricing.meetGreetCharge || 0) * 100) / 100;
+    const subtotal =
+      Math.round(
+        (rideFare +
+          stopCharge +
+          childSeatCharge +
+          airportPickupFee +
+          meetGreetCharge +
+          bouquetCharge) *
+          100
+      ) / 100;
+    const tipPct = Number(basePricing.gratuityPercent) || 0;
+    const gratuity = Math.round(subtotal * (tipPct / 100) * 100) / 100;
+    const hst = Math.round(subtotal * 0.13 * 100) / 100;
+    const total = Math.round((subtotal + hst + gratuity) * 100) / 100;
     basePricing = {
       ...basePricing,
-      rideFare: mul(basePricing.rideFare),
-      stopCharge: mul(basePricing.stopCharge),
-      childSeatCharge: mul(basePricing.childSeatCharge),
-      airportPickupFee: mul(basePricing.airportPickupFee),
-      meetGreetCharge: mul(basePricing.meetGreetCharge),
-      bouquetCharge: mul(basePricing.bouquetCharge),
-      subtotal: mul(basePricing.subtotal),
-      hst: mul(basePricing.hst),
-      gratuity: mul(basePricing.gratuity),
-      total: mul(basePricing.total),
+      rideFare,
+      stopCharge,
+      childSeatCharge,
+      airportPickupFee,
+      meetGreetCharge,
+      bouquetCharge,
+      subtotal,
+      hst,
+      gratuity,
+      total,
     };
   }
 

@@ -1222,6 +1222,9 @@ export async function createReservation(params: {
   serviceType: string;
   vehicle: string;
   vehicleId?: string;
+  /** Same-type units (1–5). Prefer fleetLines for mixed types. */
+  vehicleCount?: number;
+  fleetLines?: { vehicleId: string; quantity: number }[];
   passengers?: number;
   childSeats?: number;
   etr407?: string;
@@ -1277,6 +1280,8 @@ export async function createCustomerPaymentIntent(params: {
   vehicleId?: string;
   /** Same-type vehicles on one trip (1–5). */
   vehicleCount?: number;
+  /** Mixed fleets — priced as sum of lines on the server. */
+  fleetLines?: { vehicleId: string; quantity: number }[];
   childSeats?: number;
   pickupLocation: string;
   stops?: string;
