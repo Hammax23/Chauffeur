@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 import { publishReservationFromDb } from "@/lib/realtime-bus";
 import { claimLiveOffer, declineLiveOffer } from "@/lib/live-auto";
+import { sanitizeSpecialRequirementsForDriver } from "@/lib/driver-visible-notes";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
@@ -105,7 +106,9 @@ export async function GET(
         distance: reservation.distance || "",
         duration: reservation.duration || "",
         total: reservation.total,
-        specialRequirements: reservation.specialRequirements || "",
+        specialRequirements: sanitizeSpecialRequirementsForDriver(
+          reservation.specialRequirements
+        ),
         createdAt: reservation.createdAt.toISOString(),
         driverOnTheWayAt: reservation.driverOnTheWayAt?.toISOString() ?? null,
         driverStopPeriodsJson: reservation.driverStopPeriodsJson ?? null,

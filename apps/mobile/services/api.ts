@@ -1180,22 +1180,6 @@ export async function getHistoryReservations(params?: {
   }>(`/customer/reservations?${qs.toString()}`);
 }
 
-/** Soft-remove a past trip from History (kept in admin / billing records). */
-export async function hideReservationFromHistory(bookingId: string) {
-  return apiRequestWithResponse<{
-    success: boolean;
-    error?: string;
-    code?: string;
-    message?: string;
-    alreadyHidden?: boolean;
-    bookingId?: string;
-    hiddenAt?: string | null;
-  }>(`/customer/reservations/${encodeURIComponent(bookingId)}/hide-from-history`, {
-    method: "POST",
-    body: JSON.stringify({}),
-  });
-}
-
 export async function getReservationById(bookingId: string) {
   return apiRequest<{ success: boolean; reservation: Reservation }>(
     `/customer/reservations/${bookingId}`

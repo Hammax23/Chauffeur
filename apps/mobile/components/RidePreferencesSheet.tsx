@@ -20,6 +20,7 @@ import {
   type RidePrefs,
   type RideConversationPref,
   type RideTemperaturePref,
+  MAX_LUGGAGE_BAGS,
   normalizeRidePrefs,
 } from "../utils/ride-prefs";
 
@@ -182,12 +183,20 @@ export function RidePreferencesSheet({ visible, value, onClose, onSave }: Props)
                 Travelling with bags
               </Text>
               <Text style={[styles.luggageSub, { color: palette.muted }]}>
-                Let us know if you’re bringing luggage
+                {draft.helpWithLuggage
+                  ? "How many bags are you bringing?"
+                  : "Let us know if you’re bringing luggage"}
               </Text>
             </View>
             <Switch
               value={draft.helpWithLuggage}
-              onValueChange={(v) => setDraft((p) => ({ ...p, helpWithLuggage: v }))}
+              onValueChange={(v) =>
+                setDraft((p) => ({
+                  ...p,
+                  helpWithLuggage: v,
+                  luggageBagCount: v ? Math.max(1, p.luggageBagCount || 1) : 0,
+                }))
+              }
               trackColor={{
                 false: isDark ? "rgba(255,255,255,0.18)" : "#D1CDC4",
                 true: isDark ? GOLD : "#1C1916",
@@ -196,6 +205,84 @@ export function RidePreferencesSheet({ visible, value, onClose, onSave }: Props)
               ios_backgroundColor={isDark ? "rgba(255,255,255,0.18)" : "#D1CDC4"}
             />
           </View>
+
+          {draft.helpWithLuggage ? (
+            <View
+              style={[
+                styles.bagStepperRow,
+                {
+                  backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "#F3EFE7",
+                  borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
+                },
+              ]}
+            >
+              <Text style={[styles.bagStepperLabel, { color: palette.text }]}>
+                Number of bags
+              </Text>
+              <View style={styles.bagStepper}>
+                <Pressable
+                  onPress={() =>
+                    setDraft((p) => ({
+                      ...p,
+                      luggageBagCount: Math.max(1, (p.luggageBagCount || 1) - 1),
+                    }))
+                  }
+                  disabled={draft.luggageBagCount <= 1}
+                  hitSlop={8}
+                  style={({ pressed }) => [
+                    styles.bagStepBtn,
+                    {
+                      backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "#FFFFFF",
+                      opacity: draft.luggageBagCount <= 1 ? 0.4 : pressed ? 0.85 : 1,
+                    },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Fewer bags"
+                >
+                  <Ionicons name="remove" size={18} color={palette.text} />
+                </Pressable>
+                <Text
+                  style={[styles.bagStepValue, { color: palette.text }]}
+                  accessibilityLabel={`${draft.luggageBagCount} bags`}
+                >
+                  {draft.luggageBagCount}
+                </Text>
+                <Pressable
+                  onPress={() =>
+                    setDraft((p) => ({
+                      ...p,
+                      luggageBagCount: Math.min(
+                        MAX_LUGGAGE_BAGS,
+                        (p.luggageBagCount || 1) + 1
+                      ),
+                    }))
+                  }
+                  disabled={draft.luggageBagCount >= MAX_LUGGAGE_BAGS}
+                  hitSlop={8}
+                  style={({ pressed }) => [
+                    styles.bagStepBtn,
+                    {
+                      backgroundColor: isDark ? GOLD : "#1C1916",
+                      opacity:
+                        draft.luggageBagCount >= MAX_LUGGAGE_BAGS
+                          ? 0.4
+                          : pressed
+                            ? 0.85
+                            : 1,
+                    },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="More bags"
+                >
+                  <Ionicons
+                    name="add"
+                    size={18}
+                    color={isDark ? "#1A1208" : "#FFFFFF"}
+                  />
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
 
           <TouchableOpacity
             style={styles.saveBtn}
@@ -295,7 +382,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 14,
     marginTop: 26,
-    marginBottom: 22,
+    marginBottom: 12,
   },
   luggageCopy: { flex: 1, minWidth: 0 },
   luggageTitle: {
@@ -307,6 +394,42 @@ const styles = StyleSheet.create({
     marginTop: 3,
     fontSize: 13,
     fontWeight: "500",
+  },
+  bagStepperRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 22,
+  },
+  bagStepperLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    letterSpacing: -0.2,
+  },
+  bagStepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  bagStepBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bagStepValue: {
+    minWidth: 28,
+    textAlign: "center",
+    fontSize: 18,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
   },
   saveBtn: {
     borderRadius: 14,

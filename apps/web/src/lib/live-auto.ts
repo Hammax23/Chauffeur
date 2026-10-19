@@ -9,6 +9,7 @@ import {
   type DriverOfferRidePayload,
 } from "@/lib/driver-bus";
 import { publishReservationFromDb } from "@/lib/realtime-bus";
+import { sanitizeSpecialRequirementsForDriver } from "@/lib/driver-visible-notes";
 
 export type OpsSettingsData = {
   liveAutoMode: boolean;
@@ -59,7 +60,7 @@ function mapRidePayload(
     distance: r.distance || "",
     duration: r.duration || "",
     total: r.total,
-    specialRequirements: r.specialRequirements || "",
+    specialRequirements: sanitizeSpecialRequirementsForDriver(r.specialRequirements),
     createdAt: r.createdAt.toISOString(),
     liveOffer,
   };

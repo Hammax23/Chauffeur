@@ -281,8 +281,19 @@ export default function HistoryScreen() {
           return;
         }
 
-        const next = data.reservations || [];
-        setItems((prev) => (mode === "append" ? [...prev, ...next] : next));
+        const historyTs = (r: Reservation) => {
+          const raw = r.completedAt || r.statusUpdatedAt || r.createdAt || "";
+          const t = Date.parse(raw);
+          return Number.isFinite(t) ? t : 0;
+        };
+        const next = [...(data.reservations || [])].sort(
+          (a, b) => historyTs(b) - historyTs(a)
+        );
+        setItems((prev) => {
+          if (mode !== "append") return next;
+          // Re-sort merged pages so latest stays on top across pagination.
+          return [...prev, ...next].sort((a, b) => historyTs(b) - historyTs(a));
+        });
         setPage(pageNum);
         setHasMore(Boolean(data.pagination?.hasMore));
         setTotal(data.pagination?.total ?? next.length);

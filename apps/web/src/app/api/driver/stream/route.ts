@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import prisma from "@/lib/prisma";
 import { subscribeDriver, type DriverOfferEvent } from "@/lib/driver-bus";
 import { listOpenOffersForDriver } from "@/lib/live-auto";
+import { sanitizeSpecialRequirementsForDriver } from "@/lib/driver-visible-notes";
 
 /**
  * Long-lived SSE feed for one driver (Live Auto Mode offers).
@@ -102,7 +103,9 @@ export async function GET(req: NextRequest) {
               distance: r.distance || "",
               duration: r.duration || "",
               total: r.total,
-              specialRequirements: r.specialRequirements || "",
+              specialRequirements: sanitizeSpecialRequirementsForDriver(
+                r.specialRequirements
+              ),
               createdAt: r.createdAt.toISOString(),
               liveOffer: false,
             },

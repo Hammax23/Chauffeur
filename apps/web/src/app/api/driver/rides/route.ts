@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 import { listOpenOffersForDriver } from "@/lib/live-auto";
+import { sanitizeSpecialRequirementsForDriver } from "@/lib/driver-visible-notes";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
@@ -67,7 +68,7 @@ function mapAssignedRide(r: {
     distance: r.distance || "",
     duration: r.duration || "",
     total: r.total,
-    specialRequirements: r.specialRequirements || "",
+    specialRequirements: sanitizeSpecialRequirementsForDriver(r.specialRequirements),
     createdAt: r.createdAt.toISOString(),
     liveOffer,
   };
@@ -129,7 +130,9 @@ export async function GET(req: NextRequest) {
           distance: offer.distance,
           duration: offer.duration,
           total: offer.total,
-          specialRequirements: offer.specialRequirements || "",
+          specialRequirements: sanitizeSpecialRequirementsForDriver(
+            offer.specialRequirements
+          ),
           createdAt: offer.createdAt,
           liveOffer: true,
         });

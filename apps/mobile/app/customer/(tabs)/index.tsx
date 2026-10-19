@@ -48,13 +48,17 @@ import { fetchDirectionsSummary } from "../../../services/places";
 import { GOLD } from "../../../theme/driver-theme";
 import {
   buildVehicleTiersFromAppFleet,
+  filterVehicleTiersForParcel,
   type VehicleTierOption,
 } from "../../../data/vehicle-tiers";
 import {
+  APP_HOURLY_DURATIONS,
+  APP_MIN_HOURLY_HOURS,
   BASE_DISTANCE_KM,
   EXTRA_KM_RATE,
   MEET_GREET_CHARGE,
   calculateAppDistanceFare,
+  calculateAppHourlyFare,
   isAirportPickupLocation,
   type AppDistancePricing,
 } from "../../../utils/app-fare";
@@ -107,6 +111,20 @@ const UPCOMING_STATUSES = new Set([
 ]);
 
 type ConciergeServiceId = "ride" | "airport" | "parcel" | "hourly";
+
+function planSheetTitle(service: ConciergeServiceId): string {
+  switch (service) {
+    case "airport":
+      return "Airport transfer";
+    case "hourly":
+      return "Plan hourly";
+    case "parcel":
+      return "Plan your parcel";
+    default:
+      return "Plan your ride";
+  }
+}
+
 const DEFAULT_REGION: Region = {
   latitude: 43.6532,
   longitude: -79.3832,
@@ -202,7 +220,7 @@ function ConciergeServiceTile({
           styles.conciergeTileLabel,
           { color: isDark ? "#F5F0E8" : CONCIERGE_INK },
         ]}
-        numberOfLines={1}
+        numberOfLines={2}
       >
         {label}
       </Text>
@@ -366,6 +384,8 @@ export default function CustomerHomeScreen() {
   /** Who is riding — Plan your ride header pill (replaces profile avatar). */
   const [whereRideFor, setWhereRideFor] = useState<"me" | "someone" | "child">("me");
   const [showWhereRideForMenu, setShowWhereRideForMenu] = useState(false);
+  /** Hourly duration on Plan sheet (Review receives via hourlyHours param). */
+  const [whereHourlyHours, setWhereHourlyHours] = useState(APP_MIN_HOURLY_HOURS);
   const [routeFocus, setRouteFocus] = useState<WhereRouteFocus>("dropoff");
   const [routeSuggestions, setRouteSuggestions] = useState<GooglePlacesSuggestionsState | null>(
     null
@@ -700,6 +720,7 @@ export default function CustomerHomeScreen() {
 
   const cancelWhereSearch = useCallback(() => {
     setWhereSearching(false);
+    setSelectedService("ride");
     setWherePickup("");
     setWherePickupCoords(null);
     setDropoff("");
@@ -712,6 +733,7 @@ export default function CustomerHomeScreen() {
     setWhereDropoffPlaceLabel("");
     setWhereRideFor("me");
     setShowWhereRideForMenu(false);
+    setWhereHourlyHours(APP_MIN_HOURLY_HOURS);
     setRouteSuggestions(null);
     routeFocusRef.current = "dropoff";
     setRouteFocus("dropoff");
@@ -742,7 +764,14 @@ export default function CustomerHomeScreen() {
 
   const continueWhereToReview = useCallback(() => {
     if (!whereSelectedTierId) return;
+    const isHourly = selectedService === "hourly";
     const params: Record<string, string> = { fromPlanRide: "1" };
+    if (selectedService === "airport") params.prefill = "airport";
+    else if (selectedService === "hourly") {
+      params.prefill = "hourly";
+      params.hourlyHours = String(whereHourlyHours);
+    } else if (selectedService === "parcel") params.prefill = "parcel";
+
     const pickupText = wherePickup.trim();
     if (pickupText && isUsablePickupLabel(pickupText)) {
       params.pickup = pickupText;
@@ -756,13 +785,15 @@ export default function CustomerHomeScreen() {
       params.pickupLat = String(coords.lat);
       params.pickupLng = String(coords.lng);
     }
-    if (dropoff.trim()) params.dropoff = dropoff.trim();
-    if (dropoffCoords) {
-      params.dropoffLat = String(dropoffCoords.lat);
-      params.dropoffLng = String(dropoffCoords.lng);
+    if (!isHourly) {
+      if (dropoff.trim()) params.dropoff = dropoff.trim();
+      if (dropoffCoords) {
+        params.dropoffLat = String(dropoffCoords.lat);
+        params.dropoffLng = String(dropoffCoords.lng);
+      }
+      const stopsJoined = joinAppStops(whereStops);
+      if (stopsJoined) params.stops = stopsJoined;
     }
-    const stopsJoined = joinAppStops(whereStops);
-    if (stopsJoined) params.stops = stopsJoined;
     params.vehicleId = whereSelectedTierId;
     if (whereAirline.trim()) params.airline = whereAirline.trim();
     if (whereFlightNumber.trim()) params.flightNumber = whereFlightNumber.trim();
@@ -774,10 +805,12 @@ export default function CustomerHomeScreen() {
       params.meetGreet = "1";
     }
     if (whereRideFor !== "me") params.rideFor = whereRideFor;
-    // Keep Plan your ride state — Review back must return here, not idle Home.
+    // Keep Plan sheet state — Review back must return here, not idle Home.
     router.push({ pathname: "/customer/create-reservation", params });
   }, [
     whereSelectedTierId,
+    selectedService,
+    whereHourlyHours,
     wherePickup,
     wherePickupCoords,
     dropoff,
@@ -809,6 +842,13 @@ export default function CustomerHomeScreen() {
       }
       dismissAllWhereFields("pickup");
       setRouteSuggestions(null);
+      // Hourly has no dropoff — keep focus on pickup / dismiss keyboard.
+      if (selectedService === "hourly") {
+        routeFocusRef.current = "pickup";
+        setRouteFocus("pickup");
+        softDismissWhereKeyboard();
+        return;
+      }
       // After pickup → first empty stop if any, else dropoff
       const emptyStop = whereStops.findIndex((s) => s.trim().length < 3);
       if (emptyStop >= 0) {
@@ -821,7 +861,7 @@ export default function CustomerHomeScreen() {
         setTimeout(() => dropoffInputRef.current?.focus(), 80);
       }
     },
-    [dismissAllWhereFields, whereStops]
+    [dismissAllWhereFields, whereStops, selectedService, softDismissWhereKeyboard]
   );
 
   const onWhereStopResolved = useCallback(
@@ -882,13 +922,14 @@ export default function CustomerHomeScreen() {
     []
   );
 
-  const whereRouteReady = useMemo(
-    () =>
-      whereSearching &&
-      isUsablePickupLabel(wherePickup.trim()) &&
-      dropoff.trim().length >= 3,
-    [whereSearching, wherePickup, dropoff, isUsablePickupLabel]
-  );
+  const whereRouteReady = useMemo(() => {
+    if (!whereSearching) return false;
+    const pickupOk = isUsablePickupLabel(wherePickup.trim());
+    if (!pickupOk) return false;
+    // Hourly: pickup only — no dropoff / Directions required.
+    if (selectedService === "hourly") return true;
+    return dropoff.trim().length >= 3;
+  }, [whereSearching, wherePickup, dropoff, selectedService, isUsablePickupLabel]);
 
   /** Plan-your-ride airport check — also matches plain "YYZ Terminal 1" labels. */
   const whereAirportHaystack = [
@@ -901,7 +942,8 @@ export default function CustomerHomeScreen() {
     .toLowerCase();
   const whereIsAirportTransfer =
     whereSearching &&
-    (isAirportPickupLocation(wherePickup) ||
+    (selectedService === "airport" ||
+      isAirportPickupLocation(wherePickup) ||
       isAirportPickupLocation(dropoff) ||
       isAirportPickupLocation(wherePickupPlaceLabel) ||
       isAirportPickupLocation(whereDropoffPlaceLabel) ||
@@ -933,6 +975,17 @@ export default function CustomerHomeScreen() {
 
   const whereTierFareById = useMemo(() => {
     const out: Record<string, number> = {};
+    if (selectedService === "hourly") {
+      for (const tier of whereTiers) {
+        const fare = calculateAppHourlyFare({
+          hours: whereHourlyHours,
+          hourlyRate: tier.hourlyRate,
+          childSeatCount: 0,
+        });
+        if (fare) out[tier.id] = fare.rideFare;
+      }
+      return out;
+    }
     const meters = whereDistanceMeters;
     if (meters == null || meters <= 0) return out;
     const stopCount = whereActiveStops.length;
@@ -950,7 +1003,14 @@ export default function CustomerHomeScreen() {
       if (fare) out[tier.id] = fare.rideFare + fare.stopCharge;
     }
     return out;
-  }, [whereTiers, whereDistanceMeters, whereDistancePricing, whereActiveStops.length]);
+  }, [
+    whereTiers,
+    whereDistanceMeters,
+    whereDistancePricing,
+    whereActiveStops.length,
+    selectedService,
+    whereHourlyHours,
+  ]);
 
   useEffect(() => {
     if (!whereShowVehicles) {
@@ -996,7 +1056,13 @@ export default function CustomerHomeScreen() {
             extraKmRate: pricing.extraKmRate || EXTRA_KM_RATE,
           });
         }
-        const next = buildVehicleTiersFromAppFleet(vehicles);
+        const built = buildVehicleTiersFromAppFleet(vehicles);
+        let next = built;
+        if (selectedService === "parcel") {
+          next = filterVehicleTiersForParcel(built);
+        } else if (selectedService === "hourly") {
+          next = built.filter((t) => t.hourlyRate > 0);
+        }
         setWhereTiers(next);
         setWhereSelectedTierId((prev) => {
           if (prev && next.some((t) => t.id === prev)) return prev;
@@ -1015,10 +1081,18 @@ export default function CustomerHomeScreen() {
     return () => {
       cancelled = true;
     };
-  }, [whereRouteReady]);
+  }, [whereRouteReady, selectedService]);
 
   useEffect(() => {
     if (!whereRouteReady) {
+      setWhereDistanceMeters(null);
+      setWhereRouteMeta(null);
+      setWhereRouteError("");
+      setWhereRouteLoading(false);
+      return;
+    }
+    // Hourly is priced by the hour — skip Google Directions.
+    if (selectedService === "hourly") {
       setWhereDistanceMeters(null);
       setWhereRouteMeta(null);
       setWhereRouteError("");
@@ -1083,7 +1157,22 @@ export default function CustomerHomeScreen() {
       ac.abort();
       clearTimeout(timer);
     };
-  }, [whereRouteReady, wherePickup, dropoff, wherePickupCoords, dropoffCoords, whereStops]);
+  }, [
+    whereRouteReady,
+    selectedService,
+    wherePickup,
+    dropoff,
+    wherePickupCoords,
+    dropoffCoords,
+    whereStops,
+  ]);
+
+  // Parcel has no "Child" option — keep rideFor valid.
+  useEffect(() => {
+    if (selectedService === "parcel" && whereRideFor === "child") {
+      setWhereRideFor("me");
+    }
+  }, [selectedService, whereRideFor]);
 
   const openRide = useCallback(
     () =>
@@ -1244,7 +1333,7 @@ export default function CustomerHomeScreen() {
   // Fixed height from content — must grow with pad or the gap gets clipped (invisible).
   const sheetInnerW =
     Math.min(windowWidth, 560) - layout.sheetContentPad * 2;
-  const serviceTileH = Math.round(sheetInnerW / 4) + 22; // tile face + label
+  const serviceTileH = Math.round(sheetInnerW / 4) + 36; // tile face + 2-line label
   const homeIdleContentH =
     16 + // handle
     40 + // greeting
@@ -1281,39 +1370,45 @@ export default function CustomerHomeScreen() {
     : layout.sheetTop;
   mapTopRatioRef.current = effectiveSheetTop / windowHeight;
 
-  const startWhereSearch = useCallback(() => {
-    const address = (pickupAddress || pickupLabel).trim();
-    const hasPickup = isUsablePickupLabel(address);
-    setWherePickup(hasPickup ? address : "");
-    setWherePickupCoords(coords);
-    setDropoff("");
-    setDropoffCoords(null);
-    setWhereStops([]);
-    setRouteSuggestions(null);
-    resetWhereVehicleState();
-    const focus: WhereRouteFocus = hasPickup ? "dropoff" : "pickup";
-    routeFocusRef.current = focus;
-    setRouteFocus(focus);
-    setWhereSearching(true);
-    setSelectedService("ride");
-  }, [pickupAddress, pickupLabel, coords, isUsablePickupLabel, resetWhereVehicleState]);
+  const startWhereSearch = useCallback(
+    (service: ConciergeServiceId = "ride") => {
+      const address = (pickupAddress || pickupLabel).trim();
+      const hasPickup = isUsablePickupLabel(address);
+      setSelectedService(service);
+      setWherePickup(hasPickup ? address : "");
+      setWherePickupCoords(coords);
+      setDropoff("");
+      setDropoffCoords(null);
+      setWhereStops([]);
+      setWhereAirline("");
+      setWhereFlightNumber("");
+      setWhereMeetGreet(false);
+      setWherePickupPlaceLabel("");
+      setWhereDropoffPlaceLabel("");
+      setWhereRideFor("me");
+      setWhereHourlyHours(APP_MIN_HOURLY_HOURS);
+      setRouteSuggestions(null);
+      resetWhereVehicleState();
+      // Hourly has no dropoff — focus pickup (or stay on pickup when GPS ready).
+      const focus: WhereRouteFocus =
+        service === "hourly" ? "pickup" : hasPickup ? "dropoff" : "pickup";
+      routeFocusRef.current = focus;
+      setRouteFocus(focus);
+      setWhereSearching(true);
+    },
+    [pickupAddress, pickupLabel, coords, isUsablePickupLabel, resetWhereVehicleState]
+  );
 
-  const launchSelectedService = useCallback(() => {
-    if (selectedService === "parcel") openParcel();
-    else if (selectedService === "airport") openAirport();
-    else if (selectedService === "hourly") openHourly();
-    else startWhereSearch();
-  }, [selectedService, openParcel, openAirport, openHourly, startWhereSearch]);
+  /** Idle "Where to?" bar always opens Ride Plan (tiles set their own mode). */
+  const launchWhereTo = useCallback(() => {
+    startWhereSearch("ride");
+  }, [startWhereSearch]);
 
   const onConciergeServicePress = useCallback(
     (id: ConciergeServiceId) => {
-      setSelectedService(id);
-      if (id === "ride") openRide();
-      else if (id === "parcel") openParcel();
-      else if (id === "airport") openAirport();
-      else openHourly();
+      startWhereSearch(id);
     },
-    [openRide, openParcel, openAirport, openHourly]
+    [startWhereSearch]
   );
 
   return (
@@ -1674,7 +1769,7 @@ export default function CustomerHomeScreen() {
               ]}
               numberOfLines={1}
             >
-              Plan your ride
+              {planSheetTitle(selectedService)}
             </Text>
             <Pressable
               onPress={() => setShowWhereRideForMenu(true)}
@@ -1683,13 +1778,15 @@ export default function CustomerHomeScreen() {
                 pressed && styles.pressed,
               ]}
               accessibilityRole="button"
-              accessibilityLabel={`Riding for ${
+              accessibilityLabel={`${
+                selectedService === "parcel" ? "Sending for" : "Riding for"
+              } ${
                 whereRideFor === "me"
                   ? "me"
                   : whereRideFor === "child"
                     ? "child"
                     : "someone else"
-              }. Change who is riding.`}
+              }. Change who.`}
             >
               {whereRideFor === "me" && user?.photo ? (
                 <Image
@@ -1895,29 +1992,8 @@ export default function CustomerHomeScreen() {
                             { backgroundColor: isDark ? "#F5F0E8" : CONCIERGE_INK },
                           ]}
                         />
-                        <View
-                          style={[
-                            styles.uberRailLine,
-                            {
-                              backgroundColor: isDark
-                                ? "rgba(255,255,255,0.22)"
-                                : "rgba(0,0,0,0.18)",
-                            },
-                          ]}
-                        />
-                        {whereStops.map((_, i) => (
-                          <View key={`rail-stop-${i}`} style={styles.uberRailStopWrap}>
-                            <View
-                              style={[
-                                styles.uberStopDot,
-                                {
-                                  borderColor: isDark ? "#C9B8A0" : ACCENT_DARK,
-                                  backgroundColor: isDark
-                                    ? "rgba(201,184,160,0.2)"
-                                    : "rgba(168,120,48,0.15)",
-                                },
-                              ]}
-                            />
+                        {selectedService !== "hourly" ? (
+                          <>
                             <View
                               style={[
                                 styles.uberRailLine,
@@ -1928,14 +2004,39 @@ export default function CustomerHomeScreen() {
                                 },
                               ]}
                             />
-                          </View>
-                        ))}
-                        <View
-                          style={[
-                            styles.uberDropoffSquare,
-                            { backgroundColor: GOLD },
-                          ]}
-                        />
+                            {whereStops.map((_, i) => (
+                              <View key={`rail-stop-${i}`} style={styles.uberRailStopWrap}>
+                                <View
+                                  style={[
+                                    styles.uberStopDot,
+                                    {
+                                      borderColor: isDark ? "#C9B8A0" : ACCENT_DARK,
+                                      backgroundColor: isDark
+                                        ? "rgba(201,184,160,0.2)"
+                                        : "rgba(168,120,48,0.15)",
+                                    },
+                                  ]}
+                                />
+                                <View
+                                  style={[
+                                    styles.uberRailLine,
+                                    {
+                                      backgroundColor: isDark
+                                        ? "rgba(255,255,255,0.22)"
+                                        : "rgba(0,0,0,0.18)",
+                                    },
+                                  ]}
+                                />
+                              </View>
+                            ))}
+                            <View
+                              style={[
+                                styles.uberDropoffSquare,
+                                { backgroundColor: GOLD },
+                              ]}
+                            />
+                          </>
+                        ) : null}
                       </View>
                       <View style={styles.uberRouteFields}>
                         <GooglePlacesAddressField
@@ -1945,10 +2046,17 @@ export default function CustomerHomeScreen() {
                             setWherePickupCoords(null);
                             setWherePickupPlaceLabel("");
                           }}
-                          placeholder="Pickup"
+                          placeholder={
+                            selectedService === "airport"
+                              ? "Airport or pickup"
+                              : selectedService === "hourly"
+                                ? "Pickup location"
+                                : "Pickup"
+                          }
                           iconName="radio-button-on"
                           embedded
                           hidePanel
+                          embeddedDivider={selectedService !== "hourly"}
                           autoFocus={routeFocus === "pickup"}
                           inputRef={pickupInputRef}
                           pickHandlerRef={pickupPickRef}
@@ -1966,112 +2074,216 @@ export default function CustomerHomeScreen() {
                           containerStyle={styles.conciergeWhereField}
                         />
 
-                        {whereStops.map((stop, index) => (
-                          <View key={`where-stop-${index}`} style={styles.whereStopRow}>
+                        {selectedService !== "hourly" ? (
+                          <>
+                            {whereStops.map((stop, index) => (
+                              <View key={`where-stop-${index}`} style={styles.whereStopRow}>
+                                <GooglePlacesAddressField
+                                  value={stop}
+                                  onChangeText={(t) =>
+                                    setWhereStops((prev) =>
+                                      prev.map((s, i) => (i === index ? t : s))
+                                    )
+                                  }
+                                  placeholder={
+                                    whereStops.length > 1
+                                      ? `Stop ${index + 1}`
+                                      : "Add a stop"
+                                  }
+                                  iconName="ellipse-outline"
+                                  embedded
+                                  hidePanel
+                                  autoFocus={routeFocus === index}
+                                  inputRef={stopInputRefs.current[index]}
+                                  pickHandlerRef={stopPickRefs.current[index]}
+                                  dismissHandlerRef={stopDismissRefs.current[index]}
+                                  onFocusChange={(focused) => {
+                                    if (!focused) return;
+                                    routeFocusRef.current = index;
+                                    setRouteFocus(index);
+                                    dismissAllWhereFields(index);
+                                  }}
+                                  onSuggestionsChange={(state) =>
+                                    onRouteSuggestionsFrom(index, state)
+                                  }
+                                  onPlaceResolved={(place) =>
+                                    onWhereStopResolved(index, place)
+                                  }
+                                  containerStyle={styles.whereStopField}
+                                />
+                                <Pressable
+                                  onPress={() => removeWhereStop(index)}
+                                  hitSlop={8}
+                                  style={styles.whereStopRemove}
+                                  accessibilityLabel={`Remove stop ${index + 1}`}
+                                >
+                                  <Ionicons
+                                    name="close-circle"
+                                    size={22}
+                                    color={isDark ? "#A8A29A" : "#8A847C"}
+                                  />
+                                </Pressable>
+                              </View>
+                            ))}
+
+                            {whereStops.length < MAX_APP_STOPS ? (
+                              <Pressable
+                                onPress={addWhereStop}
+                                style={({ pressed }) => [
+                                  styles.whereAddStopBtn,
+                                  pressed && { opacity: 0.75 },
+                                ]}
+                                accessibilityRole="button"
+                                accessibilityLabel="Add stop"
+                              >
+                                <Ionicons
+                                  name="add"
+                                  size={18}
+                                  color={isDark ? GOLD : ACCENT_DARK}
+                                />
+                                <Text
+                                  style={[
+                                    styles.whereAddStopText,
+                                    { color: isDark ? GOLD : ACCENT_DARK },
+                                  ]}
+                                >
+                                  {whereStops.length === 0
+                                    ? "Add stop"
+                                    : "Add another stop"}
+                                </Text>
+                              </Pressable>
+                            ) : null}
+
                             <GooglePlacesAddressField
-                              value={stop}
-                              onChangeText={(t) =>
-                                setWhereStops((prev) =>
-                                  prev.map((s, i) => (i === index ? t : s))
-                                )
-                              }
+                              value={dropoff}
+                              onChangeText={(t) => {
+                                setDropoff(t);
+                                setDropoffCoords(null);
+                                setWhereDropoffPlaceLabel("");
+                              }}
                               placeholder={
-                                whereStops.length > 1
-                                  ? `Stop ${index + 1}`
-                                  : "Add a stop"
+                                selectedService === "airport"
+                                  ? "Destination"
+                                  : selectedService === "parcel"
+                                    ? "Delivery address"
+                                    : "Where to?"
                               }
-                              iconName="ellipse-outline"
+                              iconName="square"
                               embedded
+                              embeddedDivider={false}
                               hidePanel
-                              autoFocus={routeFocus === index}
-                              inputRef={stopInputRefs.current[index]}
-                              pickHandlerRef={stopPickRefs.current[index]}
-                              dismissHandlerRef={stopDismissRefs.current[index]}
+                              autoFocus={routeFocus === "dropoff"}
+                              inputRef={dropoffInputRef}
+                              pickHandlerRef={dropoffPickRef}
+                              dismissHandlerRef={dropoffDismissRef}
                               onFocusChange={(focused) => {
                                 if (!focused) return;
-                                routeFocusRef.current = index;
-                                setRouteFocus(index);
-                                dismissAllWhereFields(index);
+                                routeFocusRef.current = "dropoff";
+                                setRouteFocus("dropoff");
+                                dismissAllWhereFields("dropoff");
                               }}
                               onSuggestionsChange={(state) =>
-                                onRouteSuggestionsFrom(index, state)
+                                onRouteSuggestionsFrom("dropoff", state)
                               }
-                              onPlaceResolved={(place) =>
-                                onWhereStopResolved(index, place)
-                              }
-                              containerStyle={styles.whereStopField}
+                              onPlaceResolved={onWhereDropoffResolved}
+                              containerStyle={styles.conciergeWhereField}
                             />
-                            <Pressable
-                              onPress={() => removeWhereStop(index)}
-                              hitSlop={8}
-                              style={styles.whereStopRemove}
-                              accessibilityLabel={`Remove stop ${index + 1}`}
-                            >
-                              <Ionicons
-                                name="close-circle"
-                                size={22}
-                                color={isDark ? "#A8A29A" : "#8A847C"}
-                              />
-                            </Pressable>
-                          </View>
-                        ))}
-
-                        {whereStops.length < MAX_APP_STOPS ? (
-                          <Pressable
-                            onPress={addWhereStop}
-                            style={({ pressed }) => [
-                              styles.whereAddStopBtn,
-                              pressed && { opacity: 0.75 },
-                            ]}
-                            accessibilityRole="button"
-                            accessibilityLabel="Add stop"
-                          >
-                            <Ionicons
-                              name="add"
-                              size={18}
-                              color={isDark ? GOLD : ACCENT_DARK}
-                            />
-                            <Text
-                              style={[
-                                styles.whereAddStopText,
-                                { color: isDark ? GOLD : ACCENT_DARK },
-                              ]}
-                            >
-                              {whereStops.length === 0 ? "Add stop" : "Add another stop"}
-                            </Text>
-                          </Pressable>
+                          </>
                         ) : null}
-
-                        <GooglePlacesAddressField
-                          value={dropoff}
-                          onChangeText={(t) => {
-                            setDropoff(t);
-                            setDropoffCoords(null);
-                            setWhereDropoffPlaceLabel("");
-                          }}
-                          placeholder="Where to?"
-                          iconName="square"
-                          embedded
-                          embeddedDivider={false}
-                          hidePanel
-                          autoFocus={routeFocus === "dropoff"}
-                          inputRef={dropoffInputRef}
-                          pickHandlerRef={dropoffPickRef}
-                          dismissHandlerRef={dropoffDismissRef}
-                          onFocusChange={(focused) => {
-                            if (!focused) return;
-                            routeFocusRef.current = "dropoff";
-                            setRouteFocus("dropoff");
-                            dismissAllWhereFields("dropoff");
-                          }}
-                          onSuggestionsChange={(state) =>
-                            onRouteSuggestionsFrom("dropoff", state)
-                          }
-                          onPlaceResolved={onWhereDropoffResolved}
-                          containerStyle={styles.conciergeWhereField}
-                        />
                       </View>
                     </View>
+
+                    {selectedService === "hourly" && !routeSuggestions?.showPanel ? (
+                      <View style={styles.whereHoursBlock}>
+                        <Text
+                          style={[
+                            styles.whereHoursLabel,
+                            { color: isDark ? "#F5F0E8" : CONCIERGE_INK },
+                          ]}
+                        >
+                          Duration
+                        </Text>
+                        <Text
+                          style={[
+                            styles.whereHoursHint,
+                            { color: isDark ? "#A8A29A" : "#6B6560" },
+                          ]}
+                        >
+                          As directed · {APP_MIN_HOURLY_HOURS}h minimum
+                        </Text>
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          nestedScrollEnabled
+                          contentContainerStyle={styles.whereHoursRow}
+                          style={styles.whereHoursScroll}
+                        >
+                          {APP_HOURLY_DURATIONS.map((h) => {
+                            const active = whereHourlyHours === h;
+                            return (
+                              <Pressable
+                                key={h}
+                                onPress={() => setWhereHourlyHours(h)}
+                                style={({ pressed }) => [
+                                  styles.whereHourChip,
+                                  {
+                                    backgroundColor: active
+                                      ? isDark
+                                        ? GOLD
+                                        : CONCIERGE_INK
+                                      : isDark
+                                        ? "rgba(255,255,255,0.06)"
+                                        : CONCIERGE_CREAM,
+                                    borderColor: active
+                                      ? "transparent"
+                                      : isDark
+                                        ? "rgba(255,255,255,0.12)"
+                                        : "rgba(0,0,0,0.08)",
+                                  },
+                                  pressed && { opacity: 0.88 },
+                                ]}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: active }}
+                                accessibilityLabel={`${h} hours`}
+                              >
+                                <Text
+                                  style={[
+                                    styles.whereHourChipValue,
+                                    {
+                                      color: active
+                                        ? isDark
+                                          ? "#1A1208"
+                                          : "#fff"
+                                        : isDark
+                                          ? "#F5F0E8"
+                                          : CONCIERGE_INK,
+                                    },
+                                  ]}
+                                >
+                                  {h}
+                                </Text>
+                                <Text
+                                  style={[
+                                    styles.whereHourChipUnit,
+                                    {
+                                      color: active
+                                        ? isDark
+                                          ? "rgba(26,18,8,0.7)"
+                                          : "rgba(255,255,255,0.75)"
+                                        : isDark
+                                          ? "#A8A29A"
+                                          : "#6B6560",
+                                    },
+                                  ]}
+                                >
+                                  hrs
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </ScrollView>
+                      </View>
+                    ) : null}
 
                     {whereIsAirportTransfer && !routeSuggestions?.showPanel ? (
                       <View
@@ -2259,13 +2471,15 @@ export default function CustomerHomeScreen() {
                             { color: isDark ? "#A8A29A" : "#6B6560" },
                           ]}
                         >
-                          Estimated fare for this route
-                          {whereRouteMeta?.distanceText
+                          {selectedService === "hourly"
+                            ? `Estimated fare · ${whereHourlyHours}h`
+                            : "Estimated fare for this route"}
+                          {selectedService !== "hourly" && whereRouteMeta?.distanceText
                             ? ` · ${whereRouteMeta.distanceText}`
-                            : whereRouteLoading
+                            : selectedService !== "hourly" && whereRouteLoading
                               ? " · calculating…"
                               : ""}
-                          {whereRouteMeta?.durationText
+                          {selectedService !== "hourly" && whereRouteMeta?.durationText
                             ? ` · ${whereRouteMeta.durationText}`
                             : ""}
                         </Text>
@@ -2307,7 +2521,7 @@ export default function CustomerHomeScreen() {
                     ]}
                   >
                     <Pressable
-                      onPress={launchSelectedService}
+                      onPress={launchWhereTo}
                       accessibilityRole="button"
                       accessibilityLabel="Where to?"
                       style={({ pressed }) => [
@@ -2397,12 +2611,6 @@ export default function CustomerHomeScreen() {
                   </View>
                   <View style={styles.conciergeServiceRow}>
                     <ConciergeServiceTile
-                      icon="car-outline"
-                      label="Ride"
-                      isDark={isDark}
-                      onPress={() => onConciergeServicePress("ride")}
-                    />
-                    <ConciergeServiceTile
                       icon="airplane-outline"
                       label="Airport"
                       isDark={isDark}
@@ -2410,13 +2618,19 @@ export default function CustomerHomeScreen() {
                     />
                     <ConciergeServiceTile
                       icon="time-outline"
-                      label="Hourly"
+                      label="Hourly Livery"
                       isDark={isDark}
                       onPress={() => onConciergeServicePress("hourly")}
                     />
                     <ConciergeServiceTile
+                      icon="car-outline"
+                      label="Meet & Greet"
+                      isDark={isDark}
+                      onPress={() => onConciergeServicePress("ride")}
+                    />
+                    <ConciergeServiceTile
                       icon="cube-outline"
-                      label="Parcel"
+                      label="Parcel Delivery"
                       isDark={isDark}
                       onPress={() => onConciergeServicePress("parcel")}
                     />
@@ -2446,17 +2660,23 @@ export default function CustomerHomeScreen() {
           >
             <Pressable
               onPress={continueWhereToReview}
-              disabled={!whereSelectedTierId || whereFleetLoading || whereRouteLoading}
+              disabled={
+                !whereSelectedTierId ||
+                whereFleetLoading ||
+                (selectedService !== "hourly" && whereRouteLoading)
+              }
               style={({ pressed }) => [
                 styles.whereContinueBtn,
                 (!whereSelectedTierId ||
                   whereFleetLoading ||
-                  whereRouteLoading) &&
+                  (selectedService !== "hourly" && whereRouteLoading)) &&
                   styles.whereContinueBtnDisabled,
                 pressed &&
                   whereSelectedTierId &&
                   !whereFleetLoading &&
-                  !whereRouteLoading && { opacity: 0.92 },
+                  (selectedService === "hourly" || !whereRouteLoading) && {
+                    opacity: 0.92,
+                  },
               ]}
               accessibilityRole="button"
               accessibilityLabel="Continue to review"
@@ -2470,11 +2690,12 @@ export default function CustomerHomeScreen() {
                 <Text style={styles.whereContinueBtnText}>
                   {!whereSelectedTierId
                     ? "Select a vehicle"
-                    : whereRouteLoading
+                    : selectedService !== "hourly" && whereRouteLoading
                       ? "Calculating route…"
                       : "Continue"}
                 </Text>
-                {whereSelectedTierId && !whereRouteLoading ? (
+                {whereSelectedTierId &&
+                (selectedService === "hourly" || !whereRouteLoading) ? (
                   <Ionicons name="arrow-forward" size={18} color="#1A1208" />
                 ) : null}
               </LinearGradient>
@@ -2588,7 +2809,7 @@ export default function CustomerHomeScreen() {
                 { color: isDark ? "#F5F0E8" : CONCIERGE_INK },
               ]}
             >
-              Who is riding?
+              {selectedService === "parcel" ? "Who is this for?" : "Who is riding?"}
             </Text>
 
             {(
@@ -2601,16 +2822,23 @@ export default function CustomerHomeScreen() {
                     "Your account",
                   icon: "person-outline" as const,
                 },
-                {
-                  id: "child" as const,
-                  title: "Child",
-                  sub: "Book a ride for your child",
-                  icon: "happy-outline" as const,
-                },
+                ...(selectedService === "parcel"
+                  ? []
+                  : [
+                      {
+                        id: "child" as const,
+                        title: "Child",
+                        sub: "Book a ride for your child",
+                        icon: "happy-outline" as const,
+                      },
+                    ]),
                 {
                   id: "someone" as const,
-                  title: "Someone else",
-                  sub: "Ride for a guest",
+                  title: selectedService === "parcel" ? "Someone else" : "Someone else",
+                  sub:
+                    selectedService === "parcel"
+                      ? "Send on behalf of a guest"
+                      : "Ride for a guest",
                   icon: "people-outline" as const,
                 },
               ] as const
@@ -3366,6 +3594,47 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     flexShrink: 1,
   },
+  whereHoursBlock: {
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  whereHoursLabel: {
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+  },
+  whereHoursHint: {
+    fontSize: 12,
+    fontWeight: "500",
+    marginTop: 2,
+    marginBottom: 10,
+  },
+  whereHoursScroll: {
+    marginHorizontal: -2,
+  },
+  whereHoursRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingVertical: 2,
+    paddingHorizontal: 2,
+  },
+  whereHourChip: {
+    minWidth: 56,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+  },
+  whereHourChipValue: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  whereHourChipUnit: {
+    fontSize: 11,
+    fontWeight: "500",
+    marginTop: 1,
+  },
   whereContinueFooter: {
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingTop: 12,
@@ -3611,9 +3880,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   conciergeTileLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "500",
     letterSpacing: -0.1,
+    textAlign: "center",
+    lineHeight: 15,
+    paddingHorizontal: 2,
   },
   upcomingFloat: {
     position: "absolute",

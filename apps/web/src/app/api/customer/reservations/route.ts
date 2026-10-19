@@ -41,8 +41,7 @@ export async function GET(req: NextRequest) {
     const historyStatuses = ["DONE", "CANCELLED", "CANCELED"] as const;
     const where: Record<string, unknown> = {
       customerId: tokenData.id,
-      // Soft-hidden past trips never appear in customer lists
-      customerHistoryHiddenAt: null,
+      // Customers cannot remove history — show all past trips (ignore old soft-hides).
     };
 
     if (scope === "history") {
@@ -71,7 +70,12 @@ export async function GET(req: NextRequest) {
         : Promise.resolve(0),
       prisma.reservation.findMany({
         where: where as never,
-        orderBy: { createdAt: "desc" },
+        // Latest trips first (completed/cancelled activity, then created).
+        orderBy: [
+          { completedAt: { sort: "desc", nulls: "last" } },
+          { statusUpdatedAt: { sort: "desc", nulls: "last" } },
+          { createdAt: "desc" },
+        ],
         include: { assignedDriver: true, tripReview: true },
         ...(paginate ? { skip: (page - 1) * (limit as number), take: limit } : {}),
       }),

@@ -292,6 +292,8 @@ export default function CreateReservationScreen() {
     rideFor?: string | string[];
     /** Plan your ride → Review (opens schedule sheet on entry). */
     fromPlanRide?: string | string[];
+    /** Hourly hours chosen on Plan sheet. */
+    hourlyHours?: string | string[];
   }>();
   const fromPlanRide = useMemo(() => {
     const v = params.fromPlanRide;
@@ -834,6 +836,20 @@ export default function CreateReservationScreen() {
       setBookingMode("distance");
     }
   }, [params.prefill]);
+
+  // Sync hours chosen on Plan sheet (Hourly tile / Plan Continue).
+  useEffect(() => {
+    const raw = params.hourlyHours;
+    const s = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : undefined;
+    if (!s) return;
+    const n = Math.floor(Number(s));
+    if (!Number.isFinite(n) || n < APP_MIN_HOURLY_HOURS) return;
+    if ((APP_HOURLY_DURATIONS as readonly number[]).includes(n)) {
+      setHourlyDuration(n);
+    } else {
+      setHourlyDuration(Math.max(APP_MIN_HOURLY_HOURS, n));
+    }
+  }, [params.hourlyHours]);
 
   // Keep selection valid when switching to hourly (only vehicles with hourly rates)
   useEffect(() => {
@@ -1568,7 +1584,16 @@ export default function CreateReservationScreen() {
    * compute deltas from the route bounds instead.
    */
   const reviewMapRegion = useMemo(() => {
-    if (reviewRouteCoords.length < 2) return null;
+    if (reviewRouteCoords.length === 0) return null;
+    // Hourly / pickup-only — center on the single pin.
+    if (reviewRouteCoords.length === 1) {
+      return {
+        latitude: reviewRouteCoords[0].latitude,
+        longitude: reviewRouteCoords[0].longitude,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02,
+      };
+    }
     let minLat = Infinity;
     let maxLat = -Infinity;
     let minLng = Infinity;
@@ -1685,17 +1710,21 @@ export default function CreateReservationScreen() {
       <View style={styles.routeHeroChip}>
         <Ionicons name="navigate" size={13} color={GOLD} />
         <Text style={styles.routeHeroChipText} numberOfLines={1}>
-          {routeLoading && !routeSummary?.distanceText
-            ? "…"
-            : routeSummary?.distanceText || "—"}
+          {isHourly
+            ? "As directed"
+            : routeLoading && !routeSummary?.distanceText
+              ? "…"
+              : routeSummary?.distanceText || "—"}
         </Text>
       </View>
       <View style={styles.routeHeroChip}>
         <Ionicons name="time" size={13} color={GOLD} />
         <Text style={styles.routeHeroChipText} numberOfLines={1}>
-          {routeLoading && !routeSummary?.durationText
-            ? "…"
-            : routeSummary?.durationText || "—"}
+          {isHourly
+            ? `${hourlyDuration}h`
+            : routeLoading && !routeSummary?.durationText
+              ? "…"
+              : routeSummary?.durationText || "—"}
         </Text>
       </View>
     </View>
@@ -1704,10 +1733,10 @@ export default function CreateReservationScreen() {
   /** Interactive live map for Plan→Review (pan, zoom, real tiles + route). */
   const interactiveReviewMap = (
     <>
-      {reviewRouteCoords.length >= 2 ? (
+      {reviewRouteCoords.length >= 1 ? (
         <MapView
           ref={reviewMapRef}
-          key={`review-map-${routeSummary?.polyline?.slice(0, 24) || "pts"}`}
+          key={`review-map-${routeSummary?.polyline?.slice(0, 24) || "pts"}-${reviewRouteCoords.length}`}
           style={styles.reviewMapView}
           provider={PROVIDER_DEFAULT}
           initialRegion={
@@ -1730,28 +1759,33 @@ export default function CreateReservationScreen() {
           toolbarEnabled={false}
           userInterfaceStyle={isDark ? "dark" : "light"}
         >
-          {/* Dual-stroke route (white casing + brand line) — reads like Uber. */}
-          <Polyline
-            coordinates={reviewRouteCoords}
-            strokeColor="rgba(255,255,255,0.92)"
-            strokeWidth={7}
-            geodesic
-            lineJoin="round"
-            lineCap="round"
-            zIndex={1}
-          />
-          <Polyline
-            coordinates={reviewRouteCoords}
-            strokeColor={isDark ? GOLD : "#1C1916"}
-            strokeWidth={4}
-            geodesic
-            lineJoin="round"
-            lineCap="round"
-            zIndex={2}
-          />
+          {/* Dual-stroke route — only when we have a real path (2+ points). */}
+          {reviewRouteCoords.length >= 2 ? (
+            <>
+              <Polyline
+                coordinates={reviewRouteCoords}
+                strokeColor="rgba(255,255,255,0.92)"
+                strokeWidth={7}
+                geodesic
+                lineJoin="round"
+                lineCap="round"
+                zIndex={1}
+              />
+              <Polyline
+                coordinates={reviewRouteCoords}
+                strokeColor={isDark ? GOLD : "#1C1916"}
+                strokeWidth={4}
+                geodesic
+                lineJoin="round"
+                lineCap="round"
+                zIndex={2}
+              />
+            </>
+          ) : null}
           {reviewMarkerPoints.map((pt, i) => {
+            const single = reviewMarkerPoints.length === 1;
             const isPickup = i === 0;
-            const isDropoff = i === reviewMarkerPoints.length - 1;
+            const isDropoff = !single && i === reviewMarkerPoints.length - 1;
             const lat = Number(pt.lat);
             const lng = Number(pt.lng);
             if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
@@ -1760,7 +1794,13 @@ export default function CreateReservationScreen() {
                 key={`review-pin-${i}-${lat}-${lng}`}
                 coordinate={{ latitude: lat, longitude: lng }}
                 pinColor={isPickup ? "#1C1916" : isDropoff ? GOLD : "#8A847C"}
-                title={isPickup ? "Pickup" : isDropoff ? "Drop-off" : `Stop ${i}`}
+                title={
+                  single || isPickup
+                    ? "Pickup"
+                    : isDropoff
+                      ? "Drop-off"
+                      : `Stop ${i}`
+                }
                 identifier={`pin-${i}`}
                 zIndex={10 + i}
               />
@@ -1787,7 +1827,7 @@ export default function CreateReservationScreen() {
         pointerEvents="none"
       />
       {routeMetaChips}
-      {reviewRouteCoords.length >= 2 ? (
+      {reviewRouteCoords.length >= 1 ? (
         <Pressable
           onPress={fitReviewMap}
           style={({ pressed }) => [
@@ -2139,6 +2179,18 @@ export default function CreateReservationScreen() {
                 : null
             }
             onOpenTip={() => setTipModalOpen(true)}
+            isHourly={isHourly}
+            hourlyDuration={hourlyDuration}
+            onChangeHourlyDuration={setHourlyDuration}
+            isParcel={isParcel}
+            recipientName={recipientName}
+            recipientPhone={recipientPhone}
+            parcelWeight={parcelWeight}
+            parcelNote={parcelNote}
+            onChangeRecipientName={setRecipientName}
+            onChangeRecipientPhone={setRecipientPhone}
+            onChangeParcelWeight={setParcelWeight}
+            onChangeParcelNote={setParcelNote}
           />
         ) : null}
 

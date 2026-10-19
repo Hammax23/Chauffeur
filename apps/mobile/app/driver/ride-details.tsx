@@ -766,7 +766,22 @@ export default function RideDetailsScreen() {
                   );
                 })()}
                 {(() => {
-                  const notes = (ride?.specialRequirements || "").trim();
+                  // Never show Stripe / payment-intent lines to the chauffeur.
+                  const notes = (ride?.specialRequirements || "")
+                    .split(/\r?\n/)
+                    .map((l) => l.trimEnd())
+                    .filter((line) => {
+                      const t = line.trim();
+                      if (!t) return false;
+                      if (/^stripe\s*payment\s*:/i.test(t)) return false;
+                      if (/^pi_[A-Za-z0-9]+$/.test(t)) return false;
+                      if (/stripe/i.test(t) && /\bpi_[A-Za-z0-9]{8,}\b/.test(t)) {
+                        return false;
+                      }
+                      return true;
+                    })
+                    .join("\n")
+                    .trim();
                   if (!notes || isParcelServiceType(ride?.serviceType)) return null;
                   const isChild = notes.toUpperCase().includes("CHILD PASSENGER");
                   return (

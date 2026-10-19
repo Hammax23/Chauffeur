@@ -8,6 +8,7 @@ import {
   Modal,
   ScrollView,
   Platform,
+  TextInput,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,7 +20,12 @@ import {
   getTierSubtitle,
   type VehicleTierOption,
 } from "../data/vehicle-tiers";
-import { CHILD_SEAT_CHARGE, MEET_GREET_CHARGE } from "../utils/app-fare";
+import {
+  APP_HOURLY_DURATIONS,
+  APP_MIN_HOURLY_HOURS,
+  CHILD_SEAT_CHARGE,
+  MEET_GREET_CHARGE,
+} from "../utils/app-fare";
 import {
   MAX_FLEET_UNITS,
   totalFleetUnits,
@@ -71,6 +77,20 @@ type Props = {
   tipSummary: string;
   tipAmountLabel?: string | null;
   onOpenTip: () => void;
+  /** Hourly Plan→Review */
+  isHourly?: boolean;
+  hourlyDuration?: number;
+  onChangeHourlyDuration?: (hours: number) => void;
+  /** Parcel Plan→Review — recipient required to Confirm */
+  isParcel?: boolean;
+  recipientName?: string;
+  recipientPhone?: string;
+  parcelWeight?: string;
+  parcelNote?: string;
+  onChangeRecipientName?: (v: string) => void;
+  onChangeRecipientPhone?: (v: string) => void;
+  onChangeParcelWeight?: (v: string) => void;
+  onChangeParcelNote?: (v: string) => void;
 };
 
 /**
@@ -110,6 +130,18 @@ export function PlanRideReviewPanel({
   tipSummary,
   tipAmountLabel = null,
   onOpenTip,
+  isHourly = false,
+  hourlyDuration = APP_MIN_HOURLY_HOURS,
+  onChangeHourlyDuration,
+  isParcel = false,
+  recipientName = "",
+  recipientPhone = "",
+  parcelWeight = "",
+  parcelNote = "",
+  onChangeRecipientName,
+  onChangeRecipientPhone,
+  onChangeParcelWeight,
+  onChangeParcelNote,
 }: Props) {
   const insets = useSafeAreaInsets();
   const [showExtras, setShowExtras] = useState(false);
@@ -209,7 +241,13 @@ export function PlanRideReviewPanel({
         {/* Route block — Uber timeline */}
         <View style={styles.block}>
           <View style={styles.blockHead}>
-            <Text style={[styles.eyebrow, { color: muted }]}>Trip · {stopMeta}</Text>
+            <Text style={[styles.eyebrow, { color: muted }]}>
+              {isHourly
+                ? "Trip · Hourly"
+                : isParcel
+                  ? "Parcel · Direct"
+                  : `Trip · ${stopMeta}`}
+            </Text>
             <Pressable onPress={onEditRoute} hitSlop={10} style={styles.textBtn}>
               <Text style={[styles.textBtnLabel, { color: link }]}>Edit</Text>
             </Pressable>
@@ -218,31 +256,45 @@ export function PlanRideReviewPanel({
           <View style={styles.timeline}>
             <View style={styles.timelineRail} pointerEvents="none">
               <View style={[styles.dotPickup, { backgroundColor: ink }]} />
-              <View style={[styles.railLine, { backgroundColor: rail }]} />
-              {stopAddrs.map((_, i) => (
-                <View key={`r-${i}`} style={styles.railStopWrap}>
-                  <View style={[styles.dotStop, { borderColor: muted, backgroundColor: surface }]} />
+              {!isHourly ? (
+                <>
                   <View style={[styles.railLine, { backgroundColor: rail }]} />
-                </View>
-              ))}
-              <View style={[styles.dotDrop, { backgroundColor: ink }]} />
+                  {stopAddrs.map((_, i) => (
+                    <View key={`r-${i}`} style={styles.railStopWrap}>
+                      <View
+                        style={[styles.dotStop, { borderColor: muted, backgroundColor: surface }]}
+                      />
+                      <View style={[styles.railLine, { backgroundColor: rail }]} />
+                    </View>
+                  ))}
+                  <View style={[styles.dotDrop, { backgroundColor: ink }]} />
+                </>
+              ) : null}
             </View>
             <View style={styles.timelineCopy}>
               <Text style={[styles.placeText, { color: ink }]} numberOfLines={1}>
                 {shortPlace(pickupAddress) || "Pickup"}
               </Text>
-              {stopAddrs.map((s, i) => (
-                <Text
-                  key={`s-${i}`}
-                  style={[styles.placeText, styles.placeStop, { color: muted }]}
-                  numberOfLines={1}
-                >
-                  {shortPlace(s)}
+              {!isHourly ? (
+                <>
+                  {stopAddrs.map((s, i) => (
+                    <Text
+                      key={`s-${i}`}
+                      style={[styles.placeText, styles.placeStop, { color: muted }]}
+                      numberOfLines={1}
+                    >
+                      {shortPlace(s)}
+                    </Text>
+                  ))}
+                  <Text style={[styles.placeText, { color: ink }]} numberOfLines={1}>
+                    {shortPlace(dropoffAddress) || "Dropoff"}
+                  </Text>
+                </>
+              ) : (
+                <Text style={[styles.placeText, { color: muted }]} numberOfLines={1}>
+                  As directed · {hourlyDuration}h
                 </Text>
-              ))}
-              <Text style={[styles.placeText, { color: ink }]} numberOfLines={1}>
-                {shortPlace(dropoffAddress) || "Dropoff"}
-              </Text>
+              )}
             </View>
           </View>
         </View>
@@ -304,6 +356,63 @@ export function PlanRideReviewPanel({
           <Ionicons name="chevron-forward" size={18} color={muted} />
         </Pressable>
 
+        {/* Hourly duration */}
+        {isHourly && onChangeHourlyDuration ? (
+          <>
+            <View style={[styles.sep, { backgroundColor: hairline }]} />
+            <View style={styles.hoursBlock}>
+              <Text style={[styles.listLabel, { color: muted, marginBottom: 8 }]}>
+                Duration · {APP_MIN_HOURLY_HOURS}h min
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.hoursRow}
+              >
+                {APP_HOURLY_DURATIONS.map((h) => {
+                  const active = hourlyDuration === h;
+                  return (
+                    <Pressable
+                      key={h}
+                      onPress={() => onChangeHourlyDuration(h)}
+                      style={[
+                        styles.hourChip,
+                        {
+                          backgroundColor: active ? (isDark ? GOLD : ink) : soft,
+                          borderColor: active ? "transparent" : hairline,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.hourChipValue,
+                          { color: active ? (isDark ? "#1A1208" : "#fff") : ink },
+                        ]}
+                      >
+                        {h}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.hourChipUnit,
+                          {
+                            color: active
+                              ? isDark
+                                ? "rgba(26,18,8,0.7)"
+                                : "rgba(255,255,255,0.75)"
+                              : muted,
+                          },
+                        ]}
+                      >
+                        hrs
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          </>
+        ) : null}
+
         {/* Flight summary */}
         {airline.trim() || flightNumber.trim() || (allowMeetGreet && meetGreet) ? (
           <>
@@ -328,32 +437,116 @@ export function PlanRideReviewPanel({
           </>
         ) : null}
 
-        <View style={[styles.sep, { backgroundColor: hairline }]} />
+        {/* Parcel recipient — required for Confirm */}
+        {isParcel ? (
+          <>
+            <View style={[styles.sep, { backgroundColor: hairline }]} />
+            <View style={styles.parcelBlock}>
+              <Text style={[styles.listLabel, { color: muted, marginBottom: 10 }]}>
+                Recipient
+              </Text>
+              <TextInput
+                style={[
+                  styles.parcelInput,
+                  {
+                    color: ink,
+                    backgroundColor: soft,
+                    borderColor: hairline,
+                  },
+                ]}
+                value={recipientName}
+                onChangeText={onChangeRecipientName}
+                placeholder="Recipient name"
+                placeholderTextColor={muted}
+              />
+              <TextInput
+                style={[
+                  styles.parcelInput,
+                  {
+                    color: ink,
+                    backgroundColor: soft,
+                    borderColor: hairline,
+                    marginTop: 8,
+                  },
+                ]}
+                value={recipientPhone}
+                onChangeText={onChangeRecipientPhone}
+                placeholder="Recipient phone"
+                placeholderTextColor={muted}
+                keyboardType="phone-pad"
+              />
+              <View style={styles.parcelWeightRow}>
+                <TextInput
+                  style={[
+                    styles.parcelInput,
+                    styles.parcelWeightInput,
+                    {
+                      color: ink,
+                      backgroundColor: soft,
+                      borderColor: hairline,
+                    },
+                  ]}
+                  value={parcelWeight}
+                  onChangeText={onChangeParcelWeight}
+                  placeholder="Weight"
+                  placeholderTextColor={muted}
+                  keyboardType="decimal-pad"
+                />
+                <View style={[styles.parcelKg, { backgroundColor: soft, borderColor: hairline }]}>
+                  <Text style={[styles.parcelKgText, { color: muted }]}>kg</Text>
+                </View>
+              </View>
+              <TextInput
+                style={[
+                  styles.parcelInput,
+                  styles.parcelNoteInput,
+                  {
+                    color: ink,
+                    backgroundColor: soft,
+                    borderColor: hairline,
+                    marginTop: 8,
+                  },
+                ]}
+                value={parcelNote}
+                onChangeText={onChangeParcelNote}
+                placeholder="Package note (optional)"
+                placeholderTextColor={muted}
+                multiline
+              />
+            </View>
+          </>
+        ) : null}
 
-        {/* Extras */}
-        <Pressable
-          onPress={() => {
-            setExtrasStep("main");
-            setShowExtras(true);
-          }}
-          style={({ pressed }) => [styles.listRow, pressed && { backgroundColor: soft }]}
-        >
-          <View style={[styles.rowIcon, { backgroundColor: soft }]}>
-            <Ionicons name="add-circle-outline" size={18} color={ink} />
-          </View>
-          <View style={styles.listCopy}>
-            <Text style={[styles.listLabel, { color: muted }]}>Extras</Text>
-            <Text style={[styles.listValue, { color: ink }]} numberOfLines={1}>
-              {extrasSummary}
-            </Text>
-          </View>
-          <Text style={[styles.addLink, { color: link }]}>
-            {childSeatCount > 0 || fleetUnitTotal > 1 || fleetLines.length > 1
-              ? "Edit"
-              : "Add"}
-          </Text>
-          <Ionicons name="chevron-forward" size={18} color={muted} />
-        </Pressable>
+        {!isParcel ? (
+          <>
+            <View style={[styles.sep, { backgroundColor: hairline }]} />
+
+            {/* Extras */}
+            <Pressable
+              onPress={() => {
+                setExtrasStep("main");
+                setShowExtras(true);
+              }}
+              style={({ pressed }) => [styles.listRow, pressed && { backgroundColor: soft }]}
+            >
+              <View style={[styles.rowIcon, { backgroundColor: soft }]}>
+                <Ionicons name="add-circle-outline" size={18} color={ink} />
+              </View>
+              <View style={styles.listCopy}>
+                <Text style={[styles.listLabel, { color: muted }]}>Extras</Text>
+                <Text style={[styles.listValue, { color: ink }]} numberOfLines={1}>
+                  {extrasSummary}
+                </Text>
+              </View>
+              <Text style={[styles.addLink, { color: link }]}>
+                {childSeatCount > 0 || fleetUnitTotal > 1 || fleetLines.length > 1
+                  ? "Edit"
+                  : "Add"}
+              </Text>
+              <Ionicons name="chevron-forward" size={18} color={muted} />
+            </Pressable>
+          </>
+        ) : null}
 
         <View style={[styles.sep, { backgroundColor: hairline }]} />
 
@@ -421,9 +614,11 @@ export function PlanRideReviewPanel({
             <Text style={[styles.listValue, { color: ink }]} numberOfLines={1}>
               {tipSummary}
             </Text>
-            <Text style={[styles.listHint, { color: muted }]} numberOfLines={1}>
-              {tipAmountLabel || "Optional · goes to your chauffeur"}
-            </Text>
+            {tipAmountLabel ? (
+              <Text style={[styles.listHint, { color: muted }]} numberOfLines={1}>
+                {tipAmountLabel}
+              </Text>
+            ) : null}
           </View>
           <Text style={[styles.changeLinkRow, { color: link }]}>
             {tipAmountLabel ? "Edit" : "Add"}
@@ -1097,5 +1292,66 @@ const styles = StyleSheet.create({
   doneBtnText: {
     fontSize: 16,
     fontWeight: "700",
+  },
+  hoursBlock: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  hoursRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingVertical: 2,
+  },
+  hourChip: {
+    minWidth: 52,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+  },
+  hourChipValue: {
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  hourChipUnit: {
+    fontSize: 11,
+    fontWeight: "500",
+    marginTop: 1,
+  },
+  parcelBlock: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  parcelInput: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === "ios" ? 14 : 12,
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  parcelWeightRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 8,
+  },
+  parcelWeightInput: {
+    flex: 1,
+  },
+  parcelKg: {
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === "ios" ? 14 : 12,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  parcelKgText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  parcelNoteInput: {
+    minHeight: 72,
+    textAlignVertical: "top",
   },
 });
