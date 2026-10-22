@@ -200,20 +200,13 @@ export default function DriverReviewsScreen() {
           />
         ) : (
           reviews.map((r) => (
-            <Pressable
+            <View
               key={r.id}
-              onPress={() =>
-                router.push({
-                  pathname: "/driver/ride-details",
-                  params: { bookingId: r.bookingId },
-                })
-              }
-              style={({ pressed }) => [
+              style={[
                 styles.reviewCard,
                 {
                   borderColor: palette.border,
                   backgroundColor: surface,
-                  opacity: pressed ? 0.9 : 1,
                 },
               ]}
             >
@@ -232,7 +225,7 @@ export default function DriverReviewsScreen() {
               <Text style={[styles.routeLine, { color: palette.muted }]} numberOfLines={1}>
                 {r.pickupShort} → {r.dropoffShort}
               </Text>
-            </Pressable>
+            </View>
           ))
         )}
 

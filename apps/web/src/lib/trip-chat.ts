@@ -561,3 +561,104 @@ export async function listDriverChatThreads(driverId: string): Promise<{
   const totalUnread = rows.reduce((sum, row) => sum + row.unreadCount, 0);
   return { threads: rows, totalUnread };
 }
+
+export type CustomerChatThreadRow = {
+  bookingId: string;
+  status: string;
+  canSend: boolean;
+  unreadCount: number;
+  peer: ChatPeerDto;
+  lastMessage: {
+    body: string;
+    createdAt: string;
+    senderType: ChatSenderType;
+  } | null;
+  serviceDate: string;
+  serviceTime: string;
+};
+
+/**
+ * Inbox list for a customer.
+ * Only active (chat-open) reservations — DONE/CANCELLED never appear.
+ * Unread = DRIVER messages with readAt null (opposite of driver inbox).
+ */
+export async function listCustomerChatThreads(customerId: string): Promise<{
+  threads: CustomerChatThreadRow[];
+  totalUnread: number;
+}> {
+  const threads = await prisma.chatThread.findMany({
+    where: {
+      hiddenFromParticipantsAt: null,
+      reservation: {
+        customerId,
+        status: { in: [...CHAT_OPEN_STATUSES] },
+      },
+      messages: { some: {} },
+    },
+    select: {
+      bookingId: true,
+      reservation: {
+        select: {
+          status: true,
+          serviceDate: true,
+          serviceTime: true,
+          assignedDriver: { select: { name: true, photo: true } },
+        },
+      },
+      messages: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: {
+          body: true,
+          createdAt: true,
+          senderType: true,
+        },
+      },
+      _count: {
+        select: {
+          messages: {
+            where: {
+              senderType: "DRIVER",
+              readAt: null,
+            },
+          },
+        },
+      },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  const rows: CustomerChatThreadRow[] = threads.map((t) => {
+    const r = t.reservation;
+    const name = r.assignedDriver?.name?.trim() || "Your chauffeur";
+    const last = t.messages[0] ?? null;
+    return {
+      bookingId: t.bookingId,
+      status: r.status,
+      canSend: isChatOpen(r.status),
+      unreadCount: t._count.messages,
+      peer: {
+        name,
+        photo: r.assignedDriver?.photo ?? null,
+      },
+      lastMessage: last
+        ? {
+            body: previewBody(last.body, 120),
+            createdAt: last.createdAt.toISOString(),
+            senderType: last.senderType as ChatSenderType,
+          }
+        : null,
+      serviceDate: r.serviceDate,
+      serviceTime: r.serviceTime,
+    };
+  });
+
+  rows.sort((a, b) => {
+    const aTs = a.lastMessage?.createdAt ? Date.parse(a.lastMessage.createdAt) : 0;
+    const bTs = b.lastMessage?.createdAt ? Date.parse(b.lastMessage.createdAt) : 0;
+    return bTs - aTs;
+  });
+
+  const totalUnread = rows.reduce((sum, row) => sum + row.unreadCount, 0);
+  return { threads: rows, totalUnread };
+}

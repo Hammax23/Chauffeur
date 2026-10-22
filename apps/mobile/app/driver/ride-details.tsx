@@ -836,11 +836,6 @@ export default function RideDetailsScreen() {
                       ))}
                     </View>
                   </View>
-                  {ride.review.comment ? (
-                    <Text style={styles.reviewComment}>{ride.review.comment}</Text>
-                  ) : (
-                    <Text style={styles.reviewNoComment}>No written comment</Text>
-                  )}
                 </View>
               ) : null}
 
@@ -1361,8 +1356,6 @@ const styles = StyleSheet.create({
   },
   reviewCustomer: { flex: 1, fontSize: 15, fontWeight: "700", color: INK },
   reviewStars: { flexDirection: "row", gap: 2 },
-  reviewComment: { fontSize: 14, lineHeight: 20, color: "#334155" },
-  reviewNoComment: { fontSize: 13, fontStyle: "italic", color: "#94a3b8" },
   customerRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
   avatar: { width: 50, height: 50, borderRadius: 25, alignItems: "center", justifyContent: "center" },
   avatarText: { color: "#fff", fontSize: 18, fontWeight: "800" },

@@ -1720,6 +1720,30 @@ export async function sendDriverChatMessage(bookingId: string, body: string) {
   );
 }
 
+export type CustomerChatThreadRow = {
+  bookingId: string;
+  status: string;
+  canSend: boolean;
+  unreadCount: number;
+  peer: ChatPeer;
+  lastMessage: {
+    body: string;
+    createdAt: string;
+    senderType: ChatSenderType;
+  } | null;
+  serviceDate: string;
+  serviceTime: string;
+};
+
+export async function getCustomerChatThreads() {
+  return apiRequest<{
+    success: boolean;
+    threads: CustomerChatThreadRow[];
+    totalUnread: number;
+    error?: string;
+  }>("/customer/chat/threads");
+}
+
 export async function getCustomerChat(
   bookingId: string,
   since?: string,
