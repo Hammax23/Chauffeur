@@ -466,7 +466,11 @@ export type DriverChatThreadRow = {
   serviceTime: string;
 };
 
-/** Inbox list for an assigned driver — excludes soft-hidden threads. */
+/**
+ * Inbox list for an assigned driver.
+ * Only active (chat-open) reservations — DONE/CANCELLED never appear,
+ * even if soft-hide column was not yet migrated on a given DB.
+ */
 export async function listDriverChatThreads(driverId: string): Promise<{
   threads: DriverChatThreadRow[];
   totalUnread: number;
@@ -474,7 +478,10 @@ export async function listDriverChatThreads(driverId: string): Promise<{
   const threads = await prisma.chatThread.findMany({
     where: {
       hiddenFromParticipantsAt: null,
-      reservation: { assignedDriverId: driverId },
+      reservation: {
+        assignedDriverId: driverId,
+        status: { in: [...CHAT_OPEN_STATUSES] },
+      },
       messages: { some: {} },
     },
     select: {
