@@ -1549,13 +1549,21 @@ export type DriverTripReviewItem = {
   id: string;
   bookingId: string;
   stars: number;
-  comment: string | null;
   createdAt: string;
   customerName: string;
   serviceDate: string;
   serviceTime: string;
   pickupShort: string;
   dropoffShort: string;
+};
+
+/** Uber-style 5→1 star counts for the driver Reviews summary. */
+export type DriverReviewStarBreakdown = {
+  "1": number;
+  "2": number;
+  "3": number;
+  "4": number;
+  "5": number;
 };
 
 // ==================== DRIVER AUTH API ====================
@@ -1614,6 +1622,7 @@ export async function getDriverReviews(params?: { limit?: number; cursor?: strin
     success: boolean;
     average: number;
     count: number;
+    breakdown?: DriverReviewStarBreakdown;
     nextCursor: string | null;
     reviews: DriverTripReviewItem[];
     error?: string;
