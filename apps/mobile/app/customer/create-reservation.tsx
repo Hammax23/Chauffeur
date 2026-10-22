@@ -69,9 +69,11 @@ import {
   getTierCapacity,
   getTierLuggage,
   getTierSubtitle,
+  isVipFleetTier,
   resolveTierIdFromFleetVehicleId,
   type VehicleTierOption,
 } from "../../data/vehicle-tiers";
+import { VipFleetBadge } from "../../components/VipFleetBadge";
 import {
   calculateAppDistanceFare,
   calculateAppHourlyFare,
@@ -2590,6 +2592,9 @@ export default function CreateReservationScreen() {
                     <Text style={styles.carName} numberOfLines={2}>
                       {formatTierDisplayTitle(selectedTier.title)}
                     </Text>
+                    {isVipFleetTier(selectedTier.id) ? (
+                      <VipFleetBadge isDark={isDark} compact />
+                    ) : null}
                     <View
                       style={styles.capacityBadges}
                       accessibilityLabel={`${getTierCapacity(selectedTier)} passengers, ${getTierLuggage(selectedTier)} luggage`}
@@ -2783,6 +2788,9 @@ export default function CreateReservationScreen() {
                                 >
                                   {formatTierDisplayTitle(tier.title)}
                                 </Text>
+                                {isVipFleetTier(tier.id) ? (
+                                  <VipFleetBadge isDark={isDark} compact />
+                                ) : null}
                                 <View
                                   style={styles.capacityBadges}
                                   accessibilityLabel={`${getTierCapacity(tier)} passengers, ${getTierLuggage(tier)} luggage`}

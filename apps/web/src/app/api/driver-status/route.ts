@@ -101,6 +101,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Booking not found" }, { status: 404 });
     }
 
+    // Web driver status page can mark DONE — soft-hide chat like the mobile app path.
+    if (status === "DONE") {
+      try {
+        const { softHideThreadForParticipants } = await import("@/lib/trip-chat");
+        await softHideThreadForParticipants(bookingId);
+      } catch (chatErr) {
+        console.error("[chat] soft-hide on driver-status DONE failed", chatErr);
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("Driver status POST error:", error);

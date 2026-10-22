@@ -260,6 +260,13 @@ export async function DELETE(
     const { revokeOffersForBooking } = await import("@/lib/live-auto");
     await revokeOffersForBooking(id);
 
+    try {
+      const { softHideThreadForParticipants } = await import("@/lib/trip-chat");
+      await softHideThreadForParticipants(id);
+    } catch (chatErr) {
+      console.error("[chat] soft-hide on customer cancel failed", chatErr);
+    }
+
     await publishReservationFromDb(id, "reservation_cancelled");
 
     return NextResponse.json({

@@ -4,14 +4,12 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  StatusBar,
   Pressable,
   Switch,
   Alert,
   RefreshControl,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -24,6 +22,8 @@ import {
 } from "../../services/api";
 import { SlimSpinner } from "../../components/SlimSpinner";
 import { GOLD } from "../../theme/driver-theme";
+import { DriverScreenShell } from "../../components/driver/DriverScreenShell";
+import { useDriverTheme } from "../../contexts/DriverThemeContext";
 
 function shortLoc(s?: string | null) {
   if (!s?.trim()) return "—";
@@ -48,6 +48,7 @@ const NEXT_STATUS: Record<string, { label: string; status: "ON_THE_WAY" | "ARRIV
 };
 
 export default function DriverConciergeScreen() {
+  const { palette } = useDriverTheme();
   const [enrolled, setEnrolled] = useState(true);
   const [profile, setProfile] = useState<ConciergeDriverProfile | null>(null);
   const [openRequests, setOpenRequests] = useState<ConciergeRide[]>([]);
@@ -226,15 +227,20 @@ export default function DriverConciergeScreen() {
   };
 
   return (
-    <View style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor="#0b0b0b" />
-      <SafeAreaView style={styles.safe} edges={["top"]}>
+    <DriverScreenShell>
         <View style={styles.topBar}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
-            <Ionicons name="chevron-back" size={24} color="#fff" />
+          <Pressable
+            onPress={() => router.back()}
+            style={[
+              styles.backBtn,
+              { backgroundColor: palette.softFill, borderColor: palette.border },
+            ]}
+            hitSlop={12}
+          >
+            <Ionicons name="chevron-back" size={22} color={palette.icon} />
           </Pressable>
-          <Text style={styles.topTitle}>Hotel Concierge</Text>
-          <View style={{ width: 36 }} />
+          <Text style={[styles.topTitle, { color: palette.text }]}>Hotel Concierge</Text>
+          <View style={{ width: 40 }} />
         </View>
 
         {loading ? (
@@ -414,8 +420,7 @@ export default function DriverConciergeScreen() {
             )}
           </ScrollView>
         )}
-      </SafeAreaView>
-    </View>
+    </DriverScreenShell>
   );
 }
 
@@ -429,126 +434,133 @@ function EarnStat({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#0b0b0b" },
-  safe: { flex: 1 },
   topBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingVertical: 8,
   },
-  backBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
-  topTitle: { fontSize: 17, fontWeight: "700", color: "#fff" },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  topTitle: { fontSize: 17, fontWeight: "700", letterSpacing: -0.2 },
   loader: { flex: 1, alignItems: "center", justifyContent: "center" },
   content: { padding: 16, paddingBottom: 40 },
   banner: {
-    backgroundColor: "rgba(212,160,74,0.12)",
-    borderColor: "rgba(212,160,74,0.35)",
-    borderWidth: 1,
-    borderRadius: 14,
+    backgroundColor: "rgba(212,160,74,0.1)",
+    borderColor: "rgba(212,160,74,0.28)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 16,
     padding: 16,
   },
-  bannerTitle: { color: GOLD, fontWeight: "800", fontSize: 16, marginBottom: 6 },
-  bannerBody: { color: "rgba(255,255,255,0.7)", fontSize: 14, lineHeight: 20 },
+  bannerTitle: { color: GOLD, fontWeight: "700", fontSize: 16, marginBottom: 6 },
+  bannerBody: { color: "rgba(255,255,255,0.65)", fontSize: 14, lineHeight: 20 },
   onlineCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#151515",
-    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 16,
     padding: 16,
     marginBottom: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.1)",
   },
-  onlineLabel: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  membership: { color: "rgba(255,255,255,0.55)", fontSize: 12, marginTop: 4 },
+  onlineLabel: { color: "#F5F5F7", fontSize: 16, fontWeight: "700" },
+  membership: { color: "rgba(255,255,255,0.5)", fontSize: 12, marginTop: 4 },
   busyBadge: {
     backgroundColor: GOLD,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
   },
-  busyBadgeText: { color: "#111", fontWeight: "900", fontSize: 11 },
+  busyBadgeText: { color: "#1A1208", fontWeight: "800", fontSize: 11 },
   earnCard: {
-    backgroundColor: "#151515",
-    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 16,
     padding: 16,
     marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.1)",
   },
   earnRow: { flexDirection: "row", gap: 8, marginTop: 10 },
   earnStat: {
     flex: 1,
-    backgroundColor: "#1c1c1c",
+    backgroundColor: "rgba(0,0,0,0.25)",
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: "center",
   },
   earnValue: { color: GOLD, fontSize: 16, fontWeight: "800" },
-  earnLabel: { color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 4 },
-  referralNote: { color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 12 },
-  sectionTitle: { color: "#fff", fontSize: 16, fontWeight: "700", marginBottom: 10 },
+  earnLabel: { color: "rgba(255,255,255,0.45)", fontSize: 11, marginTop: 4 },
+  referralNote: { color: "rgba(255,255,255,0.35)", fontSize: 12, marginTop: 12 },
+  sectionTitle: { color: "#F5F5F7", fontSize: 15, fontWeight: "700", marginBottom: 10 },
   empty: { color: "rgba(255,255,255,0.45)", fontSize: 13, marginBottom: 12 },
   rideCard: {
-    backgroundColor: "#151515",
-    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 16,
     padding: 14,
     marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.1)",
   },
   rideTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   code: { color: GOLD, fontSize: 12, fontWeight: "800", letterSpacing: 0.4 },
-  status: { color: "rgba(255,255,255,0.6)", fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
-  hotel: { color: "#fff", fontSize: 15, fontWeight: "700", marginTop: 6 },
-  route: { color: "rgba(255,255,255,0.65)", fontSize: 13, marginTop: 4 },
-  meta: { color: "rgba(255,255,255,0.45)", fontSize: 12, marginTop: 6 },
+  status: { color: "rgba(255,255,255,0.55)", fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
+  hotel: { color: "#F5F5F7", fontSize: 15, fontWeight: "700", marginTop: 6 },
+  route: { color: "rgba(255,255,255,0.6)", fontSize: 13, marginTop: 4 },
+  meta: { color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 6 },
   acceptBtn: {
     flex: 1,
     backgroundColor: GOLD,
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: 14,
+    paddingVertical: 13,
     alignItems: "center",
   },
-  acceptText: { color: "#111", fontWeight: "800", fontSize: 14 },
+  acceptText: { color: "#1A1208", fontWeight: "800", fontSize: 14 },
   openActions: { flexDirection: "row", gap: 8, marginTop: 12 },
   declineBtn: {
     flex: 1,
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: 14,
+    paddingVertical: 13,
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.25)",
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: "rgba(255,255,255,0.2)",
   },
   declineText: { color: "rgba(255,255,255,0.75)", fontWeight: "700", fontSize: 14 },
   cancelTripBtn: {
     marginTop: 10,
-    borderRadius: 12,
-    paddingVertical: 11,
+    borderRadius: 14,
+    paddingVertical: 12,
     alignItems: "center",
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth * 2,
     borderColor: "#dc2626",
   },
   cancelTripText: { color: "#f87171", fontWeight: "800", fontSize: 14 },
   statusBtn: {
     marginTop: 10,
-    backgroundColor: "#1a1a1a",
-    borderWidth: 1,
-    borderColor: GOLD,
+    backgroundColor: GOLD,
+    borderRadius: 14,
+    paddingVertical: 13,
+    alignItems: "center",
+  },
+  statusBtnText: { color: "#1A1208", fontWeight: "800", fontSize: 14 },
+  completedActions: { marginTop: 10, gap: 8 },
+  smallBtn: {
+    backgroundColor: GOLD,
     borderRadius: 12,
     paddingVertical: 11,
     alignItems: "center",
   },
-  statusBtnText: { color: GOLD, fontWeight: "800", fontSize: 14 },
-  completedActions: { marginTop: 10, gap: 8 },
-  smallBtn: {
-    backgroundColor: GOLD,
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: "center",
+  smallBtnAlt: {
+    backgroundColor: "transparent",
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: "rgba(255,255,255,0.2)",
   },
-  smallBtnAlt: { backgroundColor: "transparent", borderWidth: 1, borderColor: "rgba(255,255,255,0.25)" },
-  smallBtnText: { color: "#111", fontWeight: "800", fontSize: 13 },
+  smallBtnText: { color: "#1A1208", fontWeight: "800", fontSize: 13 },
 });

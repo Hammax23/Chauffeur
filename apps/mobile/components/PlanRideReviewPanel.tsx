@@ -18,6 +18,7 @@ import {
   getTierCapacity,
   getTierLuggage,
   getTierSubtitle,
+  isVipFleetTier,
   type VehicleTierOption,
 } from "../data/vehicle-tiers";
 import {
@@ -32,6 +33,7 @@ import {
   type FleetLine,
 } from "../utils/fleet-lines";
 import { activeStopAddresses } from "../utils/stops";
+import { VipFleetBadge } from "./VipFleetBadge";
 
 function shortPlace(addr: string): string {
   const first = (addr.split(",")[0] || addr).trim();
@@ -316,9 +318,15 @@ export function PlanRideReviewPanel({
                 />
               </View>
               <View style={styles.vehicleCopy}>
-                <Text style={[styles.vehicleName, { color: ink }]} numberOfLines={2}>
-                  {vehicleTitleSummary}
-                </Text>
+                <View style={styles.vehicleTitleRow}>
+                  <Text style={[styles.vehicleName, { color: ink }]} numberOfLines={2}>
+                    {vehicleTitleSummary}
+                  </Text>
+                  {fleetLines.some((l) => isVipFleetTier(l.tierId)) ||
+                  isVipFleetTier(selectedTier.id) ? (
+                    <VipFleetBadge isDark={isDark} compact />
+                  ) : null}
+                </View>
                 <Text style={[styles.vehicleMeta, { color: muted }]} numberOfLines={1}>
                   {fleetLines.length > 1
                     ? `${fleetUnitTotal} vehicles · mix & match`
@@ -664,9 +672,14 @@ export function PlanRideReviewPanel({
                   >
                     <Image source={{ uri: tier.imageUrl }} style={styles.carCardThumb} resizeMode="contain" />
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={[styles.carCardName, { color: ink }]} numberOfLines={1}>
-                        {formatTierDisplayTitle(tier.title)}
-                      </Text>
+                      <View style={styles.vehicleTitleRow}>
+                        <Text style={[styles.carCardName, { color: ink }]} numberOfLines={1}>
+                          {formatTierDisplayTitle(tier.title)}
+                        </Text>
+                        {isVipFleetTier(tier.id) ? (
+                          <VipFleetBadge isDark={isDark} compact />
+                        ) : null}
+                      </View>
                       <Text style={{ color: muted, fontSize: 13, marginTop: 2 }} numberOfLines={1}>
                         {getTierCapacity(tier)} seats · {getTierLuggage(tier)} bags
                         {line ? ` · ${line}` : ""}
@@ -758,9 +771,14 @@ export function PlanRideReviewPanel({
                           resizeMode="contain"
                         />
                         <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={[styles.counterTitle, { color: ink }]} numberOfLines={1}>
-                            {formatTierDisplayTitle(tier.title)}
-                          </Text>
+                          <View style={styles.vehicleTitleRow}>
+                            <Text style={[styles.counterTitle, { color: ink }]} numberOfLines={1}>
+                              {formatTierDisplayTitle(tier.title)}
+                            </Text>
+                            {isVipFleetTier(tier.id) ? (
+                              <VipFleetBadge isDark={isDark} compact />
+                            ) : null}
+                          </View>
                           <Text style={[styles.counterSub, { color: muted }]} numberOfLines={1}>
                             {already
                               ? "Already on trip · adds +1"
@@ -820,9 +838,14 @@ export function PlanRideReviewPanel({
                       style={[styles.counterRow, { backgroundColor: soft }]}
                     >
                       <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
-                        <Text style={[styles.counterTitle, { color: ink }]} numberOfLines={1}>
-                          {title}
-                        </Text>
+                        <View style={styles.vehicleTitleRow}>
+                          <Text style={[styles.counterTitle, { color: ink }]} numberOfLines={1}>
+                            {title}
+                          </Text>
+                          {isVipFleetTier(line.tierId) ? (
+                            <VipFleetBadge isDark={isDark} compact />
+                          ) : null}
+                        </View>
                         <Text style={[styles.counterSub, { color: muted }]} numberOfLines={1}>
                           {tier
                             ? `${getTierCapacity(tier)} seats · ${getTierLuggage(tier)} bags`
@@ -1043,10 +1066,18 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  vehicleTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "nowrap",
+  },
   vehicleName: {
     fontSize: 16,
     fontWeight: "700",
     letterSpacing: -0.3,
+    flexShrink: 1,
+    minWidth: 0,
   },
   vehicleMeta: {
     fontSize: 13,
@@ -1152,7 +1183,13 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   carCardThumb: { width: 72, height: 48 },
-  carCardName: { fontSize: 16, fontWeight: "700", letterSpacing: -0.2 },
+  carCardName: {
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+    flexShrink: 1,
+    minWidth: 0,
+  },
   radio: {
     width: 22,
     height: 22,

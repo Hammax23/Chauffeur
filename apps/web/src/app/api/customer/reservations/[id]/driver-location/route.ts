@@ -38,6 +38,8 @@ export async function GET(
             name: true,
             lastLatitude: true,
             lastLongitude: true,
+            lastLocationHeading: true,
+            lastLocationSpeed: true,
             lastLocationUpdatedAt: true,
           },
         },
@@ -82,6 +84,8 @@ export async function GET(
       location: {
         lat: driver!.lastLatitude,
         lng: driver!.lastLongitude,
+        heading: driver!.lastLocationHeading ?? null,
+        speed: driver!.lastLocationSpeed ?? null,
         updatedAt: driver!.lastLocationUpdatedAt?.toISOString() ?? null,
         driverName: driver!.name,
       },

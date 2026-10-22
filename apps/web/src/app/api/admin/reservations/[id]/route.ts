@@ -49,6 +49,12 @@ export async function PUT(
     if (typeof body.status === "string" && ["CANCELLED", "DONE"].includes(body.status)) {
       const { revokeOffersForBooking } = await import("@/lib/live-auto");
       await revokeOffersForBooking(id);
+      try {
+        const { softHideThreadForParticipants } = await import("@/lib/trip-chat");
+        await softHideThreadForParticipants(id);
+      } catch (chatErr) {
+        console.error("[chat] soft-hide on admin status failed", chatErr);
+      }
     }
 
     // Notify any customer subscribed via SSE that this booking changed.

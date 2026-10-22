@@ -1478,6 +1478,8 @@ export async function getDriverLiveLocation(bookingId: string) {
     location: {
       lat: number;
       lng: number;
+      heading?: number | null;
+      speed?: number | null;
       updatedAt: string | null;
       driverName: string;
     } | null;
@@ -1665,6 +1667,30 @@ export type ChatThreadPayload = {
   peer?: ChatPeer | null;
   error?: string;
 };
+
+export type DriverChatThreadRow = {
+  bookingId: string;
+  status: string;
+  canSend: boolean;
+  unreadCount: number;
+  peer: ChatPeer;
+  lastMessage: {
+    body: string;
+    createdAt: string;
+    senderType: ChatSenderType;
+  } | null;
+  serviceDate: string;
+  serviceTime: string;
+};
+
+export async function getDriverChatThreads() {
+  return apiRequest<{
+    success: boolean;
+    threads: DriverChatThreadRow[];
+    totalUnread: number;
+    error?: string;
+  }>("/driver/chat/threads");
+}
 
 export async function getDriverChat(
   bookingId: string,

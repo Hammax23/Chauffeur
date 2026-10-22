@@ -8,6 +8,7 @@ import {
   Alert,
   Pressable,
   Platform,
+  Switch,
 } from "react-native";
 import { useCallback, useState, type ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -37,6 +38,9 @@ type MenuRowProps = {
   chevronColor: string;
   textColor: string;
   mutedColor: string;
+  /** When set, replaces the chevron (e.g. Switch). */
+  right?: ReactNode;
+  hint?: string;
 };
 
 function MenuRow({
@@ -48,25 +52,46 @@ function MenuRow({
   chevronColor,
   textColor,
   mutedColor,
+  right,
+  hint,
 }: MenuRowProps) {
-  return (
-    <View>
-      <Pressable
-        onPress={onPress}
-        style={({ pressed }) => [styles.menuRow, pressed && styles.pressed]}
-      >
-        <View style={[styles.menuIconWrap, danger && styles.menuIconDanger]}>
-          <Ionicons name={icon} size={17} color={danger ? "#FF453A" : GOLD} />
-        </View>
+  const body = (
+    <>
+      <View style={[styles.menuIconWrap, danger && styles.menuIconDanger]}>
+        <Ionicons name={icon} size={17} color={danger ? "#FF453A" : GOLD} />
+      </View>
+      <View style={styles.menuCopy}>
         <Text style={[styles.menuText, { color: danger ? "#FF453A" : textColor }]}>
           {label}
         </Text>
+        {hint ? (
+          <Text style={[styles.menuHint, { color: mutedColor }]} numberOfLines={1}>
+            {hint}
+          </Text>
+        ) : null}
+      </View>
+      {right ?? (
         <Ionicons
           name="chevron-forward"
           size={16}
           color={danger ? "rgba(255,69,58,0.55)" : chevronColor}
         />
-      </Pressable>
+      )}
+    </>
+  );
+
+  return (
+    <View>
+      {onPress ? (
+        <Pressable
+          onPress={onPress}
+          style={({ pressed }) => [styles.menuRow, pressed && styles.pressed]}
+        >
+          {body}
+        </Pressable>
+      ) : (
+        <View style={styles.menuRow}>{body}</View>
+      )}
       {showDivider ? (
         <View style={[styles.rowDivider, { backgroundColor: mutedColor }]} />
       ) : null}
@@ -106,7 +131,7 @@ function MenuGroup({
 
 export default function CustomerProfileScreen() {
   const { user, logout } = useAuth();
-  const { palette, isDark } = useCustomerTheme();
+  const { palette, isDark, setThemeMode } = useCustomerTheme();
   const [showAccountOptions, setShowAccountOptions] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
   const [outstanding, setOutstanding] = useState(0);
@@ -451,6 +476,26 @@ export default function CustomerProfileScreen() {
               {...rowCommon}
             />
             <MenuRow
+              label="Dark mode"
+              icon={isDark ? "moon-outline" : "sunny-outline"}
+              hint={isDark ? "On" : "Off"}
+              showDivider
+              right={
+                <Switch
+                  value={isDark}
+                  onValueChange={(v) => setThemeMode(v ? "dark" : "light")}
+                  trackColor={{
+                    false: isDark ? "rgba(255,255,255,0.18)" : "#D1CDC4",
+                    true: isDark ? GOLD : "#1C1916",
+                  }}
+                  thumbColor="#FFFFFF"
+                  ios_backgroundColor={isDark ? "rgba(255,255,255,0.18)" : "#D1CDC4"}
+                  accessibilityLabel="Dark mode"
+                />
+              }
+              {...rowCommon}
+            />
+            <MenuRow
               label="Logout"
               icon="log-out-outline"
               onPress={handleLogout}
@@ -715,11 +760,19 @@ const styles = StyleSheet.create({
   menuIconDanger: {
     backgroundColor: "rgba(255,69,58,0.12)",
   },
-  menuText: {
+  menuCopy: {
     flex: 1,
+    minWidth: 0,
+  },
+  menuText: {
     fontSize: 15,
     fontWeight: "600",
     letterSpacing: -0.15,
+  },
+  menuHint: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: "500",
   },
   pressed: {
     opacity: 0.78,

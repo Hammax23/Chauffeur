@@ -16,6 +16,33 @@ export function isCustomerTripHistoryLocked(status: string): boolean {
   return status === "DONE" || status === "CANCELLED" || status === "CANCELED";
 }
 
+/** Soft-hide thread from customer + driver apps (admin still sees messages). */
+export async function softHideThreadForParticipants(bookingId: string): Promise<void> {
+  if (!bookingId) return;
+  await prisma.chatThread.updateMany({
+    where: { bookingId, hiddenFromParticipantsAt: null },
+    data: { hiddenFromParticipantsAt: new Date() },
+  });
+}
+
+/** Soft-hide all visible threads for a customer's non-admin-only chat (e.g. deactivate). */
+export async function softHideThreadsForCustomer(customerId: string): Promise<number> {
+  if (!customerId) return 0;
+  const threads = await prisma.chatThread.findMany({
+    where: {
+      hiddenFromParticipantsAt: null,
+      reservation: { customerId },
+    },
+    select: { id: true },
+  });
+  if (threads.length === 0) return 0;
+  const result = await prisma.chatThread.updateMany({
+    where: { id: { in: threads.map((t) => t.id) } },
+    data: { hiddenFromParticipantsAt: new Date() },
+  });
+  return result.count;
+}
+
 const DEFAULT_MESSAGE_LIMIT = 200;
 const MAX_MESSAGE_LIMIT = 500;
 
@@ -157,6 +184,7 @@ export async function listMessagesForBooking(
       chatThread: {
         select: {
           id: true,
+          hiddenFromParticipantsAt: true,
           messages: {
             where: sinceDate ? { createdAt: { gt: sinceDate } } : undefined,
             orderBy: sinceDate ? { createdAt: "asc" } : { createdAt: "desc" },
@@ -206,12 +234,32 @@ export async function listMessagesForBooking(
             }
           : null;
 
-  const canSend = isChatOpen(reservation.status);
+  const hiddenForParticipants = !!reservation.chatThread?.hiddenFromParticipantsAt;
+  const participantViewer =
+    options?.viewerType === "CUSTOMER" || options?.viewerType === "DRIVER";
+  const historyLocked =
+    options?.viewerType === "CUSTOMER" && isCustomerTripHistoryLocked(reservation.status);
+  const hideTranscript = participantViewer && (hiddenForParticipants || historyLocked);
+
+  const canSend =
+    isChatOpen(reservation.status) && !hiddenForParticipants && !historyLocked;
+
   if (!reservation.chatThread) {
     return {
       threadId: null,
       messages: [],
       canSend,
+      status: reservation.status,
+      unreadCount: 0,
+      peer,
+    };
+  }
+
+  if (hideTranscript) {
+    return {
+      threadId: reservation.chatThread.id,
+      messages: [],
+      canSend: false,
       status: reservation.status,
       unreadCount: 0,
       peer,
@@ -267,12 +315,16 @@ export async function postChatMessage(params: {
       assignedDriver: {
         select: { id: true, pushToken: true, name: true },
       },
+      chatThread: { select: { hiddenFromParticipantsAt: true } },
     },
   });
   if (!reservation) {
     throw new Error("NOT_FOUND");
   }
   if (!isChatOpen(reservation.status)) {
+    throw new Error("CHAT_CLOSED");
+  }
+  if (reservation.chatThread?.hiddenFromParticipantsAt) {
     throw new Error("CHAT_CLOSED");
   }
 
@@ -285,6 +337,9 @@ export async function postChatMessage(params: {
   }
 
   const thread = await getOrCreateThread(reservation.id, reservation.bookingId);
+  if (thread.hiddenFromParticipantsAt) {
+    throw new Error("CHAT_CLOSED");
+  }
   const message = await prisma.chatMessage.create({
     data: {
       threadId: thread.id,
@@ -292,6 +347,11 @@ export async function postChatMessage(params: {
       senderId: params.senderId,
       body,
     },
+  });
+  // Bump thread activity so inbox ordering stays fresh.
+  await prisma.chatThread.update({
+    where: { id: thread.id },
+    data: { updatedAt: new Date() },
   });
 
   const dto = serializeMessage(message);
@@ -389,4 +449,108 @@ export async function postChatMessage(params: {
   }
 
   return dto;
+}
+
+export type DriverChatThreadRow = {
+  bookingId: string;
+  status: string;
+  canSend: boolean;
+  unreadCount: number;
+  peer: ChatPeerDto;
+  lastMessage: {
+    body: string;
+    createdAt: string;
+    senderType: ChatSenderType;
+  } | null;
+  serviceDate: string;
+  serviceTime: string;
+};
+
+/** Inbox list for an assigned driver — excludes soft-hidden threads. */
+export async function listDriverChatThreads(driverId: string): Promise<{
+  threads: DriverChatThreadRow[];
+  totalUnread: number;
+}> {
+  const threads = await prisma.chatThread.findMany({
+    where: {
+      hiddenFromParticipantsAt: null,
+      reservation: { assignedDriverId: driverId },
+      messages: { some: {} },
+    },
+    select: {
+      bookingId: true,
+      reservation: {
+        select: {
+          status: true,
+          serviceDate: true,
+          serviceTime: true,
+          firstName: true,
+          lastName: true,
+          customer: { select: { firstName: true, lastName: true, photo: true } },
+        },
+      },
+      messages: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: {
+          body: true,
+          createdAt: true,
+          senderType: true,
+        },
+      },
+      _count: {
+        select: {
+          messages: {
+            where: {
+              senderType: "CUSTOMER",
+              readAt: null,
+            },
+          },
+        },
+      },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  const rows: DriverChatThreadRow[] = threads.map((t) => {
+    const r = t.reservation;
+    const fromCustomer = r.customer
+      ? `${r.customer.firstName} ${r.customer.lastName}`.trim()
+      : "";
+    const fromReservation = `${r.firstName || ""} ${r.lastName || ""}`.trim();
+    const name = fromCustomer || fromReservation || "Customer";
+    const last = t.messages[0] ?? null;
+    return {
+      bookingId: t.bookingId,
+      status: r.status,
+      canSend: isChatOpen(r.status),
+      unreadCount: t._count.messages,
+      peer: {
+        name,
+        photo: r.customer?.photo ?? null,
+      },
+      lastMessage: last
+        ? {
+            body: previewBody(last.body, 120),
+            createdAt: last.createdAt.toISOString(),
+            senderType: last.senderType as ChatSenderType,
+          }
+        : null,
+      serviceDate: r.serviceDate,
+      serviceTime: r.serviceTime,
+    };
+  });
+
+  // Prefer active chats first, then by last activity (already roughly by updatedAt).
+  rows.sort((a, b) => {
+    const aOpen = isChatOpen(a.status) ? 1 : 0;
+    const bOpen = isChatOpen(b.status) ? 1 : 0;
+    if (aOpen !== bOpen) return bOpen - aOpen;
+    const aTs = a.lastMessage?.createdAt ? Date.parse(a.lastMessage.createdAt) : 0;
+    const bTs = b.lastMessage?.createdAt ? Date.parse(b.lastMessage.createdAt) : 0;
+    return bTs - aTs;
+  });
+
+  const totalUnread = rows.reduce((sum, row) => sum + row.unreadCount, 0);
+  return { threads: rows, totalUnread };
 }

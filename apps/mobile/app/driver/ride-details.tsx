@@ -23,6 +23,8 @@ import { dismissPresentedForEntity } from "../../services/notification-deep-link
 import { SlimSpinner } from "../../components/SlimSpinner";
 import { isParcelServiceType, parseParcelRequirements } from "../../utils/parcel";
 import { parseAppStops } from "../../utils/stops";
+import { useDriverTheme } from "../../contexts/DriverThemeContext";
+import { GOLD as THEME_GOLD } from "../../theme/driver-theme";
 
 type RideStatus =
   | "pending"
@@ -35,7 +37,7 @@ type RideStatus =
 
 type StopPeriod = { start: string; end?: string };
 
-const GOLD = "#D4A04A";
+const GOLD = THEME_GOLD;
 const AMBER = "#F5A623";
 const RED = "#E53935";
 const GREEN = "#16A34A";
@@ -113,15 +115,15 @@ function nextActionForStatus(status: RideStatus): { id: string; label: string; i
   switch (status) {
     case "accepted":
     case "pending":
-      return { id: "on_the_way", label: "Start — On The Way", icon: "navigate" };
+      return { id: "on_the_way", label: "On the way", icon: "navigate" };
     case "on_the_way":
-      return { id: "arrived", label: "Mark Arrived", icon: "location" };
+      return { id: "arrived", label: "I've arrived", icon: "location" };
     case "arrived":
-      return { id: "customer_in_car", label: "Customer In Car", icon: "person" };
+      return { id: "customer_in_car", label: "Start trip", icon: "person" };
     case "customer_in_car":
-      return { id: "done", label: "Complete Ride", icon: "checkmark-circle" };
+      return { id: "done", label: "Complete trip", icon: "checkmark-circle" };
     case "stop":
-      return { id: "continue", label: "Continue Trip", icon: "play" };
+      return { id: "continue", label: "Continue trip", icon: "play" };
     default:
       return null;
   }
@@ -129,6 +131,7 @@ function nextActionForStatus(status: RideStatus): { id: string; label: string; i
 
 export default function RideDetailsScreen() {
   const { bookingId, fromNotification } = useLocalSearchParams();
+  const { isDark } = useDriverTheme();
   const id = typeof bookingId === "string" ? bookingId : Array.isArray(bookingId) ? bookingId[0] : "";
   const openedFromStaleNotification =
     fromNotification === "stale" ||
@@ -139,6 +142,7 @@ export default function RideDetailsScreen() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [tick, setTick] = useState(0);
   const [chatUnread, setChatUnread] = useState(0);
+  const [showAllSteps, setShowAllSteps] = useState(false);
 
   const fadeIn = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(28)).current;
@@ -563,23 +567,19 @@ export default function RideDetailsScreen() {
 
           {/* Hero copy */}
           <Animated.View style={[styles.heroCopy, { backgroundColor: flashBg }]}>
-            <Text style={styles.heroEyebrow}>OPEN RIDE</Text>
             <Text style={styles.heroStatus}>{statusMeta.label}</Text>
             <Text style={styles.heroSub}>{statusMeta.subtitle}</Text>
             {openedFromStaleNotification ? (
               <View style={styles.staleNotice}>
                 <Ionicons name="information-circle-outline" size={14} color={GOLD} />
                 <Text style={styles.staleNoticeText}>
-                  This notification is from an earlier update. Showing the current trip status.
+                  Earlier notification — showing current trip status.
                 </Text>
               </View>
             ) : null}
-            <View style={styles.bookingChip}>
-              <Ionicons name="ticket-outline" size={12} color="rgba(255,255,255,0.55)" />
-              <Text style={styles.bookingId} numberOfLines={1}>
-                {ride?.bookingId || "N/A"}
-              </Text>
-            </View>
+            <Text style={styles.bookingIdQuiet} numberOfLines={1}>
+              {ride?.bookingId || "N/A"}
+            </Text>
           </Animated.View>
 
           {/* Horizontal journey progress — glass */}
@@ -950,107 +950,142 @@ export default function RideDetailsScreen() {
                 </View>
               ) : null}
 
-              {/* Detailed status list */}
-              <View style={[styles.card, styles.iosShadow]}>
-                <Text style={styles.cardTitle}>Update status</Text>
-                {statusSteps.map((step, index) => {
-                  const done = stepCompleted(index);
-                  const current = stepCurrent(index);
-                  return (
-                    <TouchableOpacity
-                      key={step.id}
-                      style={[styles.statusRow, current && styles.statusRowCurrent]}
-                      disabled={isOnStop || isUpdating}
-                      onPress={() => handleStatusChange(step.id)}
-                      activeOpacity={0.8}
-                    >
-                      <View
-                        style={[
-                          styles.statusIcon,
-                          done && styles.statusIconDone,
-                          current && styles.statusIconCurrent,
-                        ]}
+              {/* All steps — collapsed by default (Uber: one primary CTA) */}
+              <Pressable
+                onPress={() => setShowAllSteps((v) => !v)}
+                style={({ pressed }) => [styles.allStepsToggle, pressed && { opacity: 0.75 }]}
+              >
+                <Text style={styles.allStepsToggleText}>
+                  {showAllSteps ? "Hide steps" : "All steps"}
+                </Text>
+                <Ionicons
+                  name={showAllSteps ? "chevron-up" : "chevron-down"}
+                  size={16}
+                  color={MUTED}
+                />
+              </Pressable>
+
+              {showAllSteps ? (
+                <View style={[styles.card, styles.iosShadow]}>
+                  {statusSteps.map((step, index) => {
+                    const done = stepCompleted(index);
+                    const current = stepCurrent(index);
+                    return (
+                      <TouchableOpacity
+                        key={step.id}
+                        style={[styles.statusRow, current && styles.statusRowCurrent]}
+                        disabled={isOnStop || isUpdating}
+                        onPress={() => handleStatusChange(step.id)}
+                        activeOpacity={0.8}
                       >
-                        {done && !current ? (
-                          <Ionicons name="checkmark" size={15} color="#fff" />
-                        ) : (
-                          <Ionicons
-                            name={step.icon}
-                            size={15}
-                            color={done || current ? "#fff" : MUTED}
-                          />
-                        )}
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.statusLabel, (done || current) && { color: INK }]}>
-                          {step.label}
-                        </Text>
-                        <Text style={styles.statusHint}>
-                          {current ? "Current" : done ? "Completed" : step.hint}
-                        </Text>
-                      </View>
-                      {current ? (
-                        <View style={styles.nowChip}>
-                          <Text style={styles.nowChipText}>NOW</Text>
+                        <View
+                          style={[
+                            styles.statusIcon,
+                            done && styles.statusIconDone,
+                            current && styles.statusIconCurrent,
+                          ]}
+                        >
+                          {done && !current ? (
+                            <Ionicons name="checkmark" size={15} color="#fff" />
+                          ) : (
+                            <Ionicons
+                              name={step.icon}
+                              size={15}
+                              color={done || current ? "#fff" : MUTED}
+                            />
+                          )}
                         </View>
-                      ) : null}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.statusLabel, (done || current) && { color: INK }]}>
+                            {step.label}
+                          </Text>
+                          <Text style={styles.statusHint}>
+                            {current ? "Current" : done ? "Completed" : step.hint}
+                          </Text>
+                        </View>
+                        {current ? (
+                          <View style={styles.nowChip}>
+                            <Text style={styles.nowChipText}>NOW</Text>
+                          </View>
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : null}
 
               <View style={{ height: nextAction ? 110 : 32 }} />
             </ScrollView>
           </Animated.View>
         </Animated.View>
 
-        {/* Sticky frosted CTA */}
+        {/* Sticky primary CTA */}
         {nextAction && currentStatus !== "done" ? (
-          <View style={styles.ctaDock}>
-            <BlurView intensity={Platform.OS === "ios" ? 55 : 30} tint="light" style={styles.ctaBlur}>
-              <SafeAreaView edges={["bottom"]}>
-                <Animated.View style={{ transform: [{ scale: ctaScale }] }}>
-                  <Pressable
-                    onPressIn={() =>
-                      Animated.spring(ctaScale, {
-                        toValue: 0.97,
-                        useNativeDriver: true,
-                        speed: 40,
-                        bounciness: 0,
-                      }).start()
-                    }
-                    onPressOut={() =>
-                      Animated.spring(ctaScale, {
-                        toValue: 1,
-                        useNativeDriver: true,
-                        speed: 20,
-                        bounciness: 6,
-                      }).start()
-                    }
-                    onPress={onPrimaryCta}
-                    disabled={isUpdating}
-                    style={styles.ctaPress}
+          <View style={[styles.ctaDock, { backgroundColor: isDark ? "#121212" : "#FFFFFF" }]}>
+            <SafeAreaView edges={["bottom"]}>
+              <Animated.View style={{ transform: [{ scale: ctaScale }] }}>
+                <Pressable
+                  onPressIn={() =>
+                    Animated.spring(ctaScale, {
+                      toValue: 0.97,
+                      useNativeDriver: true,
+                      speed: 40,
+                      bounciness: 0,
+                    }).start()
+                  }
+                  onPressOut={() =>
+                    Animated.spring(ctaScale, {
+                      toValue: 1,
+                      useNativeDriver: true,
+                      speed: 20,
+                      bounciness: 6,
+                    }).start()
+                  }
+                  onPress={onPrimaryCta}
+                  disabled={isUpdating}
+                  style={styles.ctaPress}
+                >
+                  <View
+                    style={[
+                      styles.ctaBtn,
+                      {
+                        backgroundColor: isOnStop
+                          ? GREEN
+                          : isDark
+                            ? GOLD
+                            : "#1C1C1E",
+                      },
+                    ]}
                   >
-                    <LinearGradient
-                      colors={isOnStop ? ["#22C55E", "#15803D"] : ["#E8C48A", GOLD, "#B8893A"]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.ctaBtn}
-                    >
-                      {isUpdating ? (
-                        <SlimSpinner size={20} stroke={2} color="#fff" />
-                      ) : (
-                        <>
-                          <Ionicons name={nextAction.icon} size={18} color="#fff" />
-                          <Text style={styles.ctaText}>{nextAction.label}</Text>
-                          <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.85)" />
-                        </>
-                      )}
-                    </LinearGradient>
-                  </Pressable>
-                </Animated.View>
-              </SafeAreaView>
-            </BlurView>
+                    {isUpdating ? (
+                      <SlimSpinner
+                        size={20}
+                        stroke={2}
+                        color={isDark && !isOnStop ? "#1A1208" : "#fff"}
+                      />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name={nextAction.icon}
+                          size={18}
+                          color={isDark && !isOnStop ? "#1A1208" : "#fff"}
+                        />
+                        <Text
+                          style={[
+                            styles.ctaText,
+                            {
+                              color: isDark && !isOnStop ? "#1A1208" : "#fff",
+                            },
+                          ]}
+                        >
+                          {nextAction.label}
+                        </Text>
+                      </>
+                    )}
+                  </View>
+                </Pressable>
+              </Animated.View>
+            </SafeAreaView>
           </View>
         ) : null}
       </SafeAreaView>
@@ -1130,7 +1165,26 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     marginHorizontal: 12,
   },
-  heroEyebrow: { color: GOLD, fontSize: 10, fontWeight: "800", letterSpacing: 1.6, marginBottom: 8 },
+  bookingIdQuiet: {
+    marginTop: 10,
+    color: "rgba(255,255,255,0.45)",
+    fontSize: 12,
+    fontWeight: "500",
+    letterSpacing: 0.2,
+  },
+  allStepsToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    marginBottom: 4,
+  },
+  allStepsToggleText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: MUTED,
+  },
   heroStatus: { color: "#fff", fontSize: 32, fontWeight: "800", letterSpacing: -0.8 },
   heroSub: { color: "rgba(255,255,255,0.55)", fontSize: 14, marginTop: 5, marginBottom: 14, fontWeight: "500" },
   staleNotice: {
@@ -1480,7 +1534,16 @@ const styles = StyleSheet.create({
   statusHint: { fontSize: 11, color: MUTED, marginTop: 1 },
   nowChip: { backgroundColor: GOLD, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   nowChipText: { color: "#fff", fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
-  ctaDock: { position: "absolute", left: 0, right: 0, bottom: 0 },
+  ctaDock: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(0,0,0,0.08)",
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
   ctaBlur: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "rgba(0,0,0,0.08)",

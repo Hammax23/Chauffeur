@@ -45,6 +45,19 @@ export const TIER_DISPLAY_TITLES: Record<string, string> = {
   "exec-sprinter-van-14": "Executive Sprinter",
 };
 
+/** Enterprise VIP badge — Executive SUV, Escalade, Executive Sedan, Mercedes. */
+export const VIP_FLEET_TIER_IDS = new Set([
+  "exec-black-suv",
+  "cadillac-escalade",
+  "exec-black-sedan",
+  "mercedes-s-class",
+]);
+
+export function isVipFleetTier(id: string | undefined | null): boolean {
+  if (!id) return false;
+  return VIP_FLEET_TIER_IDS.has(id);
+}
+
 /** Offline / empty-API fallback (kept in sync with admin seed defaults). */
 export const VEHICLE_TIER_DEFINITIONS: VehicleTierDefinition[] = [
   {
@@ -213,15 +226,25 @@ export function isParcelBlackCarTier(tier: {
   const title = tier.title.trim().toLowerCase().replace(/\s+/g, " ");
   if (tier.id === "black-sedan") return true;
   if (title === "premier black" || title === "premier black car") return true;
+  if (title === "courier vehicle") return true;
   return title === "black car";
 }
+
+/** Parcel-only display name — Ride / Airport / Hourly keep Premier Black Car. */
+export const PARCEL_COURIER_VEHICLE_TITLE = "Courier Vehicle";
+export const PARCEL_COURIER_VEHICLE_SUBTITLE = "Dedicated parcel delivery";
 
 export function filterVehicleTiersForParcel(
   tiers: VehicleTierOption[]
 ): VehicleTierOption[] {
   const matched = tiers.filter(isParcelBlackCarTier);
-  if (matched.length > 0) return matched;
-  return tiers.filter((t) => t.id === "black-sedan");
+  const base =
+    matched.length > 0 ? matched : tiers.filter((t) => t.id === "black-sedan");
+  return base.map((t) => ({
+    ...t,
+    title: PARCEL_COURIER_VEHICLE_TITLE,
+    subtitle: PARCEL_COURIER_VEHICLE_SUBTITLE,
+  }));
 }
 
 /** Uber-style capacity: person icon shows this number. */

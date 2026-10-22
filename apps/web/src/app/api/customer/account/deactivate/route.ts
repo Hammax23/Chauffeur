@@ -69,6 +69,13 @@ export async function POST(req: NextRequest) {
       }),
     ]);
 
+    try {
+      const { softHideThreadsForCustomer } = await import("@/lib/trip-chat");
+      await softHideThreadsForCustomer(customer.id);
+    } catch (chatErr) {
+      console.error("[chat] soft-hide on deactivate failed", chatErr);
+    }
+
     return NextResponse.json({
       success: true,
       message: "Account deactivated",

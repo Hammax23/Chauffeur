@@ -182,45 +182,45 @@ export function DriverRideAlertProvider({ children }: { children: React.ReactNod
           pointerEvents="box-none"
           style={[
             styles.overlay,
-            { paddingTop: Math.max(insets.top, 12) + 8, transform: [{ translateY: slide }] },
+            { paddingTop: Math.max(insets.top, 10) + 6, transform: [{ translateY: slide }] },
           ]}
         >
-          <View style={styles.card}>
-            <View style={styles.cardAccent} />
-            <View style={styles.cardBody}>
-              <View style={styles.cardHeader}>
-                <View style={styles.iconWrap}>
-                  <Ionicons name="car-sport" size={18} color="#1a1a1a" />
-                </View>
-                <View style={styles.headerText}>
-                  <Text style={styles.eyebrow}>
-                    {alert.type === "new_assignment" ? "ASSIGNED TO YOU" : "AVAILABLE NOW"}
-                  </Text>
-                  <Text style={styles.title} numberOfLines={1}>
-                    {alert.title}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={dismissRideAlert}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  accessibilityLabel="Dismiss"
-                >
-                  <Ionicons name="close" size={20} color="rgba(255,255,255,0.55)" />
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.body} numberOfLines={3}>
+          <TouchableOpacity
+            activeOpacity={0.92}
+            onPress={openFromAlert}
+            style={styles.strip}
+            accessibilityRole="button"
+            accessibilityLabel="View offer"
+          >
+            <View style={styles.stripIcon}>
+              <Ionicons name="car-sport" size={18} color="#1A1208" />
+            </View>
+            <View style={styles.stripCopy}>
+              <Text style={styles.stripEyebrow}>
+                {alert.type === "new_assignment" ? "Assigned to you" : "New offer"}
+              </Text>
+              <Text style={styles.stripTitle} numberOfLines={1}>
+                {alert.title}
+              </Text>
+              <Text style={styles.stripBody} numberOfLines={1}>
                 {alert.body}
               </Text>
-              <View style={styles.actions}>
-                <TouchableOpacity style={styles.secondaryBtn} onPress={dismissRideAlert}>
-                  <Text style={styles.secondaryBtnText}>Later</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.primaryBtn} onPress={openFromAlert}>
-                  <Text style={styles.primaryBtnText}>View Reservation</Text>
-                </TouchableOpacity>
-              </View>
             </View>
-          </View>
+            <View style={styles.viewPill}>
+              <Text style={styles.viewPillText}>View</Text>
+            </View>
+            <TouchableOpacity
+              onPress={(e) => {
+                e.stopPropagation?.();
+                dismissRideAlert();
+              }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityLabel="Dismiss"
+              style={styles.dismissBtn}
+            >
+              <Ionicons name="close" size={18} color="rgba(255,255,255,0.45)" />
+            </TouchableOpacity>
+          </TouchableOpacity>
         </Animated.View>
       ) : null}
     </DriverRideAlertContext.Provider>
@@ -249,90 +249,63 @@ const styles = StyleSheet.create({
     zIndex: 1000,
     paddingHorizontal: 14,
   },
-  card: {
-    flexDirection: "row",
-    backgroundColor: "#141414",
-    borderRadius: 16,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(212,160,74,0.35)",
-    shadowColor: "#000",
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 10,
-  },
-  cardAccent: {
-    width: 4,
-    backgroundColor: "#D4A04A",
-  },
-  cardBody: {
-    flex: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  cardHeader: {
+  strip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    marginBottom: 6,
+    gap: 12,
+    backgroundColor: "#121212",
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingLeft: 12,
+    paddingRight: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(212,160,74,0.4)",
+    shadowColor: "#000",
+    shadowOpacity: 0.4,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 12,
   },
-  iconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
+  stripIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: "#D4A04A",
     alignItems: "center",
     justifyContent: "center",
   },
-  headerText: {
-    flex: 1,
-  },
-  eyebrow: {
+  stripCopy: { flex: 1, minWidth: 0 },
+  stripEyebrow: {
     color: "#D4A04A",
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "700",
-    letterSpacing: 0.8,
+    letterSpacing: 0.2,
     marginBottom: 2,
   },
-  title: {
-    color: "#fff",
-    fontSize: 16,
+  stripTitle: {
+    color: "#F5F5F7",
+    fontSize: 15,
     fontWeight: "700",
+    letterSpacing: -0.2,
   },
-  body: {
-    color: "rgba(255,255,255,0.78)",
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 12,
+  stripBody: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: "500",
   },
-  actions: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  secondaryBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
-    alignItems: "center",
-  },
-  secondaryBtnText: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  primaryBtn: {
-    flex: 1.4,
-    paddingVertical: 10,
-    borderRadius: 10,
+  viewPill: {
     backgroundColor: "#D4A04A",
-    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
-  primaryBtnText: {
-    color: "#1a1a1a",
+  viewPillText: {
+    color: "#1A1208",
     fontSize: 13,
     fontWeight: "800",
+  },
+  dismissBtn: {
+    padding: 4,
   },
 });

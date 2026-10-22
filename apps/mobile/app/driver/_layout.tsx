@@ -10,6 +10,7 @@ import {
   AppState,
   type AppStateStatus,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { ensureForegroundLocationPermission, stopDriverLocationTracking } from "../../services/driver-location";
 import { syncDriverLiveTracking } from "../../services/driver-live-session";
 import { useDriverAuth } from "../../contexts/DriverAuthContext";
@@ -96,13 +97,16 @@ export default function DriverLayout() {
   if (locationGranted === false) {
     return (
       <View style={styles.blocker}>
-        <Text style={styles.title}>Location Required</Text>
+        <View style={styles.blockerIcon}>
+          <Ionicons name="location" size={28} color={GOLD} />
+        </View>
+        <Text style={styles.title}>Location required</Text>
         <Text style={styles.subtitle}>
-          Driver app use karne ke liye location ON (Allow while using the app) zaroori hai.
+          Allow location while using the app so you can receive trips and share live tracking.
         </Text>
 
         <TouchableOpacity style={styles.primaryBtn} onPress={requestLocation}>
-          <Text style={styles.primaryBtnText}>Enable Location</Text>
+          <Text style={styles.primaryBtnText}>Enable location</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.secondaryBtn} onPress={() => Linking.openSettings()}>
@@ -116,10 +120,9 @@ export default function DriverLayout() {
     <DriverThemeProvider>
       <DriverRideAlertProvider>
         <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
+          <Stack.Screen name="(tabs)" />
           <Stack.Screen name="ride-details" />
           <Stack.Screen name="chat" />
-          <Stack.Screen name="profile" />
           <Stack.Screen name="reviews" />
           <Stack.Screen name="concierge" />
         </Stack>
@@ -131,50 +134,62 @@ export default function DriverLayout() {
 const styles = StyleSheet.create({
   blocker: {
     flex: 1,
-    padding: 20,
+    padding: 28,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#0b0b0b",
+    backgroundColor: "#070707",
+  },
+  blockerIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "rgba(212,160,74,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 18,
   },
   title: {
-    color: "#fff",
+    color: "#F5F5F7",
     fontSize: 22,
     fontWeight: "800",
+    letterSpacing: -0.4,
     marginBottom: 10,
   },
   subtitle: {
-    color: "rgba(255,255,255,0.75)",
+    color: "rgba(255,255,255,0.55)",
     fontSize: 14,
     textAlign: "center",
-    marginBottom: 18,
-    lineHeight: 20,
+    marginBottom: 24,
+    lineHeight: 21,
+    fontWeight: "500",
+    maxWidth: 300,
   },
   primaryBtn: {
-    backgroundColor: "#D4A04A",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    minWidth: 220,
+    backgroundColor: GOLD,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderRadius: 14,
+    minWidth: 240,
     alignItems: "center",
     marginBottom: 10,
   },
   primaryBtnText: {
-    color: "#111",
+    color: "#1A1208",
     fontSize: 15,
     fontWeight: "800",
   },
   secondaryBtn: {
-    borderColor: "rgba(255,255,255,0.25)",
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    minWidth: 220,
+    borderColor: "rgba(255,255,255,0.16)",
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderRadius: 14,
+    minWidth: 240,
     alignItems: "center",
   },
   secondaryBtnText: {
-    color: "#fff",
+    color: "#F5F5F7",
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "600",
   },
 });

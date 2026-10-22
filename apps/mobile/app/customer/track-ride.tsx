@@ -19,12 +19,21 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { getReservationById, getDriverLiveLocation, getCustomerChat, Reservation, API_BASE_URL } from "../../services/api";
+import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from "react-native-maps";
+import { getReservationById, getDriverLiveLocation, getCustomerChat, Reservation } from "../../services/api";
+import { fetchDirectionsSummary } from "../../services/places";
 import { useReservationStream } from "../../hooks/useReservationStream";
 import type { ReservationStreamStatus } from "../../services/reservation-stream";
+import { decodePolyline } from "../../utils/decode-polyline";
 import { isParcelServiceType } from "../../utils/parcel";
 import { parseAppStops } from "../../utils/stops";
 import { wasReviewPrompted, markReviewPrompted } from "../../utils/review-prompt";
+
+/** Throttle Directions so we don't hammer Google on every GPS tick. */
+const DIRECTIONS_MIN_INTERVAL_MS = 20_000;
+const DIRECTIONS_MIN_MOVE_M = 120;
+/** Soft UX when chauffeur GPS hasn't refreshed recently. */
+const STALE_GPS_MS = 45_000;
 
 // Palette — kept consistent with customer/index.tsx
 const ACCENT = "#C9A063";
@@ -71,18 +80,51 @@ const friendlyStatus = (status: RideStatus) => {
   }
 };
 
-const statusSubtitle = (status: RideStatus) => {
+const statusSubtitle = (status: RideStatus, etaMinutes?: number | null) => {
   switch (status) {
     case "pending": return "Matching you with a chauffeur.";
     case "accepted": return ""; // Title "Driver assigned" is enough
-    case "on_the_way": return "Heading to pickup.";
+    case "on_the_way":
+      if (etaMinutes != null && Number.isFinite(etaMinutes) && etaMinutes >= 0) {
+        return etaMinutes <= 1 ? "Arriving in under a minute." : `Arriving in ~${etaMinutes} min.`;
+      }
+      return "Heading to pickup.";
     case "arrived": return "At the pickup location.";
-    case "customer_in_car": return "Enjoy the ride.";
+    case "customer_in_car":
+      if (etaMinutes != null && Number.isFinite(etaMinutes) && etaMinutes >= 0) {
+        return etaMinutes <= 1 ? "Almost at drop-off." : `About ${etaMinutes} min to drop-off.`;
+      }
+      return "Enjoy the ride.";
     case "stop": return "Trip paused.";
     case "done": return "Thanks for riding with SARJ.";
     case "cancelled": return "This reservation was cancelled.";
     default: return "";
   }
+};
+
+function haversineMeters(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number }
+): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+type DriverLocState = {
+  lat: number;
+  lng: number;
+  heading?: number | null;
+  speed?: number | null;
+  updatedAt: string | null;
+  driverName: string;
 };
 
 const getStatusTone = (status: RideStatus): "neutral" | "info" | "active" | "success" | "warn" => {
@@ -178,13 +220,19 @@ export default function TrackRideScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [chatUnread, setChatUnread] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [driverLoc, setDriverLoc] = useState<{
-    lat: number;
-    lng: number;
-    updatedAt: string | null;
-    driverName: string;
-  } | null>(null);
+  const [driverLoc, setDriverLoc] = useState<DriverLocState | null>(null);
   const [locationSharing, setLocationSharing] = useState<LocationSharingInfo | null>(null);
+  const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
+  const [destCoord, setDestCoord] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
+  const [etaDistanceText, setEtaDistanceText] = useState<string | null>(null);
+  /** Bumps periodically so stale-GPS UX re-evaluates without a new ping. */
+  const [gpsClock, setGpsClock] = useState(0);
+  const liveMapRef = useRef<MapView | null>(null);
+  const lastDirectionsAtRef = useRef(0);
+  const lastDirectionsDriverRef = useRef<{ lat: number; lng: number } | null>(null);
+  const directionsAbortRef = useRef<AbortController | null>(null);
+  const directionsStatusKeyRef = useRef<string>("");
 
   const reload = useCallback(async () => {
     if (!bookingId) {
@@ -249,10 +297,155 @@ export default function TrackRideScreen() {
     setDriverLoc({
       lat: live.location.latitude,
       lng: live.location.longitude,
+      heading: live.location.heading,
+      speed: live.location.speed,
       updatedAt: live.location.updatedAt,
       driverName: reservation.driver?.name || "Driver",
     });
   }, [live.location, reservation?.status, reservation?.driver?.name, locationSharing]);
+
+  // Clear route/ETA when tracking locks or GPS drops.
+  useEffect(() => {
+    if (!locationUnlocked || !driverLoc) {
+      setRouteCoords([]);
+      setDestCoord(null);
+      setEtaSeconds(null);
+      setEtaDistanceText(null);
+      lastDirectionsAtRef.current = 0;
+      lastDirectionsDriverRef.current = null;
+      directionsStatusKeyRef.current = "";
+      directionsAbortRef.current?.abort();
+      directionsAbortRef.current = null;
+    }
+  }, [locationUnlocked, !!driverLoc]);
+
+  // Re-check stale GPS every 15s while the live map is showing.
+  useEffect(() => {
+    if (!locationUnlocked || !driverLoc) return;
+    const id = setInterval(() => setGpsClock((n) => n + 1), 15_000);
+    return () => clearInterval(id);
+  }, [locationUnlocked, !!driverLoc]);
+
+  // Throttled Directions per locked phases:
+  // ON THE WAY → pickup; ARRIVED → no new Directions; CIC/STOP → dropoff.
+  useEffect(() => {
+    if (!locationUnlocked || !driverLoc || !reservation) return;
+
+    const status = reservation.status;
+
+    // ARRIVED: keep last pickup route/pin, freeze ETA, do not spam Directions.
+    if (status === "ARRIVED") {
+      directionsAbortRef.current?.abort();
+      directionsAbortRef.current = null;
+      setEtaSeconds(null);
+      setEtaDistanceText(null);
+      directionsStatusKeyRef.current = `ARRIVED|${reservation.pickupLocation || ""}`;
+      return;
+    }
+
+    const toPickup = status === "ON THE WAY";
+    const toDropoff = status === "CIC" || status === "STOP";
+    if (!toPickup && !toDropoff) {
+      setRouteCoords([]);
+      setDestCoord(null);
+      setEtaSeconds(null);
+      setEtaDistanceText(null);
+      return;
+    }
+
+    const destAddress = (
+      toPickup ? reservation.pickupLocation : reservation.dropoffLocation
+    )?.trim();
+    if (!destAddress || destAddress.length < 3) return;
+
+    const phase = toPickup ? "pickup" : "dropoff";
+    const statusKey = `${phase}|${destAddress}`;
+    const statusChanged = directionsStatusKeyRef.current !== statusKey;
+    const now = Date.now();
+    const lastAt = lastDirectionsAtRef.current;
+    const lastPos = lastDirectionsDriverRef.current;
+    const movedM = lastPos
+      ? haversineMeters(lastPos, { lat: driverLoc.lat, lng: driverLoc.lng })
+      : Infinity;
+    const dueByTime = now - lastAt >= DIRECTIONS_MIN_INTERVAL_MS;
+    const dueByMove = movedM >= DIRECTIONS_MIN_MOVE_M;
+    if (!statusChanged && lastAt > 0 && !dueByTime && !dueByMove) return;
+
+    directionsAbortRef.current?.abort();
+    const ac = new AbortController();
+    directionsAbortRef.current = ac;
+    directionsStatusKeyRef.current = statusKey;
+    lastDirectionsAtRef.current = now;
+    lastDirectionsDriverRef.current = { lat: driverLoc.lat, lng: driverLoc.lng };
+
+    const origin = `${driverLoc.lat.toFixed(6)},${driverLoc.lng.toFixed(6)}`;
+    void (async () => {
+      try {
+        const r = await fetchDirectionsSummary(
+          {
+            origin,
+            destination: destAddress,
+            // etr407 YES = customer allowed tolls; otherwise prefer no-toll route.
+            avoidTolls: !/^(yes|y)$/i.test(String(reservation.etr407 || "").trim()),
+          },
+          ac.signal
+        );
+        if (ac.signal.aborted) return;
+        const decoded = r.polyline ? decodePolyline(r.polyline) : [];
+        setRouteCoords(decoded.length >= 2 ? decoded : []);
+        const lastPt = r.points?.length ? r.points[r.points.length - 1] : null;
+        if (lastPt && Number.isFinite(lastPt.lat) && Number.isFinite(lastPt.lng)) {
+          setDestCoord({ latitude: lastPt.lat, longitude: lastPt.lng });
+        } else if (decoded.length > 0) {
+          const end = decoded[decoded.length - 1];
+          setDestCoord({ latitude: end.latitude, longitude: end.longitude });
+        }
+        setEtaSeconds(
+          typeof r.durationSeconds === "number" && Number.isFinite(r.durationSeconds)
+            ? r.durationSeconds
+            : null
+        );
+        setEtaDistanceText(r.distanceText || null);
+      } catch {
+        if (ac.signal.aborted) return;
+        /* keep previous route/ETA on transient failures */
+      }
+    })();
+
+    return () => {
+      ac.abort();
+    };
+  }, [
+    locationUnlocked,
+    driverLoc?.lat,
+    driverLoc?.lng,
+    reservation?.status,
+    reservation?.pickupLocation,
+    reservation?.dropoffLocation,
+    reservation?.etr407,
+  ]);
+
+  // Fit camera when driver / dest / route change.
+  useEffect(() => {
+    if (!locationUnlocked || !driverLoc || !liveMapRef.current) return;
+    const pts: { latitude: number; longitude: number }[] = [
+      { latitude: driverLoc.lat, longitude: driverLoc.lng },
+    ];
+    if (destCoord) pts.push(destCoord);
+    if (routeCoords.length >= 2) {
+      // Sample polyline ends already covered; include a mid point for better framing.
+      const mid = routeCoords[Math.floor(routeCoords.length / 2)];
+      if (mid) pts.push(mid);
+    }
+    try {
+      liveMapRef.current.fitToCoordinates(pts, {
+        edgePadding: { top: 48, right: 40, bottom: 48, left: 40 },
+        animated: true,
+      });
+    } catch {
+      /* ignore map not ready */
+    }
+  }, [locationUnlocked, driverLoc?.lat, driverLoc?.lng, destCoord?.latitude, destCoord?.longitude, routeCoords.length]);
 
   // Poll driver GPS while eligible — server enforces On-the-Way gate.
   useEffect(() => {
@@ -278,7 +471,14 @@ export default function TrackRideScreen() {
           });
         }
         if (res.success && res.location) {
-          setDriverLoc(res.location);
+          setDriverLoc({
+            lat: res.location.lat,
+            lng: res.location.lng,
+            heading: res.location.heading ?? null,
+            speed: res.location.speed ?? null,
+            updatedAt: res.location.updatedAt,
+            driverName: res.location.driverName,
+          });
         } else {
           // Unlocked with no coords yet, or still locked — don't keep a stale pin.
           setDriverLoc(null);
@@ -477,8 +677,39 @@ export default function TrackRideScreen() {
     [reservation?.statusUpdatedAt, live.lastEventAt]
   );
   const friendly = friendlyStatus(currentStatus);
-  const subtitle = statusSubtitle(currentStatus);
+  const etaMinutes =
+    etaSeconds != null && Number.isFinite(etaSeconds)
+      ? Math.max(0, Math.round(etaSeconds / 60))
+      : null;
+  const gpsStale = useMemo(() => {
+    if (!driverLoc?.updatedAt) return false;
+    const t = new Date(driverLoc.updatedAt).getTime();
+    if (Number.isNaN(t)) return false;
+    return Date.now() - t > STALE_GPS_MS;
+  }, [driverLoc?.updatedAt, live.lastEventAt, gpsClock]);
+  const subtitle = statusSubtitle(
+    currentStatus,
+    locationUnlocked && !gpsStale ? etaMinutes : null
+  );
   const statusTone = getStatusTone(currentStatus);
+  // Locked chip phases; freeze/hide live ETA while GPS is stale.
+  const etaChipLabel = useMemo(() => {
+    if (currentStatus === "arrived") return "Arrived";
+    if (gpsStale) return null;
+    if (etaMinutes == null) return null;
+    if (currentStatus === "on_the_way") {
+      return etaMinutes <= 1 ? "1 min away" : `${etaMinutes} min away`;
+    }
+    if (currentStatus === "customer_in_car" || currentStatus === "stop") {
+      return etaMinutes <= 1 ? "1 min to dropoff" : `${etaMinutes} min to dropoff`;
+    }
+    return null;
+  }, [etaMinutes, currentStatus, gpsStale]);
+  const showEtaDistance =
+    !!etaChipLabel &&
+    !!etaDistanceText &&
+    currentStatus !== "arrived" &&
+    !gpsStale;
 
   if (isLoading) {
     return (
@@ -513,14 +744,6 @@ export default function TrackRideScreen() {
       </LinearGradient>
     );
   }
-
-  const mapUrl = driverLoc
-    ? `${API_BASE_URL}/places/staticmap?${new URLSearchParams({
-        markers: `D:${driverLoc.lat},${driverLoc.lng}`,
-        w: "640",
-        h: "280",
-      }).toString()}`
-    : null;
 
   return (
     <LinearGradient colors={["#f1f4f9", "#fafbfc", "#ffffff"]} locations={[0, 0.38, 1]} style={styles.gradientFill}>
@@ -679,23 +902,131 @@ export default function TrackRideScreen() {
           ) : null}
 
           {/* Live location map — only after chauffeur marks On the Way */}
-          {locationUnlocked && driverLoc && mapUrl ? (
+          {locationUnlocked && driverLoc ? (
             <View style={styles.section}>
               <Text style={styles.sectionEyebrow}>LIVE LOCATION</Text>
-              <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={() =>
-                  Linking.openURL(
-                    `https://www.google.com/maps/search/?api=1&query=${driverLoc.lat},${driverLoc.lng}`
-                  ).catch(() => {})
-                }
-              >
-                <Image source={{ uri: mapUrl }} style={{ width: "100%", height: 180, borderRadius: 14 }} />
-                <Text style={{ marginTop: 8, fontSize: 12, color: SLATE_500 }}>
-                  {driverLoc.driverName} · tap map to open ·{" "}
-                  {formatRelative(driverLoc.updatedAt) || "updating"}
-                </Text>
-              </TouchableOpacity>
+              <View style={styles.liveMapShell}>
+                <MapView
+                  ref={liveMapRef}
+                  style={styles.liveMapView}
+                  provider={PROVIDER_DEFAULT}
+                  initialRegion={{
+                    latitude: driverLoc.lat,
+                    longitude: driverLoc.lng,
+                    latitudeDelta: 0.04,
+                    longitudeDelta: 0.04,
+                  }}
+                  scrollEnabled
+                  zoomEnabled
+                  rotateEnabled={false}
+                  pitchEnabled={false}
+                  showsCompass={false}
+                  showsScale={false}
+                  showsTraffic={false}
+                  showsBuildings
+                  toolbarEnabled={false}
+                  userInterfaceStyle="light"
+                >
+                  {routeCoords.length >= 2 ? (
+                    <>
+                      <Polyline
+                        coordinates={routeCoords}
+                        strokeColor="rgba(255,255,255,0.92)"
+                        strokeWidth={7}
+                        geodesic
+                        lineJoin="round"
+                        lineCap="round"
+                        zIndex={1}
+                      />
+                      <Polyline
+                        coordinates={routeCoords}
+                        strokeColor="#1C1916"
+                        strokeWidth={4}
+                        geodesic
+                        lineJoin="round"
+                        lineCap="round"
+                        zIndex={2}
+                      />
+                    </>
+                  ) : null}
+                  {destCoord ? (
+                    <Marker
+                      coordinate={destCoord}
+                      pinColor={
+                        currentStatus === "customer_in_car" || currentStatus === "stop"
+                          ? ACCENT
+                          : "#10B981"
+                      }
+                      title={
+                        currentStatus === "customer_in_car" || currentStatus === "stop"
+                          ? "Drop-off"
+                          : "Pickup"
+                      }
+                      identifier="track-dest"
+                      zIndex={5}
+                    />
+                  ) : null}
+                  <Marker
+                    coordinate={{ latitude: driverLoc.lat, longitude: driverLoc.lng }}
+                    title={driverLoc.driverName || "Chauffeur"}
+                    identifier="track-driver"
+                    anchor={{ x: 0.5, y: 0.5 }}
+                    flat={typeof driverLoc.heading === "number"}
+                    rotation={
+                      typeof driverLoc.heading === "number" && Number.isFinite(driverLoc.heading)
+                        ? driverLoc.heading
+                        : 0
+                    }
+                    zIndex={20}
+                  >
+                    <View style={styles.driverMarker}>
+                      <View style={styles.driverMarkerInner}>
+                        <Ionicons name="navigate" size={14} color="#111" />
+                      </View>
+                    </View>
+                  </Marker>
+                </MapView>
+
+                {etaChipLabel ? (
+                  <View style={styles.etaChip} pointerEvents="none">
+                    <Ionicons name="time-outline" size={13} color={ACCENT_DARK} />
+                    <Text style={styles.etaChipText}>{etaChipLabel}</Text>
+                    {showEtaDistance ? (
+                      <Text style={styles.etaChipDist}>· {etaDistanceText}</Text>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                <Pressable
+                  style={styles.openMapsBtn}
+                  onPress={() =>
+                    Linking.openURL(
+                      `https://www.google.com/maps/search/?api=1&query=${driverLoc.lat},${driverLoc.lng}`
+                    ).catch(() => {})
+                  }
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open in Google Maps"
+                >
+                  <Ionicons name="open-outline" size={14} color={SLATE_900} />
+                </Pressable>
+              </View>
+
+              <Text style={styles.liveMapMeta}>
+                {driverLoc.driverName}
+                {" · "}
+                {gpsStale
+                  ? `Last updated ${formatRelative(driverLoc.updatedAt) || "earlier"}`
+                  : formatRelative(driverLoc.updatedAt) || "updating"}
+              </Text>
+              {gpsStale ? (
+                <View style={styles.staleNotice}>
+                  <Ionicons name="warning-outline" size={14} color="#B45309" />
+                  <Text style={styles.staleNoticeText}>
+                    Chauffeur GPS hasn’t updated in a while — last known position shown.
+                  </Text>
+                </View>
+              ) : null}
             </View>
           ) : locationUnlocked && reservation?.driver ? (
             <View style={styles.section}>
@@ -1288,6 +1619,105 @@ const styles = StyleSheet.create({
     color: SLATE_400,
     letterSpacing: 2,
     marginBottom: 10,
+  },
+  liveMapShell: {
+    height: 220,
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: "#E8EEF5",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(15,23,42,0.08)",
+  },
+  liveMapView: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  etaChip: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.96)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(15,23,42,0.10)",
+    ...Platform.select({
+      ios: { shadowColor: "#0f172a", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6 },
+      android: { elevation: 2 },
+    }),
+  },
+  etaChipText: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: SLATE_900,
+    letterSpacing: -0.1,
+  },
+  etaChipDist: {
+    fontSize: 11.5,
+    fontWeight: "600",
+    color: SLATE_500,
+  },
+  openMapsBtn: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.96)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(15,23,42,0.10)",
+  },
+  driverMarker: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: ACCENT,
+    ...Platform.select({
+      ios: { shadowColor: "#0f172a", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4 },
+      android: { elevation: 3 },
+    }),
+  },
+  driverMarkerInner: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: ACCENT,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  liveMapMeta: {
+    marginTop: 8,
+    fontSize: 12,
+    color: SLATE_500,
+    fontWeight: "500",
+  },
+  staleNotice: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: "rgba(245,158,11,0.10)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(180,83,9,0.25)",
+  },
+  staleNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
+    color: "#92400E",
+    fontWeight: "500",
   },
   locationLockedCard: {
     flexDirection: "row",

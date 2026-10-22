@@ -312,6 +312,12 @@ export async function PATCH(
       } catch (refErr) {
         console.error("[referral] qualify on DONE failed", refErr);
       }
+      try {
+        const { softHideThreadForParticipants } = await import("@/lib/trip-chat");
+        await softHideThreadForParticipants(bookingId);
+      } catch (chatErr) {
+        console.error("[chat] soft-hide on DONE failed", chatErr);
+      }
     }
 
     await publishReservationFromDb(bookingId, "status_changed");

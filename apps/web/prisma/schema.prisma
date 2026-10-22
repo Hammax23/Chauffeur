@@ -660,15 +660,18 @@ model SeoAuditLog {
 
 /// One chat thread per reservation (Driver ↔ Customer after accept)
 model ChatThread {
-  id            String        @id @default(cuid())
-  reservationId String        @unique
-  bookingId     String        @unique
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  messages      ChatMessage[]
-  reservation   Reservation   @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  id                        String        @id @default(cuid())
+  reservationId             String        @unique
+  bookingId                 String        @unique
+  /// When set, customer + driver APIs hide messages; admin still sees full transcript.
+  hiddenFromParticipantsAt  DateTime?
+  createdAt                 DateTime      @default(now())
+  updatedAt                 DateTime      @updatedAt
+  messages                  ChatMessage[]
+  reservation               Reservation   @relation(fields: [reservationId], references: [id], onDelete: Cascade)
 
   @@index([bookingId])
+  @@index([hiddenFromParticipantsAt])
 }
 
 model ChatMessage {

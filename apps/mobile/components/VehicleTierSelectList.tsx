@@ -6,9 +6,11 @@ import {
   getTierCapacity,
   getTierLuggage,
   getTierSubtitle,
+  isVipFleetTier,
   type VehicleTierOption,
 } from "../data/vehicle-tiers";
 import { GOLD } from "../theme/driver-theme";
+import { VipFleetBadge } from "./VipFleetBadge";
 
 type Props = {
   tiers: VehicleTierOption[];
@@ -91,6 +93,9 @@ export function VehicleTierSelectList({
                 <Text style={[styles.name, { color: textColor }]} numberOfLines={2}>
                   {formatTierDisplayTitle(tier.title)}
                 </Text>
+                {isVipFleetTier(tier.id) ? (
+                  <VipFleetBadge isDark={isDark} compact />
+                ) : null}
                 <View
                   style={styles.capacityBadges}
                   accessibilityLabel={`${getTierCapacity(tier)} passengers, ${getTierLuggage(tier)} luggage`}

@@ -890,7 +890,7 @@ const styles = StyleSheet.create({
   headerTextCol: { flex: 1, minWidth: 0 },
   headerTitle: {
     fontSize: 17,
-    fontWeight: "800",
+    fontWeight: "700",
     color: INK,
     letterSpacing: -0.3,
   },
@@ -975,15 +975,6 @@ const styles = StyleSheet.create({
   bubblePending: { opacity: 0.78 },
   bubbleMine: {
     borderBottomRightRadius: 6,
-    ...Platform.select({
-      ios: {
-        shadowColor: GOLD,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-      },
-      default: {},
-    }),
   },
   bubbleOther: {
     backgroundColor: "#FFFFFF",

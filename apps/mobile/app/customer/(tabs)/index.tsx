@@ -1174,6 +1174,50 @@ export default function CustomerHomeScreen() {
     }
   }, [selectedService, whereRideFor]);
 
+  const startWhereSearch = useCallback(
+    (
+      service: ConciergeServiceId = "ride",
+      opts?: {
+        dropoff?: string;
+        dropoffCoords?: { lat: number; lng: number } | null;
+        dropoffLabel?: string;
+      }
+    ) => {
+      const address = (pickupAddress || pickupLabel).trim();
+      const hasPickup = isUsablePickupLabel(address);
+      const prefDrop = opts?.dropoff?.trim() || "";
+      setSelectedService(service);
+      setWherePickup(hasPickup ? address : "");
+      setWherePickupCoords(coords);
+      setDropoff(prefDrop);
+      setDropoffCoords(opts?.dropoffCoords ?? null);
+      setWhereStops([]);
+      setWhereAirline("");
+      setWhereFlightNumber("");
+      setWhereMeetGreet(false);
+      setWherePickupPlaceLabel("");
+      setWhereDropoffPlaceLabel(
+        prefDrop ? opts?.dropoffLabel?.trim() || prefDrop : ""
+      );
+      setWhereRideFor("me");
+      setWhereHourlyHours(APP_MIN_HOURLY_HOURS);
+      setRouteSuggestions(null);
+      resetWhereVehicleState();
+      // Hourly / no pickup → focus pickup; otherwise dropoff (incl. prefilled Home/Office).
+      const focus: WhereRouteFocus =
+        service === "hourly" || !hasPickup ? "pickup" : "dropoff";
+      routeFocusRef.current = focus;
+      setRouteFocus(focus);
+      setWhereSearching(true);
+    },
+    [pickupAddress, pickupLabel, coords, isUsablePickupLabel, resetWhereVehicleState]
+  );
+
+  /** Idle "Where to?" / Now — always opens Ride Plan (tiles set their own mode). */
+  const launchWhereTo = useCallback(() => {
+    startWhereSearch("ride");
+  }, [startWhereSearch]);
+
   const openRide = useCallback(
     () =>
       router.push({
@@ -1216,17 +1260,16 @@ export default function CustomerHomeScreen() {
 
   const openWithDropoff = useCallback(
     (place: SavedPlace) => {
-      const extra: Record<string, string> = { dropoff: place.address };
-      if (place.lat != null && place.lng != null) {
-        extra.dropoffLat = String(place.lat);
-        extra.dropoffLng = String(place.lng);
-      }
-      router.push({
-        pathname: "/customer/create-reservation",
-        params: bookingParams(extra),
+      startWhereSearch("ride", {
+        dropoff: place.address,
+        dropoffCoords:
+          place.lat != null && place.lng != null
+            ? { lat: place.lat, lng: place.lng }
+            : null,
+        dropoffLabel: place.address,
       });
     },
-    [bookingParams]
+    [startWhereSearch]
   );
 
   const openPlaceModal = useCallback(
@@ -1294,11 +1337,8 @@ export default function CustomerHomeScreen() {
   const useHomePromo = useCallback(async () => {
     if (!homePromo) return;
     await setPendingPromoCode(homePromo.code);
-    router.push({
-      pathname: "/customer/create-reservation",
-      params: bookingParams(),
-    });
-  }, [homePromo, bookingParams]);
+    startWhereSearch("ride");
+  }, [homePromo, startWhereSearch]);
 
   const dismissPromoBanner = useCallback(async () => {
     if (!homePromo) return;
@@ -1369,40 +1409,6 @@ export default function CustomerHomeScreen() {
     ? windowHeight - conciergeSheetH
     : layout.sheetTop;
   mapTopRatioRef.current = effectiveSheetTop / windowHeight;
-
-  const startWhereSearch = useCallback(
-    (service: ConciergeServiceId = "ride") => {
-      const address = (pickupAddress || pickupLabel).trim();
-      const hasPickup = isUsablePickupLabel(address);
-      setSelectedService(service);
-      setWherePickup(hasPickup ? address : "");
-      setWherePickupCoords(coords);
-      setDropoff("");
-      setDropoffCoords(null);
-      setWhereStops([]);
-      setWhereAirline("");
-      setWhereFlightNumber("");
-      setWhereMeetGreet(false);
-      setWherePickupPlaceLabel("");
-      setWhereDropoffPlaceLabel("");
-      setWhereRideFor("me");
-      setWhereHourlyHours(APP_MIN_HOURLY_HOURS);
-      setRouteSuggestions(null);
-      resetWhereVehicleState();
-      // Hourly has no dropoff — focus pickup (or stay on pickup when GPS ready).
-      const focus: WhereRouteFocus =
-        service === "hourly" ? "pickup" : hasPickup ? "dropoff" : "pickup";
-      routeFocusRef.current = focus;
-      setRouteFocus(focus);
-      setWhereSearching(true);
-    },
-    [pickupAddress, pickupLabel, coords, isUsablePickupLabel, resetWhereVehicleState]
-  );
-
-  /** Idle "Where to?" bar always opens Ride Plan (tiles set their own mode). */
-  const launchWhereTo = useCallback(() => {
-    startWhereSearch("ride");
-  }, [startWhereSearch]);
 
   const onConciergeServicePress = useCallback(
     (id: ConciergeServiceId) => {
@@ -2545,7 +2551,7 @@ export default function CustomerHomeScreen() {
                       </Text>
                     </Pressable>
                     <Pressable
-                      onPress={openRide}
+                      onPress={launchWhereTo}
                       style={({ pressed }) => [
                         styles.conciergeNowPill,
                         {

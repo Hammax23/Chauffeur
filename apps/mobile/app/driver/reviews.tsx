@@ -4,15 +4,10 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  StatusBar,
   Pressable,
-  Platform,
   RefreshControl,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -21,6 +16,8 @@ import {
 } from "../../services/api";
 import { useDriverTheme } from "../../contexts/DriverThemeContext";
 import { GOLD } from "../../theme/driver-theme";
+import { DriverScreenShell } from "../../components/driver/DriverScreenShell";
+import { DriverEmptyState } from "../../components/driver/DriverEmptyState";
 
 function StarsRow({ stars }: { stars: number }) {
   return (
@@ -39,8 +36,7 @@ function StarsRow({ stars }: { stars: number }) {
 
 export default function DriverReviewsScreen() {
   const { palette } = useDriverTheme();
-  const blurIntensity = Platform.OS === "ios" ? 48 : 28;
-  const cardBlur = Platform.OS === "ios" ? 36 : 22;
+  const surface = palette.cardSurface;
 
   const [reviews, setReviews] = useState<DriverTripReviewItem[]>([]);
   const [average, setAverage] = useState(5);
@@ -87,204 +83,185 @@ export default function DriverReviewsScreen() {
   );
 
   return (
-    <View style={[styles.root, { backgroundColor: palette.root }]}>
-      <StatusBar barStyle={palette.statusBar} backgroundColor={palette.root} />
-      <LinearGradient colors={[...palette.bg]} style={StyleSheet.absoluteFill} />
+    <DriverScreenShell>
+      <View style={styles.header}>
+        <Pressable
+          onPress={() => router.back()}
+          style={({ pressed }) => [
+            styles.iconBtn,
+            {
+              backgroundColor: palette.softFill,
+              borderColor: palette.border,
+              opacity: pressed ? 0.8 : 1,
+            },
+          ]}
+        >
+          <Ionicons name="chevron-back" size={22} color={palette.icon} />
+        </Pressable>
+        <Text style={[styles.headerTitle, { color: palette.text }]}>Reviews</Text>
+        <View style={{ width: 40 }} />
+      </View>
 
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <View style={styles.header}>
-          <Pressable
-            onPress={() => router.back()}
-            style={({ pressed }) => [styles.backWrap, pressed && styles.pressed]}
-          >
-            <BlurView
-              intensity={blurIntensity}
-              tint={palette.blurTint}
-              style={[styles.backBtn, { borderColor: palette.glassBorder }]}
-            >
-              <Ionicons name="chevron-back" size={22} color={palette.icon} />
-            </BlurView>
-          </Pressable>
-          <Text style={[styles.headerTitle, { color: palette.text }]}>Reviews</Text>
-          <View style={{ width: 40 }} />
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void load({ refresh: true })}
+            tintColor={GOLD}
+          />
+        }
+      >
+        <View
+          style={[
+            styles.summaryCard,
+            { borderColor: palette.border, backgroundColor: surface },
+          ]}
+        >
+          <View style={styles.summaryLeft}>
+            <Text style={[styles.summaryAvg, { color: palette.text }]}>
+              {average.toFixed(1)}
+            </Text>
+            <StarsRow stars={Math.round(average)} />
+            <Text style={[styles.summaryCount, { color: palette.muted }]}>
+              {count === 0
+                ? "No reviews yet"
+                : `${count} review${count === 1 ? "" : "s"}`}
+            </Text>
+          </View>
+          <View style={[styles.summaryIcon, { backgroundColor: palette.metaChipBg }]}>
+            <Ionicons name="star" size={26} color={GOLD} />
+          </View>
         </View>
 
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => void load({ refresh: true })}
-              tintColor={GOLD}
-            />
-          }
-        >
-          <BlurView
-            intensity={cardBlur}
-            tint={palette.blurTint}
-            style={[
-              styles.summaryCard,
-              {
-                borderColor: palette.border,
-                backgroundColor: Platform.OS === "android" ? palette.cardAndroid : "transparent",
-              },
-            ]}
-          >
-            <View style={styles.summaryLeft}>
-              <Text style={[styles.summaryAvg, { color: palette.text }]}>
-                {average.toFixed(1)}
-              </Text>
-              <StarsRow stars={Math.round(average)} />
-              <Text style={[styles.summaryCount, { color: palette.muted }]}>
-                {count === 0
-                  ? "No reviews yet"
-                  : `${count} review${count === 1 ? "" : "s"}`}
-              </Text>
-            </View>
-            <View style={styles.summaryIcon}>
-              <Ionicons name="star" size={28} color={GOLD} />
-            </View>
-          </BlurView>
+        <Text style={[styles.sectionLabel, { color: palette.muted }]}>From customers</Text>
 
-          <Text style={[styles.sectionEyebrow, { color: GOLD }]}>FROM CUSTOMERS</Text>
-
-          {loading ? (
-            <ActivityIndicator color={GOLD} style={{ marginTop: 40 }} />
-          ) : error ? (
-            <Text style={[styles.emptyText, { color: palette.muted }]}>{error}</Text>
-          ) : reviews.length === 0 ? (
-            <Text style={[styles.emptyText, { color: palette.muted }]}>
-              When customers rate completed trips, their feedback appears here.
-            </Text>
-          ) : (
-            reviews.map((r) => (
-              <Pressable
-                key={r.id}
-                onPress={() =>
-                  router.push({
-                    pathname: "/driver/ride-details",
-                    params: { bookingId: r.bookingId },
-                  })
-                }
-                style={({ pressed }) => [pressed && styles.pressed]}
-              >
-                <BlurView
-                  intensity={cardBlur}
-                  tint={palette.blurTint}
-                  style={[
-                    styles.reviewCard,
-                    {
-                      borderColor: palette.border,
-                      backgroundColor:
-                        Platform.OS === "android" ? palette.cardAndroid : "transparent",
-                    },
-                  ]}
-                >
-                  <View style={styles.reviewTop}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.customerName, { color: palette.text }]}>
-                        {r.customerName}
-                      </Text>
-                      <Text style={[styles.tripMeta, { color: palette.muted }]} numberOfLines={1}>
-                        {r.bookingId}
-                        {r.serviceDate ? ` · ${r.serviceDate}` : ""}
-                      </Text>
-                    </View>
-                    <StarsRow stars={r.stars} />
-                  </View>
-                  {r.comment ? (
-                    <Text style={[styles.comment, { color: palette.text }]}>{r.comment}</Text>
-                  ) : (
-                    <Text style={[styles.commentMuted, { color: palette.muted }]}>
-                      No written comment
-                    </Text>
-                  )}
-                  <Text style={[styles.routeLine, { color: palette.muted }]} numberOfLines={1}>
-                    {r.pickupShort} → {r.dropoffShort}
-                  </Text>
-                </BlurView>
-              </Pressable>
-            ))
-          )}
-
-          {nextCursor ? (
+        {loading ? (
+          <ActivityIndicator color={GOLD} style={{ marginTop: 40 }} />
+        ) : error ? (
+          <Text style={[styles.emptyText, { color: palette.muted }]}>{error}</Text>
+        ) : reviews.length === 0 ? (
+          <DriverEmptyState
+            icon="star-outline"
+            title="No reviews yet"
+            subtitle="When customers rate completed trips, their feedback appears here."
+          />
+        ) : (
+          reviews.map((r) => (
             <Pressable
-              style={({ pressed }) => [styles.loadMore, pressed && styles.pressed]}
-              onPress={() => void load({ cursor: nextCursor })}
-              disabled={loadingMore}
+              key={r.id}
+              onPress={() =>
+                router.push({
+                  pathname: "/driver/ride-details",
+                  params: { bookingId: r.bookingId },
+                })
+              }
+              style={({ pressed }) => [
+                styles.reviewCard,
+                {
+                  borderColor: palette.border,
+                  backgroundColor: surface,
+                  opacity: pressed ? 0.9 : 1,
+                },
+              ]}
             >
-              {loadingMore ? (
-                <ActivityIndicator color={GOLD} />
+              <View style={styles.reviewTop}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[styles.customerName, { color: palette.text }]}>
+                    {r.customerName}
+                  </Text>
+                  <Text style={[styles.tripMeta, { color: palette.muted }]} numberOfLines={1}>
+                    {r.bookingId}
+                    {r.serviceDate ? ` · ${r.serviceDate}` : ""}
+                  </Text>
+                </View>
+                <StarsRow stars={r.stars} />
+              </View>
+              {r.comment ? (
+                <Text style={[styles.comment, { color: palette.text }]}>{r.comment}</Text>
               ) : (
-                <Text style={styles.loadMoreText}>Load more</Text>
+                <Text style={[styles.commentMuted, { color: palette.muted }]}>
+                  No written comment
+                </Text>
               )}
+              <Text style={[styles.routeLine, { color: palette.muted }]} numberOfLines={1}>
+                {r.pickupShort} → {r.dropoffShort}
+              </Text>
             </Pressable>
-          ) : null}
+          ))
+        )}
 
-          <View style={{ height: 40 }} />
-        </ScrollView>
-      </SafeAreaView>
-    </View>
+        {nextCursor ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.loadMore,
+              { borderColor: palette.border },
+              pressed && { opacity: 0.8 },
+            ]}
+            onPress={() => void load({ cursor: nextCursor })}
+            disabled={loadingMore}
+          >
+            {loadingMore ? (
+              <ActivityIndicator color={GOLD} />
+            ) : (
+              <Text style={[styles.loadMoreText, { color: palette.text }]}>Load more</Text>
+            )}
+          </Pressable>
+        ) : null}
+      </ScrollView>
+    </DriverScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  safeArea: { flex: 1 },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 18,
+    paddingTop: 8,
+    marginBottom: 8,
   },
-  backWrap: { borderRadius: 20, overflow: "hidden" },
-  backBtn: {
+  iconBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: StyleSheet.hairlineWidth,
-    overflow: "hidden",
   },
-  headerTitle: { fontSize: 17, fontWeight: "700" },
-  content: { paddingHorizontal: 16, paddingTop: 8 },
-  pressed: { opacity: 0.85 },
+  headerTitle: { fontSize: 17, fontWeight: "700", letterSpacing: -0.2 },
+  content: { paddingHorizontal: 18, paddingBottom: 40 },
   summaryCard: {
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 18,
     borderWidth: StyleSheet.hairlineWidth,
     padding: 18,
-    marginBottom: 22,
-    overflow: "hidden",
+    marginBottom: 18,
   },
-  summaryLeft: { flex: 1, gap: 6 },
-  summaryAvg: { fontSize: 40, fontWeight: "800", letterSpacing: -1 },
-  summaryCount: { fontSize: 13, fontWeight: "500" },
+  summaryLeft: { flex: 1 },
+  summaryAvg: { fontSize: 40, fontWeight: "800", letterSpacing: -1.2 },
+  starsRow: { flexDirection: "row", gap: 3, marginTop: 6 },
+  summaryCount: { marginTop: 8, fontSize: 13, fontWeight: "500" },
   summaryIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: "rgba(201,160,99,0.15)",
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
   },
-  starsRow: { flexDirection: "row", gap: 3 },
-  sectionEyebrow: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1.2,
-    marginBottom: 12,
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 10,
   },
   reviewCard: {
     borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
     padding: 14,
     marginBottom: 10,
-    overflow: "hidden",
   },
   reviewTop: {
     flexDirection: "row",
@@ -292,26 +269,18 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 8,
   },
-  customerName: { fontSize: 15, fontWeight: "700" },
-  tripMeta: { fontSize: 12, marginTop: 2 },
-  comment: { fontSize: 14, lineHeight: 20, marginBottom: 8 },
-  commentMuted: { fontSize: 13, fontStyle: "italic", marginBottom: 8 },
-  routeLine: { fontSize: 12 },
-  emptyText: {
-    textAlign: "center",
-    marginTop: 32,
-    fontSize: 14,
-    lineHeight: 20,
-    paddingHorizontal: 20,
-  },
+  customerName: { fontSize: 16, fontWeight: "700", letterSpacing: -0.2 },
+  tripMeta: { fontSize: 12, marginTop: 2, fontWeight: "500" },
+  comment: { fontSize: 14, lineHeight: 20, fontWeight: "500" },
+  commentMuted: { fontSize: 13, fontStyle: "italic" },
+  routeLine: { marginTop: 10, fontSize: 12, fontWeight: "500" },
+  emptyText: { textAlign: "center", marginTop: 24, fontSize: 14 },
   loadMore: {
-    alignItems: "center",
+    marginTop: 8,
     paddingVertical: 14,
-    marginTop: 4,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
   },
-  loadMoreText: {
-    color: GOLD,
-    fontWeight: "700",
-    fontSize: 14,
-  },
+  loadMoreText: { fontSize: 14, fontWeight: "700" },
 });

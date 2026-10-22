@@ -1,24 +1,23 @@
-import { useCallback } from "react";
+import { useCallback, type ReactNode } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  StatusBar,
   Image,
   Alert,
   Pressable,
-  Platform,
   Linking,
+  Platform,
+  Switch,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useDriverAuth } from "../../contexts/DriverAuthContext";
-import { useDriverTheme } from "../../contexts/DriverThemeContext";
-import { GOLD } from "../../theme/driver-theme";
+import { useDriverAuth } from "../../../contexts/DriverAuthContext";
+import { useDriverTheme } from "../../../contexts/DriverThemeContext";
+import { GOLD } from "../../../theme/driver-theme";
+import { DriverScreenShell } from "../../../components/driver/DriverScreenShell";
 
 const SITE = "https://sarjworldwide.ca";
 
@@ -30,9 +29,10 @@ type MenuRowProps = {
   chevronColor: string;
   textColor: string;
   borderColor: string;
-  cardBg: string;
-  blurTint: "light" | "dark";
-  blurIntensity: number;
+  surface: string;
+  /** When set, replaces the chevron (e.g. Switch). */
+  right?: ReactNode;
+  hint?: string;
 };
 
 function MenuRow({
@@ -43,41 +43,43 @@ function MenuRow({
   chevronColor,
   textColor,
   borderColor,
-  cardBg,
-  blurTint,
-  blurIntensity,
+  surface,
+  right,
+  hint,
 }: MenuRowProps) {
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.menuWrap, pressed && styles.pressed]}
+      disabled={!onPress}
+      style={({ pressed }) => [
+        styles.menuItem,
+        {
+          borderColor,
+          backgroundColor: surface,
+          opacity: pressed && onPress ? 0.88 : 1,
+        },
+      ]}
     >
-      <BlurView
-        intensity={blurIntensity}
-        tint={blurTint}
-        style={[
-          styles.menuItem,
-          {
-            borderColor,
-            backgroundColor: Platform.OS === "android" ? cardBg : "transparent",
-          },
-        ]}
-      >
-        <View style={[styles.menuIconWrap, danger && styles.menuIconDanger]}>
-          <Ionicons name={icon} size={18} color={danger ? "#FF453A" : GOLD} />
-        </View>
+      <View style={[styles.menuIconWrap, danger && styles.menuIconDanger]}>
+        <Ionicons name={icon} size={18} color={danger ? "#FF453A" : GOLD} />
+      </View>
+      <View style={styles.menuCopy}>
         <Text style={[styles.menuText, { color: danger ? "#FF453A" : textColor }]}>{label}</Text>
+        {hint ? (
+          <Text style={[styles.menuHint, { color: chevronColor }]}>{hint}</Text>
+        ) : null}
+      </View>
+      {right ?? (
         <Ionicons name="chevron-forward" size={18} color={danger ? "#FF453A" : chevronColor} />
-      </BlurView>
+      )}
     </Pressable>
   );
 }
 
 export default function DriverProfileScreen() {
   const { driver, logout, refreshProfile } = useDriverAuth();
-  const { palette } = useDriverTheme();
-  const blurIntensity = Platform.OS === "ios" ? 48 : 28;
-  const cardBlur = Platform.OS === "ios" ? 36 : 22;
+  const { palette, isDark, setThemeMode } = useDriverTheme();
+  const surface = palette.cardSurface;
 
   useFocusEffect(
     useCallback(() => {
@@ -117,54 +119,22 @@ export default function DriverProfileScreen() {
   ];
 
   return (
-    <View style={[styles.root, { backgroundColor: palette.root }]}>
-      <StatusBar barStyle={palette.statusBar} backgroundColor={palette.root} />
-      <LinearGradient colors={[...palette.bg]} style={StyleSheet.absoluteFill} />
-      <View style={styles.ambientGlow} pointerEvents="none">
-        <LinearGradient
-          colors={[...palette.glow]}
-          style={StyleSheet.absoluteFill}
-          start={{ x: 0.15, y: 0 }}
-          end={{ x: 0.85, y: 0.5 }}
-        />
-      </View>
-
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <DriverScreenShell>
         <ScrollView
           style={styles.container}
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
         >
-          {/* Header */}
           <View style={styles.header}>
-            <Pressable
-              onPress={() => router.back()}
-              style={({ pressed }) => [styles.glassCircleWrap, pressed && styles.pressed]}
-              accessibilityLabel="Go back"
-            >
-              <BlurView
-                intensity={blurIntensity}
-                tint={palette.blurTint}
-                style={[styles.glassCircle, { borderColor: palette.glassBorder }]}
-              >
-                <Ionicons name="chevron-back" size={22} color={palette.icon} />
-              </BlurView>
-            </Pressable>
-
-            <Text style={[styles.headerTitle, { color: palette.text }]}>Profile</Text>
-
-            <View style={styles.headerSpacer} />
+            <Text style={[styles.pageTitle, { color: palette.text }]}>Profile</Text>
           </View>
 
-          {/* Hero */}
-          <BlurView
-            intensity={cardBlur}
-            tint={palette.blurTint}
+          <View
             style={[
               styles.heroCard,
               {
                 borderColor: palette.border,
-                backgroundColor: Platform.OS === "android" ? palette.cardAndroid : "transparent",
+                backgroundColor: surface,
               },
             ]}
           >
@@ -219,18 +189,15 @@ export default function DriverProfileScreen() {
                 <Text style={[styles.statLabel, { color: palette.muted }]}>Status</Text>
               </View>
             </View>
-          </BlurView>
+          </View>
 
-          {/* Details */}
-          <Text style={[styles.sectionEyebrow, { color: GOLD }]}>DETAILS</Text>
-          <BlurView
-            intensity={cardBlur}
-            tint={palette.blurTint}
+          <Text style={[styles.sectionEyebrow, { color: palette.muted }]}>Details</Text>
+          <View
             style={[
               styles.infoCard,
               {
                 borderColor: palette.border,
-                backgroundColor: Platform.OS === "android" ? palette.cardAndroid : "transparent",
+                backgroundColor: surface,
               },
             ]}
           >
@@ -251,15 +218,14 @@ export default function DriverProfileScreen() {
                   </View>
                   <Text style={[styles.infoLabel, { color: palette.muted }]}>{row.label}</Text>
                 </View>
-                <Text style={styles.infoValue} numberOfLines={1}>
+                <Text style={[styles.infoValue, { color: palette.text }]} numberOfLines={1}>
                   {row.value}
                 </Text>
               </View>
             ))}
-          </BlurView>
+          </View>
 
-          {/* Menu */}
-          <Text style={[styles.sectionEyebrow, { color: GOLD }]}>ACCOUNT</Text>
+          <Text style={[styles.sectionEyebrow, { color: palette.muted }]}>Account</Text>
           <View style={styles.menuList}>
             <MenuRow
               label="Customer reviews"
@@ -268,13 +234,33 @@ export default function DriverProfileScreen() {
               chevronColor={palette.menuChevron}
               textColor={palette.text}
               borderColor={palette.border}
-              cardBg={palette.cardAndroid}
-              blurTint={palette.blurTint}
-              blurIntensity={cardBlur}
+              surface={surface}
+            />
+            <MenuRow
+              label="Dark mode"
+              icon={isDark ? "moon-outline" : "sunny-outline"}
+              hint={isDark ? "On" : "Off"}
+              chevronColor={palette.menuChevron}
+              textColor={palette.text}
+              borderColor={palette.border}
+              surface={surface}
+              right={
+                <Switch
+                  value={isDark}
+                  onValueChange={(v) => setThemeMode(v ? "dark" : "light")}
+                  trackColor={{
+                    false: isDark ? "rgba(255,255,255,0.18)" : "#D1CDC4",
+                    true: isDark ? GOLD : "#1C1916",
+                  }}
+                  thumbColor="#FFFFFF"
+                  ios_backgroundColor={isDark ? "rgba(255,255,255,0.18)" : "#D1CDC4"}
+                  accessibilityLabel="Dark mode"
+                />
+              }
             />
           </View>
 
-          <Text style={[styles.sectionEyebrow, { color: GOLD }]}>SUPPORT</Text>
+          <Text style={[styles.sectionEyebrow, { color: palette.muted }]}>Support</Text>
           <View style={styles.menuList}>
             <MenuRow
               label="Privacy Policy"
@@ -285,9 +271,7 @@ export default function DriverProfileScreen() {
               chevronColor={palette.menuChevron}
               textColor={palette.text}
               borderColor={palette.border}
-              cardBg={palette.cardAndroid}
-              blurTint={palette.blurTint}
-              blurIntensity={cardBlur}
+              surface={surface}
             />
             <MenuRow
               label="Terms & Conditions"
@@ -298,9 +282,7 @@ export default function DriverProfileScreen() {
               chevronColor={palette.menuChevron}
               textColor={palette.text}
               borderColor={palette.border}
-              cardBg={palette.cardAndroid}
-              blurTint={palette.blurTint}
-              blurIntensity={cardBlur}
+              surface={surface}
             />
             <MenuRow
               label="Contact Us"
@@ -309,9 +291,7 @@ export default function DriverProfileScreen() {
               chevronColor={palette.menuChevron}
               textColor={palette.text}
               borderColor={palette.border}
-              cardBg={palette.cardAndroid}
-              blurTint={palette.blurTint}
-              blurIntensity={cardBlur}
+              surface={surface}
             />
             <MenuRow
               label="Logout"
@@ -321,14 +301,11 @@ export default function DriverProfileScreen() {
               chevronColor={palette.menuChevron}
               textColor={palette.text}
               borderColor={palette.border}
-              cardBg={palette.cardAndroid}
-              blurTint={palette.blurTint}
-              blurIntensity={cardBlur}
+              surface={surface}
             />
           </View>
         </ScrollView>
-      </SafeAreaView>
-    </View>
+    </DriverScreenShell>
   );
 }
 
@@ -352,26 +329,24 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingHorizontal: 18,
-    paddingTop: 8,
-    paddingBottom: 48,
+    paddingTop: 10,
+    paddingBottom: 110,
   },
   header: {
-    flexDirection: "row",
+    marginBottom: 18,
+  },
+  pageTitle: {
+    fontSize: 28,
+    fontWeight: "800",
+    letterSpacing: -0.8,
+  },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 20,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    letterSpacing: -0.2,
-  },
-  headerSpacer: {
-    width: 44,
-    height: 44,
-  },
-  glassCircleWrap: {
-    borderRadius: 22,
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
   },
   glassCircle: {
     width: 44,
@@ -460,11 +435,12 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   sectionEyebrow: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1.5,
+    fontSize: 13,
+    fontWeight: "600",
+    letterSpacing: -0.1,
     marginBottom: 10,
-    marginLeft: 4,
+    marginLeft: 2,
+    marginTop: 8,
   },
   infoCard: {
     borderRadius: 20,
@@ -507,9 +483,6 @@ const styles = StyleSheet.create({
   menuList: {
     gap: 10,
   },
-  menuWrap: {
-    borderRadius: 16,
-  },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -517,8 +490,17 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 14,
     borderRadius: 16,
-    overflow: "hidden",
     borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 8,
+  },
+  menuCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  menuHint: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: "500",
   },
   menuIconWrap: {
     width: 34,
@@ -532,7 +514,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,69,58,0.12)",
   },
   menuText: {
-    flex: 1,
     fontSize: 15,
     fontWeight: "600",
   },
