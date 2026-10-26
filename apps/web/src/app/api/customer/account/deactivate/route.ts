@@ -70,6 +70,13 @@ export async function POST(req: NextRequest) {
     ]);
 
     try {
+      const { deleteAllPushDevicesForUser } = await import("@/lib/push-devices");
+      await deleteAllPushDevicesForUser("CUSTOMER", customer.id);
+    } catch (pushErr) {
+      console.error("[push] wipe devices on deactivate failed", pushErr);
+    }
+
+    try {
       const { softHideThreadsForCustomer } = await import("@/lib/trip-chat");
       await softHideThreadsForCustomer(customer.id);
     } catch (chatErr) {

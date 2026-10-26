@@ -3,7 +3,10 @@
  * Source of truth is GET /driver/rides?tab=upcoming — no separate local "session" flag.
  */
 import { getDriverRides } from "./api";
-import { startDriverLocationTracking, stopDriverLocationTracking } from "./driver-location";
+import {
+  ensureDriverLocationHealthy,
+  stopDriverLocationTracking,
+} from "./driver-location";
 
 /** Reservation statuses where the driver is actively serving the trip (Uber-style live leg). */
 export const LIVE_RIDE_STATUSES = new Set(["ON THE WAY", "ARRIVED", "CIC", "STOP"]);
@@ -19,7 +22,8 @@ export async function syncLiveTrackingFromRideList(
   try {
     const hasLiveRide = rides.some((r) => rideNeedsLiveTracking(r.status));
     if (hasLiveRide) {
-      await startDriverLocationTracking();
+      // ensure* also restarts if OEM killed the BG task mid-trip.
+      await ensureDriverLocationHealthy();
     } else {
       await stopDriverLocationTracking();
     }

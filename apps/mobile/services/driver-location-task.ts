@@ -9,7 +9,8 @@ import { updateDriverLocation } from "./api";
 export const DRIVER_BG_TASK_NAME = "sarj-driver-live-location";
 
 let lastBgSentAt = 0;
-const BG_MIN_INTERVAL_MS = 8000;
+/** Keep posts flowing while stationary (paired with distanceInterval: 0 on the native task). */
+const BG_MIN_INTERVAL_MS = 4000;
 
 async function postFromLocation(loc: LocationObject) {
   const { latitude, longitude, accuracy, heading, speed } = loc.coords;

@@ -26,6 +26,8 @@ import PlacesAutocomplete from "@/components/PlacesAutocomplete";
 import RouteMap from "@/components/RouteMap";
 import {
   APP_GRATUITY_PERCENTS,
+  APP_HOURLY_DURATIONS,
+  APP_MIN_HOURLY_HOURS,
   STOP_CHARGE,
   CHILD_SEAT_CHARGE,
   MEET_GREET_CHARGE,
@@ -98,7 +100,7 @@ function getVehicleRideFare(
 export default function CustomReservationForm() {
   const [bookingMode, setBookingMode] = useState<"distance" | "hourly">("distance");
   const [serviceType, setServiceType] = useState("Point-to-Point transportation");
-  const [hourlyDuration, setHourlyDuration] = useState(3);
+  const [hourlyDuration, setHourlyDuration] = useState(APP_MIN_HOURLY_HOURS);
   const [selectedVehicle, setSelectedVehicle] = useState("");
   const [reservationFleet, setReservationFleet] = useState<FleetVehicle[]>(fleetData);
   const [pricingDefaults, setPricingDefaults] = useState({
@@ -731,7 +733,7 @@ export default function CustomReservationForm() {
                   }}
                   className="w-full py-1.5 bg-transparent text-[15px] text-gray-900 focus:outline-none"
                 >
-                  {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((h) => (
+                  {APP_HOURLY_DURATIONS.map((h) => (
                     <option key={h} value={h}>
                       {h} hours
                     </option>

@@ -35,6 +35,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: false, error: "Customer not found" }, { status: 404 });
     }
 
+    if (action === "block") {
+      try {
+        const { deleteAllPushDevicesForUser } = await import("@/lib/push-devices");
+        await deleteAllPushDevicesForUser("CUSTOMER", id);
+      } catch (pushErr) {
+        console.error("[push] wipe devices on block failed", pushErr);
+      }
+    }
+
     const updated = await prisma.customer.update({
       where: { id },
       data:

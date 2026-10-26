@@ -20,7 +20,7 @@ import {
 import {
   registerCustomerPushToken,
   subscribeCustomerPushTokenRefresh,
-  resetPushTokenRegistrationCache,
+  deregisterCustomerPushToken,
 } from "../services/notifications";
 
 interface AuthContextType {
@@ -131,6 +131,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (!stillHasToken) {
               setUser(null);
             } else if (/unauthorized|401/i.test(message)) {
+              try {
+                await deregisterCustomerPushToken(token);
+              } catch {
+                /* ignore */
+              }
               await clearCustomerSession();
               setUser(null);
             }
@@ -255,7 +260,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    resetPushTokenRegistrationCache();
+    const token = await getCustomerToken();
+    await deregisterCustomerPushToken(token);
     await logoutCustomer();
     setUser(null);
   }, []);

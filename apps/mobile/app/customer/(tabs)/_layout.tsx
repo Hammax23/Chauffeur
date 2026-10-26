@@ -13,6 +13,8 @@ import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { GOLD } from "../../../theme/driver-theme";
 import { useCustomerTheme } from "../../../contexts/CustomerThemeContext";
 import { getCustomerChatThreads } from "../../../services/api";
+import { subscribeInboxBadgeRefresh } from "../../../services/inbox-badge-bus";
+import { syncAppIconBadge } from "../../../services/notifications";
 
 /** Icon+label row height before safe-area (compact, still ≥44pt tap). */
 export const TAB_BAR_CONTENT_H = 46;
@@ -129,7 +131,9 @@ export default function CustomerTabsLayout() {
     try {
       const data = await getCustomerChatThreads();
       if (data.success) {
-        setInboxUnread(Math.max(0, data.totalUnread || 0));
+        const total = Math.max(0, data.totalUnread || 0);
+        setInboxUnread(total);
+        void syncAppIconBadge(total);
       }
     } catch {
       /* keep last known badge */
@@ -150,6 +154,9 @@ export default function CustomerTabsLayout() {
     });
     return () => sub.remove();
   }, [refreshUnread]);
+
+  // Instant badge when a chat push arrives (foreground / handler).
+  useEffect(() => subscribeInboxBadgeRefresh(() => void refreshUnread()), [refreshUnread]);
 
   return (
     <Tabs

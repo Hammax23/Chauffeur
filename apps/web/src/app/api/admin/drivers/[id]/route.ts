@@ -77,6 +77,16 @@ export async function PUT(
       return NextResponse.json({ success: false, error: "Driver not found" }, { status: 404 });
     }
 
+    // Deactivate → stop pushes to that driver's devices.
+    if (body.isActive === false) {
+      try {
+        const { deleteAllPushDevicesForUser } = await import("@/lib/push-devices");
+        await deleteAllPushDevicesForUser("DRIVER", id);
+      } catch (pushErr) {
+        console.error("[push] wipe devices on driver deactivate failed", pushErr);
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("Update driver error:", error);
@@ -95,6 +105,12 @@ export async function DELETE(
 
   try {
     const { id } = await params;
+    try {
+      const { deleteAllPushDevicesForUser } = await import("@/lib/push-devices");
+      await deleteAllPushDevicesForUser("DRIVER", id);
+    } catch (pushErr) {
+      console.error("[push] wipe devices on driver delete failed", pushErr);
+    }
     const success = await deleteDriver(id);
     
     if (!success) {

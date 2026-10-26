@@ -29,6 +29,7 @@ import {
   routeDriverNotificationResponse,
   setNotificationBookingOpenedListener,
 } from "../services/notification-deep-link";
+import { emitInboxBadgeRefresh } from "../services/inbox-badge-bus";
 
 export type DriverRideAlert = {
   bookingId: string;
@@ -135,6 +136,9 @@ export function DriverRideAlertProvider({ children }: { children: React.ReactNod
 
     const received = Notifications.addNotificationReceivedListener((notification) => {
       const data = parseNotificationData(notification.request.content.data);
+      if (data?.type === "chat" || data?.type === "chat_badge") {
+        emitInboxBadgeRefresh();
+      }
       if (data?.type === "concierge_offer") {
         // Only enrolled Concierge drivers should react to hotel offers.
         void isDriverConciergeEnrolled().then((enrolled) => {

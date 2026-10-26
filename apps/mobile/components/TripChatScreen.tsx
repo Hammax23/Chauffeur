@@ -25,7 +25,9 @@ import { SlimSpinner } from "./SlimSpinner";
 import {
   ChatMessage,
   getCustomerChat,
+  getCustomerChatThreads,
   getDriverChat,
+  getDriverChatThreads,
   markCustomerChatRead,
   markDriverChatRead,
   sendCustomerChatMessage,
@@ -33,6 +35,8 @@ import {
 } from "../services/api";
 import { openSseStream, type SseConnectionStatus, type SseStreamHandle } from "../services/sse-client";
 import { setActiveTripChat } from "../services/active-trip-chat";
+import { emitInboxBadgeRefresh } from "../services/inbox-badge-bus";
+import { syncAppIconBadge } from "../services/notifications";
 
 const GOLD = "#D4A04A";
 const GOLD_DEEP = "#B8893A";
@@ -425,6 +429,24 @@ export default function TripChatScreen({ bookingId, role, title, peerPhoto: peer
             : await getCustomerChat(bookingId, since, { markRead: !incremental });
         if (res.success) {
           applySnapshot(res.messages || [], !!res.canSend, res.peer);
+          if (!incremental) {
+            // Mark-read completed server-side — refresh tab + app-icon badge.
+            void (async () => {
+              try {
+                const threads =
+                  role === "driver"
+                    ? await getDriverChatThreads()
+                    : await getCustomerChatThreads();
+                if (threads.success) {
+                  const total = Math.max(0, threads.totalUnread || 0);
+                  await syncAppIconBadge(total);
+                  emitInboxBadgeRefresh();
+                }
+              } catch {
+                /* ignore */
+              }
+            })();
+          }
         } else if (!sseReady.current) {
           setError(res.error || "Unable to load chat");
           setBootstrapping(false);

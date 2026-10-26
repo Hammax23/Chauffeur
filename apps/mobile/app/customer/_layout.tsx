@@ -13,6 +13,7 @@ import {
   routeCustomerLastNotificationResponse,
   routeCustomerNotificationResponse,
 } from "../../services/customer-notification-deep-link";
+import { emitInboxBadgeRefresh } from "../../services/inbox-badge-bus";
 
 const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || "";
 
@@ -42,11 +43,22 @@ export default function CustomerLayout() {
 
   useEffect(() => {
     if (!tokenOk) return;
-    const sub = Notifications.addNotificationResponseReceivedListener((res) => {
+    const response = Notifications.addNotificationResponseReceivedListener((res) => {
       void routeCustomerNotificationResponse(res);
     });
+    const received = Notifications.addNotificationReceivedListener((notification) => {
+      const data = notification.request.content.data as
+        | Record<string, unknown>
+        | undefined;
+      if (data?.type === "chat" || data?.type === "chat_badge") {
+        emitInboxBadgeRefresh();
+      }
+    });
     void routeCustomerLastNotificationResponse();
-    return () => sub.remove();
+    return () => {
+      response.remove();
+      received.remove();
+    };
   }, [tokenOk]);
 
   if (isLoading || tokenOk === null) {

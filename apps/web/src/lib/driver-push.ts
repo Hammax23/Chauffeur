@@ -1,5 +1,6 @@
-import { sendPushNotification, sendBulkPushNotifications } from "@/lib/push-notifications";
+import { sendBulkPushNotifications } from "@/lib/push-notifications";
 import prisma from "@/lib/prisma";
+import { listPushTokensByUserIds, notifyUserDevices } from "@/lib/push-devices";
 
 function shortLocation(value: string | null | undefined, max = 42): string {
   const raw = (value || "").trim();
@@ -59,7 +60,6 @@ export async function notifyDriverReservationAssigned(
         serviceDate: true,
         serviceTime: true,
         assignedDriverId: true,
-        assignedDriver: { select: { id: true, pushToken: true } },
       },
     });
 
@@ -70,19 +70,8 @@ export async function notifyDriverReservationAssigned(
     const targetDriverId = driverId || reservation.assignedDriverId;
     if (!targetDriverId) return;
 
-    let pushToken = reservation.assignedDriver?.pushToken ?? null;
-    if (!pushToken || reservation.assignedDriver?.id !== targetDriverId) {
-      const driver = await prisma.driver.findUnique({
-        where: { id: targetDriverId },
-        select: { pushToken: true },
-      });
-      pushToken = driver?.pushToken ?? null;
-    }
-
-    if (!pushToken) return;
-
     const { title, body } = buildDriverAssignmentCopy(reservation);
-    await sendPushNotification(pushToken, title, body, {
+    await notifyUserDevices("DRIVER", targetDriverId, title, body, {
       type: "new_assignment",
       bookingId: reservation.bookingId,
       screen: "DriverDashboard",
@@ -93,9 +82,9 @@ export async function notifyDriverReservationAssigned(
   }
 }
 
-/** Build Expo push payloads for Live Auto marketplace offers. */
+/** Build Expo push payloads for Live Auto marketplace offers (one row per device token). */
 export function mapDriversToLiveOfferPushes(
-  drivers: Array<{ pushToken: string | null | undefined }>,
+  drivers: Array<{ id?: string; pushToken: string | null | undefined }>,
   reservation: {
     bookingId: string;
     pickupLocation?: string | null;
@@ -121,7 +110,7 @@ export function mapDriversToLiveOfferPushes(
 }
 
 export async function sendDriverLiveOfferPushes(
-  drivers: Array<{ pushToken: string | null | undefined }>,
+  drivers: Array<{ id?: string; pushToken: string | null | undefined }>,
   reservation: {
     bookingId: string;
     pickupLocation?: string | null;
@@ -130,6 +119,25 @@ export async function sendDriverLiveOfferPushes(
     serviceTime?: string | null;
   }
 ): Promise<void> {
+  const driverIds = drivers.map((d) => d.id).filter((id): id is string => !!id);
+  if (driverIds.length > 0) {
+    const byUser = await listPushTokensByUserIds("DRIVER", driverIds);
+    const flat: Array<{ pushToken: string }> = [];
+    for (const tokens of byUser.values()) {
+      for (const t of tokens) flat.push({ pushToken: t });
+    }
+    // Also include any legacy tokens passed in that aren't in PushDevice yet
+    for (const d of drivers) {
+      if (d.pushToken && !flat.some((f) => f.pushToken === d.pushToken)) {
+        flat.push({ pushToken: d.pushToken });
+      }
+    }
+    const payload = mapDriversToLiveOfferPushes(flat, reservation);
+    if (payload.length === 0) return;
+    await sendBulkPushNotifications(payload);
+    return;
+  }
+
   const payload = mapDriversToLiveOfferPushes(drivers, reservation);
   if (payload.length === 0) return;
   await sendBulkPushNotifications(payload);
@@ -143,18 +151,13 @@ export async function notifyDriverTripReviewed(input: {
   stars: number;
 }): Promise<void> {
   try {
-    const driver = await prisma.driver.findUnique({
-      where: { id: input.driverId },
-      select: { pushToken: true },
-    });
-    if (!driver?.pushToken) return;
-
     const stars = Math.min(5, Math.max(1, Math.floor(input.stars) || 1));
     const starLabel = "★".repeat(stars) + "☆".repeat(5 - stars);
     const name = input.customerName.trim() || "A customer";
 
-    await sendPushNotification(
-      driver.pushToken,
+    await notifyUserDevices(
+      "DRIVER",
+      input.driverId,
       "New customer review",
       `${name} rated you ${starLabel}`,
       {

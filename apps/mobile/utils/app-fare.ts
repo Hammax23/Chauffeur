@@ -22,8 +22,11 @@ export function normalizeAppGratuityPercent(raw?: number | null): number {
 export const BASE_DISTANCE_KM = 17;
 export const EXTRA_KM_RATE = 3.2;
 /** Website / app hourly minimum (same as web reservation). */
-export const APP_MIN_HOURLY_HOURS = 3;
-export const APP_HOURLY_DURATIONS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
+export const APP_MIN_HOURLY_HOURS = 2;
+export const APP_MAX_HOURLY_HOURS = 24;
+export const APP_HOURLY_DURATIONS = [
+  2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+] as const;
 
 export type AppBookingMode = "distance" | "hourly";
 
@@ -262,7 +265,13 @@ export function calculateAppHourlyFare(input: {
 }): AppFareResult | null {
   const hours = Math.floor(Number(input.hours) || 0);
   const rate = Number(input.hourlyRate) || 0;
-  if (hours < APP_MIN_HOURLY_HOURS || rate <= 0) return null;
+  if (
+    hours < APP_MIN_HOURLY_HOURS ||
+    hours > APP_MAX_HOURLY_HOURS ||
+    rate <= 0
+  ) {
+    return null;
+  }
 
   return finalizeAppFare({
     rideFare: rate * hours,

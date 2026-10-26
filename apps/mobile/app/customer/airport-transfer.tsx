@@ -19,8 +19,10 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useCustomerTheme } from "../../contexts/CustomerThemeContext";
 import { GooglePlacesAddressField } from "../../components/GooglePlacesAddressField";
+import { AirlinePickerModal } from "../../components/AirlinePickerModal";
 import { GOLD } from "../../theme/driver-theme";
 import { MEET_GREET_CHARGE } from "../../utils/app-fare";
+import { parseAirportContext } from "../../utils/airport-place";
 import {
   getAllSavedPlaces,
   type SavedPlace,
@@ -68,6 +70,7 @@ export default function AirportTransferScreen() {
   const [other, setOther] = useState<PlaceState>({ address: "" });
   const [airline, setAirline] = useState("");
   const [flightNumber, setFlightNumber] = useState("");
+  const [airlinePickerVisible, setAirlinePickerVisible] = useState(false);
   const [meetGreet, setMeetGreet] = useState(false);
   const [savedHome, setSavedHome] = useState<SavedPlace | null>(null);
   const [savedOffice, setSavedOffice] = useState<SavedPlace | null>(null);
@@ -390,13 +393,15 @@ export default function AirportTransferScreen() {
                   onChangeText={(t) =>
                     setAirport((p) => ({ ...p, address: t, lat: undefined, lng: undefined }))
                   }
-                  onPlaceResolved={(p) =>
+                  onPlaceResolved={(p) => {
                     setAirport({
                       address: p.address,
                       lat: p.lat,
                       lng: p.lng,
-                    })
-                  }
+                    });
+                    // Uber-style: open airline picker after From-airport place resolve.
+                    setTimeout(() => setAirlinePickerVisible(true), 300);
+                  }}
                   placeholder="Search any airport (e.g. YYZ, LAX)"
                   iconName="airplane-outline"
                   placeTypes="airport"
@@ -496,39 +501,53 @@ export default function AirportTransferScreen() {
               <View style={styles.flightBlock}>
                 <Text style={[styles.sectionTitle, { color: palette.text }]}>Flight details</Text>
                 <Text style={[styles.label, { color: palette.muted }]}>Airline</Text>
-                <TextInput
-                  value={airline}
-                  onChangeText={setAirline}
-                  placeholder="e.g. Air Canada"
-                  placeholderTextColor={palette.muted}
-                  autoCapitalize="words"
-                  returnKeyType="next"
+                <Pressable
+                  onPress={() => setAirlinePickerVisible(true)}
                   style={[
                     styles.input,
                     {
-                      color: palette.text,
+                      justifyContent: "center",
                       backgroundColor: fieldBg,
                       borderColor: border,
                     },
                   ]}
-                />
+                  accessibilityRole="button"
+                  accessibilityLabel="Choose airline"
+                >
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      color: airline.trim() ? palette.text : palette.muted,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {airline.trim() || "Which airline?"}
+                  </Text>
+                </Pressable>
                 <Text style={[styles.label, { color: palette.muted }]}>Flight/Tail number</Text>
-                <TextInput
-                  value={flightNumber}
-                  onChangeText={setFlightNumber}
-                  placeholder="e.g. AC123"
-                  placeholderTextColor={palette.muted}
-                  autoCapitalize="characters"
-                  returnKeyType="done"
+                <Pressable
+                  onPress={() => setAirlinePickerVisible(true)}
                   style={[
                     styles.input,
                     {
-                      color: palette.text,
+                      justifyContent: "center",
                       backgroundColor: fieldBg,
                       borderColor: border,
                     },
                   ]}
-                />
+                  accessibilityRole="button"
+                  accessibilityLabel="Flight number"
+                >
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      color: flightNumber.trim() ? palette.text : palette.muted,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {flightNumber.trim() || "e.g. AC123"}
+                  </Text>
+                </Pressable>
 
                 <View
                   style={[styles.mgRow, { backgroundColor: fieldBg, borderColor: border }]}
@@ -573,6 +592,23 @@ export default function AirportTransferScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      <AirlinePickerModal
+        visible={airlinePickerVisible}
+        context={parseAirportContext(
+          formatAirportAddress(airport, terminal) || airport.address,
+          undefined
+        )}
+        initialAirline={airline}
+        initialFlightNumber={flightNumber}
+        onSkip={() => setAirlinePickerVisible(false)}
+        onComplete={({ airline: a, flightNumber: f }) => {
+          setAirline(a);
+          setFlightNumber(f);
+          setAirlinePickerVisible(false);
+        }}
+        onRequestClose={() => setAirlinePickerVisible(false)}
+      />
     </View>
   );
 }

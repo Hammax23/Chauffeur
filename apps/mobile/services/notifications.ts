@@ -4,6 +4,7 @@ import { Platform } from "react-native";
 import { API_BASE_URL } from "./api";
 import Constants from "expo-constants";
 import { isActiveTripChat } from "./active-trip-chat";
+import { emitInboxBadgeRefresh } from "./inbox-badge-bus";
 
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
@@ -15,10 +16,32 @@ Notifications.setNotificationHandler({
     // don't also dump a duplicate into the notification tray.
     const isRideAlert = type === "new_assignment" || type === "live_offer";
     const isChat = type === "chat";
+    const isBadgeSync = type === "chat_badge";
     const chatBookingId =
       typeof data?.bookingId === "string" ? data.bookingId : "";
     // WhatsApp-style: no OS banner/sound while already viewing this thread (SSE handles UI).
     const suppressActiveChat = isChat && isActiveTripChat(chatBookingId);
+
+    if (isBadgeSync) {
+      const badgeRaw = data?.badge;
+      const badge =
+        typeof badgeRaw === "number"
+          ? badgeRaw
+          : typeof badgeRaw === "string" && /^\d+$/.test(badgeRaw)
+            ? parseInt(badgeRaw, 10)
+            : null;
+      if (badge != null) {
+        void Notifications.setBadgeCountAsync(Math.max(0, badge)).catch(() => {});
+      }
+      emitInboxBadgeRefresh();
+      return {
+        shouldShowAlert: false,
+        shouldShowBanner: false,
+        shouldShowList: false,
+        shouldPlaySound: false,
+        shouldSetBadge: true,
+      };
+    }
 
     if (suppressActiveChat) {
       return {
@@ -28,6 +51,10 @@ Notifications.setNotificationHandler({
         shouldPlaySound: false,
         shouldSetBadge: false,
       };
+    }
+
+    if (isChat) {
+      emitInboxBadgeRefresh();
     }
 
     return {
@@ -149,7 +176,7 @@ export async function registerForPushNotificationsAsync(options?: {
   }
 
   if (finalStatus !== "granted") {
-    console.log("Failed to get push token for push notification!");
+    console.warn("[Push] Notification permission not granted — chat pushes disabled on this device.");
     return null;
   }
 
@@ -159,11 +186,9 @@ export async function registerForPushNotificationsAsync(options?: {
 
   const projectId = resolveProjectId();
   if (!projectId) {
-    if (__DEV__) {
-      console.warn(
-        "[Push] Missing EAS projectId. Add EAS_PROJECT_ID to apps/mobile/.env (see app.config.js). Push tokens disabled until then."
-      );
-    }
+    console.warn(
+      "[Push] Missing EAS projectId. Add EAS_PROJECT_ID / eas.projectId — push tokens disabled until then."
+    );
     return null;
   }
 
@@ -201,7 +226,10 @@ async function postPushToken(
       "Content-Type": "application/json",
       Authorization: `Bearer ${authToken}`,
     },
-    body: JSON.stringify({ pushToken }),
+    body: JSON.stringify({
+      pushToken,
+      platform: Platform.OS,
+    }),
   });
 
   let data: { success?: boolean } = {};
@@ -331,4 +359,70 @@ export function resetPushTokenRegistrationCache() {
   cachedExpoPushToken = null;
   lastPostedDriverToken = null;
   lastPostedCustomerToken = null;
+}
+
+async function deletePushTokenOnServer(
+  path: string,
+  authToken: string,
+  pushToken: string
+): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}${path}`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ pushToken }),
+    });
+  } catch (e) {
+    if (__DEV__) console.warn("[Push] deregister failed:", e);
+  }
+}
+
+/**
+ * Remove this device's token from the server before clearing local auth.
+ * Stops WhatsApp-style pushes to a signed-out phone.
+ */
+export async function deregisterCustomerPushToken(authToken: string | null | undefined) {
+  if (!authToken) {
+    resetPushTokenRegistrationCache();
+    return;
+  }
+  const pushToken = cachedExpoPushToken || lastPostedCustomerToken;
+  if (pushToken) {
+    await deletePushTokenOnServer("/customer/push-token", authToken, pushToken);
+  }
+  resetPushTokenRegistrationCache();
+  try {
+    await Notifications.setBadgeCountAsync(0);
+  } catch {
+    /* ignore */
+  }
+}
+
+export async function deregisterDriverPushToken(authToken: string | null | undefined) {
+  if (!authToken) {
+    resetPushTokenRegistrationCache();
+    return;
+  }
+  const pushToken = cachedExpoPushToken || lastPostedDriverToken;
+  if (pushToken) {
+    await deletePushTokenOnServer("/driver/push-token", authToken, pushToken);
+  }
+  resetPushTokenRegistrationCache();
+  try {
+    await Notifications.setBadgeCountAsync(0);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Apply server totalUnread to the iOS/Android app icon badge. */
+export async function syncAppIconBadge(totalUnread: number) {
+  try {
+    await Notifications.setBadgeCountAsync(Math.max(0, Math.floor(totalUnread)));
+  } catch {
+    /* ignore */
+  }
 }

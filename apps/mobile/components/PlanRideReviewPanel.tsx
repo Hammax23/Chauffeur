@@ -69,6 +69,9 @@ type Props = {
   flightNumber: string;
   meetGreet: boolean;
   allowMeetGreet: boolean;
+  /** Show Flight row even when empty (airport trip) so user can add after Skip. */
+  showFlightRow?: boolean;
+  onEditFlight?: () => void;
   /** Payment row (SS) */
   paymentLoading?: boolean;
   paymentBrand?: string | null;
@@ -124,6 +127,8 @@ export function PlanRideReviewPanel({
   flightNumber,
   meetGreet,
   allowMeetGreet,
+  showFlightRow = false,
+  onEditFlight,
   paymentLoading = false,
   paymentBrand = null,
   paymentLast4 = null,
@@ -160,6 +165,13 @@ export function PlanRideReviewPanel({
   };
 
   const stopAddrs = activeStopAddresses(stops);
+  const hourlyDropoff =
+    (dropoffAddress || "").trim() &&
+    !/^as directed$/i.test((dropoffAddress || "").trim())
+      ? (dropoffAddress || "").trim()
+      : "";
+  const showHourlyRoute = isHourly && !!hourlyDropoff;
+  const showRouteTimeline = !isHourly || showHourlyRoute;
   const ink = isDark ? "#F5F0E8" : "#000000";
   const muted = isDark ? "#A8A29A" : "#6B6B6B";
   const surface = isDark ? "#1F1C19" : "#FFFFFF";
@@ -258,7 +270,7 @@ export function PlanRideReviewPanel({
           <View style={styles.timeline}>
             <View style={styles.timelineRail} pointerEvents="none">
               <View style={[styles.dotPickup, { backgroundColor: ink }]} />
-              {!isHourly ? (
+              {showRouteTimeline ? (
                 <>
                   <View style={[styles.railLine, { backgroundColor: rail }]} />
                   {stopAddrs.map((_, i) => (
@@ -277,7 +289,7 @@ export function PlanRideReviewPanel({
               <Text style={[styles.placeText, { color: ink }]} numberOfLines={1}>
                 {shortPlace(pickupAddress) || "Pickup"}
               </Text>
-              {!isHourly ? (
+              {showRouteTimeline ? (
                 <>
                   {stopAddrs.map((s, i) => (
                     <Text
@@ -289,8 +301,13 @@ export function PlanRideReviewPanel({
                     </Text>
                   ))}
                   <Text style={[styles.placeText, { color: ink }]} numberOfLines={1}>
-                    {shortPlace(dropoffAddress) || "Dropoff"}
+                    {shortPlace(showHourlyRoute ? hourlyDropoff : dropoffAddress) || "Dropoff"}
                   </Text>
+                  {isHourly ? (
+                    <Text style={[styles.placeText, styles.placeStop, { color: muted }]} numberOfLines={1}>
+                      Hourly · {hourlyDuration}h
+                    </Text>
+                  ) : null}
                 </>
               ) : (
                 <Text style={[styles.placeText, { color: muted }]} numberOfLines={1}>
@@ -421,11 +438,23 @@ export function PlanRideReviewPanel({
           </>
         ) : null}
 
-        {/* Flight summary */}
-        {airline.trim() || flightNumber.trim() || (allowMeetGreet && meetGreet) ? (
+        {/* Flight summary / Add flight details */}
+        {showFlightRow ||
+        airline.trim() ||
+        flightNumber.trim() ||
+        (allowMeetGreet && meetGreet) ? (
           <>
             <View style={[styles.sep, { backgroundColor: hairline }]} />
-            <View style={styles.listRow}>
+            <Pressable
+              onPress={onEditFlight}
+              disabled={!onEditFlight}
+              style={({ pressed }) => [
+                styles.listRow,
+                pressed && onEditFlight && { opacity: 0.85 },
+              ]}
+              accessibilityRole={onEditFlight ? "button" : undefined}
+              accessibilityLabel="Edit flight details"
+            >
               <View style={[styles.rowIcon, { backgroundColor: soft }]}>
                 <Ionicons name="airplane-outline" size={18} color={ink} />
               </View>
@@ -433,7 +462,7 @@ export function PlanRideReviewPanel({
                 <Text style={[styles.listLabel, { color: muted }]}>Flight</Text>
                 <Text style={[styles.listValue, { color: ink }]} numberOfLines={2}>
                   {[airline.trim(), flightNumber.trim()].filter(Boolean).join(" · ") ||
-                    "Details on file"}
+                    (showFlightRow ? "Add flight details" : "Details on file")}
                 </Text>
                 {allowMeetGreet && meetGreet ? (
                   <Text style={[styles.listHint, { color: muted }]}>
@@ -441,7 +470,10 @@ export function PlanRideReviewPanel({
                   </Text>
                 ) : null}
               </View>
-            </View>
+              {onEditFlight ? (
+                <Ionicons name="chevron-forward" size={18} color={muted} />
+              ) : null}
+            </Pressable>
           </>
         ) : null}
 

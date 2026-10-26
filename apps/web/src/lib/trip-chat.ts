@@ -1,6 +1,10 @@
 import prisma from "@/lib/prisma";
-import { sendPushNotification } from "@/lib/push-notifications";
 import { publishChatMessage } from "@/lib/chat-bus";
+import {
+  notifyUserDevices,
+  pushBadgeSyncToUser,
+  type PushRole,
+} from "@/lib/push-devices";
 
 /** Statuses where Driver ↔ Customer may send new messages (Upcoming rides). */
 export const CHAT_OPEN_STATUSES = [
@@ -102,6 +106,8 @@ export async function getOrCreateThread(reservationId: string, bookingId: string
 export async function markChatReadForViewer(opts: {
   bookingId: string;
   viewerType: "CUSTOMER" | "DRIVER";
+  /** When set, syncs global OS badge to all of this viewer's devices. */
+  viewerId?: string;
 }): Promise<number> {
   const thread = await prisma.chatThread.findUnique({
     where: { bookingId: opts.bookingId },
@@ -118,6 +124,19 @@ export async function markChatReadForViewer(opts: {
     },
     data: { readAt: new Date() },
   });
+
+  if (opts.viewerId && result.count > 0) {
+    try {
+      const total = await countTotalUnreadForViewer({
+        viewerType: opts.viewerType,
+        viewerId: opts.viewerId,
+      });
+      await pushBadgeSyncToUser(opts.viewerType as PushRole, opts.viewerId, total);
+    } catch (err) {
+      console.error("[chat] badge sync after mark-read failed", err);
+    }
+  }
+
   return result.count;
 }
 
@@ -140,12 +159,28 @@ export async function countUnreadForViewer(opts: {
   });
 }
 
+/** Sum unread across all open, non-hidden threads for a user (app-icon badge). */
+export async function countTotalUnreadForViewer(opts: {
+  viewerType: "CUSTOMER" | "DRIVER";
+  viewerId: string;
+}): Promise<number> {
+  if (!opts.viewerId) return 0;
+
+  if (opts.viewerType === "DRIVER") {
+    const { totalUnread } = await listDriverChatThreads(opts.viewerId);
+    return totalUnread;
+  }
+  const { totalUnread } = await listCustomerChatThreads(opts.viewerId);
+  return totalUnread;
+}
+
 export async function listMessagesForBooking(
   bookingId: string,
   options?: {
     since?: string;
     limit?: number;
     viewerType?: "CUSTOMER" | "DRIVER";
+    viewerId?: string;
     markRead?: boolean;
   }
 ): Promise<{
@@ -169,6 +204,7 @@ export async function listMessagesForBooking(
     await markChatReadForViewer({
       bookingId,
       viewerType: options.viewerType,
+      viewerId: options.viewerId,
     });
   }
 
@@ -313,7 +349,7 @@ export async function postChatMessage(params: {
       firstName: true,
       lastName: true,
       assignedDriver: {
-        select: { id: true, pushToken: true, name: true },
+        select: { id: true, name: true },
       },
       chatThread: { select: { hiddenFromParticipantsAt: true } },
     },
@@ -362,75 +398,74 @@ export async function postChatMessage(params: {
 
   const preview = previewBody(body);
 
-  if (params.senderType === "CUSTOMER") {
-    const guestName =
-      [reservation.firstName, reservation.lastName].filter(Boolean).join(" ").trim() ||
-      "Passenger";
-    const driverToken = reservation.assignedDriver?.pushToken;
-    if (!driverToken) {
-      console.warn(
-        `[chat] skip driver push — no pushToken bookingId=${reservation.bookingId}`
-      );
-    } else {
-      void (async () => {
-        try {
-          const unread = await countUnreadForViewer({
-            bookingId: reservation.bookingId,
-            viewerType: "DRIVER",
-          });
-          const title =
-            unread > 1
-              ? `${guestName} · ${unread} messages`
-              : `Message from ${guestName}`;
-          await sendPushNotification(driverToken, title, preview, {
-            type: "chat",
-            bookingId: reservation.bookingId,
-            messageId: message.id,
-            name: guestName,
-            channelId: "chat",
-            collapseId: `chat:${reservation.bookingId}`,
-            eventId: `chat:${message.id}`,
-            screen: "driver/chat",
-            badge: unread,
-          });
-        } catch (err) {
-          console.error("[chat] driver push failed", err);
+  // Await push so serverless/Node does not tear down before Expo accepts the send.
+  try {
+    if (params.senderType === "CUSTOMER" && reservation.assignedDriverId) {
+      const guestName =
+        [reservation.firstName, reservation.lastName].filter(Boolean).join(" ").trim() ||
+        "Passenger";
+      const threadUnread = await countUnreadForViewer({
+        bookingId: reservation.bookingId,
+        viewerType: "DRIVER",
+      });
+      const globalBadge = await countTotalUnreadForViewer({
+        viewerType: "DRIVER",
+        viewerId: reservation.assignedDriverId,
+      });
+      const title =
+        threadUnread > 1
+          ? `${guestName} · ${threadUnread} messages`
+          : `Message from ${guestName}`;
+      const pushed = await notifyUserDevices(
+        "DRIVER",
+        reservation.assignedDriverId,
+        title,
+        preview,
+        {
+          type: "chat",
+          bookingId: reservation.bookingId,
+          messageId: message.id,
+          name: guestName,
+          channelId: "chat",
+          collapseId: `chat:${reservation.bookingId}`,
+          eventId: `chat:${message.id}`,
+          screen: "driver/chat",
+          badge: globalBadge,
         }
-      })();
-    }
-  }
-
-  if (params.senderType === "DRIVER") {
-    if (!reservation.customerId) {
-      console.warn(
-        `[chat] skip customer push — no customerId bookingId=${reservation.bookingId}`
       );
-    } else {
-      void (async () => {
-        try {
-          const customer = await prisma.customer.findUnique({
-            where: { id: reservation.customerId! },
-            select: { pushToken: true },
-          });
-          if (!customer?.pushToken) {
-            console.warn(
-              `[chat] skip customer push — no pushToken bookingId=${reservation.bookingId}`
-            );
-            return;
-          }
+      if (!pushed.success) {
+        console.warn(
+          `[chat] skip driver push — ${pushed.error || "failed"} bookingId=${reservation.bookingId}`
+        );
+      }
+    }
 
-          const chauffeurName =
-            reservation.assignedDriver?.name?.trim() || "Your chauffeur";
-          const unread = await countUnreadForViewer({
-            bookingId: reservation.bookingId,
-            viewerType: "CUSTOMER",
-          });
-          const title =
-            unread > 1
-              ? `${chauffeurName} · ${unread} messages`
-              : `Message from ${chauffeurName}`;
-
-          await sendPushNotification(customer.pushToken, title, preview, {
+    if (params.senderType === "DRIVER") {
+      if (!reservation.customerId) {
+        console.warn(
+          `[chat] skip customer push — no customerId bookingId=${reservation.bookingId}`
+        );
+      } else {
+        const chauffeurName =
+          reservation.assignedDriver?.name?.trim() || "Your chauffeur";
+        const threadUnread = await countUnreadForViewer({
+          bookingId: reservation.bookingId,
+          viewerType: "CUSTOMER",
+        });
+        const globalBadge = await countTotalUnreadForViewer({
+          viewerType: "CUSTOMER",
+          viewerId: reservation.customerId,
+        });
+        const title =
+          threadUnread > 1
+            ? `${chauffeurName} · ${threadUnread} messages`
+            : `Message from ${chauffeurName}`;
+        const pushed = await notifyUserDevices(
+          "CUSTOMER",
+          reservation.customerId,
+          title,
+          preview,
+          {
             type: "chat",
             bookingId: reservation.bookingId,
             messageId: message.id,
@@ -439,13 +474,18 @@ export async function postChatMessage(params: {
             collapseId: `chat:${reservation.bookingId}`,
             eventId: `chat:${message.id}`,
             screen: "customer/chat",
-            badge: unread,
-          });
-        } catch (err) {
-          console.error("[chat] customer push failed", err);
+            badge: globalBadge,
+          }
+        );
+        if (!pushed.success) {
+          console.warn(
+            `[chat] skip customer push — ${pushed.error || "failed"} bookingId=${reservation.bookingId}`
+          );
         }
-      })();
+      }
     }
+  } catch (err) {
+    console.error("[chat] push failed (message already saved)", err);
   }
 
   return dto;

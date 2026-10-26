@@ -32,8 +32,8 @@ import { wasReviewPrompted, markReviewPrompted } from "../../utils/review-prompt
 /** Throttle Directions so we don't hammer Google on every GPS tick. */
 const DIRECTIONS_MIN_INTERVAL_MS = 20_000;
 const DIRECTIONS_MIN_MOVE_M = 120;
-/** Soft UX when chauffeur GPS hasn't refreshed recently. */
-const STALE_GPS_MS = 45_000;
+/** Soft UX when chauffeur GPS hasn't refreshed recently (driver heartbeats ~12s). */
+const STALE_GPS_MS = 60_000;
 
 // Palette — kept consistent with customer/index.tsx
 const ACCENT = "#C9A063";
@@ -488,13 +488,13 @@ export default function TrackRideScreen() {
       }
     };
     void tick();
-    // Before On the Way: poll for status change. After: follow SSE health.
+    // Keep poll faster than STALE_GPS_MS so a missed SSE tick never false-alarms.
     const unlocked = isLocationUnlockedClient(reservation.status, locationSharing);
     const pollMs = unlocked
       ? live.status === "open"
-        ? 40_000
-        : 8_000
-      : 15_000;
+        ? 10_000
+        : 6_000
+      : 12_000;
     const id = setInterval(tick, pollMs);
     return () => {
       cancelled = true;

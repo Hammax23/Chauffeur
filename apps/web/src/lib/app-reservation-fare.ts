@@ -3,6 +3,7 @@ import {
   APP_DEFAULT_GRATUITY_PERCENT,
   calculateAppDistanceFare,
   calculateAppHourlyFare,
+  clampHourlyDuration,
   type ReservationPricingResult,
 } from "@/lib/reservation-pricing";
 import {
@@ -266,7 +267,7 @@ export async function resolveAppReservationFare(
     if (hourlyRate <= 0) {
       return { error: "This vehicle is not available for hourly booking" };
     }
-    const hours = Math.max(3, Math.floor(Number(input.hourlyDuration) || 3));
+    const hours = clampHourlyDuration(input.hourlyDuration);
     basePricing = calculateAppHourlyFare({
       hours,
       hourlyRate,

@@ -217,7 +217,10 @@ export async function POST(req: NextRequest) {
 
     const bookingMode =
       String(rawBookingMode || "").toLowerCase() === "hourly" ? "hourly" : "distance";
-    const hourlyDuration = Math.max(3, Math.floor(Number(rawHourlyDuration) || 3));
+    const hourlyDuration = Math.min(
+      24,
+      Math.max(2, Math.floor(Number(rawHourlyDuration) || 2))
+    );
     const resolvedDropoff =
       typeof dropoffLocation === "string" && dropoffLocation.trim()
         ? dropoffLocation.trim()

@@ -36,6 +36,7 @@ export async function GET(
     const data = await listMessagesForBooking(bookingId, {
       since,
       viewerType: "CUSTOMER",
+      viewerId: auth.customer.id,
       markRead,
     });
     // History: do not expose prior chat transcript to the customer.
@@ -133,6 +134,7 @@ export async function PATCH(
     const marked = await markChatReadForViewer({
       bookingId,
       viewerType: "CUSTOMER",
+      viewerId: auth.customer.id,
     });
     return NextResponse.json({ success: true, marked });
   } catch (error) {

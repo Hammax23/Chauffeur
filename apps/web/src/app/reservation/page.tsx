@@ -39,7 +39,12 @@ import "react-datepicker/dist/react-datepicker.css";
 import StripePayment from "@/components/StripePayment";
 import Turnstile from "@/components/Turnstile";
 import { fleetData, RESERVATION_HIDE_HOURLY_RATE_IDS, RESERVATION_EXCLUDED_VEHICLE_IDS, getFleetForReservation, type FleetVehicle, type FleetCategory } from "@/data/fleet";
-import { calculateReservationPricing, APP_GRATUITY_PERCENTS } from "@/lib/reservation-pricing";
+import {
+  calculateReservationPricing,
+  APP_GRATUITY_PERCENTS,
+  APP_HOURLY_DURATIONS,
+  APP_MIN_HOURLY_HOURS,
+} from "@/lib/reservation-pricing";
 import { GoogleMapsProvider, useGoogleMaps } from "@/components/GoogleMapsProvider";
 import {
   PARCEL_SERVICE_TYPE,
@@ -93,7 +98,7 @@ function ReservationPageContent() {
   const [pickupLocation, setPickupLocation] = useState("");
   const [dropoffLocation, setDropoffLocation] = useState("");
   const [pickupDateTime, setPickupDateTime] = useState<Date | null>(null);
-  const [hourlyDuration, setHourlyDuration] = useState(3);
+  const [hourlyDuration, setHourlyDuration] = useState(APP_MIN_HOURLY_HOURS);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
 
@@ -1097,7 +1102,7 @@ function ReservationPageContent() {
                               onChange={(e) => setHourlyDuration(parseInt(e.target.value))}
                               className="w-full min-h-11 py-2.5 bg-transparent text-base text-gray-900 focus:outline-none"
                             >
-                              {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((h) => (
+                              {APP_HOURLY_DURATIONS.map((h) => (
                                 <option key={h} value={h}>{h} hours</option>
                               ))}
                             </select>

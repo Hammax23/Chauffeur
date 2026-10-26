@@ -6,6 +6,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import PlacesAutocomplete from '@/components/PlacesAutocomplete';
 import { useGoogleMaps } from '@/components/GoogleMapsProvider';
 import { useRouter } from 'next/navigation';
+import { APP_HOURLY_DURATIONS, APP_MIN_HOURLY_HOURS } from '@/lib/reservation-pricing';
 
 export default function VerticalBookingWidget() {
   const router = useRouter();
@@ -14,7 +15,7 @@ export default function VerticalBookingWidget() {
   const [pickup, setPickup] = useState("");
   const [dropoff, setDropoff] = useState("");
   const [pickupDateTime, setPickupDateTime] = useState<Date | null>(null);
-  const [duration, setDuration] = useState(3);
+  const [duration, setDuration] = useState(APP_MIN_HOURLY_HOURS);
   const [durationDropdownOpen, setDurationDropdownOpen] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -198,7 +199,7 @@ export default function VerticalBookingWidget() {
                 onChange={(e) => setDuration(Number(e.target.value))}
                 className="w-full text-[13px] py-2 px-3 appearance-none focus:outline-none bg-transparent font-medium"
               >
-                {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(h => (
+                {APP_HOURLY_DURATIONS.map(h => (
                   <option key={h} value={h}>{h} hours</option>
                 ))}
               </select>

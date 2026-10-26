@@ -561,12 +561,24 @@ async function apiRequest<T>(
 
   if (response.status === 401) {
     if (endpoint.startsWith("/driver")) {
+      try {
+        const { deregisterDriverPushToken } = await import("./notifications");
+        await deregisterDriverPushToken(token ?? null);
+      } catch {
+        /* ignore */
+      }
       await clearDriverSession();
       emitUnauthorized("driver");
     } else if (endpoint.startsWith("/concierge")) {
       await clearConciergeSession();
       emitUnauthorized("concierge");
     } else if (endpoint.startsWith("/customer")) {
+      try {
+        const { deregisterCustomerPushToken } = await import("./notifications");
+        await deregisterCustomerPushToken(token ?? null);
+      } catch {
+        /* ignore */
+      }
       await clearCustomerSession();
       emitUnauthorized("customer");
     }
@@ -612,12 +624,24 @@ async function apiRequestWithResponse<T>(
 
   if (response.status === 401) {
     if (endpoint.startsWith("/driver")) {
+      try {
+        const { deregisterDriverPushToken } = await import("./notifications");
+        await deregisterDriverPushToken(token ?? null);
+      } catch {
+        /* ignore */
+      }
       await clearDriverSession();
       emitUnauthorized("driver");
     } else if (endpoint.startsWith("/concierge")) {
       await clearConciergeSession();
       emitUnauthorized("concierge");
     } else if (endpoint.startsWith("/customer")) {
+      try {
+        const { deregisterCustomerPushToken } = await import("./notifications");
+        await deregisterCustomerPushToken(token ?? null);
+      } catch {
+        /* ignore */
+      }
       await clearCustomerSession();
       emitUnauthorized("customer");
     }

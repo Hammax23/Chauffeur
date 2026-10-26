@@ -1,7 +1,7 @@
 import prisma from "@/lib/prisma";
 import { HST_RATE } from "@/lib/reservation-pricing";
 import { chargeCustomerOffSession } from "@/lib/off-session-charge";
-import { sendPushNotification } from "@/lib/push-notifications";
+import { notifyUserDevices } from "@/lib/push-devices";
 import {
   computeMgWaitCharge,
   MG_FREE_WAIT_MINUTES,
@@ -55,12 +55,7 @@ async function notifyCustomerCharge(
 ) {
   if (!customerId) return;
   try {
-    const c = await prisma.customer.findUnique({
-      where: { id: customerId },
-      select: { pushToken: true },
-    });
-    if (!c?.pushToken) return;
-    await sendPushNotification(c.pushToken, title, body, data);
+    await notifyUserDevices("CUSTOMER", customerId, title, body, data);
   } catch (e) {
     console.error("[fare-adjustments] push failed", e);
   }

@@ -1,5 +1,5 @@
-import { sendPushNotification } from "@/lib/push-notifications";
 import prisma from "@/lib/prisma";
+import { notifyUserDevices } from "@/lib/push-devices";
 
 /** Notify the customer that a chauffeur was assigned to their booking. */
 export async function notifyCustomerDriverAssigned(bookingId: string): Promise<void> {
@@ -13,13 +13,13 @@ export async function notifyCustomerDriverAssigned(bookingId: string): Promise<v
         pickupLocation: true,
         serviceDate: true,
         serviceTime: true,
-        customer: { select: { pushToken: true, firstName: true } },
+        customerId: true,
+        customer: { select: { firstName: true } },
         assignedDriver: { select: { name: true } },
       },
     });
 
-    const token = reservation?.customer?.pushToken;
-    if (!token || !reservation?.assignedDriver) return;
+    if (!reservation?.customerId || !reservation.assignedDriver) return;
 
     const { isDriverVisibleToCustomer } = await import("@/lib/customer-visible-driver");
     // Never push chauffeur details before accept (defense in depth).
@@ -33,8 +33,9 @@ export async function notifyCustomerDriverAssigned(bookingId: string): Promise<v
     }
 
     const driverName = reservation.assignedDriver.name || "your chauffeur";
-    await sendPushNotification(
-      token,
+    await notifyUserDevices(
+      "CUSTOMER",
+      reservation.customerId,
       "Driver assigned",
       `${driverName} is assigned to your ride on ${reservation.serviceDate} ${reservation.serviceTime}.`,
       {
@@ -56,15 +57,14 @@ export async function notifyCustomerDriverOnTheWay(bookingId: string): Promise<v
       select: {
         bookingId: true,
         status: true,
-        customer: { select: { pushToken: true } },
+        customerId: true,
         assignedDriver: { select: { name: true } },
       },
     });
 
-    const token = reservation?.customer?.pushToken;
-    if (!token || !reservation) {
+    if (!reservation?.customerId) {
       console.warn(
-        `[notifyCustomerDriverOnTheWay] skip — no pushToken bookingId=${bookingId}`
+        `[notifyCustomerDriverOnTheWay] skip — no customerId bookingId=${bookingId}`
       );
       return;
     }
@@ -72,8 +72,9 @@ export async function notifyCustomerDriverOnTheWay(bookingId: string): Promise<v
     const driverName =
       reservation.assignedDriver?.name?.trim() || "Your chauffeur";
 
-    await sendPushNotification(
-      token,
+    const pushed = await notifyUserDevices(
+      "CUSTOMER",
+      reservation.customerId,
       "Driver on the way",
       `${driverName} is heading to pickup. Live location is now available.`,
       {
@@ -85,6 +86,11 @@ export async function notifyCustomerDriverOnTheWay(bookingId: string): Promise<v
         screen: "customer/track-ride",
       }
     );
+    if (!pushed.success) {
+      console.warn(
+        `[notifyCustomerDriverOnTheWay] skip — ${pushed.error || "failed"} bookingId=${bookingId}`
+      );
+    }
   } catch (error) {
     console.error("[notifyCustomerDriverOnTheWay]", error);
   }
@@ -96,14 +102,14 @@ export async function notifyCustomerReservationCancelled(bookingId: string): Pro
       where: { bookingId },
       select: {
         bookingId: true,
-        customer: { select: { pushToken: true } },
+        customerId: true,
       },
     });
-    const token = reservation?.customer?.pushToken;
-    if (!token || !reservation) return;
+    if (!reservation?.customerId) return;
 
-    await sendPushNotification(
-      token,
+    await notifyUserDevices(
+      "CUSTOMER",
+      reservation.customerId,
       "Reservation update",
       "Your reservation was cancelled.",
       { type: "reservation_cancelled", bookingId: reservation.bookingId }

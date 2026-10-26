@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
       vehicleName: vehicle,
       distanceMeters: String(Number(body.distanceMeters) || 0),
       bookingMode: mode,
-      hourlyDuration: String(Math.max(3, Math.floor(Number(body.hourlyDuration) || 3))),
+      hourlyDuration: String(Math.min(24, Math.max(2, Math.floor(Number(body.hourlyDuration) || 2)))),
       gratuityPercent: String(fare.pricing.gratuityPercent),
       promoCode: fare.pricing.promoCode || "",
       discountAmount: String(fare.pricing.discountAmount || 0),
@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
           String(fare.pricing.gratuityPercent),
           fare.pricing.promoCode || "",
           String(Math.floor(Number(body.distanceMeters) || 0)),
-          String(Math.max(3, Math.floor(Number(body.hourlyDuration) || 3))),
+          String(Math.min(24, Math.max(2, Math.floor(Number(body.hourlyDuration) || 2)))),
         ].join(":");
 
         const paymentIntent = await stripe.paymentIntents.create(

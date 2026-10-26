@@ -12,7 +12,11 @@ import {
   onUnauthorized,
 } from "../services/api";
 import { AppState, InteractionManager } from "react-native";
-import { registerDriverPushToken, subscribeDriverPushTokenRefresh, resetPushTokenRegistrationCache } from "../services/notifications";
+import {
+  registerDriverPushToken,
+  subscribeDriverPushTokenRefresh,
+  deregisterDriverPushToken,
+} from "../services/notifications";
 import { stopDriverLocationTracking } from "../services/driver-location";
 
 interface DriverAuthContextType {
@@ -118,7 +122,8 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
 
   const logout = useCallback(async () => {
     await stopDriverLocationTracking();
-    resetPushTokenRegistrationCache();
+    const token = await getDriverToken();
+    await deregisterDriverPushToken(token);
     await logoutDriver();
     setDriver(null);
   }, []);
@@ -131,6 +136,15 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
         await persistDriverProfile(data.driver);
       }
     } catch {
+      // 401 path already deregisters via apiRequest; still clear local session.
+      const token = await getDriverToken();
+      if (token) {
+        try {
+          await deregisterDriverPushToken(token);
+        } catch {
+          /* ignore */
+        }
+      }
       await clearDriverSession();
       setDriver(null);
     }

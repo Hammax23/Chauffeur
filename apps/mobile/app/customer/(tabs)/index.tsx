@@ -43,9 +43,15 @@ import {
   type GooglePlacesSuggestionsState,
 } from "../../../components/GooglePlacesAddressField";
 import { VehicleTierSelectList } from "../../../components/VehicleTierSelectList";
+import { AirlinePickerModal } from "../../../components/AirlinePickerModal";
 import type { PlacePrediction } from "../../../services/places";
 import { fetchDirectionsSummary } from "../../../services/places";
 import { GOLD } from "../../../theme/driver-theme";
+import {
+  isAirportPlace,
+  parseAirportContext,
+  type AirportPlaceContext,
+} from "../../../utils/airport-place";
 import {
   buildVehicleTiersFromAppFleet,
   filterVehicleTiersForParcel,
@@ -378,6 +384,13 @@ export default function CustomerHomeScreen() {
   const [whereAirline, setWhereAirline] = useState("");
   const [whereFlightNumber, setWhereFlightNumber] = useState("");
   const [whereMeetGreet, setWhereMeetGreet] = useState(false);
+  const [airlinePickerVisible, setAirlinePickerVisible] = useState(false);
+  const [airlinePickerContext, setAirlinePickerContext] = useState<AirportPlaceContext>({
+    label: "Airport",
+  });
+  const airlinePromptedPickupRef = useRef(false);
+  const airlinePromptedDropoffRef = useRef(false);
+  const airlineOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Autocomplete labels — keep airport signal when formatted address is street-only. */
   const [wherePickupPlaceLabel, setWherePickupPlaceLabel] = useState("");
   const [whereDropoffPlaceLabel, setWhereDropoffPlaceLabel] = useState("");
@@ -729,6 +742,13 @@ export default function CustomerHomeScreen() {
     setWhereAirline("");
     setWhereFlightNumber("");
     setWhereMeetGreet(false);
+    setAirlinePickerVisible(false);
+    airlinePromptedPickupRef.current = false;
+    airlinePromptedDropoffRef.current = false;
+    if (airlineOpenTimerRef.current) {
+      clearTimeout(airlineOpenTimerRef.current);
+      airlineOpenTimerRef.current = null;
+    }
     setWherePickupPlaceLabel("");
     setWhereDropoffPlaceLabel("");
     setWhereRideFor("me");
@@ -740,10 +760,52 @@ export default function CustomerHomeScreen() {
     resetWhereVehicleState();
   }, [resetWhereVehicleState]);
 
+  const openAirlinePicker = useCallback(
+    (
+      place: { address: string; description?: string },
+      side: "pickup" | "dropoff",
+      opts?: { force?: boolean }
+    ) => {
+      if (selectedService === "parcel") return;
+      const placeIsAirport = isAirportPlace(place.address, place.description);
+      // Auto-open only for real airport places; force (row tap) may open with generic context
+      // when Airport service is selected before a place is resolved.
+      if (!opts?.force && !placeIsAirport) return;
+      if (!opts?.force) {
+        if (side === "pickup" && airlinePromptedPickupRef.current) return;
+        if (side === "dropoff" && airlinePromptedDropoffRef.current) return;
+        // Prefer pickup when both ends are airport — skip auto dropoff if pickup already airport.
+        if (
+          side === "dropoff" &&
+          isAirportPlace(wherePickup, wherePickupPlaceLabel)
+        ) {
+          airlinePromptedDropoffRef.current = true;
+          return;
+        }
+      }
+      if (side === "pickup") airlinePromptedPickupRef.current = true;
+      else airlinePromptedDropoffRef.current = true;
+
+      const ctx = placeIsAirport
+        ? parseAirportContext(place.address, place.description)
+        : { label: "Airport" as const };
+      setAirlinePickerContext(ctx);
+      Keyboard.dismiss();
+      if (airlineOpenTimerRef.current) clearTimeout(airlineOpenTimerRef.current);
+      airlineOpenTimerRef.current = setTimeout(() => {
+        setAirlinePickerVisible(true);
+        airlineOpenTimerRef.current = null;
+      }, 300);
+    },
+    [selectedService, wherePickup, wherePickupPlaceLabel]
+  );
+
   /** Stay on the sheet after dropoff — Select vehicle appears below the route card. */
   const onWhereDropoffResolved = useCallback(
     (place: { address: string; lat?: number; lng?: number; description?: string }) => {
       const address = place.address.trim();
+      // New airport place → allow auto-prompt again for this side.
+      airlinePromptedDropoffRef.current = false;
       setDropoff(address);
       setWhereDropoffPlaceLabel(place.description?.trim() || address);
       setDropoffCoords(
@@ -752,8 +814,12 @@ export default function CustomerHomeScreen() {
       dropoffDismissRef.current?.();
       setRouteSuggestions(null);
       Keyboard.dismiss();
+      openAirlinePicker(
+        { address, description: place.description },
+        "dropoff"
+      );
     },
-    []
+    [openAirlinePicker]
   );
 
   /** Tap a vehicle → select only; Continue goes to Review. */
@@ -785,15 +851,13 @@ export default function CustomerHomeScreen() {
       params.pickupLat = String(coords.lat);
       params.pickupLng = String(coords.lng);
     }
-    if (!isHourly) {
-      if (dropoff.trim()) params.dropoff = dropoff.trim();
-      if (dropoffCoords) {
-        params.dropoffLat = String(dropoffCoords.lat);
-        params.dropoffLng = String(dropoffCoords.lng);
-      }
-      const stopsJoined = joinAppStops(whereStops);
-      if (stopsJoined) params.stops = stopsJoined;
+    if (dropoff.trim()) params.dropoff = dropoff.trim();
+    if (dropoffCoords) {
+      params.dropoffLat = String(dropoffCoords.lat);
+      params.dropoffLng = String(dropoffCoords.lng);
     }
+    const stopsJoined = joinAppStops(whereStops);
+    if (stopsJoined) params.stops = stopsJoined;
     params.vehicleId = whereSelectedTierId;
     if (whereAirline.trim()) params.airline = whereAirline.trim();
     if (whereFlightNumber.trim()) params.flightNumber = whereFlightNumber.trim();
@@ -828,6 +892,8 @@ export default function CustomerHomeScreen() {
 
   const onWherePickupResolved = useCallback(
     (place: { address: string; lat?: number; lng?: number; description?: string }) => {
+      // New airport place → allow auto-prompt again for this side.
+      airlinePromptedPickupRef.current = false;
       setWherePickup(place.address);
       setWherePickupPlaceLabel(place.description?.trim() || place.address);
       const nextCoords =
@@ -842,11 +908,12 @@ export default function CustomerHomeScreen() {
       }
       dismissAllWhereFields("pickup");
       setRouteSuggestions(null);
-      // Hourly has no dropoff — keep focus on pickup / dismiss keyboard.
-      if (selectedService === "hourly") {
-        routeFocusRef.current = "pickup";
-        setRouteFocus("pickup");
-        softDismissWhereKeyboard();
+      const airportPickup = isAirportPlace(place.address, place.description);
+      if (airportPickup && selectedService !== "parcel") {
+        openAirlinePicker(
+          { address: place.address, description: place.description },
+          "pickup"
+        );
         return;
       }
       // After pickup → first empty stop if any, else dropoff
@@ -861,7 +928,7 @@ export default function CustomerHomeScreen() {
         setTimeout(() => dropoffInputRef.current?.focus(), 80);
       }
     },
-    [dismissAllWhereFields, whereStops, selectedService, softDismissWhereKeyboard]
+    [dismissAllWhereFields, whereStops, selectedService, openAirlinePicker]
   );
 
   const onWhereStopResolved = useCallback(
@@ -966,6 +1033,37 @@ export default function CustomerHomeScreen() {
     if (!whereAllowMeetGreet && whereMeetGreet) setWhereMeetGreet(false);
   }, [whereAllowMeetGreet, whereMeetGreet]);
 
+  // Clear flight fields when neither end is an airport anymore.
+  useEffect(() => {
+    const pickupAir = isAirportPlace(wherePickup, wherePickupPlaceLabel);
+    const dropoffAir = isAirportPlace(dropoff, whereDropoffPlaceLabel);
+    if (!pickupAir && !dropoffAir) {
+      if (whereAirline || whereFlightNumber) {
+        setWhereAirline("");
+        setWhereFlightNumber("");
+      }
+      airlinePromptedPickupRef.current = false;
+      airlinePromptedDropoffRef.current = false;
+    }
+  }, [
+    wherePickup,
+    wherePickupPlaceLabel,
+    dropoff,
+    whereDropoffPlaceLabel,
+    whereAirline,
+    whereFlightNumber,
+  ]);
+
+  const closeAirlinePickerAndFocusNext = useCallback(() => {
+    setAirlinePickerVisible(false);
+    // After airport pickup flow, move focus to dropoff like a normal resolve.
+    if (!dropoff.trim()) {
+      routeFocusRef.current = "dropoff";
+      setRouteFocus("dropoff");
+      setTimeout(() => dropoffInputRef.current?.focus(), 120);
+    }
+  }, [dropoff]);
+
   const whereShowVehicles = whereRouteReady && !routeSuggestions?.showPanel;
 
   const whereActiveStops = useMemo(
@@ -976,13 +1074,15 @@ export default function CustomerHomeScreen() {
   const whereTierFareById = useMemo(() => {
     const out: Record<string, number> = {};
     if (selectedService === "hourly") {
+      const stopCount = whereActiveStops.length;
       for (const tier of whereTiers) {
         const fare = calculateAppHourlyFare({
           hours: whereHourlyHours,
           hourlyRate: tier.hourlyRate,
+          stopCount,
           childSeatCount: 0,
         });
-        if (fare) out[tier.id] = fare.rideFare;
+        if (fare) out[tier.id] = fare.rideFare + fare.stopCharge;
       }
       return out;
     }
@@ -1091,8 +1191,8 @@ export default function CustomerHomeScreen() {
       setWhereRouteLoading(false);
       return;
     }
-    // Hourly is priced by the hour — skip Google Directions.
-    if (selectedService === "hourly") {
+    // Hourly as-directed (no dropoff): skip Directions. With dropoff, preview route like distance.
+    if (selectedService === "hourly" && dropoff.trim().length < 3) {
       setWhereDistanceMeters(null);
       setWhereRouteMeta(null);
       setWhereRouteError("");
@@ -1998,8 +2098,29 @@ export default function CustomerHomeScreen() {
                             { backgroundColor: isDark ? "#F5F0E8" : CONCIERGE_INK },
                           ]}
                         />
-                        {selectedService !== "hourly" ? (
-                          <>
+                        <View
+                          style={[
+                            styles.uberRailLine,
+                            {
+                              backgroundColor: isDark
+                                ? "rgba(255,255,255,0.22)"
+                                : "rgba(0,0,0,0.18)",
+                            },
+                          ]}
+                        />
+                        {whereStops.map((_, i) => (
+                          <View key={`rail-stop-${i}`} style={styles.uberRailStopWrap}>
+                            <View
+                              style={[
+                                styles.uberStopDot,
+                                {
+                                  borderColor: isDark ? "#C9B8A0" : ACCENT_DARK,
+                                  backgroundColor: isDark
+                                    ? "rgba(201,184,160,0.2)"
+                                    : "rgba(168,120,48,0.15)",
+                                },
+                              ]}
+                            />
                             <View
                               style={[
                                 styles.uberRailLine,
@@ -2010,39 +2131,14 @@ export default function CustomerHomeScreen() {
                                 },
                               ]}
                             />
-                            {whereStops.map((_, i) => (
-                              <View key={`rail-stop-${i}`} style={styles.uberRailStopWrap}>
-                                <View
-                                  style={[
-                                    styles.uberStopDot,
-                                    {
-                                      borderColor: isDark ? "#C9B8A0" : ACCENT_DARK,
-                                      backgroundColor: isDark
-                                        ? "rgba(201,184,160,0.2)"
-                                        : "rgba(168,120,48,0.15)",
-                                    },
-                                  ]}
-                                />
-                                <View
-                                  style={[
-                                    styles.uberRailLine,
-                                    {
-                                      backgroundColor: isDark
-                                        ? "rgba(255,255,255,0.22)"
-                                        : "rgba(0,0,0,0.18)",
-                                    },
-                                  ]}
-                                />
-                              </View>
-                            ))}
-                            <View
-                              style={[
-                                styles.uberDropoffSquare,
-                                { backgroundColor: GOLD },
-                              ]}
-                            />
-                          </>
-                        ) : null}
+                          </View>
+                        ))}
+                        <View
+                          style={[
+                            styles.uberDropoffSquare,
+                            { backgroundColor: GOLD },
+                          ]}
+                        />
                       </View>
                       <View style={styles.uberRouteFields}>
                         <GooglePlacesAddressField
@@ -2062,7 +2158,7 @@ export default function CustomerHomeScreen() {
                           iconName="radio-button-on"
                           embedded
                           hidePanel
-                          embeddedDivider={selectedService !== "hourly"}
+                          embeddedDivider
                           autoFocus={routeFocus === "pickup"}
                           inputRef={pickupInputRef}
                           pickHandlerRef={pickupPickRef}
@@ -2080,122 +2176,120 @@ export default function CustomerHomeScreen() {
                           containerStyle={styles.conciergeWhereField}
                         />
 
-                        {selectedService !== "hourly" ? (
-                          <>
-                            {whereStops.map((stop, index) => (
-                              <View key={`where-stop-${index}`} style={styles.whereStopRow}>
-                                <GooglePlacesAddressField
-                                  value={stop}
-                                  onChangeText={(t) =>
-                                    setWhereStops((prev) =>
-                                      prev.map((s, i) => (i === index ? t : s))
-                                    )
-                                  }
-                                  placeholder={
-                                    whereStops.length > 1
-                                      ? `Stop ${index + 1}`
-                                      : "Add a stop"
-                                  }
-                                  iconName="ellipse-outline"
-                                  embedded
-                                  hidePanel
-                                  autoFocus={routeFocus === index}
-                                  inputRef={stopInputRefs.current[index]}
-                                  pickHandlerRef={stopPickRefs.current[index]}
-                                  dismissHandlerRef={stopDismissRefs.current[index]}
-                                  onFocusChange={(focused) => {
-                                    if (!focused) return;
-                                    routeFocusRef.current = index;
-                                    setRouteFocus(index);
-                                    dismissAllWhereFields(index);
-                                  }}
-                                  onSuggestionsChange={(state) =>
-                                    onRouteSuggestionsFrom(index, state)
-                                  }
-                                  onPlaceResolved={(place) =>
-                                    onWhereStopResolved(index, place)
-                                  }
-                                  containerStyle={styles.whereStopField}
-                                />
-                                <Pressable
-                                  onPress={() => removeWhereStop(index)}
-                                  hitSlop={8}
-                                  style={styles.whereStopRemove}
-                                  accessibilityLabel={`Remove stop ${index + 1}`}
-                                >
-                                  <Ionicons
-                                    name="close-circle"
-                                    size={22}
-                                    color={isDark ? "#A8A29A" : "#8A847C"}
-                                  />
-                                </Pressable>
-                              </View>
-                            ))}
-
-                            {whereStops.length < MAX_APP_STOPS ? (
-                              <Pressable
-                                onPress={addWhereStop}
-                                style={({ pressed }) => [
-                                  styles.whereAddStopBtn,
-                                  pressed && { opacity: 0.75 },
-                                ]}
-                                accessibilityRole="button"
-                                accessibilityLabel="Add stop"
-                              >
-                                <Ionicons
-                                  name="add"
-                                  size={18}
-                                  color={isDark ? GOLD : ACCENT_DARK}
-                                />
-                                <Text
-                                  style={[
-                                    styles.whereAddStopText,
-                                    { color: isDark ? GOLD : ACCENT_DARK },
-                                  ]}
-                                >
-                                  {whereStops.length === 0
-                                    ? "Add stop"
-                                    : "Add another stop"}
-                                </Text>
-                              </Pressable>
-                            ) : null}
-
+                        {whereStops.map((stop, index) => (
+                          <View key={`where-stop-${index}`} style={styles.whereStopRow}>
                             <GooglePlacesAddressField
-                              value={dropoff}
-                              onChangeText={(t) => {
-                                setDropoff(t);
-                                setDropoffCoords(null);
-                                setWhereDropoffPlaceLabel("");
-                              }}
-                              placeholder={
-                                selectedService === "airport"
-                                  ? "Destination"
-                                  : selectedService === "parcel"
-                                    ? "Delivery address"
-                                    : "Where to?"
+                              value={stop}
+                              onChangeText={(t) =>
+                                setWhereStops((prev) =>
+                                  prev.map((s, i) => (i === index ? t : s))
+                                )
                               }
-                              iconName="square"
+                              placeholder={
+                                whereStops.length > 1
+                                  ? `Stop ${index + 1}`
+                                  : "Add a stop"
+                              }
+                              iconName="ellipse-outline"
                               embedded
-                              embeddedDivider={false}
                               hidePanel
-                              autoFocus={routeFocus === "dropoff"}
-                              inputRef={dropoffInputRef}
-                              pickHandlerRef={dropoffPickRef}
-                              dismissHandlerRef={dropoffDismissRef}
+                              autoFocus={routeFocus === index}
+                              inputRef={stopInputRefs.current[index]}
+                              pickHandlerRef={stopPickRefs.current[index]}
+                              dismissHandlerRef={stopDismissRefs.current[index]}
                               onFocusChange={(focused) => {
                                 if (!focused) return;
-                                routeFocusRef.current = "dropoff";
-                                setRouteFocus("dropoff");
-                                dismissAllWhereFields("dropoff");
+                                routeFocusRef.current = index;
+                                setRouteFocus(index);
+                                dismissAllWhereFields(index);
                               }}
                               onSuggestionsChange={(state) =>
-                                onRouteSuggestionsFrom("dropoff", state)
+                                onRouteSuggestionsFrom(index, state)
                               }
-                              onPlaceResolved={onWhereDropoffResolved}
-                              containerStyle={styles.conciergeWhereField}
+                              onPlaceResolved={(place) =>
+                                onWhereStopResolved(index, place)
+                              }
+                              containerStyle={styles.whereStopField}
                             />
-                          </>
+                            <Pressable
+                              onPress={() => removeWhereStop(index)}
+                              hitSlop={8}
+                              style={styles.whereStopRemove}
+                              accessibilityLabel={`Remove stop ${index + 1}`}
+                            >
+                              <Ionicons
+                                name="close-circle"
+                                size={22}
+                                color={isDark ? "#A8A29A" : "#8A847C"}
+                              />
+                            </Pressable>
+                          </View>
+                        ))}
+
+                        {whereStops.length < MAX_APP_STOPS ? (
+                          <Pressable
+                            onPress={addWhereStop}
+                            style={({ pressed }) => [
+                              styles.whereAddStopBtn,
+                              pressed && { opacity: 0.75 },
+                            ]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Add stop"
+                          >
+                            <Ionicons
+                              name="add"
+                              size={18}
+                              color={isDark ? GOLD : ACCENT_DARK}
+                            />
+                            <Text
+                              style={[
+                                styles.whereAddStopText,
+                                { color: isDark ? GOLD : ACCENT_DARK },
+                              ]}
+                            >
+                              {whereStops.length === 0
+                                ? "Add stop"
+                                : "Add another stop"}
+                            </Text>
+                          </Pressable>
                         ) : null}
+
+                        <GooglePlacesAddressField
+                          value={dropoff}
+                          onChangeText={(t) => {
+                            setDropoff(t);
+                            setDropoffCoords(null);
+                            setWhereDropoffPlaceLabel("");
+                          }}
+                          placeholder={
+                            selectedService === "airport"
+                              ? "Destination"
+                              : selectedService === "parcel"
+                                ? "Delivery address"
+                                : selectedService === "hourly"
+                                  ? "Drop-off (optional)"
+                                  : "Where to?"
+                          }
+                          iconName="square"
+                          embedded
+                          embeddedDivider={false}
+                          hidePanel
+                          autoFocus={routeFocus === "dropoff"}
+                          inputRef={dropoffInputRef}
+                          pickHandlerRef={dropoffPickRef}
+                          dismissHandlerRef={dropoffDismissRef}
+                          onFocusChange={(focused) => {
+                            if (!focused) return;
+                            routeFocusRef.current = "dropoff";
+                            setRouteFocus("dropoff");
+                            dismissAllWhereFields("dropoff");
+                          }}
+                          onSuggestionsChange={(state) =>
+                            onRouteSuggestionsFrom("dropoff", state)
+                          }
+                          onPlaceResolved={onWhereDropoffResolved}
+                          containerStyle={styles.conciergeWhereField}
+                        />
                       </View>
                     </View>
 
@@ -2215,7 +2309,9 @@ export default function CustomerHomeScreen() {
                             { color: isDark ? "#A8A29A" : "#6B6560" },
                           ]}
                         >
-                          As directed · {APP_MIN_HOURLY_HOURS}h minimum
+                          {dropoff.trim().length >= 3
+                            ? `${APP_MIN_HOURLY_HOURS}h minimum`
+                            : `As directed · ${APP_MIN_HOURLY_HOURS}h minimum`}
                         </Text>
                         <ScrollView
                           horizontal
@@ -2313,10 +2409,29 @@ export default function CustomerHomeScreen() {
                         >
                           Flight details
                         </Text>
-                        <TextInput
-                          style={[
+                        <Pressable
+                          onPress={() => {
+                            const pickupAirport = isAirportPlace(
+                              wherePickup,
+                              wherePickupPlaceLabel
+                            );
+                            const side = pickupAirport ? "pickup" : "dropoff";
+                            const address =
+                              side === "pickup" ? wherePickup : dropoff;
+                            const description =
+                              side === "pickup"
+                                ? wherePickupPlaceLabel
+                                : whereDropoffPlaceLabel;
+                            openAirlinePicker(
+                              { address, description },
+                              side,
+                              { force: true }
+                            );
+                          }}
+                          style={({ pressed }) => [
                             styles.whereFlightInput,
                             {
+                              justifyContent: "center",
                               color: isDark ? "#F5F0E8" : CONCIERGE_INK,
                               backgroundColor: isDark
                                 ? "rgba(255,255,255,0.06)"
@@ -2325,19 +2440,52 @@ export default function CustomerHomeScreen() {
                                 ? "rgba(255,255,255,0.12)"
                                 : "rgba(0,0,0,0.08)",
                             },
+                            pressed && { opacity: 0.88 },
                           ]}
-                          value={whereAirline}
-                          onChangeText={setWhereAirline}
-                          placeholder="Airline"
-                          placeholderTextColor={isDark ? "#A8A29A" : "#8A847C"}
-                          autoCapitalize="words"
-                        />
-                        <TextInput
-                          style={[
+                          accessibilityRole="button"
+                          accessibilityLabel="Choose airline"
+                        >
+                          <Text
+                            style={{
+                              fontSize: 15,
+                              fontWeight: "500",
+                              color: whereAirline.trim()
+                                ? isDark
+                                  ? "#F5F0E8"
+                                  : CONCIERGE_INK
+                                : isDark
+                                  ? "#A8A29A"
+                                  : "#8A847C",
+                            }}
+                            numberOfLines={1}
+                          >
+                            {whereAirline.trim() || "Which airline?"}
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => {
+                            const pickupAirport = isAirportPlace(
+                              wherePickup,
+                              wherePickupPlaceLabel
+                            );
+                            const side = pickupAirport ? "pickup" : "dropoff";
+                            const address =
+                              side === "pickup" ? wherePickup : dropoff;
+                            const description =
+                              side === "pickup"
+                                ? wherePickupPlaceLabel
+                                : whereDropoffPlaceLabel;
+                            openAirlinePicker(
+                              { address, description },
+                              side,
+                              { force: true }
+                            );
+                          }}
+                          style={({ pressed }) => [
                             styles.whereFlightInput,
                             {
                               marginTop: 8,
-                              color: isDark ? "#F5F0E8" : CONCIERGE_INK,
+                              justifyContent: "center",
                               backgroundColor: isDark
                                 ? "rgba(255,255,255,0.06)"
                                 : "#fff",
@@ -2345,13 +2493,28 @@ export default function CustomerHomeScreen() {
                                 ? "rgba(255,255,255,0.12)"
                                 : "rgba(0,0,0,0.08)",
                             },
+                            pressed && { opacity: 0.88 },
                           ]}
-                          value={whereFlightNumber}
-                          onChangeText={setWhereFlightNumber}
-                          placeholder="Flight/Tail number"
-                          placeholderTextColor={isDark ? "#A8A29A" : "#8A847C"}
-                          autoCapitalize="characters"
-                        />
+                          accessibilityRole="button"
+                          accessibilityLabel="Flight number"
+                        >
+                          <Text
+                            style={{
+                              fontSize: 15,
+                              fontWeight: "500",
+                              color: whereFlightNumber.trim()
+                                ? isDark
+                                  ? "#F5F0E8"
+                                  : CONCIERGE_INK
+                                : isDark
+                                  ? "#A8A29A"
+                                  : "#8A847C",
+                            }}
+                            numberOfLines={1}
+                          >
+                            {whereFlightNumber.trim() || "Flight number"}
+                          </Text>
+                        </Pressable>
                         {whereAllowMeetGreet ? (
                           <View
                             style={[
@@ -2480,12 +2643,12 @@ export default function CustomerHomeScreen() {
                           {selectedService === "hourly"
                             ? `Estimated fare · ${whereHourlyHours}h`
                             : "Estimated fare for this route"}
-                          {selectedService !== "hourly" && whereRouteMeta?.distanceText
+                          {whereRouteMeta?.distanceText
                             ? ` · ${whereRouteMeta.distanceText}`
-                            : selectedService !== "hourly" && whereRouteLoading
+                            : whereRouteLoading
                               ? " · calculating…"
                               : ""}
-                          {selectedService !== "hourly" && whereRouteMeta?.durationText
+                          {whereRouteMeta?.durationText
                             ? ` · ${whereRouteMeta.durationText}`
                             : ""}
                         </Text>
@@ -2669,18 +2832,24 @@ export default function CustomerHomeScreen() {
               disabled={
                 !whereSelectedTierId ||
                 whereFleetLoading ||
-                (selectedService !== "hourly" && whereRouteLoading)
+                (whereRouteLoading &&
+                  (selectedService !== "hourly" || dropoff.trim().length >= 3))
               }
               style={({ pressed }) => [
                 styles.whereContinueBtn,
                 (!whereSelectedTierId ||
                   whereFleetLoading ||
-                  (selectedService !== "hourly" && whereRouteLoading)) &&
+                  (whereRouteLoading &&
+                    (selectedService !== "hourly" ||
+                      dropoff.trim().length >= 3))) &&
                   styles.whereContinueBtnDisabled,
                 pressed &&
                   whereSelectedTierId &&
                   !whereFleetLoading &&
-                  (selectedService === "hourly" || !whereRouteLoading) && {
+                  !(
+                    whereRouteLoading &&
+                    (selectedService !== "hourly" || dropoff.trim().length >= 3)
+                  ) && {
                     opacity: 0.92,
                   },
               ]}
@@ -2696,12 +2865,17 @@ export default function CustomerHomeScreen() {
                 <Text style={styles.whereContinueBtnText}>
                   {!whereSelectedTierId
                     ? "Select a vehicle"
-                    : selectedService !== "hourly" && whereRouteLoading
+                    : whereRouteLoading &&
+                        (selectedService !== "hourly" ||
+                          dropoff.trim().length >= 3)
                       ? "Calculating route…"
                       : "Continue"}
                 </Text>
                 {whereSelectedTierId &&
-                (selectedService === "hourly" || !whereRouteLoading) ? (
+                !(
+                  whereRouteLoading &&
+                  (selectedService !== "hourly" || dropoff.trim().length >= 3)
+                ) ? (
                   <Ionicons name="arrow-forward" size={18} color="#1A1208" />
                 ) : null}
               </LinearGradient>
@@ -2709,6 +2883,24 @@ export default function CustomerHomeScreen() {
           </View>
         ) : null}
       </Animated.View>
+
+      <AirlinePickerModal
+        visible={airlinePickerVisible}
+        context={airlinePickerContext}
+        initialAirline={whereAirline}
+        initialFlightNumber={whereFlightNumber}
+        onSkip={() => {
+          closeAirlinePickerAndFocusNext();
+        }}
+        onComplete={({ airline, flightNumber }) => {
+          setWhereAirline(airline);
+          setWhereFlightNumber(flightNumber);
+          closeAirlinePickerAndFocusNext();
+        }}
+        onRequestClose={() => {
+          closeAirlinePickerAndFocusNext();
+        }}
+      />
 
       {/* Destination composer renders inline in the top header (see topRow). */}
 

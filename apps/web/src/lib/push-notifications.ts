@@ -6,6 +6,7 @@ const expo = new Expo();
 async function clearInvalidPushToken(pushToken: string) {
   try {
     await Promise.all([
+      prisma.pushDevice.deleteMany({ where: { token: pushToken } }),
       prisma.driver.updateMany({
         where: { pushToken },
         data: { pushToken: null },
@@ -81,6 +82,7 @@ function buildMessage(
     ttlSeconds: _ttlSeconds,
     collapseId: _collapseId,
     badge: badgeRaw,
+    silent: silentRaw,
     ...restData
   } = (data || {}) as Record<string, unknown>;
 
@@ -91,11 +93,13 @@ function buildMessage(
         ? Math.max(0, parseInt(badgeRaw.trim(), 10))
         : undefined;
 
+  const silent = silentRaw === true || type === "chat_badge";
+
   return {
     to: pushToken,
-    sound: "default",
-    title,
-    body,
+    sound: silent ? null : "default",
+    title: silent ? undefined : title,
+    body: silent ? undefined : body,
     data: {
       ...restData,
       type,
@@ -105,6 +109,7 @@ function buildMessage(
       eventId,
       ...(collapseId ? { collapseId } : {}),
       ...(badge !== undefined ? { badge } : {}),
+      ...(silent ? { silent: true } : {}),
     },
     priority: "high",
     channelId,
@@ -117,7 +122,7 @@ function buildMessage(
           tag: collapseId,
         }
       : {}),
-    interruptionLevel: "time-sensitive",
+    interruptionLevel: silent ? "passive" : "time-sensitive",
     _contentAvailable: true,
   };
 }

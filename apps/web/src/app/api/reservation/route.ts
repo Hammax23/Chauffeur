@@ -86,7 +86,10 @@ export async function POST(request: NextRequest) {
     const transferType = sanitizeInput(body.transferType) || "oneWay";
     const adultsCount = typeof body.adultsCount === "number" ? body.adultsCount : 1;
     const childrenCount = typeof body.childrenCount === "number" ? body.childrenCount : 0;
-    const hourlyDuration = typeof body.hourlyDuration === "number" ? body.hourlyDuration : 3;
+    const hourlyDuration = Math.min(
+      24,
+      Math.max(2, Math.floor(typeof body.hourlyDuration === "number" ? body.hourlyDuration : Number(body.hourlyDuration) || 2))
+    );
     const returnDateTime = sanitizeInput(body.returnDateTime);
     const childSeatCount = typeof body.childSeatCount === "number" ? body.childSeatCount : 0;
     const childSeatType = sanitizeInput(body.childSeatType);

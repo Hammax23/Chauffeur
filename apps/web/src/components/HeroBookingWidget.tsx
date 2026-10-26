@@ -6,6 +6,7 @@ import PlacesAutocomplete from '@/components/PlacesAutocomplete';
 import { useGoogleMaps } from '@/components/GoogleMapsProvider';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import { APP_HOURLY_DURATIONS, APP_MIN_HOURLY_HOURS } from '@/lib/reservation-pricing';
 
 export default function HeroBookingWidget() {
   const router = useRouter();
@@ -14,7 +15,7 @@ export default function HeroBookingWidget() {
   const [pickup, setPickup] = useState("");
   const [dropoff, setDropoff] = useState("");
   const [pickupDateTime, setPickupDateTime] = useState<Date | null>(null);
-  const [duration, setDuration] = useState(3);
+  const [duration, setDuration] = useState(APP_MIN_HOURLY_HOURS);
   const [durationDropdownOpen, setDurationDropdownOpen] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -248,7 +249,7 @@ export default function HeroBookingWidget() {
 
                       {durationDropdownOpen && (
                         <div className="absolute top-full left-0 mt-2 w-full bg-white rounded-xl shadow-xl border border-gray-100 z-50 max-h-[200px] overflow-y-auto">
-                          {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((hours) => (
+                          {APP_HOURLY_DURATIONS.map((hours) => (
                             <button
                               key={hours}
                               type="button"

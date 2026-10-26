@@ -233,8 +233,7 @@ export async function syncDriverIntoOpenLiveOffers(driverId: string): Promise<nu
   const serverTime = new Date().toISOString();
   const { buildDriverLiveOfferCopy } = await import("@/lib/driver-push");
   const { sendBulkPushNotifications } = await import("@/lib/push-notifications");
-  const pushItems: Array<{
-    pushToken: string;
+  const pushTemplates: Array<{
     title: string;
     body: string;
     data: Record<string, string>;
@@ -277,25 +276,36 @@ export async function syncDriverIntoOpenLiveOffers(driverId: string): Promise<nu
       ride,
     });
 
-    if (driver.pushToken) {
-      const copy = buildDriverLiveOfferCopy(reservation);
-      pushItems.push({
-        pushToken: driver.pushToken,
-        title: copy.title,
-        body: copy.body,
-        data: {
-          type: "live_offer",
-          bookingId: reservation.bookingId,
-          screen: "DriverDashboard",
-          channelId: "reservations",
-        },
-      });
-    }
+    const copy = buildDriverLiveOfferCopy(reservation);
+    pushTemplates.push({
+      title: copy.title,
+      body: copy.body,
+      data: {
+        type: "live_offer",
+        bookingId: reservation.bookingId,
+        screen: "DriverDashboard",
+        channelId: "reservations",
+      },
+    });
     added += 1;
   }
 
-  if (pushItems.length > 0) {
-    void sendBulkPushNotifications(pushItems).catch(() => {});
+  if (pushTemplates.length > 0) {
+    void (async () => {
+      try {
+        const { listPushTokensForUser } = await import("@/lib/push-devices");
+        const tokens = await listPushTokensForUser("DRIVER", driverId);
+        const legacy = driver.pushToken ? [driver.pushToken] : [];
+        const all = [...new Set([...tokens, ...legacy])];
+        if (all.length === 0) return;
+        const expanded = all.flatMap((pushToken) =>
+          pushTemplates.map((item) => ({ ...item, pushToken }))
+        );
+        await sendBulkPushNotifications(expanded);
+      } catch {
+        /* ignore */
+      }
+    })();
   }
 
   return added;

@@ -42,6 +42,7 @@ export async function GET(
     const data = await listMessagesForBooking(bookingId, {
       since,
       viewerType: "DRIVER",
+      viewerId: tokenData.id,
       markRead,
     });
     return NextResponse.json({ success: true, ...data });
@@ -124,6 +125,7 @@ export async function PATCH(
     const marked = await markChatReadForViewer({
       bookingId,
       viewerType: "DRIVER",
+      viewerId: tokenData.id,
     });
     return NextResponse.json({ success: true, marked });
   } catch (error) {

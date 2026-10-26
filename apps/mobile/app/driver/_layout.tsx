@@ -83,6 +83,17 @@ export default function DriverLayout() {
     return () => sub.remove();
   }, [locationGranted, tokenOk]);
 
+  /** Self-heal: OEM battery managers can kill BG GPS mid-trip — re-attach every 30s. */
+  useEffect(() => {
+    if (locationGranted !== true || !tokenOk) {
+      return;
+    }
+    const id = setInterval(() => {
+      syncDriverLiveTracking().catch(() => {});
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [locationGranted, tokenOk]);
+
   if (authLoading || tokenOk === null) {
     return (
       <View style={[styles.blocker, { backgroundColor: "#0b0b0b" }]}>

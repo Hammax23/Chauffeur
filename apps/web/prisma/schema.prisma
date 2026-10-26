@@ -277,6 +277,20 @@ model Customer {
   @@index([outstandingBalance])
 }
 
+/// Multi-device Expo push tokens (Customer / Driver). Legacy `pushToken` columns kept as mirror.
+model PushDevice {
+  id        String   @id @default(cuid())
+  /// CUSTOMER | DRIVER
+  role      String
+  userId    String
+  token     String   @unique
+  platform  String?
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@index([role, userId])
+}
+
 /// Customer saved destinations (Home / Office) for one-tap booking — synced across devices.
 model CustomerSavedPlace {
   id         String   @id @default(cuid())

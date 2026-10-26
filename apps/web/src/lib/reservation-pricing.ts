@@ -27,6 +27,21 @@ export function normalizeAppGratuityPercent(raw?: number | null): number {
 export const BASE_DISTANCE_KM = 17;
 export const EXTRA_KM_RATE = 3.2;
 
+/** Keep in sync with mobile `app-fare` APP_MIN/MAX_HOURLY_HOURS. */
+export const APP_MIN_HOURLY_HOURS = 2;
+export const APP_MAX_HOURLY_HOURS = 24;
+export const APP_HOURLY_DURATIONS = Array.from(
+  { length: APP_MAX_HOURLY_HOURS - APP_MIN_HOURLY_HOURS + 1 },
+  (_, i) => APP_MIN_HOURLY_HOURS + i
+);
+
+/** Clamp hourly duration to the allowed booking window. */
+export function clampHourlyDuration(raw?: unknown): number {
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n) || n < APP_MIN_HOURLY_HOURS) return APP_MIN_HOURLY_HOURS;
+  return Math.min(APP_MAX_HOURLY_HOURS, n);
+}
+
 /** Detect airport pickup from address / IATA code (any airport). */
 export function isAirportPickupLocation(location?: string | null): boolean {
   if (!location?.trim()) return false;
@@ -160,7 +175,7 @@ export function calculateAppHourlyFare(input: {
 }): ReservationPricingResult | null {
   const hours = Math.floor(Number(input.hours) || 0);
   const rate = Number(input.hourlyRate) || 0;
-  if (hours < 3 || rate <= 0) return null;
+  if (hours < APP_MIN_HOURLY_HOURS || hours > APP_MAX_HOURLY_HOURS || rate <= 0) return null;
 
   const rideFare = rate * hours;
   const stopCharge = resolveAppStopCount(input) * STOP_CHARGE;
@@ -252,8 +267,8 @@ export function calculateReservationPricing(
 
   let rideFare = 0;
   if (input.bookingMode === "hourly") {
-    const hours = input.hourlyDuration ?? 3;
-    if (hours < 3) return null;
+    const hours = clampHourlyDuration(input.hourlyDuration);
+    if (hours < APP_MIN_HOURLY_HOURS) return null;
     if (hourlyRate <= 0) return null;
     rideFare = hourlyRate * hours;
   } else {

@@ -7,6 +7,8 @@ import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { GOLD } from "../../../theme/driver-theme";
 import { useDriverTheme } from "../../../contexts/DriverThemeContext";
 import { getDriverChatThreads } from "../../../services/api";
+import { subscribeInboxBadgeRefresh } from "../../../services/inbox-badge-bus";
+import { syncAppIconBadge } from "../../../services/notifications";
 
 /** Icon+label row height before safe-area. */
 export const DRIVER_TAB_BAR_CONTENT_H = 46;
@@ -120,7 +122,9 @@ export default function DriverTabsLayout() {
     try {
       const data = await getDriverChatThreads();
       if (data.success) {
-        setInboxUnread(Math.max(0, data.totalUnread || 0));
+        const total = Math.max(0, data.totalUnread || 0);
+        setInboxUnread(total);
+        void syncAppIconBadge(total);
       }
     } catch {
       /* keep last known badge */
@@ -141,6 +145,8 @@ export default function DriverTabsLayout() {
     });
     return () => sub.remove();
   }, [refreshUnread]);
+
+  useEffect(() => subscribeInboxBadgeRefresh(() => void refreshUnread()), [refreshUnread]);
 
   return (
     <Tabs

@@ -90,13 +90,43 @@ function HistoryCard({
     isCancelled && total <= 0 ? "No charge" : `$${total.toFixed(2)}`;
 
   const onRebook = () => {
-    router.push({
-      pathname: "/customer/create-reservation",
-      params: {
-        pickup: reservation.pickupLocation || "",
-        dropoff: reservation.dropoffLocation || "",
-      },
-    });
+    // Rebook into the NEW booking flow (Plan → Review). `fromPlanRide: "1"`
+    // renders create-reservation's Review/checkout UX — NOT the legacy form.
+    // Mirror the params used by Home's "Continue to Review" (index.tsx).
+    const params: Record<string, string> = { fromPlanRide: "1" };
+
+    const svc = (reservation.serviceType || "").toLowerCase();
+    const dropoffRaw = (reservation.dropoffLocation || "").trim();
+    // Detect hourly from serviceType / As-directed dropoff ONLY.
+    // Never use `duration` — for distance trips that string is Google drive time
+    // (e.g. "1 hour 5 min") and would wrongly drop the destination.
+    const isHourly =
+      /hourly/i.test(svc) ||
+      svc.includes("hourly ride") ||
+      /^as directed$/i.test(dropoffRaw);
+
+    if (isParcelServiceType(reservation.serviceType)) {
+      params.prefill = "parcel";
+    } else if (svc.includes("airport")) {
+      params.prefill = "airport";
+    } else if (isHourly) {
+      params.prefill = "hourly";
+      const dur = reservation.duration || "";
+      const hrs = dur.match(/(\d+)\s*h/i)?.[1] || dur.match(/(\d+)/)?.[1];
+      if (hrs) params.hourlyHours = hrs;
+    }
+
+    const pickup = (reservation.pickupLocation || "").trim();
+    if (pickup) params.pickup = pickup;
+
+    // Keep route for all modes — hourly may have a real dropoff/stops from Plan.
+    if (dropoffRaw && !/^as directed$/i.test(dropoffRaw)) {
+      params.dropoff = dropoffRaw;
+    }
+    const stops = (reservation.stops || "").trim();
+    if (stops) params.stops = stops;
+
+    router.push({ pathname: "/customer/create-reservation", params });
   };
 
   const onReceipt = () => {

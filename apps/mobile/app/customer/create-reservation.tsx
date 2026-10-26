@@ -39,7 +39,9 @@ import { useAuth } from "../../contexts/AuthContext";
 import { GooglePlacesAddressField } from "../../components/GooglePlacesAddressField";
 import { ScheduleRideSheet } from "../../components/ScheduleRideSheet";
 import { PlanRideReviewPanel } from "../../components/PlanRideReviewPanel";
+import { AirlinePickerModal } from "../../components/AirlinePickerModal";
 import { RidePreferencesSheet } from "../../components/RidePreferencesSheet";
+import { parseAirportContext } from "../../utils/airport-place";
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from "react-native-maps";
 import { fetchDirectionsSummary, type DirectionsLatLng } from "../../services/places";
 import { decodePolyline } from "../../utils/decode-polyline";
@@ -85,6 +87,7 @@ import {
   normalizeAppGratuityPercent,
   APP_HOURLY_DURATIONS,
   APP_MIN_HOURLY_HOURS,
+  APP_MAX_HOURLY_HOURS,
   MEET_GREET_CHARGE,
   isAirportPickupLocation,
   parseMaxPassengers,
@@ -379,6 +382,7 @@ export default function CreateReservationScreen() {
   const [flightNumber, setFlightNumber] = useState("");
   const [flightNote, setFlightNote] = useState("");
   const [meetGreet, setMeetGreet] = useState(false);
+  const [airlinePickerVisible, setAirlinePickerVisible] = useState(false);
   const [fleetVehicles, setFleetVehicles] = useState<AppFleetVehicleDto[]>([]);
   const [distancePricing, setDistancePricing] = useState<AppDistancePricing>({
     baseDistanceKm: BASE_DISTANCE_KM,
@@ -394,7 +398,8 @@ export default function CreateReservationScreen() {
   const [showTierDropdown, setShowTierDropdown] = useState(false);
   const isParcel = isParcelServiceType(serviceType);
   const isHourly = !isParcel && bookingMode === "hourly";
-  const showDropoff = !isHourly;
+  /** Dropoff required for distance / parcel; optional for hourly (empty → As directed). */
+  const requireDropoff = !isHourly;
   const isAirportTransfer =
     !isParcel &&
     (serviceType.toLowerCase().includes("airport") ||
@@ -434,11 +439,15 @@ export default function CreateReservationScreen() {
   const reviewMapRef = useRef<MapView | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
-  /** Uber-style: route map only after both ends are set (never empty placeholder). */
+  /** Uber-style: route map after both ends are set (hourly as-directed has no map). */
+  const hourlyHasDropoff =
+    isHourly &&
+    dropoffAddress.trim().length >= 8 &&
+    !/^as directed$/i.test(dropoffAddress.trim());
   const addressesReadyForMap =
-    !isHourly &&
     pickupAddress.trim().length >= 8 &&
-    dropoffAddress.trim().length >= 8;
+    dropoffAddress.trim().length >= 8 &&
+    (!isHourly || hourlyHasDropoff);
   const showRouteHero =
     addressesReadyForMap &&
     !routeError &&
@@ -776,6 +785,8 @@ export default function CreateReservationScreen() {
     const raw = params.dropoff;
     const dropoff = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : "";
     if (!dropoff?.trim()) return;
+    // Hourly as-directed sentinel — keep field empty so user can set a real dropoff.
+    if (/^as directed$/i.test(dropoff.trim())) return;
     setDropoffAddress(dropoff.trim());
 
     const rawLat = params.dropoffLat;
@@ -832,7 +843,7 @@ export default function CreateReservationScreen() {
     setServiceType(value);
     if (key === "hourly" || key === "events" || value === HOURLY_SERVICE_TYPE) {
       setBookingMode("hourly");
-      setDropoffAddress("");
+      // Keep any dropoff/stops passed from Plan / Rebook (optional for hourly).
     } else {
       // distance, parcel, airport, corporate, etc.
       setBookingMode("distance");
@@ -845,11 +856,15 @@ export default function CreateReservationScreen() {
     const s = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : undefined;
     if (!s) return;
     const n = Math.floor(Number(s));
-    if (!Number.isFinite(n) || n < APP_MIN_HOURLY_HOURS) return;
-    if ((APP_HOURLY_DURATIONS as readonly number[]).includes(n)) {
-      setHourlyDuration(n);
+    if (!Number.isFinite(n)) return;
+    const clamped = Math.min(
+      APP_MAX_HOURLY_HOURS,
+      Math.max(APP_MIN_HOURLY_HOURS, n)
+    );
+    if ((APP_HOURLY_DURATIONS as readonly number[]).includes(clamped)) {
+      setHourlyDuration(clamped);
     } else {
-      setHourlyDuration(Math.max(APP_MIN_HOURLY_HOURS, n));
+      setHourlyDuration(clamped);
     }
   }, [params.hourlyHours]);
 
@@ -865,14 +880,18 @@ export default function CreateReservationScreen() {
   }, [vehicleTiers, selectedTierId]);
 
   useEffect(() => {
-    if (isHourly) {
+    const pickup = pickupAddress.trim();
+    const dropoff = dropoffAddress.trim();
+    // Hourly as-directed: no Directions. With a real dropoff, preview the route.
+    if (
+      isHourly &&
+      (dropoff.length < 8 || /^as directed$/i.test(dropoff))
+    ) {
       setRouteSummary(null);
       setRouteError(null);
       setRouteLoading(false);
       return;
     }
-    const pickup = pickupAddress.trim();
-    const dropoff = dropoffAddress.trim();
     const waypoints = activeStopAddresses(stops);
 
     // Prefer GPS lat,lng for My Location so Google Directions does not re-geocode a fuzzy address.
@@ -1127,7 +1146,7 @@ export default function CreateReservationScreen() {
   /** Per-tier ride fare for the list (Uber-style price on the right). */
   const tierFareById = useMemo(() => {
     const out: Record<string, number> = {};
-    const stopCount = 0;
+    const stopCount = activeStopAddresses(stops).length;
     if (isHourly) {
       for (const tier of vehicleTiers) {
         const fare = calculateAppHourlyFare({
@@ -1138,7 +1157,7 @@ export default function CreateReservationScreen() {
           gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
           pickupLocation: pickupAddress,
         });
-        if (fare) out[tier.id] = fare.rideFare;
+        if (fare) out[tier.id] = fare.rideFare + fare.stopCharge;
       }
       return out;
     }
@@ -1156,7 +1175,7 @@ export default function CreateReservationScreen() {
         gratuityPercent: APP_DEFAULT_GRATUITY_PERCENT,
         pickupLocation: pickupAddress,
       });
-      if (fare) out[tier.id] = fare.rideFare;
+      if (fare) out[tier.id] = fare.rideFare + fare.stopCharge;
     }
     return out;
   }, [
@@ -1166,6 +1185,7 @@ export default function CreateReservationScreen() {
     routeSummary?.distanceMeters,
     distancePricing,
     pickupAddress,
+    stops,
   ]);
 
   const onDateChange = (event: DateTimePickerEvent, date?: Date) => {
@@ -1189,7 +1209,7 @@ export default function CreateReservationScreen() {
     !selectedTier ||
     !pickupAddress.trim() ||
     !fareEstimate ||
-    (showDropoff && !dropoffAddress.trim()) ||
+    (requireDropoff && !dropoffAddress.trim()) ||
     (!isHourly && (!!routeLoading || !routeSummary?.distanceMeters));
 
   const continueLabel = (() => {
@@ -1200,7 +1220,7 @@ export default function CreateReservationScreen() {
       return "Select a vehicle";
     }
     if (!pickupAddress.trim()) return "Enter pickup address";
-    if (showDropoff && !dropoffAddress.trim()) return "Enter drop-off address";
+    if (requireDropoff && !dropoffAddress.trim()) return "Enter drop-off address";
     if (!isHourly && routeLoading) return "Calculating route…";
     if (!fareEstimate) {
       return isHourly ? "Fare unavailable" : "Route needed to continue";
@@ -1227,7 +1247,7 @@ export default function CreateReservationScreen() {
       );
       return;
     }
-    if (showDropoff && !dropoffAddress.trim()) {
+    if (requireDropoff && !dropoffAddress.trim()) {
       Alert.alert("Missing info", "Please enter pickup and drop-off addresses.");
       return;
     }
@@ -1712,11 +1732,11 @@ export default function CreateReservationScreen() {
       <View style={styles.routeHeroChip}>
         <Ionicons name="navigate" size={13} color={GOLD} />
         <Text style={styles.routeHeroChipText} numberOfLines={1}>
-          {isHourly
+          {isHourly && !hourlyHasDropoff
             ? "As directed"
             : routeLoading && !routeSummary?.distanceText
               ? "…"
-              : routeSummary?.distanceText || "—"}
+              : routeSummary?.distanceText || (isHourly ? `${hourlyDuration}h` : "—")}
         </Text>
       </View>
       <View style={styles.routeHeroChip}>
@@ -2155,6 +2175,8 @@ export default function CreateReservationScreen() {
             flightNumber={flightNumber}
             meetGreet={meetGreet}
             allowMeetGreet={allowMeetGreet}
+            showFlightRow={isAirportTransfer && !isParcel}
+            onEditFlight={() => setAirlinePickerVisible(true)}
             paymentLoading={cardsLoading}
             paymentBrand={selectedCard?.brand ?? null}
             paymentLast4={selectedCard?.last4 ?? null}
@@ -2315,71 +2337,79 @@ export default function CreateReservationScreen() {
             <Text style={styles.pickupHint}>{pickupLocationHint}</Text>
           ) : null}
 
-          {/* Dropoff Address — required for distance / parcel; hourly is as-directed */}
-          {showDropoff ? (
-            <>
-              <Text style={styles.inputLabel}>Dropoff Address</Text>
-              <GooglePlacesAddressField
-                value={dropoffAddress}
-                onChangeText={(text) => {
-                  setDropoffAddress(text);
-                  setDropoffCoords(null);
-                }}
-                placeholder="Search drop-off address"
-                iconName="location-outline"
-                onPlaceResolved={(place) => {
-                  setDropoffAddress(place.address);
-                  if (place.lat != null && place.lng != null) {
-                    setDropoffCoords({ lat: place.lat, lng: place.lng });
-                  } else {
-                    setDropoffCoords(null);
-                  }
-                }}
-              />
-            </>
-          ) : (
-            <View style={styles.asDirectedCard}>
-              <View style={styles.asDirectedIcon}>
-                <Ionicons
-                  name="compass-outline"
-                  size={18}
-                  color={isDark ? GOLD : "#8B6914"}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.asDirectedTitle}>Drop-off · As directed</Text>
-                <Text style={styles.asDirectedSub}>
-                  Your chauffeur stays with you for the booked hours
-                </Text>
-              </View>
-            </View>
-          )}
+          {/* Dropoff — required for distance / parcel; optional for hourly (empty → As directed). */}
+          <Text style={styles.inputLabel}>
+            {isHourly ? "Dropoff Address (optional)" : "Dropoff Address"}
+          </Text>
+          <GooglePlacesAddressField
+            value={dropoffAddress}
+            onChangeText={(text) => {
+              setDropoffAddress(text);
+              setDropoffCoords(null);
+            }}
+            placeholder={
+              isHourly ? "Drop-off or leave blank (as directed)" : "Search drop-off address"
+            }
+            iconName="location-outline"
+            onPlaceResolved={(place) => {
+              setDropoffAddress(place.address);
+              if (place.lat != null && place.lng != null) {
+                setDropoffCoords({ lat: place.lat, lng: place.lng });
+              } else {
+                setDropoffCoords(null);
+              }
+            }}
+          />
+          {isHourly && !dropoffAddress.trim() ? (
+            <Text style={styles.pickupHint}>
+              Leave blank for as-directed · chauffeur stays for the booked hours
+            </Text>
+          ) : null}
 
           {isAirportTransfer ? (
             <View style={styles.airportExtrasBlock}>
               <Text style={styles.inputLabel}>Flight details</Text>
-              <View style={styles.inputBox}>
-                <TextInput
-                  style={styles.textInput}
-                  value={airline}
-                  onChangeText={setAirline}
-                  placeholder="Airline"
-                  placeholderTextColor={palette.muted}
-                  autoCapitalize="words"
-                  onFocus={onFormFieldFocus}
-                />
-              </View>
-              <View style={[styles.inputBox, { marginTop: 10 }]}>
-                <TextInput
-                  style={styles.textInput}
-                  value={flightNumber}
-                  onChangeText={setFlightNumber}
-                  placeholder="Flight/Tail number"
-                  placeholderTextColor={palette.muted}
-                  autoCapitalize="characters"
-                  onFocus={onFormFieldFocus}
-                />
-              </View>
+              <Pressable
+                onPress={() => setAirlinePickerVisible(true)}
+                style={[styles.inputBox, { justifyContent: "center", minHeight: 48 }]}
+                accessibilityRole="button"
+                accessibilityLabel="Choose airline"
+              >
+                <Text
+                  style={[
+                    styles.textInput,
+                    {
+                      color: airline.trim() ? palette.text : palette.muted,
+                      paddingVertical: 0,
+                    },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {airline.trim() || "Which airline?"}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setAirlinePickerVisible(true)}
+                style={[
+                  styles.inputBox,
+                  { marginTop: 10, justifyContent: "center", minHeight: 48 },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Flight number"
+              >
+                <Text
+                  style={[
+                    styles.textInput,
+                    {
+                      color: flightNumber.trim() ? palette.text : palette.muted,
+                      paddingVertical: 0,
+                    },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {flightNumber.trim() || "Flight number"}
+                </Text>
+              </Pressable>
               {flightNote ? (
                 <Text style={[styles.pickupHint, { marginTop: 8 }]}>{flightNote}</Text>
               ) : null}
@@ -3351,6 +3381,23 @@ export default function CreateReservationScreen() {
           setPickupAt(clampPickupAt(date));
           setShowScheduleSheet(false);
         }}
+      />
+
+      <AirlinePickerModal
+        visible={airlinePickerVisible}
+        context={parseAirportContext(
+          allowMeetGreet ? pickupAddress : dropoffAddress || pickupAddress,
+          undefined
+        )}
+        initialAirline={airline}
+        initialFlightNumber={flightNumber}
+        onSkip={() => setAirlinePickerVisible(false)}
+        onComplete={({ airline: a, flightNumber: f }) => {
+          setAirline(a);
+          setFlightNumber(f);
+          setAirlinePickerVisible(false);
+        }}
+        onRequestClose={() => setAirlinePickerVisible(false)}
       />
 
       <RidePreferencesSheet

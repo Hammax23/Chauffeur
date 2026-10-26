@@ -4,6 +4,7 @@ import {
   canDriverAcceptRule,
   isMembershipActive,
 } from "@/lib/concierge-rules";
+import { listPushTokensByUserIds, notifyUserDevices } from "@/lib/push-devices";
 
 /** Fan-out push to eligible ONLINE concierge drivers when a request opens. */
 export async function notifyConciergeOffer(rideId: string): Promise<void> {
@@ -26,35 +27,49 @@ export async function notifyConciergeOffer(rideId: string): Promise<void> {
     const profiles = await prisma.conciergeDriverProfile.findMany({
       where: { availability: "ONLINE" },
       include: {
-        driver: { select: { id: true, pushToken: true, name: true } },
+        driver: { select: { id: true, name: true } },
       },
     });
 
     const eligible = profiles.filter(
       (p) =>
         isMembershipActive(p.membershipStatus, p.membershipExpiresAt) &&
-        canDriverAcceptRule(p.vehicleClass, ride.vehicleRequestRule, p.vehicleLabel) &&
-        !!p.driver.pushToken
+        canDriverAcceptRule(p.vehicleClass, ride.vehicleRequestRule, p.vehicleLabel)
     );
 
     if (eligible.length === 0) return;
 
     const pickup = (ride.pickupLocation || "").split(",")[0]?.trim() || "Pickup";
     const hotel = ride.hotel.name;
-
-    await sendBulkPushNotifications(
-      eligible.map((p) => ({
-        pushToken: p.driver.pushToken as string,
-        title: "Hotel Concierge request",
-        body: `${hotel}: ${pickup} · $${ride.fare.toFixed(0)} · ${ride.vehicleRequestRule}`,
-        data: {
-          type: "concierge_offer",
-          channelId: "reservations",
-          rideId: ride.id,
-          requestCode: ride.requestCode,
-        },
-      }))
+    const byUser = await listPushTokensByUserIds(
+      "DRIVER",
+      eligible.map((p) => p.driver.id)
     );
+
+    const payloads: Array<{
+      pushToken: string;
+      title: string;
+      body: string;
+      data: Record<string, string>;
+    }> = [];
+    for (const tokens of byUser.values()) {
+      for (const pushToken of tokens) {
+        payloads.push({
+          pushToken,
+          title: "Hotel Concierge request",
+          body: `${hotel}: ${pickup} · $${ride.fare.toFixed(0)} · ${ride.vehicleRequestRule}`,
+          data: {
+            type: "concierge_offer",
+            channelId: "reservations",
+            rideId: ride.id,
+            requestCode: ride.requestCode,
+          },
+        });
+      }
+    }
+
+    if (payloads.length === 0) return;
+    await sendBulkPushNotifications(payloads);
   } catch (e) {
     console.error("[concierge-push] offer fan-out", e);
   }
@@ -71,7 +86,7 @@ export async function notifyCommissionDispute(rideId: string): Promise<void> {
         hotelCommission: true,
         hotel: { select: { name: true } },
         assignedDriverProfile: {
-          include: { driver: { select: { pushToken: true, name: true } } },
+          include: { driver: { select: { id: true, name: true } } },
         },
       },
     });
@@ -81,11 +96,11 @@ export async function notifyCommissionDispute(rideId: string): Promise<void> {
       `[concierge-dispute] ${ride.requestCode} at ${ride.hotel.name} · $${ride.hotelCommission}`
     );
 
-    const token = ride.assignedDriverProfile?.driver?.pushToken;
-    if (token) {
-      const { sendPushNotification } = await import("@/lib/push-notifications");
-      await sendPushNotification(
-        token,
+    const driverId = ride.assignedDriverProfile?.driver?.id;
+    if (driverId) {
+      await notifyUserDevices(
+        "DRIVER",
+        driverId,
         "Commission dispute",
         `${ride.requestCode}: hotel commission claims do not match. Admin will review.`,
         {
