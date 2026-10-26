@@ -223,7 +223,7 @@ export async function pushBadgeSyncToUser(
       data: {
         type: "chat_badge",
         badge: safeBadge,
-        channelId: "chat",
+        channelId: "chat_v2",
         silent: true,
         collapseId: `chat_badge:${role}:${userId}`,
         eventId: `chat_badge:${role}:${userId}:${safeBadge}:${Date.now()}`,

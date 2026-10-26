@@ -37,6 +37,14 @@ async function handleTickets(
 
     console.error(`[push] ticket error for ${token}:`, ticket.message, errCode);
 
+    if (errCode === "InvalidCredentials") {
+      console.error(
+        "[push] CRITICAL: Expo has no valid APNs/FCM credentials for this app. " +
+          "Run `eas credentials -p ios` → Push Notifications Key (and Android FCM if needed). " +
+          "Chat/ride pushes cannot reach devices until this is fixed."
+      );
+    }
+
     if (errCode === "DeviceNotRegistered" && token) {
       await clearInvalidPushToken(token);
     }
@@ -83,6 +91,7 @@ function buildMessage(
     collapseId: _collapseId,
     badge: badgeRaw,
     silent: silentRaw,
+    sound: soundOverride,
     ...restData
   } = (data || {}) as Record<string, unknown>;
 
@@ -95,9 +104,17 @@ function buildMessage(
 
   const silent = silentRaw === true || type === "chat_badge";
 
+  // Custom chat tone (must match expo-notifications `sounds` basename in the app).
+  const soundName =
+    typeof soundOverride === "string" && soundOverride.trim()
+      ? soundOverride.trim()
+      : type === "chat"
+        ? "notification_tune.wav"
+        : "default";
+
   return {
     to: pushToken,
-    sound: silent ? null : "default",
+    sound: silent ? null : soundName,
     title: silent ? undefined : title,
     body: silent ? undefined : body,
     data: {

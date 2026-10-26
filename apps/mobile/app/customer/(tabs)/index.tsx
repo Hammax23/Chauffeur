@@ -427,7 +427,7 @@ export default function CustomerHomeScreen() {
   );
   const [keyboardH, setKeyboardH] = useState(0);
   /**
-   * Plan mode is full-height under the status bar — do NOT translateY the sheet
+   * Plan mode is edge-to-edge full screen — do NOT translateY the sheet
    * with the keyboard (that shoved "Plan your ride" off the top of the screen).
    * Keyboard clearance is padding inside the scroll content instead.
    */
@@ -1494,11 +1494,12 @@ export default function CustomerHomeScreen() {
   );
   const idleSheetCap = layout.isShort ? 0.7 : 0.64;
   /**
-   * Plan your ride = full height under the status bar so the header never
-   * leaves the screen when the keyboard opens. Idle home stays a bottom sheet.
+   * Plan your ride = edge-to-edge full screen (no map strip above the sheet).
+   * Header uses safe-area padding so content clears the status bar / notch.
+   * Idle home stays a bottom sheet over the map.
    */
   const conciergeSheetH = whereSearching
-    ? Math.round(windowHeight - insets.top)
+    ? Math.round(windowHeight)
     : Math.round(
         Math.min(
           windowHeight * idleSheetCap,
@@ -1519,7 +1520,17 @@ export default function CustomerHomeScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+      <StatusBar
+        barStyle={
+          whereSearching
+            ? isDark
+              ? "light-content"
+              : "dark-content"
+            : "dark-content"
+        }
+        backgroundColor="transparent"
+        translucent
+      />
 
       {/* Live map background */}
       <MapView
@@ -1571,17 +1582,19 @@ export default function CustomerHomeScreen() {
         ) : null}
       </MapView>
 
-      {/* Soft fade into sheet */}
-      <LinearGradient
-        colors={
-          isDark
-            ? ["transparent", "rgba(20,18,16,0.35)", "rgba(20,18,16,0.92)"]
-            : ["transparent", "rgba(255,255,255,0.28)", "rgba(255,255,255,0.95)"]
-        }
-        locations={[0, 0.5, 1]}
-        style={[styles.mapFade, { top: effectiveSheetTop - 56, height: 72 }]}
-        pointerEvents="none"
-      />
+      {/* Soft fade into sheet — hidden when Plan your ride is full-screen */}
+      {!whereSearching ? (
+        <LinearGradient
+          colors={
+            isDark
+              ? ["transparent", "rgba(20,18,16,0.35)", "rgba(20,18,16,0.92)"]
+              : ["transparent", "rgba(255,255,255,0.28)", "rgba(255,255,255,0.95)"]
+          }
+          locations={[0, 0.5, 1]}
+          style={[styles.mapFade, { top: effectiveSheetTop - 56, height: 72 }]}
+          pointerEvents="none"
+        />
+      ) : null}
 
       {/* Top floating chrome — profile only on main home (not Plan your ride) */}
       <SafeAreaView style={styles.topSafe} edges={["top"]} pointerEvents="box-none">
@@ -1767,44 +1780,44 @@ export default function CustomerHomeScreen() {
         </Pressable>
       ) : null}
 
-      {/* Theme + recenter — stacked on map right; dark icon above arrow */}
-      <View
-        style={[
-          styles.mapFabStack,
-          {
-            bottom:
-              windowHeight -
-              effectiveSheetTop +
-              (whereSearching
-                ? 18
-                : activeRide
+      {/* Theme + recenter — map only (hidden under full-screen Plan your ride) */}
+      {!whereSearching ? (
+        <View
+          style={[
+            styles.mapFabStack,
+            {
+              bottom:
+                windowHeight -
+                effectiveSheetTop +
+                (activeRide
                   ? 100
                   : isConciergeSheet && upcomingRide
                     ? 78
                     : 18),
-            right: layout.padH,
-          },
-        ]}
-      >
-        <Pressable
-          onPress={toggleTheme}
-          style={({ pressed }) => [styles.recenterFab, pressed && styles.pressed]}
-          accessibilityLabel={isDark ? "Switch to light mode" : "Switch to dark mode"}
+              right: layout.padH,
+            },
+          ]}
         >
-          <Ionicons
-            name={isDark ? "sunny-outline" : "moon-outline"}
-            size={18}
-            color="#1C1C1E"
-          />
-        </Pressable>
-        <Pressable
-          onPress={recenter}
-          style={({ pressed }) => [styles.recenterFab, pressed && styles.pressed]}
-          accessibilityLabel="Recenter map"
-        >
-          <Ionicons name="navigate" size={18} color="#1C1C1E" />
-        </Pressable>
-      </View>
+          <Pressable
+            onPress={toggleTheme}
+            style={({ pressed }) => [styles.recenterFab, pressed && styles.pressed]}
+            accessibilityLabel={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            <Ionicons
+              name={isDark ? "sunny-outline" : "moon-outline"}
+              size={18}
+              color="#1C1C1E"
+            />
+          </Pressable>
+          <Pressable
+            onPress={recenter}
+            style={({ pressed }) => [styles.recenterFab, pressed && styles.pressed]}
+            accessibilityLabel="Recenter map"
+          >
+            <Ionicons name="navigate" size={18} color="#1C1C1E" />
+          </Pressable>
+        </View>
+      ) : null}
 
       {/* Bottom sheet — fixed height; no swipe move */}
       <Animated.View
@@ -1814,6 +1827,9 @@ export default function CustomerHomeScreen() {
             ? {
                 bottom: 0,
                 height: conciergeSheetH,
+                ...(whereSearching
+                  ? { borderTopLeftRadius: 0, borderTopRightRadius: 0 }
+                  : null),
               }
             : {
                 top: layout.sheetTop,
@@ -1847,7 +1863,7 @@ export default function CustomerHomeScreen() {
               styles.conciergeWhereSearchTop,
               {
                 paddingHorizontal: layout.sheetContentPad,
-                paddingTop: 6,
+                paddingTop: Math.max(insets.top, 12) + 4,
                 paddingBottom: 4,
               },
             ]}

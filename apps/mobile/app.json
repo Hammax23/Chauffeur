@@ -20,11 +20,12 @@
       "supportsTablet": true,
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.sarjworldwide.chauffeur",
-      "buildNumber": "69",
+      "buildNumber": "71",
       "entitlements": {
         "com.apple.developer.applesignin": [
           "Default"
-        ]
+        ],
+        "aps-environment": "production"
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -76,7 +77,9 @@
           "icon": "./assets/icon.png",
           "color": "#D4A04A",
           "defaultChannel": "reservations",
-          "sounds": [],
+          "sounds": [
+            "./assets/notification_tune.wav"
+          ],
           "enableBackgroundRemoteNotifications": true
         }
       ],

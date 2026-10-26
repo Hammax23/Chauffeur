@@ -107,14 +107,24 @@ export default function DriverProfileScreen() {
     ]);
   };
 
-  const infoRows = [
-    { label: "Phone", value: driver?.phone || "N/A", icon: "call-outline" as const },
-    { label: "Vehicle", value: driver?.vehicle || "N/A", icon: "car-sport-outline" as const },
-    { label: "Car Code", value: driver?.vehicleCode || "N/A", icon: "keypad-outline" as const },
+  const infoRows: Array<{
+    label: string;
+    value: string;
+    icon: keyof typeof Ionicons.glyphMap;
+    verified?: boolean;
+  }> = [
+    { label: "Phone", value: driver?.phone || "N/A", icon: "call-outline" },
+    { label: "Vehicle", value: driver?.vehicle || "N/A", icon: "car-sport-outline" },
+    {
+      label: "Verified",
+      value: "Verified",
+      icon: "shield-checkmark-outline",
+      verified: true,
+    },
     {
       label: "License Plate",
       value: driver?.vehiclePlate || "N/A",
-      icon: "document-text-outline" as const,
+      icon: "document-text-outline",
     },
   ];
 
@@ -149,9 +159,6 @@ export default function DriverProfileScreen() {
             </View>
             <Text style={[styles.profileName, { color: palette.text }]}>
               {driver?.name || "Driver"}
-            </Text>
-            <Text style={[styles.profileEmail, { color: palette.muted }]}>
-              {driver?.email || "N/A"}
             </Text>
 
             <View style={styles.statRow}>
@@ -213,14 +220,42 @@ export default function DriverProfileScreen() {
                 ]}
               >
                 <View style={styles.infoLeft}>
-                  <View style={[styles.infoIcon, { backgroundColor: palette.metaChipBg }]}>
-                    <Ionicons name={row.icon} size={15} color={GOLD} />
+                  <View
+                    style={[
+                      styles.infoIcon,
+                      {
+                        backgroundColor: row.verified
+                          ? "rgba(22,163,74,0.12)"
+                          : palette.metaChipBg,
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={row.icon}
+                      size={15}
+                      color={row.verified ? "#16A34A" : GOLD}
+                    />
                   </View>
                   <Text style={[styles.infoLabel, { color: palette.muted }]}>{row.label}</Text>
                 </View>
-                <Text style={[styles.infoValue, { color: palette.text }]} numberOfLines={1}>
-                  {row.value}
-                </Text>
+                {row.verified ? (
+                  <View style={styles.verifiedBadge} accessibilityLabel="Verified driver">
+                    <LinearGradient
+                      colors={["#22C55E", "#15803D"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.verifiedTickRing}
+                    >
+                      <View style={styles.verifiedTickInner}>
+                        <Ionicons name="checkmark" size={14} color="#15803D" />
+                      </View>
+                    </LinearGradient>
+                  </View>
+                ) : (
+                  <Text style={[styles.infoValue, { color: palette.text }]} numberOfLines={1}>
+                    {row.value}
+                  </Text>
+                )}
               </View>
             ))}
           </View>
@@ -400,11 +435,36 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
     letterSpacing: -0.4,
-    marginBottom: 4,
-  },
-  profileEmail: {
-    fontSize: 14,
     marginBottom: 18,
+  },
+  verifiedBadge: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  verifiedTickRing: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    padding: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#15803D",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.28,
+        shadowRadius: 4,
+      },
+      android: { elevation: 2 },
+    }),
+  },
+  verifiedTickInner: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 12,
+    backgroundColor: "#ECFDF5",
+    alignItems: "center",
+    justifyContent: "center",
   },
   statRow: {
     flexDirection: "row",

@@ -212,9 +212,6 @@ export default function DriverReviewsScreen() {
             >
               <View style={styles.reviewTop}>
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[styles.customerName, { color: palette.text }]}>
-                    {r.customerName}
-                  </Text>
                   <Text style={[styles.tripMeta, { color: palette.muted }]} numberOfLines={1}>
                     {r.bookingId}
                     {r.serviceDate ? ` · ${r.serviceDate}` : ""}
@@ -341,12 +338,11 @@ const styles = StyleSheet.create({
   },
   reviewTop: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: 10,
     marginBottom: 8,
   },
-  customerName: { fontSize: 16, fontWeight: "700", letterSpacing: -0.2 },
-  tripMeta: { fontSize: 12, marginTop: 2, fontWeight: "500" },
+  tripMeta: { fontSize: 13, fontWeight: "600", letterSpacing: -0.1 },
   routeLine: { marginTop: 2, fontSize: 12, fontWeight: "500" },
   emptyText: { textAlign: "center", marginTop: 24, fontSize: 14 },
   loadMore: {

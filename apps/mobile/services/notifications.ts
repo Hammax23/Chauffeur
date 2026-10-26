@@ -76,6 +76,11 @@ Notifications.setNotificationHandler({
   },
 });
 
+/** Bundled via expo-notifications `sounds` — base filename only. */
+export const CHAT_NOTIFICATION_SOUND = "notification_tune.wav";
+/** Android channels freeze sound after first create — bump id when changing sound. */
+export const CHAT_NOTIFICATION_CHANNEL = "chat_v2";
+
 async function ensureNotificationChannels() {
   if (Platform.OS !== "android") return;
 
@@ -91,13 +96,13 @@ async function ensureNotificationChannels() {
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
   });
 
-  await Notifications.setNotificationChannelAsync("chat", {
+  await Notifications.setNotificationChannelAsync(CHAT_NOTIFICATION_CHANNEL, {
     name: "Trip messages",
     description: "Messages between you and your chauffeur or passenger",
     importance: Notifications.AndroidImportance.MAX,
     vibrationPattern: [0, 180, 100, 180],
     lightColor: "#C9A063",
-    sound: "default",
+    sound: CHAT_NOTIFICATION_SOUND,
     enableVibrate: true,
     showBadge: true,
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,

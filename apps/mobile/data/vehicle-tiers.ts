@@ -38,7 +38,7 @@ export const TIER_DISPLAY_TITLES: Record<string, string> = {
   "exec-black-suv": "Executive SUV",
   "cadillac-escalade": "Cadillac Escalade",
   "exec-black-sedan": "Executive Sedan",
-  "xlarge-suv": "XLarge SUV",
+  "xlarge-suv": "Extra Large SUV",
   "electric-black-3": "Electric Car",
   "sarj-pet-3": "SARJ Pet",
   "mercedes-s-class": "Mercedes Benz S Class",
@@ -106,8 +106,8 @@ export const VEHICLE_TIER_DEFINITIONS: VehicleTierDefinition[] = [
   },
   {
     id: "xlarge-suv",
-    title: "XLarge SUV",
-    subtitle: "Extra-large SUV for groups",
+    title: "Extra Large SUV",
+    subtitle: "Extra-large SUV for up to 7",
     group: "standard",
     representativeFleetId: "gmc-yukon-xl",
   },
@@ -270,8 +270,9 @@ export function getTierCapacity(tier: {
     case "black-suv":
     case "cadillac-escalade":
     case "exec-black-suv":
-    case "xlarge-suv":
       return 6;
+    case "xlarge-suv":
+      return 7;
     case "exec-sprinter-van-14":
       return 14;
     default:
