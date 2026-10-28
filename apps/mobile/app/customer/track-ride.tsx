@@ -20,6 +20,7 @@ import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from "react-native-maps";
+import * as Location from "expo-location";
 import { getReservationById, getDriverLiveLocation, getCustomerChat, Reservation } from "../../services/api";
 import { fetchDirectionsSummary } from "../../services/places";
 import { useReservationStream } from "../../hooks/useReservationStream";
@@ -221,6 +222,10 @@ export default function TrackRideScreen() {
   const [chatUnread, setChatUnread] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [driverLoc, setDriverLoc] = useState<DriverLocState | null>(null);
+  /** Customer device GPS — shown as “you” on the live map (separate from chauffeur pin). */
+  const [myCoords, setMyCoords] = useState<{ lat: number; lng: number } | null>(null);
+  /** True when FG location was denied / blocked — hint can deep-link to Settings. */
+  const [myLocationBlocked, setMyLocationBlocked] = useState(false);
   const [locationSharing, setLocationSharing] = useState<LocationSharingInfo | null>(null);
   const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
   const [destCoord, setDestCoord] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -229,6 +234,8 @@ export default function TrackRideScreen() {
   /** Bumps periodically so stale-GPS UX re-evaluates without a new ping. */
   const [gpsClock, setGpsClock] = useState(0);
   const liveMapRef = useRef<MapView | null>(null);
+  /** Fit camera once when customer GPS first appears — avoid jumping on every walk update. */
+  const customerFitOnceRef = useRef(false);
   const lastDirectionsAtRef = useRef(0);
   const lastDirectionsDriverRef = useRef<{ lat: number; lng: number } | null>(null);
   const directionsAbortRef = useRef<AbortController | null>(null);
@@ -286,6 +293,68 @@ export default function TrackRideScreen() {
   const live = useReservationStream(liveBookingId);
 
   const locationUnlocked = isLocationUnlockedClient(reservation?.status, locationSharing);
+
+  // Customer “you are here” while live tracking is unlocked.
+  useEffect(() => {
+    if (!locationUnlocked) {
+      setMyCoords(null);
+      setMyLocationBlocked(false);
+      customerFitOnceRef.current = false;
+      return;
+    }
+    let cancelled = false;
+    let sub: Location.LocationSubscription | null = null;
+    (async () => {
+      try {
+        const current = await Location.getForegroundPermissionsAsync();
+        let status = current.status;
+        if (status !== "granted") {
+          const req = await Location.requestForegroundPermissionsAsync();
+          status = req.status;
+        }
+        if (status !== "granted" || cancelled) {
+          if (!cancelled) setMyLocationBlocked(true);
+          return;
+        }
+        if (!cancelled) setMyLocationBlocked(false);
+
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        if (!cancelled) {
+          setMyCoords({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          });
+        }
+
+        sub = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Balanced,
+            distanceInterval: 20,
+            timeInterval: 10_000,
+          },
+          (loc) => {
+            setMyCoords({
+              lat: loc.coords.latitude,
+              lng: loc.coords.longitude,
+            });
+          }
+        );
+        if (cancelled) {
+          sub.remove();
+          sub = null;
+        }
+      } catch {
+        if (!cancelled) setMyLocationBlocked(true);
+        /* permission / GPS unavailable — map still shows chauffeur */
+      }
+    })();
+    return () => {
+      cancelled = true;
+      sub?.remove();
+    };
+  }, [locationUnlocked]);
 
   // Apply live GPS from SSE only when On the Way (or Arrived/CIC/STOP).
   useEffect(() => {
@@ -425,12 +494,18 @@ export default function TrackRideScreen() {
     reservation?.etr407,
   ]);
 
-  // Fit camera when driver / dest / route change.
+  // Fit camera when driver / dest / route change (customer GPS included once).
   useEffect(() => {
     if (!locationUnlocked || !driverLoc || !liveMapRef.current) return;
     const pts: { latitude: number; longitude: number }[] = [
       { latitude: driverLoc.lat, longitude: driverLoc.lng },
     ];
+    // Include latest customer pin when framing driver/route (deps use !!myCoords
+    // so walking updates don't constantly re-fit / fight user panning).
+    if (myCoords) {
+      pts.push({ latitude: myCoords.lat, longitude: myCoords.lng });
+      customerFitOnceRef.current = true;
+    }
     if (destCoord) pts.push(destCoord);
     if (routeCoords.length >= 2) {
       // Sample polyline ends already covered; include a mid point for better framing.
@@ -439,13 +514,22 @@ export default function TrackRideScreen() {
     }
     try {
       liveMapRef.current.fitToCoordinates(pts, {
-        edgePadding: { top: 48, right: 40, bottom: 48, left: 40 },
+        edgePadding: { top: 48, right: 40, bottom: 56, left: 40 },
         animated: true,
       });
     } catch {
       /* ignore map not ready */
     }
-  }, [locationUnlocked, driverLoc?.lat, driverLoc?.lng, destCoord?.latitude, destCoord?.longitude, routeCoords.length]);
+    // Intentionally omit myCoords lat/lng from deps — first myCoords presence triggers via below.
+  }, [
+    locationUnlocked,
+    driverLoc?.lat,
+    driverLoc?.lng,
+    !!myCoords,
+    destCoord?.latitude,
+    destCoord?.longitude,
+    routeCoords.length,
+  ]);
 
   // Poll driver GPS while eligible — server enforces On-the-Way gate.
   useEffect(() => {
@@ -966,6 +1050,24 @@ export default function TrackRideScreen() {
                       zIndex={5}
                     />
                   ) : null}
+                  {myCoords ? (
+                    <Marker
+                      coordinate={{
+                        latitude: myCoords.lat,
+                        longitude: myCoords.lng,
+                      }}
+                      title="You"
+                      identifier="track-customer"
+                      anchor={{ x: 0.5, y: 0.5 }}
+                      tracksViewChanges={false}
+                      zIndex={15}
+                    >
+                      <View style={styles.meMarker} pointerEvents="none">
+                        <View style={styles.meMarkerHalo} />
+                        <View style={styles.meMarkerDot} />
+                      </View>
+                    </Marker>
+                  ) : null}
                   <Marker
                     coordinate={{ latitude: driverLoc.lat, longitude: driverLoc.lng }}
                     title={driverLoc.driverName || "Chauffeur"}
@@ -999,14 +1101,20 @@ export default function TrackRideScreen() {
 
                 <Pressable
                   style={styles.openMapsBtn}
-                  onPress={() =>
+                  onPress={() => {
+                    // Google Maps links are a one-shot pin — live chauffeur GPS only
+                    // updates inside SARJ. Open walking/driving directions from the
+                    // customer's current location → chauffeur's last known position.
+                    const dest = `${driverLoc.lat},${driverLoc.lng}`;
                     Linking.openURL(
-                      `https://www.google.com/maps/search/?api=1&query=${driverLoc.lat},${driverLoc.lng}`
-                    ).catch(() => {})
-                  }
+                      `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+                        dest
+                      )}&travelmode=driving`
+                    ).catch(() => {});
+                  }}
                   hitSlop={6}
                   accessibilityRole="button"
-                  accessibilityLabel="Open in Google Maps"
+                  accessibilityLabel="Directions to chauffeur in Google Maps"
                 >
                   <Ionicons name="open-outline" size={14} color={SLATE_900} />
                 </Pressable>
@@ -1018,7 +1126,34 @@ export default function TrackRideScreen() {
                 {gpsStale
                   ? `Last updated ${formatRelative(driverLoc.updatedAt) || "earlier"}`
                   : formatRelative(driverLoc.updatedAt) || "updating"}
+                {myCoords ? " · You are on the map" : ""}
               </Text>
+              {!myCoords ? (
+                <Pressable
+                  onPress={() => {
+                    if (myLocationBlocked) {
+                      Linking.openSettings().catch(() => {});
+                    }
+                  }}
+                  disabled={!myLocationBlocked}
+                  accessibilityRole={myLocationBlocked ? "button" : undefined}
+                  accessibilityLabel={
+                    myLocationBlocked ? "Open settings to allow location" : undefined
+                  }
+                >
+                  <Text style={styles.liveMapHint}>
+                    {myLocationBlocked
+                      ? "Location is off — tap here to open Settings and allow access so you appear on this map."
+                      : "Allow location access to see yourself on this map with your chauffeur."}
+                  </Text>
+                </Pressable>
+              ) : (
+                <Text style={styles.liveMapHint}>
+                  Live chauffeur movement updates here in SARJ. Google Maps opens
+                  directions to the chauffeur’s last position — it will not keep
+                  tracking the car.
+                </Text>
+              )}
               {gpsStale ? (
                 <View style={styles.staleNotice}>
                   <Ionicons name="warning-outline" size={14} color="#B45309" />
@@ -1672,6 +1807,43 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(15,23,42,0.10)",
+  },
+  meMarker: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  meMarkerHalo: {
+    position: "absolute",
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(37,99,235,0.22)",
+  },
+  meMarkerDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "#2563EB",
+    borderWidth: 2.5,
+    borderColor: "#fff",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#1D4ED8",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.35,
+        shadowRadius: 2,
+      },
+      android: { elevation: 3 },
+    }),
+  },
+  liveMapHint: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "500",
+    color: SLATE_500,
   },
   driverMarker: {
     width: 32,

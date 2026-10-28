@@ -1411,7 +1411,15 @@ export default function CreateReservationScreen() {
       bookingMode: isHourly ? "hourly" : "distance",
       hourlyDuration: isHourly ? String(hourlyDuration) : undefined,
       pickupAddress: pickupAddress.trim(),
+      pickupLat:
+        pickupCoords != null ? String(pickupCoords.lat) : undefined,
+      pickupLng:
+        pickupCoords != null ? String(pickupCoords.lng) : undefined,
       dropoffAddress: resolvedDropoff,
+      dropoffLat:
+        dropoffCoords != null ? String(dropoffCoords.lat) : undefined,
+      dropoffLng:
+        dropoffCoords != null ? String(dropoffCoords.lng) : undefined,
       stopAddress: joinAppStops(stops),
       serviceDate: serviceDateStr,
       serviceTime: serviceTimeStr,

@@ -17,12 +17,14 @@ import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 import { getDriverRideDetail, updateRideStatus, getDriverChat, DriverRide } from "../../services/api";
 import { syncDriverLiveTracking } from "../../services/driver-live-session";
 import { dismissPresentedForEntity } from "../../services/notification-deep-link";
 import { SlimSpinner } from "../../components/SlimSpinner";
 import { isParcelServiceType, parseParcelRequirements } from "../../utils/parcel";
 import { parseAppStops } from "../../utils/stops";
+import { openNavigationTo } from "../../utils/open-navigation";
 import { useDriverTheme } from "../../contexts/DriverThemeContext";
 import { GOLD as THEME_GOLD } from "../../theme/driver-theme";
 
@@ -327,6 +329,28 @@ export default function RideDetailsScreen() {
   const currentStatus: RideStatus = ride ? mapStatusToRideStatus(ride.status) : "pending";
   const currentIndex = getStatusIndex(currentStatus);
   const statusMeta = getStatusMeta(currentStatus);
+
+  const pickupCoordsOk =
+    typeof ride?.pickupLat === "number" &&
+    typeof ride?.pickupLng === "number" &&
+    Number.isFinite(ride.pickupLat) &&
+    Number.isFinite(ride.pickupLng);
+  /** Booked pickup pin + Navigate while heading to / at customer. */
+  const showPickupNav =
+    currentStatus === "on_the_way" || currentStatus === "arrived";
+
+  const onNavigateToPickup = useCallback(async () => {
+    if (!ride) return;
+    const ok = await openNavigationTo({
+      lat: pickupCoordsOk ? ride.pickupLat : null,
+      lng: pickupCoordsOk ? ride.pickupLng : null,
+      address: ride.pickupLocation,
+      label: "Pickup",
+    });
+    if (!ok) {
+      Alert.alert("Maps", "Could not open navigation. Check the pickup address.");
+    }
+  }, [ride, pickupCoordsOk]);
   const progressRatio = useMemo(() => {
     if (currentStatus === "done") return 1;
     if (currentIndex < 0) return 0;
@@ -839,6 +863,74 @@ export default function RideDetailsScreen() {
                 </View>
               ) : null}
 
+              {/* Pickup map + Navigate (On the Way / Arrived) */}
+              {showPickupNav ? (
+                <View style={[styles.card, styles.iosShadow, styles.pickupMapCard]}>
+                  <View style={styles.pickupMapHeader}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.cardTitle}>Customer pickup</Text>
+                      <Text style={styles.pickupMapAddress} numberOfLines={2}>
+                        {ride?.pickupLocation || "Pickup location"}
+                      </Text>
+                    </View>
+                    <View style={styles.pickupMapBadge}>
+                      <Ionicons name="location" size={12} color={GREEN} />
+                      <Text style={styles.pickupMapBadgeText}>
+                        {currentStatus === "arrived" ? "At pickup" : "En route"}
+                      </Text>
+                    </View>
+                  </View>
+                  {pickupCoordsOk ? (
+                    <View style={styles.pickupMapWrap}>
+                      <MapView
+                        style={styles.pickupMapView}
+                        provider={PROVIDER_DEFAULT}
+                        initialRegion={{
+                          latitude: ride!.pickupLat!,
+                          longitude: ride!.pickupLng!,
+                          latitudeDelta: 0.012,
+                          longitudeDelta: 0.012,
+                        }}
+                        scrollEnabled={false}
+                        zoomEnabled={false}
+                        rotateEnabled={false}
+                        pitchEnabled={false}
+                        toolbarEnabled={false}
+                        pointerEvents="none"
+                        userInterfaceStyle={isDark ? "dark" : "light"}
+                      >
+                        <Marker
+                          coordinate={{
+                            latitude: ride!.pickupLat!,
+                            longitude: ride!.pickupLng!,
+                          }}
+                          title="Pickup"
+                          description={ride?.pickupLocation || undefined}
+                          pinColor={GREEN}
+                        />
+                      </MapView>
+                    </View>
+                  ) : (
+                    <View style={styles.pickupMapFallback}>
+                      <Ionicons name="map-outline" size={22} color={MUTED} />
+                      <Text style={styles.pickupMapFallbackText}>
+                        Map pin unavailable — navigate by address
+                      </Text>
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    style={styles.navigatePickupBtn}
+                    onPress={onNavigateToPickup}
+                    activeOpacity={0.88}
+                    accessibilityRole="button"
+                    accessibilityLabel="Navigate to pickup"
+                  >
+                    <Ionicons name="navigate" size={18} color="#fff" />
+                    <Text style={styles.navigatePickupBtnText}>Navigate to pickup</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
               {/* Route */}
               <View style={[styles.card, styles.iosShadow]}>
                 <Text style={styles.cardTitle}>Trip route</Text>
@@ -1347,6 +1439,73 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   cardTitle: { fontSize: 13, fontWeight: "800", color: INK, marginBottom: 12, letterSpacing: -0.2 },
+  pickupMapCard: { paddingBottom: 14 },
+  pickupMapHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginBottom: 10,
+  },
+  pickupMapAddress: {
+    marginTop: -6,
+    fontSize: 13,
+    fontWeight: "600",
+    color: MUTED,
+    lineHeight: 18,
+  },
+  pickupMapBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(22,163,74,0.1)",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  pickupMapBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: GREEN,
+  },
+  pickupMapWrap: {
+    height: 188,
+    borderRadius: 14,
+    overflow: "hidden",
+    marginBottom: 12,
+    backgroundColor: "#E8E6E1",
+  },
+  pickupMapView: { ...StyleSheet.absoluteFillObject },
+  pickupMapFallback: {
+    height: 88,
+    borderRadius: 14,
+    marginBottom: 12,
+    backgroundColor: "#F3F1EC",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+  },
+  pickupMapFallbackText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: MUTED,
+    textAlign: "center",
+  },
+  navigatePickupBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: INK,
+    borderRadius: 14,
+    paddingVertical: 14,
+  },
+  navigatePickupBtnText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "800",
+    letterSpacing: -0.2,
+  },
   reviewHeader: {
     flexDirection: "row",
     alignItems: "center",

@@ -285,8 +285,24 @@ export async function runBookingCheckout(
     serviceDate: draft.serviceDate,
     serviceTime: draft.serviceTime,
     pickupLocation: draft.pickupAddress,
+    pickupLat: (() => {
+      const n = draft.pickupLat != null ? Number(draft.pickupLat) : NaN;
+      return Number.isFinite(n) ? n : undefined;
+    })(),
+    pickupLng: (() => {
+      const n = draft.pickupLng != null ? Number(draft.pickupLng) : NaN;
+      return Number.isFinite(n) ? n : undefined;
+    })(),
     stops: stopsPayload,
     dropoffLocation: dropoffDisplay,
+    dropoffLat: (() => {
+      const n = draft.dropoffLat != null ? Number(draft.dropoffLat) : NaN;
+      return Number.isFinite(n) ? n : undefined;
+    })(),
+    dropoffLng: (() => {
+      const n = draft.dropoffLng != null ? Number(draft.dropoffLng) : NaN;
+      return Number.isFinite(n) ? n : undefined;
+    })(),
     distance: draft.distanceText || "—",
     duration: draft.durationText || "—",
     distanceMeters: isHourly ? undefined : distanceMeters,

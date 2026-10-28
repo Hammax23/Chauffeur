@@ -4,6 +4,10 @@ import jwt from "jsonwebtoken";
 import { publishReservationFromDb } from "@/lib/realtime-bus";
 import { claimLiveOffer, declineLiveOffer } from "@/lib/live-auto";
 import { sanitizeSpecialRequirementsForDriver } from "@/lib/driver-visible-notes";
+import {
+  geocodeAddress,
+  isValidLatLng,
+} from "@/lib/geocode-address";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
@@ -85,6 +89,60 @@ export async function GET(
           })
         : null;
 
+    let pickupLat =
+      typeof reservation.pickupLat === "number" ? reservation.pickupLat : null;
+    let pickupLng =
+      typeof reservation.pickupLng === "number" ? reservation.pickupLng : null;
+    let dropoffLat =
+      typeof reservation.dropoffLat === "number" ? reservation.dropoffLat : null;
+    let dropoffLng =
+      typeof reservation.dropoffLng === "number" ? reservation.dropoffLng : null;
+
+    // One-shot geocode + backfill (parallel) when booking has address but no pin.
+    const needPickupGeo =
+      !isValidLatLng(pickupLat, pickupLng) && !!reservation.pickupLocation?.trim();
+    const needDropoffGeo =
+      !isValidLatLng(dropoffLat, dropoffLng) &&
+      !!reservation.dropoffLocation?.trim() &&
+      !/^as directed$/i.test(reservation.dropoffLocation.trim());
+
+    if (needPickupGeo || needDropoffGeo) {
+      const [pickupGeo, dropoffGeo] = await Promise.all([
+        needPickupGeo
+          ? geocodeAddress(reservation.pickupLocation)
+          : Promise.resolve(null),
+        needDropoffGeo
+          ? geocodeAddress(reservation.dropoffLocation)
+          : Promise.resolve(null),
+      ]);
+
+      if (pickupGeo) {
+        pickupLat = pickupGeo.lat;
+        pickupLng = pickupGeo.lng;
+        try {
+          await prisma.reservation.updateMany({
+            where: { id: reservation.id, pickupLat: null, pickupLng: null },
+            data: { pickupLat: pickupGeo.lat, pickupLng: pickupGeo.lng },
+          });
+        } catch (err) {
+          console.warn("[driver-ride] pickup coords backfill failed", err);
+        }
+      }
+
+      if (dropoffGeo) {
+        dropoffLat = dropoffGeo.lat;
+        dropoffLng = dropoffGeo.lng;
+        try {
+          await prisma.reservation.updateMany({
+            where: { id: reservation.id, dropoffLat: null, dropoffLng: null },
+            data: { dropoffLat: dropoffGeo.lat, dropoffLng: dropoffGeo.lng },
+          });
+        } catch (err) {
+          console.warn("[driver-ride] dropoff coords backfill failed", err);
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       ride: {
@@ -101,8 +159,12 @@ export async function GET(
         serviceDate: reservation.serviceDate,
         serviceTime: reservation.serviceTime,
         pickupLocation: reservation.pickupLocation,
+        pickupLat,
+        pickupLng,
         stops: reservation.stops || "",
         dropoffLocation: reservation.dropoffLocation,
+        dropoffLat,
+        dropoffLng,
         distance: reservation.distance || "",
         duration: reservation.duration || "",
         total: reservation.total,

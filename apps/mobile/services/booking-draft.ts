@@ -12,7 +12,12 @@ export type BookingDraft = {
   bookingMode?: "distance" | "hourly";
   hourlyDuration?: string;
   pickupAddress: string;
+  /** Optional GPS/Places pin for driver map (stringified numbers). */
+  pickupLat?: string;
+  pickupLng?: string;
   dropoffAddress: string;
+  dropoffLat?: string;
+  dropoffLng?: string;
   /** Intermediate stops joined with ` | ` (empty string = none). */
   stopAddress: string;
   serviceDate: string;

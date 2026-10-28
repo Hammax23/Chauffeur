@@ -14,6 +14,10 @@ import {
   parseDistanceKm,
   resolveIsLongDistance,
 } from "@/lib/cancel-policy";
+import {
+  isValidLatLng,
+  parseOptionalCoord,
+} from "@/lib/geocode-address";
 
 const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -187,8 +191,12 @@ export async function POST(req: NextRequest) {
       serviceDate,
       serviceTime,
       pickupLocation,
+      pickupLat: rawPickupLat,
+      pickupLng: rawPickupLng,
       stops,
       dropoffLocation,
+      dropoffLat: rawDropoffLat,
+      dropoffLng: rawDropoffLng,
       distance,
       duration,
       distanceMeters,
@@ -227,6 +235,13 @@ export async function POST(req: NextRequest) {
         : bookingMode === "hourly"
           ? "As directed"
           : "";
+
+    const pickupLatN = parseOptionalCoord(rawPickupLat);
+    const pickupLngN = parseOptionalCoord(rawPickupLng);
+    const dropoffLatN = parseOptionalCoord(rawDropoffLat);
+    const dropoffLngN = parseOptionalCoord(rawDropoffLng);
+    const pickupCoordsOk = isValidLatLng(pickupLatN, pickupLngN);
+    const dropoffCoordsOk = isValidLatLng(dropoffLatN, dropoffLngN);
 
     if (!serviceType || !vehicle || !serviceDate || !serviceTime || !pickupLocation) {
       return NextResponse.json(
@@ -396,8 +411,12 @@ export async function POST(req: NextRequest) {
           serviceDate,
           serviceTime,
           pickupLocation,
+          pickupLat: pickupCoordsOk ? pickupLatN : null,
+          pickupLng: pickupCoordsOk ? pickupLngN : null,
           stops: stops || null,
           dropoffLocation: resolvedDropoff,
+          dropoffLat: dropoffCoordsOk ? dropoffLatN : null,
+          dropoffLng: dropoffCoordsOk ? dropoffLngN : null,
           distance:
             bookingMode === "hourly"
               ? `Hourly · ${hourlyDuration}h`
@@ -518,8 +537,12 @@ export async function POST(req: NextRequest) {
         serviceDate,
         serviceTime,
         pickupLocation,
+        pickupLat: pickupCoordsOk ? pickupLatN : null,
+        pickupLng: pickupCoordsOk ? pickupLngN : null,
         stops: stops || null,
         dropoffLocation: resolvedDropoff,
+        dropoffLat: dropoffCoordsOk ? dropoffLatN : null,
+        dropoffLng: dropoffCoordsOk ? dropoffLngN : null,
         distance:
           bookingMode === "hourly"
             ? `Hourly · ${hourlyDuration}h`

@@ -25,8 +25,13 @@ model Reservation {
   serviceDate           String
   serviceTime           String
   pickupLocation        String
+  /// Booked pickup pin (from Places/GPS). Used for driver map + Navigate.
+  pickupLat             Float?
+  pickupLng             Float?
   stops                 String?
   dropoffLocation       String
+  dropoffLat            Float?
+  dropoffLng            Float?
   distance              String?
   duration              String?
   airline               String?

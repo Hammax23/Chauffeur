@@ -1239,8 +1239,12 @@ export async function createReservation(params: {
   serviceDate: string;
   serviceTime: string;
   pickupLocation: string;
+  pickupLat?: number;
+  pickupLng?: number;
   stops?: string;
   dropoffLocation: string;
+  dropoffLat?: number;
+  dropoffLng?: number;
   distance?: string;
   duration?: string;
   distanceMeters?: number;
@@ -1546,8 +1550,12 @@ export interface DriverRide {
   serviceDate: string;
   serviceTime: string;
   pickupLocation: string;
+  pickupLat?: number | null;
+  pickupLng?: number | null;
   stops: string;
   dropoffLocation: string;
+  dropoffLat?: number | null;
+  dropoffLng?: number | null;
   distance: string;
   duration: string;
   total: number;
