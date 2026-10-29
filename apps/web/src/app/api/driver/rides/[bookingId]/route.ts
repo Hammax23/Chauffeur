@@ -8,6 +8,7 @@ import {
   geocodeAddress,
   isValidLatLng,
 } from "@/lib/geocode-address";
+import { MG_FREE_WAIT_MINUTES } from "@/lib/mg-policy";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
@@ -173,6 +174,9 @@ export async function GET(
         ),
         createdAt: reservation.createdAt.toISOString(),
         driverOnTheWayAt: reservation.driverOnTheWayAt?.toISOString() ?? null,
+        driverArrivedAt: reservation.driverArrivedAt?.toISOString() ?? null,
+        noShowMarkedAt: reservation.noShowMarkedAt?.toISOString() ?? null,
+        freeWaitMinutes: MG_FREE_WAIT_MINUTES,
         driverStopPeriodsJson: reservation.driverStopPeriodsJson ?? null,
         completedAt: reservation.completedAt?.toISOString() ?? null,
         liveOffer,

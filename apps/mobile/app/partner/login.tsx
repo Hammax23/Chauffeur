@@ -157,10 +157,6 @@ export default function PartnerLoginScreen() {
             >
               <Text style={styles.kicker}>PARTNER ACCESS</Text>
               <Text style={styles.headline}>Partner portal</Text>
-              <Text style={styles.lede}>
-                Concierge workspace for SARJ partners. Access is granted by
-                administrators only.
-              </Text>
 
               {/* Auth panel */}
               <View style={styles.panelOuter}>
@@ -356,14 +352,7 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: "600",
     letterSpacing: -0.6,
-    marginBottom: 10,
-  },
-  lede: {
-    color: "rgba(255,255,255,0.52)",
-    fontSize: 15,
-    lineHeight: 23,
     marginBottom: 28,
-    maxWidth: 340,
   },
   panelOuter: {
     borderRadius: 20,

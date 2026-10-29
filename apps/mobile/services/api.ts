@@ -1563,6 +1563,11 @@ export interface DriverRide {
   createdAt: string;
   /** ISO — trip timer starts here (first ON THE WAY). */
   driverOnTheWayAt?: string | null;
+  /** ISO — set when driver marks ARRIVED (waiting / no-show clock). */
+  driverArrivedAt?: string | null;
+  noShowMarkedAt?: string | null;
+  /** Server free-wait minutes before driver may mark no-show. */
+  freeWaitMinutes?: number | null;
   /** JSON array of { start, end? } stop intervals (Stop → Continue). */
   driverStopPeriodsJson?: string | null;
   completedAt?: string | null;
@@ -1666,6 +1671,19 @@ export async function updateRideStatus(bookingId: string, status: string) {
     `/driver/rides/${bookingId}`,
     { method: "PATCH", body: JSON.stringify({ status }) }
   );
+}
+
+export async function markDriverNoShow(bookingId: string, notes?: string) {
+  return apiRequest<{
+    success: boolean;
+    status?: string;
+    error?: string;
+    freeWaitMinutes?: number;
+    waitedMinutes?: number;
+  }>(`/driver/rides/${bookingId}/no-show`, {
+    method: "POST",
+    body: JSON.stringify({ notes: notes || undefined }),
+  });
 }
 
 export async function rejectRide(bookingId: string) {

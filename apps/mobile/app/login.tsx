@@ -516,15 +516,6 @@ function LoginScreenInner() {
               </TouchableOpacity>
             )}
 
-            {userType === "customer" && (
-              <View style={styles.registerContainer}>
-                <Text style={styles.registerText}>Don&apos;t have an account? </Text>
-                <TouchableOpacity onPress={() => router.push("/register")}>
-                  <Text style={[styles.registerLink, { color: accent }]}>Register Here</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
             <TouchableOpacity
               style={[styles.signInButton, isLoading && styles.disabled]}
               disabled={isLoading}
@@ -537,6 +528,15 @@ function LoginScreenInner() {
                 <Text style={styles.signInText}>Sign In</Text>
               )}
             </TouchableOpacity>
+
+            {userType === "customer" && (
+              <View style={styles.registerContainer}>
+                <Text style={styles.registerText}>Don&apos;t have an account? </Text>
+                <TouchableOpacity onPress={() => router.push("/register")}>
+                  <Text style={[styles.registerLink, { color: accent }]}>Register Here</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {userType === "customer" && (
               <>

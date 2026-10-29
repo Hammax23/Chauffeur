@@ -1,12 +1,18 @@
 import * as Location from "expo-location";
 import { AppState, Platform } from "react-native";
 import { isRunningInExpoGo } from "expo";
-import { updateDriverLocation } from "./api";
+import { getDriverToken, updateDriverLocation } from "./api";
 import { DRIVER_BG_TASK_NAME } from "./driver-location-task";
 
 let subscription: Location.LocationSubscription | null = null;
 let lastSentAt = 0;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let lastAuthWarnAt = 0;
+
+function isUnauthorizedError(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e ?? "");
+  return /unauthorized|401/i.test(msg);
+}
 
 /** Keep `lastLocationUpdatedAt` fresh even when the car is stopped (red light / traffic). */
 const HEARTBEAT_MS = 12_000;
@@ -48,6 +54,12 @@ export async function ensureBackgroundLocationPermission(): Promise<boolean> {
 }
 
 async function sendLocationSnapshot(loc: Location.LocationObject) {
+  const token = await getDriverToken();
+  if (!token) {
+    await stopDriverLocationTracking();
+    return;
+  }
+
   const { latitude, longitude, accuracy, heading, speed } = loc.coords;
   try {
     await updateDriverLocation({
@@ -58,6 +70,17 @@ async function sendLocationSnapshot(loc: Location.LocationObject) {
       speed: typeof speed === "number" ? speed : null,
     });
   } catch (e) {
+    if (isUnauthorizedError(e)) {
+      await stopDriverLocationTracking();
+      const now = Date.now();
+      if (__DEV__ && now - lastAuthWarnAt > 15_000) {
+        lastAuthWarnAt = now;
+        console.warn(
+          "[DriverLocation] Unauthorized — tracking stopped. Log in again as driver."
+        );
+      }
+      return;
+    }
     if (__DEV__) {
       console.warn(
         "[DriverLocation] Failed to POST /driver/location:",
