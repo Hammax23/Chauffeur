@@ -30,7 +30,15 @@ export async function GET(
 
   return NextResponse.json({
     success: true,
-    page: page ?? {
+    page: page
+      ? {
+          ...page,
+          ...(discovered?.codeControlled && {
+            title: discovered.defaultTitle ?? page.title,
+            metaDescription: discovered.defaultDescription ?? page.metaDescription,
+          }),
+        }
+      : {
       path,
       pageType: discovered?.pageType ?? "static",
       pageLabel: discovered?.pageLabel ?? path,

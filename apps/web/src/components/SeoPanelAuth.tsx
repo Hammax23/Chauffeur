@@ -63,7 +63,10 @@ export default function SeoPanelAuth({ children }: { children: React.ReactNode }
       });
       const data = await res.json();
 
-      if (data.success) {
+      if (data.success && data.authenticated) {
+        setAuthenticated(true);
+        setPassword("");
+      } else if (data.success) {
         setSessionId(data.sessionId);
         setAuthStep("otp");
         setSuccess("Verification code sent to admin email");

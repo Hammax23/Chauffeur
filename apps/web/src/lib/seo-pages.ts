@@ -1,5 +1,6 @@
 import { getAllCities } from "@/lib/managed-cities";
 import { getAllServices } from "@/lib/managed-services";
+import { SERVICE_PAGE_COPY } from "@/lib/service-page-copy";
 import { getDiscoveredBlogPages } from "@/lib/blog";
 
 export interface DiscoveredPage {
@@ -8,6 +9,8 @@ export interface DiscoveredPage {
   pageLabel: string;
   defaultTitle?: string;
   defaultDescription?: string;
+  /** Title/description come from code and win over values saved in the SEO panel. */
+  codeControlled?: boolean;
 }
 
 const STATIC_PAGES: DiscoveredPage[] = [
@@ -51,8 +54,9 @@ export async function discoverSitePages(): Promise<DiscoveredPage[]> {
     path: `/services/${s.slug}`,
     pageType: "service" as const,
     pageLabel: s.title,
-    defaultTitle: `${s.title} | SARJ Worldwide Chauffeur`,
-    defaultDescription: s.shortDesc,
+    defaultTitle: SERVICE_PAGE_COPY[s.slug]?.metaTitle ?? `${s.title} | SARJ Worldwide Chauffeur`,
+    defaultDescription: SERVICE_PAGE_COPY[s.slug]?.metaDescription ?? s.shortDesc,
+    codeControlled: !!SERVICE_PAGE_COPY[s.slug],
   }));
 
   const cityPages: DiscoveredPage[] = cityList.map((r) => ({

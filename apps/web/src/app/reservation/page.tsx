@@ -29,6 +29,7 @@ import {
 import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { THANK_YOU_STORAGE_KEY, type ThankYouProps } from "@/components/ReservationThankYou";
 import RouteMap from "@/components/RouteMap";
 import PlacesAutocomplete, {
   PLACES_CLOSE_EVENT,
@@ -66,6 +67,9 @@ function formatHourlyRate(price: number): string {
   if (!Number.isFinite(n)) return "0";
   return Number.isInteger(n) ? String(n) : n.toFixed(2);
 }
+
+/** Temporarily stop taking payments/bookings on the reservation form. Set to false to re-enable. */
+const PAYMENTS_DISABLED = false;
 
 function ReservationPageContent() {
   const searchParams = useSearchParams();
@@ -268,6 +272,7 @@ function ReservationPageContent() {
   // Payment states
   const [checkoutPaymentMethod, setCheckoutPaymentMethod] = useState<"card" | "cash">("card");
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [bookingRef, setBookingRef] = useState("");
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
@@ -426,6 +431,7 @@ function ReservationPageContent() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.details || data.error || "Failed to send emails");
+      if (typeof data.bookingId === "string") setBookingRef(data.bookingId);
       setEmailSent(true);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Failed to send confirmation emails.";
@@ -491,6 +497,7 @@ function ReservationPageContent() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.details || data.error || "Failed to confirm reservation");
+      if (typeof data.bookingId === "string") setBookingRef(data.bookingId);
       setPaymentSuccess(true);
       setEmailSent(true);
     } catch (err: unknown) {
@@ -781,6 +788,35 @@ function ReservationPageContent() {
     { id: 3, title: "Contact Info", description: "Your details" },
     { id: 4, title: "Confirmation", description: "Booking Summary" }
   ];
+
+  // Once the booking is complete (card paid or pay-on-delivery confirmed) and the email attempt has
+  // finished, hand the summary to the thank-you page.
+  useEffect(() => {
+    if (!paymentSuccess || emailSending || !(emailSent || emailError)) return;
+    const summary: ThankYouProps = {
+      firstName,
+      email,
+      bookingId: bookingRef,
+      serviceLabel: serviceType,
+      isHourly: bookingMode === "hourly",
+      hourlyDuration: bookingMode === "hourly" ? hourlyDuration : undefined,
+      dateTimeLabel: pickupDateTime ? pickupDateTime.toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" }) : "",
+      pickup: pickupLocation,
+      dropoff: dropoffLocation,
+      vehicleName: resolveVehicle(selectedVehicle)?.name || selectedVehicle,
+      passengers: isParcel ? 1 : passengersCount,
+      totalLabel: paymentAmountLabel,
+      paymentMethod: checkoutPaymentMethod,
+      emailSending: false,
+      emailSent,
+      emailError,
+    };
+    try {
+      sessionStorage.setItem(THANK_YOU_STORAGE_KEY, JSON.stringify(summary));
+    } catch {}
+    window.location.replace("/reservation/thankyou");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentSuccess, emailSending, emailSent, emailError]);
 
   return (
     <main
@@ -1667,7 +1703,18 @@ function ReservationPageContent() {
                   {/* Step 4: Payment — fare & tip live in the right Summary */}
                   {currentStep === 4 && (
                     <div className="space-y-3">
-                      {!paymentSuccess && (
+                      {PAYMENTS_DISABLED && !paymentSuccess && (
+                        <div className="bg-white rounded-xl border border-amber-200 p-5 text-center">
+                          <AlertCircle className="w-8 h-8 text-amber-600 mx-auto mb-2" strokeWidth={2} />
+                          <h3 className="text-[15px] font-semibold text-gray-900">Online booking is temporarily unavailable</h3>
+                          <p className="text-[13px] text-gray-600 mt-1.5">
+                            We&apos;re not accepting online payments right now. Please call{" "}
+                            <a href="tel:+14168935779" className="font-semibold text-gray-900 underline">+1 (416) 893-5779</a>{" "}
+                            or request a quote and we&apos;ll arrange your ride.
+                          </p>
+                        </div>
+                      )}
+                      {!PAYMENTS_DISABLED && !paymentSuccess && (
                         <div className="bg-white rounded-xl border border-gray-200 p-3.5">
                           <h3 className="text-[13px] font-semibold text-gray-900 mb-0.5">Payment</h3>
                           <p className="text-[12px] text-gray-500 mb-3">
@@ -2399,7 +2446,7 @@ function ReservationPageContent() {
         </div>
       ) : null}
 
-      {currentStep === 4 && !paymentSuccess && !tipModalOpen && !placesOpen ? (
+      {!PAYMENTS_DISABLED && currentStep === 4 && !paymentSuccess && !tipModalOpen && !placesOpen ? (
         <div className="sm:hidden fixed bottom-0 inset-x-0 z-[45] border-t border-gray-200/80 bg-white/95 backdrop-blur-md">
           <div className="px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] flex items-center gap-3">
             <div className="min-w-0 flex-1">

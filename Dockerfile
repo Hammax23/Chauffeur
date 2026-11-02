@@ -2,6 +2,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Prisma's query engine needs OpenSSL on Alpine
+RUN apk add --no-cache openssl
+
 # Copy the entire monorepo
 COPY . .
 
@@ -15,7 +18,8 @@ RUN cd apps/web && npx prisma generate
 RUN cp .env apps/web/.env || true
 
 # Build the app
-RUN npm run build
+# IPv4-only so next/font can reach Google Fonts from inside Docker
+RUN NODE_OPTIONS="--dns-result-order=ipv4first --no-network-family-autoselection" npm run build
 
 EXPOSE 3000
 

@@ -28,11 +28,30 @@ import Footer from "@/components/Footer";
 import ServiceContentBlocks from "@/components/ServiceContentBlocks";
 
 import ServiceQuoteForm from "@/components/ServiceQuoteForm";
+import { SERVICE_PAGE_COPY } from "@/lib/service-page-copy";
+import PopularRoutes from "@/components/PopularRoutes";
 import ServiceFAQSection from "@/components/ServiceFAQSection";
 import { GoogleMapsProvider } from "@/components/GoogleMapsProvider";
 import type { Metadata } from "next";
 import { buildPageMetadata } from "@/lib/seo-metadata";
 import { getSeoSettings, getSeoPageByPath } from "@/lib/seo-config";
+
+/** Airports band and CTA copy for /services/airport-transfers (hero and SEO copy live in lib/service-page-copy.ts). */
+const AIRPORT_PAGE = {
+  bandTitle: "Airports We Serve from Toronto and the GTA",
+  bandText:
+    "One provider for every airport run, with flat fares, professional chauffeurs and scheduling built around your flight.",
+  airports: [
+    { code: "YYZ", name: "Toronto Pearson Intl", desc: "Canada's busiest airport. Arrivals and departures timed to your actual flight, not a fixed schedule.", slug: "toronto-pearson" },
+    { code: "YUL", name: "Montréal-Trudeau Intl", desc: "Direct long-distance transfers to Montreal, Quebec, in one private ride.", slug: "montreal" },
+    { code: "YHM", name: "Hamilton Intl", desc: "Regional transfers for Hamilton, Halton and nearby communities, with a confirmed pickup and flat fare.", slug: "hamilton" },
+    { code: "BUF", name: "Buffalo Niagara Intl", desc: "Cross-border rides to and from Buffalo, a useful option for Niagara and Southern Ontario travellers.", slug: "niagara-buffalo" },
+    { code: "YOW", name: "Ottawa Intl", desc: "Private transfers to and from Canada's capital, arranged around your flight and your schedule.", slug: "ottawa" },
+    { code: "YXU", name: "London Intl", desc: "Dependable transfers connecting London and Southwestern Ontario with Pearson and the wider GTA.", slug: "london" },
+  ],
+  ctaTitle: "Book Your Airport Transfer in Toronto",
+  ctaText: "Reserve online in a few minutes, or call +1 (416) 893-5779. Our team is available 24/7 to answer questions and help with your booking.",
+};
 
 const iconMap: Record<ServiceIconKey, React.ElementType> = {
   PlaneTakeoff,
@@ -59,6 +78,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const service = await getServiceBySlug(slug);
   if (!service) return { title: "Service Not Found" };
+  const copy = SERVICE_PAGE_COPY[slug];
+  if (copy) {
+    return buildPageMetadata(`/services/${slug}`, {
+      title: copy.metaTitle,
+      description: copy.metaDescription,
+      keywords: copy.keywords,
+      codeControlled: true,
+    });
+  }
   return buildPageMetadata(`/services/${slug}`, {
     title: `${service.title} | SARJ Worldwide Chauffeur Services`,
     description: service.shortDesc,
@@ -91,6 +119,15 @@ export default async function ServicePage({ params }: Props) {
   const serviceUrl = `${baseUrl}/services/${slug}`;
   const crumbName = seoPage?.breadcrumbLabel?.trim() || service.title;
   const bgImage = heroImageMap[slug] || "/cover1.jpeg";
+  const isAirport = slug === "airport-transfers";
+  const copy = SERVICE_PAGE_COPY[slug];
+  const isIntercity = slug === "intercity-travel";
+  const heroTitleText = copy ? copy.h1 : service.heroTitle || service.title;
+  const heroText = copy
+    ? copy.heroText
+    : service.description.length > 350
+      ? service.description.substring(0, 350) + "..."
+      : service.description;
 
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
@@ -131,10 +168,10 @@ export default async function ServicePage({ params }: Props) {
             {/* Title */}
             <h1 className="text-4xl sm:text-5xl md:text-[56px] lg:text-[64px] font-bold tracking-tight mb-4 leading-[1.1]">
               <span className="text-white">
-                {(service.heroTitle || service.title).split(' ').length > 1 ? (service.heroTitle || service.title).split(' ').slice(0, -1).join(' ') + ' ' : ''}
+                {heroTitleText.split(' ').length > 1 ? heroTitleText.split(' ').slice(0, -1).join(' ') + ' ' : ''}
               </span>
               <span className="text-[#C9A063]">
-                {(service.heroTitle || service.title).split(' ').slice(-1)}
+                {heroTitleText.split(' ').slice(-1)}
               </span>
             </h1>
 
@@ -150,9 +187,7 @@ export default async function ServicePage({ params }: Props) {
             {/* Description */}
             <div className="max-w-4xl mx-auto">
               <p className="text-base sm:text-[17px] text-white/90 font-light leading-relaxed">
-                {service.description.length > 350
-                  ? service.description.substring(0, 350) + "..."
-                  : service.description}
+                {heroText}
               </p>
             </div>
 
@@ -162,14 +197,16 @@ export default async function ServicePage({ params }: Props) {
                 href="/reservation"
                 className="inline-flex items-center justify-center px-8 py-3.5 bg-[#C9A063] text-black text-[13px] font-bold uppercase tracking-[0.1em] rounded-md hover:bg-[#B8935A] transition-all duration-300 shadow-[0_0_20px_rgba(201,160,99,0.3)] hover:shadow-[0_0_30px_rgba(201,160,99,0.5)]"
               >
-                Reserve Now
+                {isIntercity ? "Check Availability" : "Reserve Now"}
               </Link>
-              <Link
-                href="/contact"
-                className="inline-flex items-center justify-center px-8 py-3.5 border border-white text-white text-[13px] font-bold uppercase tracking-[0.1em] rounded-md hover:bg-white hover:text-black transition-all duration-300"
-              >
-                Contact Us
-              </Link>
+              {!isIntercity && (
+                <Link
+                  href="/contact"
+                  className="inline-flex items-center justify-center px-8 py-3.5 border border-white text-white text-[13px] font-bold uppercase tracking-[0.1em] rounded-md hover:bg-white hover:text-black transition-all duration-300"
+                >
+                  Contact Us
+                </Link>
+              )}
             </div>
           </div>
         </section>
@@ -178,6 +215,13 @@ export default async function ServicePage({ params }: Props) {
 
         {/* Alternating Content Blocks (replaces previous main layout) */}
         <ServiceContentBlocks service={service} />
+
+        {isIntercity && (
+          <PopularRoutes
+            title="Our Most-Booked Intercity Routes"
+            intro="Here's what a typical long-distance booking with us looks like, distance and drive time included, so you know what to expect before you reserve."
+          />
+        )}
 
 
 
@@ -198,22 +242,15 @@ export default async function ServicePage({ params }: Props) {
                   <div className="h-[1px] w-12 bg-[#c8a165]" />
                 </div>
                 <h2 className="text-4xl sm:text-5xl md:text-[56px] font-serif text-white font-bold mb-6 leading-[1.15]">
-                  Airport transportation,<br className="hidden sm:block" /> wherever you fly
+                  {AIRPORT_PAGE.bandTitle}
                 </h2>
                 <p className="text-[#9ca3af] text-[15px] sm:text-[17px] leading-relaxed max-w-2xl mx-auto">
-                  One trusted provider for every airport run, flat fares, professional chauffeurs and reliable scheduling from anywhere in Oakville and Halton.
+                  {AIRPORT_PAGE.bandText}
                 </p>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-                {[
-                  { code: 'YYZ', name: 'Toronto Pearson Intl', desc: "Canada's busiest international gateway", slug: 'toronto-pearson' },
-                  { code: 'YUL', name: 'Montreal-Trudeau Intl', desc: 'Direct transfers to Montreal, Quebec', slug: 'montreal' },
-                  { code: 'YHM', name: 'Hamilton Intl', desc: 'Convenient regional airport transfers', slug: 'hamilton' },
-                  { code: 'BUF', name: 'Buffalo Niagara Intl', desc: 'Cross-border airport transfers, USA', slug: 'niagara-buffalo' },
-                  { code: 'YOW', name: 'Ottawa Intl', desc: "Private transfers to Canada's Capital", slug: 'ottawa' },
-                  { code: 'YXU', name: 'London Intl', desc: 'Reliable Southwestern Ontario transfers', slug: 'london' },
-                ].map((airport) => (
+                {AIRPORT_PAGE.airports.map((airport) => (
                   <Link
                     href={`/cities-we-serve/${airport.slug}`}
                     key={airport.code}
@@ -257,10 +294,10 @@ export default async function ServicePage({ params }: Props) {
               <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#C9A063]/40 to-transparent" />
               <div className="relative py-14 sm:py-16 text-center px-6">
                 <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight mb-4">
-                  Ready to book {service.title}?
+                  {isAirport ? AIRPORT_PAGE.ctaTitle : `Ready to book ${service.title}?`}
                 </h2>
                 <p className="text-gray-600 text-[16px] sm:text-[17px] max-w-xl mx-auto mb-8">
-                  Get in touch or head to our booking form. Our team is available 24/7 to assist you.
+                  {isAirport ? AIRPORT_PAGE.ctaText : "Get in touch or head to our booking form. Our team is available 24/7 to assist you."}
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-4">
                   <Link

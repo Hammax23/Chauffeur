@@ -5,7 +5,14 @@ import {
   getClientIP,
 } from "@/lib/admin-auth";
 import { generateOTP, createOTPSession, sendOTPEmail } from "@/lib/admin-otp";
-import { getSeoPanelAllowedEmail, authenticateSeoPanelPassword } from "@/lib/seo-auth";
+import {
+  getSeoPanelAllowedEmail,
+  authenticateSeoPanelPassword,
+  generateSeoPanelToken,
+  SEO_PANEL_COOKIE_NAME,
+  getSeoPanelSessionCookieOptions,
+} from "@/lib/seo-auth";
+import { clearAttempts } from "@/lib/admin-auth";
 
 export async function POST(request: NextRequest) {
   try {
@@ -49,6 +56,14 @@ export async function POST(request: NextRequest) {
         { success: false, error: authResult.error || "Invalid credentials" },
         { status: 401 }
       );
+    }
+
+    // Optional: skip the emailed code (set SEO_PANEL_OTP_DISABLED=true, e.g. in local .env).
+    if (process.env.SEO_PANEL_OTP_DISABLED === "true") {
+      clearAttempts(`seo-login:${ip}`);
+      const response = NextResponse.json({ success: true, authenticated: true, message: "Login successful" });
+      response.cookies.set(SEO_PANEL_COOKIE_NAME, generateSeoPanelToken(), getSeoPanelSessionCookieOptions());
+      return response;
     }
 
     const otp = generateOTP();

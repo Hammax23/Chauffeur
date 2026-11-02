@@ -13,61 +13,69 @@ const serviceFaqs: Record<string, { question: string; answer: ReactNode }[]> = {
   "airport-transfers": [
     {
       question: "What's included in a private airport transfer service?",
-      answer: "A private vehicle, a professional chauffeur, flight tracking, and a pickup time based on your actual arrival, not a fixed schedule."
+      answer: "A private vehicle, a professional chauffeur, real-time flight tracking and a pickup time based on your actual arrival rather than a fixed schedule. Your chauffeur handles the driving, route and parking, and your fare is flat, so you know the cost before you travel."
     },
     {
-      question: "What is the best car service to Pearson Airport?",
-      answer: "Pre-booked, chauffeur-driven transfers to and from Toronto Pearson, with flight tracking so pickups adjust for delays."
+      question: "What is the best airport transfer service in Toronto?",
+      answer: "The best one is the one built around your flight, not just your booking. Look for flight tracking, a fixed fare agreed in advance, a professional chauffeur and a team you can reach around the clock. Sarj Worldwide offers all four, for both arrivals and departures at Toronto Pearson."
     },
     {
-      question: "Do you offer airport car service in Montreal?",
-      answer: <>Yes, our <Link href="/cities-we-serve/montreal" className="text-[#C9A063] font-semibold hover:underline">Montreal airport car service</Link> connects Montreal-Trudeau Airport with homes, hotels, and offices.</>
+      question: "How do I book an airport transfer in Toronto?",
+      answer: "Reserve online with your pickup and drop-off addresses, date, time and flight number. You can also call +1 (416) 893-5779 and the team will arrange it for you. Booking ahead is best, especially for early-morning flights and busy travel weekends."
     },
     {
-      question: "Is airport taxi service available in Hamilton?",
-      answer: <>Yes, our <Link href="/cities-we-serve/hamilton" className="text-[#C9A063] font-semibold hover:underline">Hamilton airport taxi service</Link> covers both arrivals and departures with the same chauffeur-driven standard.</>
-    },
-    {
-      question: "Can I book a transfer from Pearson to Niagara Falls?",
-      answer: <>Yes, our <Link href="/cities-we-serve/niagara-buffalo" className="text-[#C9A063] font-semibold hover:underline">Pearson Airport to Niagara Falls limo service</Link> includes onward cross-border trips to Buffalo.</>
-    },
-    {
-      question: "Do you provide airport taxi service in London?",
-      answer: <>Yes, our <Link href="/cities-we-serve/london" className="text-[#C9A063] font-semibold hover:underline">London airport taxi service</Link> offers pre-booked transfers to and from Pearson.</>
+      question: "What happens if my flight is delayed or lands early?",
+      answer: "We track your flight in real time and adjust the pickup to match, so you don't need to call ahead or rebook."
     },
     {
       question: "What's the difference between an airport taxi and a limousine service?",
-      answer: "A taxi is dispatched on demand with a metered fare; our limousine service is pre-booked at a fixed rate."
+      answer: <>A taxi is usually picked up from a queue and charged by the meter. A limousine or private chauffeur service is booked ahead, with the vehicle, chauffeur and fare confirmed before you travel. If you&apos;re weighing the options, this <Link href="/news" className="text-[#C9A063] font-semibold hover:underline">Pearson limo vs Uber vs taxi breakdown</Link> goes deeper.</>
+    },
+    {
+      question: "Do you offer airport car service in Montreal?",
+      answer: "Yes. We arrange direct private transfers to and from Montreal, including Montréal-Trudeau (YUL). Because it's a long-distance trip, book as early as you can so your vehicle and chauffeur are confirmed."
+    },
+    {
+      question: "Is airport taxi service available in Hamilton?",
+      answer: "We provide private airport transfers in Hamilton rather than metered taxis, covering Hamilton International (YHM) and trips between Hamilton and Pearson. You get a confirmed booking and a flat fare instead of waiting for a cab."
+    },
+    {
+      question: "Can I book a transfer from Pearson to Niagara Falls?",
+      answer: "Yes. Pearson to Niagara Falls is a popular run, and the same private service applies, with flight tracking so your pickup matches your landing time. Cross-border transfers to Buffalo Niagara International (BUF) are also available."
+    },
+    {
+      question: "Do you provide airport transfer service in London, Ontario?",
+      answer: "Yes. Private transfers connect London and Southwestern Ontario with Pearson and London International (YXU)."
     }
   ],
   "meet-greet": [
     {
       question: "What is a meet and greet service?",
-      answer: "A chauffeur waits at your arrival gate, tracks your flight, assists with luggage, and walks you directly to a private vehicle."
+      answer: "A chauffeur waits for your arrival, tracks your flight, assists with luggage, and escorts you directly to a private vehicle."
     },
     {
       question: "Who typically books meet and greet service?",
-      answer: "Business travelers, VIP guests, families, elderly passengers, and first-time visitors to a city all use it for added airport support."
+      answer: "Business travelers, VIP guests, families, elderly passengers, and visitors who want extra airport assistance often choose this service."
     },
     {
       question: "Does meet and greet include the ride to my destination?",
-      answer: "Yes, meet and greet can be combined with private chauffeur transportation to a hotel, office, residence, or event."
+      answer: "Yes, meet and greet service can be combined with private chauffeur transportation to hotels, offices, residences, or events."
     },
     {
       question: "Can I arrange meet and greet for a visiting corporate guest?",
-      answer: "Yes, businesses can book meet and greet for executives, clients, and visiting partners who need airport assistance and onward transportation."
+      answer: "Yes, businesses can arrange airport welcome services for executives, clients, and visiting partners."
     },
     {
       question: "Is meet and greet service available in Oakville?",
-      answer: <>Yes, our <Link href="/cities-we-serve/oakville" className="text-[#C9A063] font-semibold hover:underline">Oakville meet and greet service</Link> offers the same gate-to-car assistance provided across our other locations.</>
+      answer: <>Yes, SARJ Worldwide provides <Link href="/cities-we-serve/oakville" className="text-[#C9A063] font-semibold hover:underline">Oakville meet and greet service</Link> with professional airport assistance and private transportation options.</>
     },
     {
       question: "What happens if my flight is delayed?",
-      answer: "Your chauffeur tracks your flight in real time and adjusts the pickup automatically, so there's no waiting around at the gate."
+      answer: "Your chauffeur monitors your flight status and adjusts the pickup timing based on your updated arrival information."
     },
     {
       question: "Can meet and greet be booked with a luxury vehicle?",
-      answer: "Yes, meet and greet is available with our full fleet, including sedans, SUVs, sprinters, and limousines."
+      answer: "Yes, the service is available with SARJ Worldwide vehicles, including sedans, SUVs, sprinters, and limousines."
     }
   ],
   "vip-transport": [
@@ -103,37 +111,37 @@ const serviceFaqs: Record<string, { question: string; answer: ReactNode }[]> = {
   "intercity-travel": [
     {
       question: "How far can a private driver travel?",
-      answer: "Trip availability depends on the route, pickup time, destination, and vehicle availability."
+      answer: "There's no fixed distance limit. We regularly run routes across Ontario and into Quebec, and cross-border into the US. Tell us your destination when you request a quote and we'll confirm the route and timing."
     },
     {
       question: "Can I book transportation between cities on the same day?",
-      answer: "Same-day booking may be available, but advance reservations are recommended for longer trips."
+      answer: "For shorter routes, same-day booking is often possible depending on chauffeur and vehicle availability. For longer trips or peak travel dates, we recommend booking at least a few days ahead to guarantee your preferred vehicle."
     },
     {
-      question: "Are tolls and parking included?",
-      answer: "Inclusions depend on the confirmed quote and planned route."
+      question: "Are tolls and parking included in the quote?",
+      answer: "Tolls and parking are confirmed as part of your quote before booking, so the price you approve is the price you pay, with no surprise charges added afterward."
     },
     {
       question: "Which vehicle is best for a long trip?",
-      answer: "Sedans suit smaller groups, while SUVs and vans offer more passenger and luggage space."
+      answer: "A sedan works well for one or two passengers with standard luggage. For a group or extra bags, an SUV or van gives more room to stay comfortable over a longer drive."
     },
     {
       question: "Can I add stops during the journey?",
-      answer: "Yes, planned stops can usually be added when requested before the trip."
+      answer: "Yes. Let us know planned stops when you book, and your chauffeur will build them into the route so nothing needs to be arranged on the fly."
     },
     {
       question: "Can I book pickup from another city's airport?",
-      answer: "Yes, airport pickup can continue directly to a hotel, office, home, or another city."
+      answer: "Yes. A pickup from an airport outside the GTA can continue directly to a hotel, office, home, or on to another city, all in the same reservation."
     },
     {
       question: "How early should I book?",
-      answer: "Reserve several days ahead for weekends, holidays, airport trips, and specific vehicle requests."
+      answer: "For weekends, holidays, and specific vehicle requests, book a few days ahead if you can. For most weekday trips, even a short lead time is usually enough."
     }
   ],
   "corporate-travel": [
     {
       question: "What is a corporate traveler?",
-      answer: "A corporate traveler is anyone travelling for business purposes, such as meetings, conferences, or client visits, rather than personal reasons."
+      answer: "A corporate traveler is anyone traveling for business purposes, such as meetings, conferences, or client visits, rather than personal reasons."
     },
     {
       question: "Can I use a corporate rate for personal travel?",
@@ -171,15 +179,11 @@ const serviceFaqs: Record<string, { question: string; answer: ReactNode }[]> = {
     },
     {
       question: "Is there a minimum number of hours for a booking?",
-      answer: "Most hourly bookings require a minimum block of time, which can vary depending on the date and vehicle requested."
+      answer: "Minimums depend on the date and vehicle you choose. Reach out with your schedule and we'll confirm the block of time and rate that fits your day."
     },
     {
-      question: "Can I book hourly chauffeur service for a holiday event?",
-      answer: "Yes, hourly bookings are a common choice for holiday parties, group outings, and evenings involving multiple stops."
-    },
-    {
-      question: "Is a chauffeur service available near me?",
-      answer: "Sarj Worldwide provides hourly and as-directed chauffeur service across the regions we operate in, with a vehicle available wherever you're located."
+      question: "What vehicles are available for hourly booking?",
+      answer: "Sedans, SUVs, vans, and limousines are all available by the hour, so the vehicle matches the size of your group and the occasion."
     },
     {
       question: "Can hourly service include waiting time between stops?",
@@ -187,37 +191,37 @@ const serviceFaqs: Record<string, { question: string; answer: ReactNode }[]> = {
     },
     {
       question: "Is hourly chauffeur service only for special occasions?",
-      answer: "No, it's also used for business days with multiple meetings, shopping trips, or any day requiring flexible transportation."
+      answer: "No. It works just as well for a business day with multiple meetings, a shopping trip, or hosting an out-of-town guest, as it does for a holiday party or celebration."
     }
   ],
   "wedding-events": [
     {
-      question: "What's included in wedding limousine service?",
-      answer: "A licensed, insured chauffeur, a private vehicle from our fleet of sedans, SUVs, sprinters, or limousines, and a schedule built around your ceremony, photography, and reception timing."
+      question: "What is included in SARJ Worldwide wedding transportation?",
+      answer: "Wedding transportation includes a private chauffeur-driven vehicle, professional service, and travel arrangements based on your ceremony, photography locations, reception, and schedule."
     },
     {
-      question: "How far in advance should I book wedding vehicle hire?",
-      answer: "Booking several weeks to months ahead is recommended, especially during peak wedding season, to confirm vehicle availability."
+      question: "How far in advance should I book wedding transportation?",
+      answer: "It is recommended to reserve your wedding vehicle early, especially during busy wedding seasons, to confirm availability for your preferred date and vehicle."
     },
     {
-      question: "Is this a self-drive rental or a chauffeur-driven service?",
-      answer: "Sarj Worldwide provides chauffeur-driven wedding transportation, not a self-drive vehicle rental."
+      question: "Is this a self-drive rental or a chauffeur service?",
+      answer: "SARJ Worldwide provides chauffeur-driven wedding transportation with professional drivers and luxury vehicles. Customers do not need to drive the vehicle themselves."
     },
     {
-      question: "Can wedding car rentals include multiple pickup locations?",
-      answer: "Yes, bookings can include multiple stops for the wedding party, parents, or guests across the day."
+      question: "Can wedding transportation include multiple locations?",
+      answer: "Yes, bookings can include multiple stops for the couple, wedding party, family members, hotels, photography locations, and venues throughout the day."
     },
     {
-      question: "Is wedding limo service in Toronto available for both the ceremony and reception?",
-      answer: <>Yes, our <Link href="/cities-we-serve/toronto-pearson" className="text-[#C9A063] font-semibold hover:underline">Toronto wedding limo service</Link> covers ceremony pickup, photography stops, and the drive to the reception.</>
+      question: "What vehicles are available for wedding transportation?",
+      answer: "SARJ Worldwide offers luxury transportation options including sedans, SUVs, sprinter vehicles, and limousines, based on your group size and travel requirements."
     },
     {
-      question: "Do you offer wedding limo service in Burlington?",
-      answer: <>Yes, our <Link href="/cities-we-serve/burlington" className="text-[#C9A063] font-semibold hover:underline">Burlington wedding limo service</Link> covers the same ceremony-to-reception coordination offered across our other locations.</>
+      question: "Is wedding limo service available in Toronto and surrounding areas?",
+      answer: "Yes, SARJ Worldwide provides wedding transportation across Toronto and nearby areas, including ceremony transfers, reception travel, and special event transportation."
     },
     {
-      question: "Can the same vehicle stay for the whole wedding day?",
-      answer: "Yes, the vehicle and chauffeur can be booked for the full day, with GPS-tracked, punctual service guaranteed at every stop."
+      question: "Can I book transportation for the entire wedding day?",
+      answer: "Yes, couples can arrange extended bookings when they need a dedicated chauffeur and vehicle available throughout different parts of their wedding schedule."
     }
   ],
   "point-to-point-transfers": [

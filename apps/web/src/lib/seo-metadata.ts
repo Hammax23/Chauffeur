@@ -7,6 +7,8 @@ interface PageMetadataDefaults {
   description?: string;
   keywords?: string[];
   path?: string;
+  /** Use these title/description even when a value is saved for the page in the SEO panel. */
+  codeControlled?: boolean;
 }
 
 /** Build Next.js Metadata from DB SEO settings + per-page overrides */
@@ -21,8 +23,12 @@ export async function buildPageMetadata(
   ]);
 
   const siteUrl = settings.siteUrl.replace(/\/$/, "");
-  const title = page?.title || defaults.title || settings.defaultTitle;
-  const description = page?.metaDescription || defaults.description || settings.defaultDescription;
+  const title = (defaults.codeControlled && defaults.title) || page?.title || defaults.title || settings.defaultTitle;
+  const description =
+    (defaults.codeControlled && defaults.description) ||
+    page?.metaDescription ||
+    defaults.description ||
+    settings.defaultDescription;
   const keywordsRaw = page?.keywords || settings.defaultKeywords;
   const keywords = keywordsRaw
     ? keywordsRaw.split(",").map((k) => k.trim()).filter(Boolean)

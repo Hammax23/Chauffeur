@@ -19,28 +19,40 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
   if (isAirport) {
     blocks = [
       {
-        titleBlack: "How Our Airport Car ",
-        titleGold: "Service Works",
+        titleBlack: "How Your Airport Transfer in ",
+        titleGold: "Toronto Works",
         paragraphs: [
-          "Getting to Toronto Pearson shouldn't mean guessing when your ride will show up. Our airport transportation is built around your actual flight, not a fixed time slot: we track your arrival or departure and adjust pickup automatically for delays. Every trip includes a private vehicle and a professional chauffeur who handles the drive, parking, and route.",
-          <>Looking for the best car service to Pearson Airport? Our <Link href="/cities-we-serve/mississauga" className="text-[#C9A063] font-semibold hover:underline">private airport transfer service in Mississauga</Link> and <Link href="/cities-we-serve/oakville" className="text-[#C9A063] font-semibold hover:underline">Toronto airport limo service in Oakville</Link> connect directly with Pearson for both arrivals and departures.</>
+          "Most airport rides go wrong at the same point: the pickup time was set weeks ago, and the flight didn't cooperate. We work the other way around. Once you've booked, we follow your flight and move the pickup if you land early or run late, so your chauffeur is there when you actually need them.",
+          "A private airport transfer in Toronto should be simple: one vehicle, one professional chauffeur who handles the driving, route and parking, and nobody else on board. That applies to every Toronto Pearson airport transfer, whether you're arriving or departing.",
+          <>To book an airport transfer in Toronto, you need your pickup and drop-off addresses, the date and time, and your flight number. Reserve online in a couple of minutes and you&apos;ll receive a confirmation for your trip. First time at Pearson? This <Link href="/news" className="text-[#C9A063] font-semibold hover:underline">Pearson airport transfer guide</Link> explains what to expect from booking to pickup.</>
         ],
-        buttonText: "Contact Us",
-        buttonLink: "/contact",
+        buttonText: "Book Your Transfer",
+        buttonLink: "/reservation",
         image: "/heropics/airport2.png",
         imagePosition: "right" as const
       },
       {
-        titleBlack: "Airport Transportation Across the ",
-        titleGold: "Greater Toronto Area and Beyond",
+        titleBlack: "Airport Limo Service in the ",
+        titleGold: "GTA and Beyond",
         paragraphs: [
-          <>Beyond Pearson, we provide airport taxi and limousine service throughout the region, including <Link href="/cities-we-serve/burlington" className="text-[#C9A063] font-semibold hover:underline">airport limo service in Burlington</Link> and <Link href="/cities-we-serve/ottawa" className="text-[#C9A063] font-semibold hover:underline">Ottawa airport limo service</Link> for the same confirmed, chauffeur-driven experience.</>,
-          "We also serve travellers in Hamilton and London, along with cross-border connections through Niagara Falls and Montreal. Whether you're arriving, departing, or connecting onward, every trip is arranged around your schedule with the same professional standard across every location we serve."
+          "The standard stays the same whether you're leaving from downtown or a quiet street in Halton. We run airport limo service across the GTA, from Oakville and Burlington to Mississauga, home to Pearson.",
+          "Heading further out? We also cover Hamilton, London, Niagara Falls and Buffalo. If you need a luxury airport car service in Canada that goes beyond Toronto, the same chauffeur-driven standard extends to Ottawa and Montreal. Each trip is arranged around your schedule and priced as a flat fare, so there are no surprises when you arrive."
         ],
         buttonText: "",
         buttonLink: "",
         image: "/heropics/buisnesstravel.png",
         imagePosition: "left" as const
+      },
+      {
+        titleBlack: "What to Expect at ",
+        titleGold: "Pearson Airport",
+        paragraphs: [
+          "Pearson has two terminals, and the one your airline uses decides where pickup and drop-off happen. For departures, give us your flight time and pickup address, and we'll confirm a time that gets you to the terminal comfortably ahead of check-in. For arrivals, we follow your landing, so your chauffeur is ready when you are."
+        ],
+        buttonText: "",
+        buttonLink: "",
+        image: "/heropics/airport1.jpeg",
+        imagePosition: "right" as const
       }
     ];
   } else if (isCorporate) {
@@ -112,7 +124,9 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
         titleBlack: "From Holiday Parties to ",
         titleGold: "Full Days Out",
         paragraphs: [
-          "Chauffeur hire during the holidays is one of the most common reasons people book by the hour, whether it's a night of visiting several parties, a group outing that needs to stay together, or a day of shopping without worrying about parking. Our luxury chauffeur service suits birthdays, anniversaries, and nights out just as easily as business use, with the same vehicle and driver handling every stop on your list."
+          "Chauffeur hire during the holidays is one of the most common reasons people book by the hour, whether it's a night of visiting several parties, a group outing that needs to stay together, or a day of shopping without worrying about parking. Our luxury chauffeur service suits birthdays, anniversaries, and nights out just as easily as business use, with the same vehicle and driver handling every stop on your list.",
+          "It's also a practical option for visiting clients or family from out of town, whether they're flying into Pearson for the day or already staying somewhere in the area.",
+          <>If you need an <Link href="/cities-we-serve/mississauga" className="text-[#C9A063] font-semibold hover:underline">hourly chauffeur service in Mississauga</Link> or an <Link href="/cities-we-serve/oakville" className="text-[#C9A063] font-semibold hover:underline">hourly limo rental in Oakville</Link>, the same vehicle and driver can pick up your guest and stay with them for the day.</>
         ],
         buttonText: "",
         buttonLink: "",
@@ -126,8 +140,8 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
         titleBlack: "From the Ceremony to ",
         titleGold: "the Reception",
         paragraphs: [
-          "A wedding day rarely stays in one place. Our wedding car rentals are built around the full schedule, from picking up the wedding party before the ceremony to photos afterward and the drive to the reception, with return trips arranged for later in the evening. Every chauffeur is licensed, background-checked, and covered by commercial insurance, with punctual arrival guaranteed for every stop.",
-          <>This is one of our most requested bookings for <Link href="/cities-we-serve/mississauga" className="text-[#C9A063] font-semibold hover:underline">wedding limo service in Mississauga</Link>, where couples often need transport across several venues in one afternoon.</>
+          "A wedding day rarely happens in one location. SARJ Worldwide helps couples and wedding parties manage transportation throughout the day, from pre-ceremony pickups and venue transfers to photography stops and the journey to the reception. Our chauffeurs coordinate each trip carefully to help keep your schedule organized and comfortable.",
+          <>This is a popular choice for couples booking <Link href="/cities-we-serve/mississauga" className="text-[#C9A063] font-semibold hover:underline">wedding limo service in Mississauga</Link>, where wedding plans often include multiple venues, guest pickups, and travel between locations throughout the celebration.</>
         ],
         buttonText: "Contact Us",
         buttonLink: "/contact",
@@ -135,10 +149,11 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
         imagePosition: "right" as const
       },
       {
-        titleBlack: "One Car, Every Stop the ",
-        titleGold: "Wedding Party Needs",
+        titleBlack: "Wedding Transportation for ",
+        titleGold: "Every Part of Your Day",
         paragraphs: [
-          <>Car rental for a wedding usually means more than one passenger and more than one stop, the couple, the wedding party, sometimes parents or guests needing a ride between locations. Our limousines and SUVs are equipped with Wi-Fi, phone chargers, and bottled water, so the same vehicle and driver can stay with the wedding party from start to finish. This is a common request for our <Link href="/cities-we-serve/oakville" className="text-[#C9A063] font-semibold hover:underline">wedding limo service in Oakville</Link>, where multiple pickup points are often part of the day.</>
+          "Wedding transportation often involves more than one passenger and multiple locations throughout the day. SARJ Worldwide helps couples, wedding parties, and guests travel comfortably between venues, photo locations, hotels, and celebrations with a dedicated chauffeur and premium vehicle.",
+          <>Our limousines and SUVs provide a comfortable travel experience with features such as Wi-Fi, phone chargers, and bottled water, allowing your group to enjoy the day without worrying about transportation details. This is a popular choice for our <Link href="/cities-we-serve/oakville" className="text-[#C9A063] font-semibold hover:underline">wedding limo service in Oakville</Link>, where couples often require coordinated travel between different pickup points and venues.</>
         ],
         buttonText: "",
         buttonLink: "",
@@ -152,8 +167,8 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
         titleBlack: "What Is an Airport ",
         titleGold: "Meet & Greet Service?",
         paragraphs: [
-          "Stepping off a long flight is easier when someone is already waiting, not circling the pickup zone outside. Our chauffeurs track your flight in real time, meet you at the gate, help with luggage, and walk you directly to a private vehicle. Delays don't leave anyone standing around, since pickup adjusts to your actual landing time, not a fixed schedule.",
-          <>One of our most requested arrivals is our <Link href="/cities-we-serve/toronto-pearson" className="text-[#C9A063] font-semibold hover:underline">Toronto meet and greet service</Link>, where travelers benefit from having someone handle the walk from gate to car.</>
+          "Arriving after a long flight is easier when someone is already waiting for you. SARJ Worldwide chauffeurs monitor your flight, meet you at the airport, assist with your luggage, and guide you directly to your waiting vehicle. Instead of searching for transportation or waiting in busy pickup areas, your arrival is handled with professional care from the moment you land.",
+          <>Flight delays are also managed through real-time tracking, allowing pickup arrangements to adjust according to your actual arrival time. Our <Link href="/cities-we-serve/toronto-pearson" className="text-[#C9A063] font-semibold hover:underline">Toronto meet and greet service</Link> helps travelers enjoy a comfortable airport experience with reliable chauffeur assistance from gate to destination.</>
         ],
         buttonText: "Contact Us",
         buttonLink: "/contact",
@@ -164,8 +179,8 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
         titleBlack: "Meet & Greet Service for Corporate, ",
         titleGold: "VIP & Private Travel",
         paragraphs: [
-          "A corporate arrival carries its own pressure, a client visiting for the first time, an executive moving into meetings, a guest who values discretion. Our chauffeurs handle it quietly: matching the vehicle to the occasion, confirming schedules ahead of time, and getting guests moving without delay at the gate.",
-          <>The same care applies to private travel, a family reunion or milestone trip. This is common for corporate guests landing for our <Link href="/cities-we-serve/mississauga" className="text-[#C9A063] font-semibold hover:underline">Mississauga meet and greet service</Link>, where a smooth start matters most.</>
+          "Corporate and private arrivals often require extra attention, especially when welcoming executives, clients, or important guests. SARJ Worldwide provides a professional airport welcome experience designed around comfort, timing, and discretion. Our chauffeurs coordinate arrivals carefully, assist guests with their luggage, and ensure a smooth transition from the airport to the vehicle.",
+          <>Whether you are arranging transportation for a business visitor, family member, or VIP traveler, our team helps create a seamless arrival experience. Our <Link href="/cities-we-serve/mississauga" className="text-[#C9A063] font-semibold hover:underline">Mississauga meet and greet service</Link> is ideal for travelers who want dependable airport assistance combined with private chauffeur transportation.</>
         ],
         buttonText: "",
         buttonLink: "",
@@ -206,7 +221,7 @@ export default function ServiceContentBlocks({ service }: { service: Service }) 
         titleBlack: "Comfortable Long Distance Limo Service ",
         titleGold: "for Every Journey",
         paragraphs: [
-          "Choose a professional chauffeur for business trips, family visits, hotel transfers, or private journeys between cities. Every reservation includes coordinated pickup, direct routing, luggage assistance, and a comfortable cabin for longer travel. Explore our premium fleet to compare executive sedans, luxury SUVs, and spacious vans for your passenger, luggage, travel, and specific comfort requirements.",
+          <>Choose a professional chauffeur for business trips, family visits, hotel transfers, or private journeys between cities. Every reservation includes coordinated pickup, direct routing, luggage assistance, and a comfortable cabin for longer travel. Explore our <Link href="/fleet" className="text-[#C9A063] font-semibold hover:underline">premium fleet</Link> to compare executive sedans, luxury SUVs, and spacious vans for your passenger, luggage, travel, and specific comfort requirements.</>,
           <>Travellers departing from the GTA can book an <Link href="/cities-we-serve/toronto-pearson" className="text-[#C9A063] font-semibold hover:underline">intercity car service in Toronto</Link> for direct transportation to airports, hotels, offices, nearby communities, and destinations across Ontario.</>
         ],
         buttonText: "Contact Us",

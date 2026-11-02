@@ -42,17 +42,22 @@ const popularRoutes = [
   },
 ];
 
-export default function PopularRoutes() {
+type PopularRoutesProps = { title?: string; intro?: string };
+
+export default function PopularRoutes({
+  title = "Places We Go Frequently",
+  intro = "SARJ Worldwide provides private chauffeur transportation for popular routes across Canada and nearby destinations. Whether you are traveling for business, airport transfers, events, or long-distance journeys, our professional chauffeurs offer comfortable and reliable transportation between major cities.",
+}: PopularRoutesProps) {
   return (
     <section className="relative pt-2 md:pt-3 pb-12 md:pb-16 bg-white">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-8 sm:mb-10">
           <h2 className="text-2xl sm:text-3xl font-semibold text-gray-900 tracking-tight mb-2">
-            Places We Go Frequently
+            {title}
           </h2>
           <p className="text-gray-500 text-sm sm:text-[15px] max-w-xl mx-auto leading-relaxed">
-            SARJ Worldwide provides private chauffeur transportation for popular routes across Canada and nearby destinations. Whether you are traveling for business, airport transfers, events, or long-distance journeys, our professional chauffeurs offer comfortable and reliable transportation between major cities.
+            {intro}
           </p>
         </div>
 

@@ -19,7 +19,7 @@ export default function FloatingContact() {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="fixed bottom-6 right-6 z-[45] flex flex-col items-end gap-3">
+    <div data-floating-contact className="fixed bottom-6 right-6 z-[45] flex flex-col items-end gap-3">
       {/* WhatsApp & Call buttons - appear above main FAB when open */}
       <div
         className={`flex flex-col gap-3 transition-all duration-300 ease-out ${open ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-2 pointer-events-none"

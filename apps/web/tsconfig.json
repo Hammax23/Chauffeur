@@ -33,7 +33,7 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts"
-  ],
+, "src/scripts/fix-blog-image-urls.mjs"  ],
   "exclude": [
     "node_modules"
   ]

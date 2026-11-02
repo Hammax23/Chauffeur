@@ -55,27 +55,33 @@ function mapDbService(row: {
   };
 }
 
-export async function getAllServices(includeInactive = false): Promise<ServiceRecord[]> {
+async function getRawServices(): Promise<ServiceRecord[]> {
   try {
     const dbServices = await prisma.managedService.findMany({ orderBy: [{ sortOrder: "asc" }, { title: "asc" }] });
-    if (dbServices.length === 0) {
-      const staticList = staticServices();
-      return includeInactive ? staticList : staticList.filter((s) => s.isActive);
-    }
-
-    const list = dbServices.map(mapDbService);
-    return includeInactive ? list : list.filter((s) => s.isActive);
+    return dbServices.length === 0 ? staticServices() : dbServices.map(mapDbService);
   } catch {
-    const staticList = staticServices();
-    return includeInactive ? staticList : staticList.filter((s) => s.isActive);
+    return staticServices();
   }
 }
 
+/**
+ * Service list for the public site and the SEO panel. Titles, copy and order always come
+ * from data/services.ts so every environment matches; the database only supplies the row id
+ * and whether a built-in service is switched on. Database-only rows are ignored.
+ */
+export async function getAllServices(includeInactive = false): Promise<ServiceRecord[]> {
+  const raw = await getRawServices();
+  const rows = new Map(raw.map((r) => [r.slug, r]));
+  const list = staticServices().map((s) => {
+    const row = rows.get(s.slug);
+    return row ? { ...s, id: row.id, isActive: row.isActive } : s;
+  });
+  return includeInactive ? list : list.filter((s) => s.isActive);
+}
+
 export async function getServiceBySlug(slug: string): Promise<ServiceRecord | undefined> {
-  const all = await getAllServices(true);
-  const found = all.find((s) => s.slug === slug);
-  if (!found || !found.isActive) return undefined;
-  return found;
+  const all = await getAllServices();
+  return all.find((s) => s.slug === slug);
 }
 
 export async function getAllServiceSlugs(): Promise<string[]> {
