@@ -119,6 +119,19 @@ const DEFAULT_SETTINGS: Omit<SeoSettings, "createdAt" | "updatedAt"> = {
   defaultPriority: 0.8,
 };
 
+/** Google tag container used when no GTM ID is set in the SEO panel */
+export const DEFAULT_GTM_ID = "GTM-56BCZVS2";
+
+/** GA4 measurement ID used when none is set in the SEO panel */
+export const DEFAULT_GA4_ID = "G-WLBLKX9TH8";
+
+/** Internal areas that must not load analytics tags */
+const NO_TRACKING_PREFIXES = ["/admin", "/seopanel", "/driver", "/operational-manager"];
+
+export function isTrackingExcludedPath(pathname: string): boolean {
+  return NO_TRACKING_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
 export async function getSeoSettings(): Promise<SeoSettings> {
   if (!process.env.DATABASE_URL?.trim()) {
     return { ...DEFAULT_SETTINGS, createdAt: new Date(), updatedAt: new Date() };

@@ -1,26 +1,32 @@
-import { getSeoSettings } from "@/lib/seo-config";
+import { headers } from "next/headers";
+import { DEFAULT_GA4_ID, DEFAULT_GTM_ID, getSeoSettings, isTrackingExcludedPath } from "@/lib/seo-config";
 
 /** Injects GA4, GTM, and Facebook Pixel from SEO panel settings */
 export default async function SeoTrackingScripts() {
+  const pathname = (await headers()).get("x-pathname") || "/";
+  if (isTrackingExcludedPath(pathname)) return null;
+
   const settings = await getSeoSettings();
+  const gtmId = settings.gtmId || DEFAULT_GTM_ID;
+  const ga4Id = settings.ga4Id || DEFAULT_GA4_ID;
 
   return (
     <>
-      {settings.gtmId && (
+      {gtmId && (
         <>
           <script
             dangerouslySetInnerHTML={{
-              __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${settings.gtmId}');`,
+              __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${gtmId}');`,
             }}
           />
         </>
       )}
-      {settings.ga4Id && !settings.gtmId && (
+      {ga4Id && (
         <>
-          <script async src={`https://www.googletagmanager.com/gtag/js?id=${settings.ga4Id}`} />
+          <script async src={`https://www.googletagmanager.com/gtag/js?id=${ga4Id}`} />
           <script
             dangerouslySetInnerHTML={{
-              __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${settings.ga4Id}');`,
+              __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${ga4Id}');`,
             }}
           />
         </>

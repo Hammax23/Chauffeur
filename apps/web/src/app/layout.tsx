@@ -8,7 +8,8 @@ import SeoTrackingScripts from "@/components/SeoTrackingScripts";
 import SeoPageServerHead from "@/components/SeoPageServerHead";
 import { SeoPageHeadLive } from "@/components/SeoPageLiveExtras";
 import { buildGlobalMetadata } from "@/lib/seo-metadata";
-import { getSeoSettings } from "@/lib/seo-config";
+import { headers } from "next/headers";
+import { DEFAULT_GTM_ID, getSeoSettings, isTrackingExcludedPath } from "@/lib/seo-config";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -34,6 +35,8 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const settings = await getSeoSettings();
+  const pathname = (await headers()).get("x-pathname") || "/";
+  const gtmId = isTrackingExcludedPath(pathname) ? null : settings.gtmId || DEFAULT_GTM_ID;
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -58,10 +61,10 @@ export default async function RootLayout({
         suppressHydrationWarning
       >
         <SeoPageHeadLive />
-        {settings.gtmId ? (
+        {gtmId ? (
           <noscript>
             <iframe
-              src={`https://www.googletagmanager.com/ns.html?id=${settings.gtmId}`}
+              src={`https://www.googletagmanager.com/ns.html?id=${gtmId}`}
               height="0"
               width="0"
               style={{ display: "none", visibility: "hidden" }}
