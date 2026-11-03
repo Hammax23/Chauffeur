@@ -67,7 +67,6 @@ export async function PUT(request: NextRequest) {
           pinterestVerification: str("pinterestVerification") || null,
         }),
         ...(str("facebookAppId") !== undefined && { facebookAppId: str("facebookAppId") || null }),
-        ...(str("ga4Id") !== undefined && { ga4Id: str("ga4Id") || null }),
         ...(str("gtmId") !== undefined && { gtmId: str("gtmId") || null }),
         ...(str("facebookPixelId") !== undefined && { facebookPixelId: str("facebookPixelId") || null }),
         ...(str("organizationName") !== undefined && {

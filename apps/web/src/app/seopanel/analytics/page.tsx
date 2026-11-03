@@ -27,7 +27,6 @@ export default function SeoAnalyticsPage() {
       .then((d) => {
         if (d.success) {
           setForm({
-            ga4Id: d.settings.ga4Id || "",
             gtmId: d.settings.gtmId || "",
             facebookPixelId: d.settings.facebookPixelId || "",
             googleVerification: d.settings.googleVerification || "",
@@ -78,8 +77,8 @@ export default function SeoAnalyticsPage() {
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm space-y-5">
-        <Field label="Google Analytics 4 (GA4) Measurement ID" hint="Format: G-XXXXXXXXXX. If GTM is set below, GA4 should be configured inside GTM (this field is skipped when GTM ID is present).">
-          <input className={inputCls} value={form.ga4Id} onChange={(e) => setForm({ ...form, ga4Id: e.target.value })} placeholder="G-XXXXXXXXXX" />
+        <Field label="Google Analytics 4 (GA4) Measurement ID" hint="Fixed in the site code (G-WLBLKX9TH8) and cannot be changed here.">
+          <input className={inputCls} value="G-WLBLKX9TH8" readOnly disabled />
         </Field>
         <Field label="Google Tag Manager Container ID" hint="Format: GTM-XXXXXXX">
           <input className={inputCls} value={form.gtmId} onChange={(e) => setForm({ ...form, gtmId: e.target.value })} placeholder="GTM-XXXXXXX" />
