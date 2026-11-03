@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
   }
 
   const clientIp = getClientIp(request);
-  const rateLimit = checkRateLimit(`reservation-checkout:${clientIp}`, {
+  const rateLimit = await checkRateLimit(`reservation-checkout:${clientIp}`, {
     maxRequests: 20,
     windowMs: 60 * 1000,
   });

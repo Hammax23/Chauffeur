@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   }
 
   const clientIp = getClientIp(req);
-  const rateLimit = checkRateLimit(`concierge-checkout:${clientIp}`, {
+  const rateLimit = await checkRateLimit(`concierge-checkout:${clientIp}`, {
     maxRequests: 15,
     windowMs: 60 * 1000,
   });

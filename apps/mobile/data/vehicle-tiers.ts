@@ -304,6 +304,33 @@ export function getTierLuggage(tier: {
   }
 }
 
+/**
+ * Total bag capacity for the booking fleet (tier luggage × quantity per line).
+ * Used to cap Ride preferences and block over-capacity checkout.
+ */
+export function getFleetLuggageCapacity(
+  lines: { tierId: string; quantity: number }[],
+  tiers: VehicleTierOption[],
+  fallbackTier?: VehicleTierOption | null
+): number {
+  const list =
+    lines.length > 0
+      ? lines
+      : fallbackTier
+        ? [{ tierId: fallbackTier.id, quantity: 1 }]
+        : [];
+  let total = 0;
+  for (const line of list) {
+    const qty = Math.max(1, Math.floor(Number(line.quantity) || 1));
+    const tier =
+      findTierById(tiers, line.tierId) ||
+      (fallbackTier && fallbackTier.id === line.tierId ? fallbackTier : null);
+    if (!tier) continue;
+    total += getTierLuggage(tier) * qty;
+  }
+  return Math.max(0, total);
+}
+
 /** Display title without trailing " · 3" capacity suffix. */
 export function formatTierDisplayTitle(title: string): string {
   return String(title || "")

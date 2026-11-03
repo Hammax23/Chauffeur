@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
+import { getRedis, redisKey } from "@/lib/redis";
 
 // Secret key for JWT - should be in env variable
 const JWT_SECRET = process.env.JWT_SECRET || "sarj-admin-jwt-secret-key-2024-secure";
@@ -22,10 +23,57 @@ export function getAdminSessionCookieOptions() {
   };
 }
 
-// Rate limiting storage (in production, use Redis)
-const loginAttempts: Map<string, { count: number; lastAttempt: number }> = new Map();
+type LoginAttempt = { count: number; lastAttempt: number };
+const loginAttempts: Map<string, LoginAttempt> = new Map();
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_TIME = 15 * 60 * 1000; // 15 minutes
+
+function adminLockKey(ip: string): string {
+  return redisKey("admin-lock", ip);
+}
+
+async function readLoginAttempt(ip: string): Promise<LoginAttempt | null> {
+  const redis = getRedis();
+  if (redis) {
+    try {
+      const raw = await redis.get(adminLockKey(ip));
+      if (raw) return JSON.parse(raw) as LoginAttempt;
+    } catch {
+      /* memory fallback */
+    }
+  }
+  return loginAttempts.get(ip) || null;
+}
+
+async function writeLoginAttempt(ip: string, attempt: LoginAttempt): Promise<void> {
+  const redis = getRedis();
+  if (redis) {
+    try {
+      await redis.set(
+        adminLockKey(ip),
+        JSON.stringify(attempt),
+        "PX",
+        LOCKOUT_TIME
+      );
+      return;
+    } catch {
+      /* memory fallback */
+    }
+  }
+  loginAttempts.set(ip, attempt);
+}
+
+async function deleteLoginAttempt(ip: string): Promise<void> {
+  const redis = getRedis();
+  if (redis) {
+    try {
+      await redis.del(adminLockKey(ip));
+    } catch {
+      /* ignore */
+    }
+  }
+  loginAttempts.delete(ip);
+}
 
 export interface AdminTokenPayload {
   role: "admin";
@@ -68,25 +116,27 @@ export function verifyToken(token: string): AdminTokenPayload | null {
 }
 
 /**
- * Check rate limiting for login attempts
+ * Check rate limiting for login attempts (Redis-backed when configured).
  */
-export function checkRateLimit(ip: string): { allowed: boolean; remainingTime?: number } {
+export async function checkRateLimit(
+  ip: string
+): Promise<{ allowed: boolean; remainingTime?: number }> {
   const now = Date.now();
-  const attempt = loginAttempts.get(ip);
+  const attempt = await readLoginAttempt(ip);
 
   if (!attempt) {
     return { allowed: true };
   }
 
-  // Reset if lockout time has passed
   if (now - attempt.lastAttempt > LOCKOUT_TIME) {
-    loginAttempts.delete(ip);
+    await deleteLoginAttempt(ip);
     return { allowed: true };
   }
 
-  // Check if locked out
   if (attempt.count >= MAX_ATTEMPTS) {
-    const remainingTime = Math.ceil((LOCKOUT_TIME - (now - attempt.lastAttempt)) / 1000);
+    const remainingTime = Math.ceil(
+      (LOCKOUT_TIME - (now - attempt.lastAttempt)) / 1000
+    );
     return { allowed: false, remainingTime };
   }
 
@@ -96,22 +146,25 @@ export function checkRateLimit(ip: string): { allowed: boolean; remainingTime?: 
 /**
  * Record a failed login attempt
  */
-export function recordFailedAttempt(ip: string): void {
+export async function recordFailedAttempt(ip: string): Promise<void> {
   const now = Date.now();
-  const attempt = loginAttempts.get(ip);
+  const attempt = await readLoginAttempt(ip);
 
   if (!attempt || now - attempt.lastAttempt > LOCKOUT_TIME) {
-    loginAttempts.set(ip, { count: 1, lastAttempt: now });
+    await writeLoginAttempt(ip, { count: 1, lastAttempt: now });
   } else {
-    loginAttempts.set(ip, { count: attempt.count + 1, lastAttempt: now });
+    await writeLoginAttempt(ip, {
+      count: attempt.count + 1,
+      lastAttempt: now,
+    });
   }
 }
 
 /**
  * Clear login attempts after successful login
  */
-export function clearAttempts(ip: string): void {
-  loginAttempts.delete(ip);
+export async function clearAttempts(ip: string): Promise<void> {
+  await deleteLoginAttempt(ip);
 }
 
 /**

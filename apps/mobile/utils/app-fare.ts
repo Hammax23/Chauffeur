@@ -6,18 +6,23 @@ export const AIRPORT_PICKUP_FEE = 17.25;
 /** Pearson inside-terminal Meet & Greet (keep in sync with web reservation-pricing). */
 export const MEET_GREET_CHARGE = 110;
 export const HST_RATE = 0.13;
-/** Quick picks on Review tip sheet. */
+/** Quick picks on Review Gratuity & Fuel sheet. */
 export const APP_GRATUITY_PERCENTS = [18, 20, 25] as const;
-/** Custom tip max (%). */
+/** Custom max (%). */
 export const APP_MAX_GRATUITY_PERCENT = 100;
-/** 0 = no tip selected (customer chooses on Review). */
-export const APP_DEFAULT_GRATUITY_PERCENT = 0;
+/** Minimum Gratuity & Fuel — customer cannot go below this. */
+export const APP_MIN_GRATUITY_PERCENT = 18;
+/** Default selected on Review (same as minimum). */
+export const APP_DEFAULT_GRATUITY_PERCENT = APP_MIN_GRATUITY_PERCENT;
 
-/** Presets or any whole percent 1–100 (Set your own). */
+/** Clamp to whole percent between min (18) and max (100). */
 export function normalizeAppGratuityPercent(raw?: number | null): number {
   const n = Number(raw);
-  if (!Number.isFinite(n) || n <= 0) return 0;
-  return Math.min(APP_MAX_GRATUITY_PERCENT, Math.max(0, Math.round(n)));
+  if (!Number.isFinite(n)) return APP_DEFAULT_GRATUITY_PERCENT;
+  return Math.min(
+    APP_MAX_GRATUITY_PERCENT,
+    Math.max(APP_MIN_GRATUITY_PERCENT, Math.round(n))
+  );
 }
 export const BASE_DISTANCE_KM = 17;
 export const EXTRA_KM_RATE = 3.2;

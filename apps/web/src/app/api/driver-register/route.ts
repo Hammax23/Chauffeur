@@ -10,6 +10,7 @@ import {
   type DriverInviteFieldKey,
   type MergedDriverRegistration,
 } from "@/lib/driver-invite-config";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 const ISO_DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -32,28 +33,6 @@ function documentStatusForExpiry(expiryUtc: Date): "VALID" | "EXPIRED" {
   const todayStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const expiryStart = Date.UTC(expiryUtc.getUTCFullYear(), expiryUtc.getUTCMonth(), expiryUtc.getUTCDate());
   return expiryStart < todayStart ? "EXPIRED" : "VALID";
-}
-
-// Rate limiting map
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-const MAX_REQUESTS = 5;
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const record = rateLimitMap.get(ip);
-
-  if (!record || now > record.resetTime) {
-    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
-    return true;
-  }
-
-  if (record.count >= MAX_REQUESTS) {
-    return false;
-  }
-
-  record.count++;
-  return true;
 }
 
 // Sanitize input
@@ -83,11 +62,17 @@ function generateDriverId(): string {
 // POST: Register driver with valid invite token
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting
-    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
-    if (!checkRateLimit(ip)) {
+    const ip = getClientIp(request);
+    const rl = await checkRateLimit(`driver-register:${ip}`, {
+      maxRequests: 5,
+      windowMs: 60 * 1000,
+    });
+    if (!rl.success) {
       return NextResponse.json(
-        { success: false, error: "Too many requests. Please try again later." },
+        {
+          success: false,
+          error: `Too many requests. Please try again in ${rl.resetIn} seconds.`,
+        },
         { status: 429 }
       );
     }

@@ -8,7 +8,7 @@ import { validatePassword } from "@/lib/password-policy";
 export async function POST(req: NextRequest) {
   try {
     const clientIp = getClientIp(req);
-    const rateLimit = checkRateLimit(`reset-password:${clientIp}`, {
+    const rateLimit = await checkRateLimit(`reset-password:${clientIp}`, {
       maxRequests: 10,
       windowMs: 15 * 60 * 1000,
     });

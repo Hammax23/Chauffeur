@@ -1,37 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { parseVisibleFieldsFromDb } from "@/lib/driver-invite-config";
-
-// Rate limiting map
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-const MAX_REQUESTS = 10;
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const record = rateLimitMap.get(ip);
-
-  if (!record || now > record.resetTime) {
-    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
-    return true;
-  }
-
-  if (record.count >= MAX_REQUESTS) {
-    return false;
-  }
-
-  record.count++;
-  return true;
-}
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 // POST: Validate invite token (public)
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting
-    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
-    if (!checkRateLimit(ip)) {
+    const ip = getClientIp(request);
+    const rl = await checkRateLimit(`driver-register-validate:${ip}`, {
+      maxRequests: 10,
+      windowMs: 60 * 1000,
+    });
+    if (!rl.success) {
       return NextResponse.json(
-        { success: false, error: "Too many requests. Please try again later." },
+        {
+          success: false,
+          error: `Too many requests. Please try again in ${rl.resetIn} seconds.`,
+        },
         { status: 429 }
       );
     }

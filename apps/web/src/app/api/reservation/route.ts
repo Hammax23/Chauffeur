@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
   try {
     // Rate limiting: 5 requests per minute per IP
     const clientIp = getClientIp(request);
-    const rateLimit = checkRateLimit(`reservation:${clientIp}`, { maxRequests: 5, windowMs: 60 * 1000 });
+    const rateLimit = await checkRateLimit(`reservation:${clientIp}`, { maxRequests: 5, windowMs: 60 * 1000 });
     if (!rateLimit.success) {
       return NextResponse.json(
         { error: `Too many requests. Please try again in ${rateLimit.resetIn} seconds.` },
@@ -140,8 +140,11 @@ export async function POST(request: NextRequest) {
     // Generate unique booking ID
     const bookingId = `SARJ-${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 1000).toString().padStart(3, "0")}`;
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://sarjworldwide.ca";
-    const driverLink = `${baseUrl}/driver/${bookingId}`;
-    const customerTrackLink = `${baseUrl}/track/${bookingId}`;
+    const { buildDriverPageUrl, buildTrackPageUrl } = await import(
+      "@/lib/booking-link-token"
+    );
+    const driverLink = buildDriverPageUrl(bookingId);
+    const customerTrackLink = buildTrackPageUrl(bookingId);
     const adminLink = `${baseUrl}/admin`;
 
     let formattedDateTime = "--";
@@ -438,6 +441,13 @@ export async function POST(request: NextRequest) {
 
     const { maybeBroadcastNewReservation } = await import("@/lib/live-auto");
     await maybeBroadcastNewReservation(bookingId);
+
+    // App account with matching email → booking confirmed push (email already sent above).
+    void import("@/lib/customer-push")
+      .then(({ notifyCustomerBookingConfirmed }) =>
+        notifyCustomerBookingConfirmed(bookingId)
+      )
+      .catch((err) => console.error("[reservation] booking confirm push", err));
 
     // Custom / staff reservations: always attach a Stripe pay-later link when unpaid.
     let paymentUrl: string | null = null;

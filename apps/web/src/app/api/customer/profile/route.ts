@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
+import { getAppJwtSecret } from "@/lib/app-jwt-secret";
 import { customerInactiveHttpResponse } from "@/lib/customer-auth";
-
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
 function getCustomerFromToken(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -11,7 +10,7 @@ function getCustomerFromToken(req: NextRequest) {
 
   try {
     const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email: string; type: string };
+    const decoded = jwt.verify(token, getAppJwtSecret()) as { id: string; email: string; type: string };
     if (decoded.type !== "customer") return null;
     return decoded;
   } catch {

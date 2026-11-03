@@ -5,9 +5,26 @@ import {
   phoneLookupVariants,
   validateAuthPhone,
 } from "@/lib/phone-us-ca";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rl = await checkRateLimit(`check-phone:${ip}`, {
+      maxRequests: 30,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!rl.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          available: false,
+          error: `Too many requests. Please try again in ${rl.resetIn} seconds.`,
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
     const phone = typeof body?.phone === "string" ? body.phone : "";
 

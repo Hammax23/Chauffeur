@@ -1,7 +1,6 @@
 import jwt from "jsonwebtoken";
 import { NextRequest } from "next/server";
-
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
+import { getAppJwtSecret } from "@/lib/app-jwt-secret";
 
 export interface DriverTokenPayload {
   id: string;
@@ -13,7 +12,7 @@ export interface DriverTokenPayload {
 
 export function verifyDriverJwt(token: string): DriverTokenPayload | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as DriverTokenPayload;
+    const decoded = jwt.verify(token, getAppJwtSecret()) as DriverTokenPayload;
     if (decoded.type !== "driver") return null;
     return decoded;
   } catch {

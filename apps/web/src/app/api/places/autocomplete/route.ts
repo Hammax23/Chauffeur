@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { enforcePlacesRateLimit } from "@/lib/places-guard";
+import { getPlacesComponentsParam } from "@/lib/places-countries";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +16,9 @@ function resolveMapsKey(): string | undefined {
  * NEXT_PUBLIC_* keys are often browser-referrer restricted and will return REQUEST_DENIED here.
  */
 export async function GET(req: NextRequest) {
+  const limited = await enforcePlacesRateLimit(req);
+  if (limited) return limited;
+
   const key = resolveMapsKey();
   if (!key) {
     return NextResponse.json(
@@ -44,9 +49,10 @@ export async function GET(req: NextRequest) {
     key,
     language: "en",
   });
-  // Default CA bias for normal address search; airport composer may go worldwide.
+  // Multi-country allow-list (default CA+PK+US). Airport / worldwide skips filter.
   if (!worldwide) {
-    params.set("components", "country:ca");
+    const components = getPlacesComponentsParam();
+    if (components) params.set("components", components);
   }
   if (types) {
     params.set("types", types);

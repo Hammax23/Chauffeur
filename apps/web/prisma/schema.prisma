@@ -52,6 +52,8 @@ model Reservation {
   trackLink             String?
   completedAt           DateTime?
   statusUpdatedAt       DateTime?
+  /// Set when ~1h pre-trip reminder push was sent (cron idempotency).
+  preTripReminderSentAt DateTime?
   /// First transition to ON THE WAY — used for total trip duration (→ DONE).
   driverOnTheWayAt      DateTime?
   /// JSON array: [{ "start": ISO, "end"?: ISO }, ...] stop intervals (Stop tap → Continue tap).

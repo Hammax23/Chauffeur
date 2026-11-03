@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { enforcePlacesRateLimit } from "@/lib/places-guard";
+import { getMapsRegionBias } from "@/lib/places-countries";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +37,9 @@ interface DirectionsLeg {
  * Uses Google Directions API server-side (same key strategy as /api/places/*).
  */
 export async function POST(req: NextRequest) {
+  const limited = await enforcePlacesRateLimit(req);
+  if (limited) return limited;
+
   const key = resolveMapsKey();
   if (!key) {
     return NextResponse.json(
@@ -87,9 +92,10 @@ export async function POST(req: NextRequest) {
     key,
     mode: "driving",
     units: "metric",
-    region: "ca",
     language: "en",
   });
+  const regionBias = getMapsRegionBias();
+  if (regionBias) params.set("region", regionBias);
 
   if (waypointList.length > 0) {
     // Google Directions: pipe-separated intermediate waypoints (order preserved).

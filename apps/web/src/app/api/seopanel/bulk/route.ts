@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { verifySeoPanelAuth, getClientIP } from "@/lib/seo-auth";
 import { logSeoAudit } from "@/lib/seo-audit";
-import { syncSeoPages } from "@/lib/seo-config";
+import { invalidateSeoRedirectsCache, syncSeoPages } from "@/lib/seo-config";
 import { sanitizePlainText, sanitizeUrl } from "@/lib/sanitize";
 import { sanitizeSeoPageBodyHtml, sanitizeSeoScripts } from "@/lib/seo-page-content";
 import { normalizeSeoPath } from "@/lib/seo-pages";
@@ -237,6 +237,7 @@ export async function POST(request: NextRequest) {
     }
 
     await syncSeoPages();
+    await invalidateSeoRedirectsCache();
 
     revalidatePath("/", "layout");
     revalidatePath("/robots.txt");

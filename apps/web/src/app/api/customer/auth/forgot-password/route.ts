@@ -16,7 +16,7 @@ const ACCOUNT_NOT_FOUND_MESSAGE =
 export async function POST(req: NextRequest) {
   try {
     const clientIp = getClientIp(req);
-    const rateLimit = checkRateLimit(`forgot-password:${clientIp}`, {
+    const rateLimit = await checkRateLimit(`forgot-password:${clientIp}`, {
       maxRequests: 5,
       windowMs: 15 * 60 * 1000,
     });
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     }
 
     const email = emailRaw.toLowerCase();
-    const emailRate = checkRateLimit(`forgot-password-email:${email}`, {
+    const emailRate = await checkRateLimit(`forgot-password-email:${email}`, {
       maxRequests: 3,
       windowMs: 15 * 60 * 1000,
     });

@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
+import { getAppJwtSecret } from "@/lib/app-jwt-secret";
 import { listDriverChatThreads } from "@/lib/trip-chat";
-
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
 function getDriverFromToken(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) return null;
   try {
     const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, JWT_SECRET) as {
+    const decoded = jwt.verify(token, getAppJwtSecret()) as {
       id: string;
       email: string;
       type: string;

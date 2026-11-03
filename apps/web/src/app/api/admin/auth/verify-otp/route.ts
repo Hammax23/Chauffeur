@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify OTP
-    const otpResult = verifyOTP(sessionId, otp);
+    const otpResult = await verifyOTP(sessionId, otp);
 
     if (!otpResult.valid) {
       return NextResponse.json(
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     // OTP verified - clear rate limit and issue token
-    clearAttempts(ip);
+    await clearAttempts(ip);
     const token = generateToken();
 
     // Create response with secure cookie

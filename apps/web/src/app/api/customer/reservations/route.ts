@@ -279,6 +279,7 @@ export async function POST(req: NextRequest) {
       childSeats,
       gratuityPercent: clientGratuityPercent,
       pickupLocation,
+      dropoffLocation: resolvedDropoff,
       bookingMode,
       hourlyDuration,
       meetGreet,
@@ -384,11 +385,11 @@ export async function POST(req: NextRequest) {
         .join("\n");
 
       const bookingId = `SARJ-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-      const siteBase = (process.env.NEXT_PUBLIC_SITE_URL || "https://sarjworldwide.ca").replace(
-        /\/$/,
-        ""
+      const { buildTrackPageUrl, buildDriverPageUrl } = await import(
+        "@/lib/booking-link-token"
       );
-      const trackLink = `${siteBase}/track/${bookingId}`;
+      const trackLink = buildTrackPageUrl(bookingId);
+      const driverLink = buildDriverPageUrl(bookingId);
 
       const customer = await prisma.customer.findUnique({
         where: { id: tokenData.id },
@@ -439,6 +440,7 @@ export async function POST(req: NextRequest) {
           total: pricing.total,
           specialRequirements: storedRequirements || null,
           trackLink,
+          driverLink,
           stripePaymentMethodId: resolvedStripePaymentMethodId,
           stripeCustomerId: resolvedStripeCustomerId,
           stripePaymentIntentId: paymentIntentId,
@@ -488,6 +490,12 @@ export async function POST(req: NextRequest) {
       const { maybeBroadcastNewReservation } = await import("@/lib/live-auto");
       await maybeBroadcastNewReservation(reservation.bookingId);
 
+      void import("@/lib/customer-push")
+        .then(({ notifyCustomerBookingConfirmed }) =>
+          notifyCustomerBookingConfirmed(reservation.bookingId)
+        )
+        .catch((err) => console.error("[app-reservation] booking confirm push", err));
+
       return NextResponse.json({
         success: true,
         message: "Reservation created successfully",
@@ -510,11 +518,11 @@ export async function POST(req: NextRequest) {
     }
 
     const bookingId = `SARJ-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-    const siteBase = (process.env.NEXT_PUBLIC_SITE_URL || "https://sarjworldwide.ca").replace(
-      /\/$/,
-      ""
+    const { buildTrackPageUrl, buildDriverPageUrl } = await import(
+      "@/lib/booking-link-token"
     );
-    const trackLink = `${siteBase}/track/${bookingId}`;
+    const trackLink = buildTrackPageUrl(bookingId);
+    const driverLink = buildDriverPageUrl(bookingId);
 
     const customer = await prisma.customer.findUnique({
       where: { id: tokenData.id },
@@ -565,6 +573,7 @@ export async function POST(req: NextRequest) {
         total: pricing.total,
         specialRequirements: storedRequirements || null,
         trackLink,
+        driverLink,
         stripePaymentMethodId: null,
         stripeCustomerId: null,
         stripePaymentIntentId: null,
@@ -625,6 +634,12 @@ export async function POST(req: NextRequest) {
 
     const { maybeBroadcastNewReservation } = await import("@/lib/live-auto");
     await maybeBroadcastNewReservation(reservation.bookingId);
+
+    void import("@/lib/customer-push")
+      .then(({ notifyCustomerBookingConfirmed }) =>
+        notifyCustomerBookingConfirmed(reservation.bookingId)
+      )
+      .catch((err) => console.error("[app-reservation] booking confirm push", err));
 
     return NextResponse.json({
       success: true,

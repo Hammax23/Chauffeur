@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
+import { getAppJwtSecret } from "@/lib/app-jwt-secret";
 import { listOpenOffersForDriver } from "@/lib/live-auto";
 import { sanitizeSpecialRequirementsForDriver } from "@/lib/driver-visible-notes";
-
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
 function getDriverFromToken(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -12,7 +11,7 @@ function getDriverFromToken(req: NextRequest) {
 
   try {
     const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email: string; type: string };
+    const decoded = jwt.verify(token, getAppJwtSecret()) as { id: string; email: string; type: string };
     if (decoded.type !== "driver") return null;
     return decoded;
   } catch {
@@ -101,7 +100,18 @@ export async function GET(req: NextRequest) {
       include: { customer: true },
     });
 
-    const rides = reservations.map((r) => mapAssignedRide(r, false));
+    // Requests: never expose fare / phone / email until Accept → Upcoming.
+    const redactRequest = (ride: ReturnType<typeof mapAssignedRide>) => ({
+      ...ride,
+      phone: "",
+      email: "",
+      total: 0,
+    });
+
+    const rides =
+      tab === "requests"
+        ? reservations.map((r) => redactRequest(mapAssignedRide(r, false)))
+        : reservations.map((r) => mapAssignedRide(r, false));
 
     if (tab === "requests") {
       const liveOffers = await listOpenOffersForDriver(tokenData.id);
@@ -116,8 +126,8 @@ export async function GET(req: NextRequest) {
           driverStopPeriodsJson: null,
           completedAt: null,
           customerName: offer.customerName,
-          phone: offer.phone,
-          email: offer.email,
+          phone: "",
+          email: "",
           serviceType: offer.serviceType,
           vehicle: offer.vehicle,
           passengers: offer.passengers,
@@ -129,7 +139,7 @@ export async function GET(req: NextRequest) {
           dropoffLocation: offer.dropoffLocation,
           distance: offer.distance,
           duration: offer.duration,
-          total: offer.total,
+          total: 0,
           specialRequirements: sanitizeSpecialRequirementsForDriver(
             offer.specialRequirements
           ),

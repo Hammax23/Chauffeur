@@ -8,7 +8,7 @@ import {
 export async function POST(req: NextRequest) {
   try {
     const clientIp = getClientIp(req);
-    const rateLimit = checkRateLimit(`verify-reset-otp:${clientIp}`, {
+    const rateLimit = await checkRateLimit(`verify-reset-otp:${clientIp}`, {
       maxRequests: 20,
       windowMs: 15 * 60 * 1000,
     });
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = verifyPasswordResetOtp(sessionId, otp);
+    const result = await verifyPasswordResetOtp(sessionId, otp);
     if (!result.valid) {
       return NextResponse.json(
         { success: false, error: result.error },

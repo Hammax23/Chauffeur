@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const otpResult = verifyOTP(sessionId, otp);
+    const otpResult = await verifyOTP(sessionId, otp);
     if (!otpResult.valid) {
       return NextResponse.json(
         { success: false, error: otpResult.error },
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    clearAttempts(`seo-login:${ip}`);
+    await clearAttempts(`seo-login:${ip}`);
     const token = generateSeoPanelToken();
 
     const response = NextResponse.json({ success: true, message: "Login successful" });

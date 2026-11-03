@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -78,10 +78,14 @@ type Props = {
   paymentLast4?: string | null;
   paymentSubtitle?: string;
   onChangePayment: () => void;
-  /** Tip row — same list style as payment / extras */
+  /** Gratuity & Fuel row — same list style as payment / extras */
   tipSummary: string;
   tipAmountLabel?: string | null;
   onOpenTip: () => void;
+  /** Increment to open the vehicle picker (e.g. from luggage capacity guidance). */
+  openCarsRequestKey?: number;
+  /** Prefer / badge vehicles that can hold at least this many bags. */
+  preferLuggageAtLeast?: number | null;
   /** Hourly Plan→Review */
   isHourly?: boolean;
   hourlyDuration?: number;
@@ -137,6 +141,8 @@ export function PlanRideReviewPanel({
   tipSummary,
   tipAmountLabel = null,
   onOpenTip,
+  openCarsRequestKey = 0,
+  preferLuggageAtLeast = null,
   isHourly = false,
   hourlyDuration = APP_MIN_HOURLY_HOURS,
   onChangeHourlyDuration,
@@ -159,10 +165,28 @@ export function PlanRideReviewPanel({
    */
   const [extrasStep, setExtrasStep] = useState<"main" | "addFleet">("main");
 
+  useEffect(() => {
+    if (openCarsRequestKey > 0) setShowCars(true);
+  }, [openCarsRequestKey]);
+
   const closeExtras = () => {
     setShowExtras(false);
     setExtrasStep("main");
   };
+
+  const carsSorted = useMemo(() => {
+    const minBags =
+      preferLuggageAtLeast != null && preferLuggageAtLeast > 0
+        ? preferLuggageAtLeast
+        : null;
+    if (minBags == null) return vehicleTiers;
+    return [...vehicleTiers].sort((a, b) => {
+      const aOk = getTierLuggage(a) >= minBags ? 1 : 0;
+      const bOk = getTierLuggage(b) >= minBags ? 1 : 0;
+      if (aOk !== bOk) return bOk - aOk;
+      return getTierLuggage(b) - getTierLuggage(a);
+    });
+  }, [vehicleTiers, preferLuggageAtLeast]);
 
   const stopAddrs = activeStopAddresses(stops);
   const hourlyDropoff =
@@ -637,7 +661,7 @@ export function PlanRideReviewPanel({
 
         <View style={[styles.sep, { backgroundColor: hairline }]} />
 
-        {/* Tip — same row language as payment / extras */}
+        {/* Gratuity & Fuel — same row language as payment / extras */}
         <Pressable
           onPress={onOpenTip}
           style={({ pressed }) => [styles.listRow, pressed && { backgroundColor: soft }]}
@@ -648,7 +672,7 @@ export function PlanRideReviewPanel({
               { backgroundColor: isDark ? soft : "#F0EBE3" },
             ]}
           >
-            <Ionicons name="heart-outline" size={18} color={ink} />
+            <Ionicons name="flame-outline" size={18} color={ink} />
           </View>
           <View style={styles.listCopy}>
             <Text style={[styles.listValue, { color: ink }]} numberOfLines={1}>
@@ -660,9 +684,7 @@ export function PlanRideReviewPanel({
               </Text>
             ) : null}
           </View>
-          <Text style={[styles.changeLinkRow, { color: link }]}>
-            {tipAmountLabel ? "Edit" : "Add"}
-          </Text>
+          <Text style={[styles.changeLinkRow, { color: link }]}>Edit</Text>
           <Ionicons name="chevron-forward" size={18} color={muted} />
         </Pressable>
       </View>
@@ -680,13 +702,25 @@ export function PlanRideReviewPanel({
               <Pressable onPress={() => setShowCars(false)} hitSlop={12} style={styles.carClose}>
                 <Ionicons name="close" size={26} color={ink} />
               </Pressable>
-              <Text style={[styles.carHeaderTitle, { color: ink }]}>Choose a ride</Text>
+              <View style={{ flex: 1, alignItems: "center" }}>
+                <Text style={[styles.carHeaderTitle, { color: ink }]}>Choose a ride</Text>
+                {preferLuggageAtLeast != null && preferLuggageAtLeast > 0 ? (
+                  <Text style={{ color: muted, fontSize: 12, fontWeight: "600", marginTop: 2 }}>
+                    Showing options for {preferLuggageAtLeast}+ bags
+                  </Text>
+                ) : null}
+              </View>
               <View style={{ width: 40 }} />
             </View>
             <ScrollView contentContainerStyle={styles.carList} keyboardShouldPersistTaps="handled">
-              {vehicleTiers.map((tier) => {
+              {carsSorted.map((tier) => {
                 const selected = selectedTierId === tier.id;
                 const line = getTierSubtitle(tier.id, tier.subtitle, tier.description);
+                const bags = getTierLuggage(tier);
+                const fitsBags =
+                  preferLuggageAtLeast != null &&
+                  preferLuggageAtLeast > 0 &&
+                  bags >= preferLuggageAtLeast;
                 return (
                   <Pressable
                     key={tier.id}
@@ -713,9 +747,21 @@ export function PlanRideReviewPanel({
                         ) : null}
                       </View>
                       <Text style={{ color: muted, fontSize: 13, marginTop: 2 }} numberOfLines={1}>
-                        {getTierCapacity(tier)} seats · {getTierLuggage(tier)} bags
+                        {getTierCapacity(tier)} seats · {bags} bags
                         {line ? ` · ${line}` : ""}
                       </Text>
+                      {fitsBags ? (
+                        <Text
+                          style={{
+                            color: isDark ? GOLD : "#276EF1",
+                            fontSize: 12,
+                            fontWeight: "700",
+                            marginTop: 4,
+                          }}
+                        >
+                          Fits your bags
+                        </Text>
+                      ) : null}
                     </View>
                     <View
                       style={[

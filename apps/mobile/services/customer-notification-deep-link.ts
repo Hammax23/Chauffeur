@@ -105,9 +105,34 @@ export async function routeCustomerNotificationResponse(
     return true;
   }
 
-  if (data.type === "driver_on_the_way" || data.type === "driver_assigned") {
+  if (
+    data.type === "driver_on_the_way" ||
+    data.type === "driver_assigned" ||
+    data.type === "driver_arrived" ||
+    data.type === "trip_started"
+  ) {
     router.push({
       pathname: "/customer/track-ride",
+      params: { bookingId: data.bookingId },
+    });
+    return true;
+  }
+
+  // Booking / billing / reminder / terminal — trip detail is the durable surface.
+  if (
+    data.type === "trip_completed" ||
+    data.type === "trip_review_request" ||
+    data.type === "reservation_cancelled" ||
+    data.type === "booking_confirmed" ||
+    data.type === "driver_unassigned" ||
+    data.type === "pre_trip_reminder" ||
+    data.type === "fare_charged" ||
+    data.type === "fare_unpaid" ||
+    data.type === "no_show" ||
+    data.type === "payment_received"
+  ) {
+    router.push({
+      pathname: "/customer/trip-detail",
       params: { bookingId: data.bookingId },
     });
     return true;

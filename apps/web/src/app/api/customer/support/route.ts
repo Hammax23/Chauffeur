@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     }
 
     const clientIp = getClientIp(req);
-    const rateLimit = checkRateLimit(`support:${customer.id}:${clientIp}`, {
+    const rateLimit = await checkRateLimit(`support:${customer.id}:${clientIp}`, {
       maxRequests: 5,
       windowMs: 60 * 1000,
     });

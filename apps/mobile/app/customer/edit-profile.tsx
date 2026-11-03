@@ -40,7 +40,7 @@ import {
   validateAuthPhone,
 } from "../../utils/phone-us-ca";
 
-const OTP_LENGTH = 4;
+const OTP_LENGTH = 6;
 const RESEND_SECONDS = 30;
 
 type PhoneStep = "idle" | "edit" | "otp";

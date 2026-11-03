@@ -130,7 +130,8 @@ export default function DriverDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [requestCount, setRequestCount] = useState(0);
-  const [conciergeEnrolled, setConciergeEnrolled] = useState(!!driver?.conciergeEnrolled);
+  /** Live API confirms enrollment — start hidden to avoid stale SecureStore flash. */
+  const [conciergeEnrolled, setConciergeEnrolled] = useState(false);
   const [myCoords, setMyCoords] = useState<{ lat: number; lng: number } | null>(null);
   /** Gate Marker until MapView finishes native layout — avoids top-left flash. */
   const [mapReady, setMapReady] = useState(false);
@@ -198,8 +199,8 @@ export default function DriverDashboard() {
   }, [myCoords, centerMapOnDriver]);
 
   useEffect(() => {
-    if (driver?.conciergeEnrolled === true) setConciergeEnrolled(true);
-    else if (driver?.conciergeEnrolled === false) setConciergeEnrolled(false);
+    // Profile refresh may flip enroll/unenroll; undefined = not enrolled.
+    setConciergeEnrolled(driver?.conciergeEnrolled === true);
   }, [driver?.conciergeEnrolled]);
 
   // Keep Online switch in sync if profile refresh / another device flips status.
@@ -1068,7 +1069,9 @@ export default function DriverDashboard() {
                     <DriverOfferCard
                       key={ride.bookingId || ride.id}
                       customerName={ride.customerName}
-                      phone={ride.phone}
+                      phone={
+                        activeTab === "upcoming" ? ride.phone : null
+                      }
                       serviceDate={ride.serviceDate}
                       serviceTime={ride.serviceTime}
                       passengers={ride.passengers}
@@ -1081,7 +1084,9 @@ export default function DriverDashboard() {
                       showNewBadge={activeTab === "requests"}
                       livePulse={livePulse}
                       fareLabel={
-                        ride.total != null && ride.total > 0
+                        activeTab === "upcoming" &&
+                        ride.total != null &&
+                        ride.total > 0
                           ? `$${ride.total.toFixed(0)}`
                           : null
                       }
@@ -1095,6 +1100,18 @@ export default function DriverDashboard() {
                           handleStartOrOpenRide(ride);
                         }
                       }}
+                      onMessage={
+                        activeTab === "upcoming"
+                          ? () =>
+                              router.push({
+                                pathname: "/driver/chat",
+                                params: {
+                                  bookingId: ride.bookingId,
+                                  name: ride.customerName,
+                                },
+                              })
+                          : undefined
+                      }
                     />
                   ))}
                 </View>

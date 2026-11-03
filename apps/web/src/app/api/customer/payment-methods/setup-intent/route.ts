@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     }
 
     const clientIp = getClientIp(req);
-    const rateLimit = checkRateLimit(`pm-setup:${token.id}:${clientIp}`, {
+    const rateLimit = await checkRateLimit(`pm-setup:${token.id}:${clientIp}`, {
       maxRequests: 10,
       windowMs: 60 * 1000,
     });

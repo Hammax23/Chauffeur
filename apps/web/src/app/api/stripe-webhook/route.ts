@@ -37,11 +37,24 @@ export async function POST(request: NextRequest) {
         ) {
           const bookingId = session.metadata.bookingId;
           try {
+            const before = await prisma.reservation.findUnique({
+              where: { bookingId },
+              select: { paymentStatus: true },
+            });
+            const wasPaid =
+              String(before?.paymentStatus || "").toUpperCase() === "PAID";
             await prisma.reservation.update({
               where: { bookingId },
               data: { paymentStatus: "PAID" },
             });
             console.log(`Reservation ${bookingId} marked PAID via checkout.session.completed`);
+            if (!wasPaid) {
+              void import("@/lib/customer-push")
+                .then(({ notifyCustomerPaymentReceived }) =>
+                  notifyCustomerPaymentReceived(bookingId)
+                )
+                .catch((err) => console.error("[webhook] payment push", err));
+            }
           } catch (e) {
             console.error(`Failed to mark reservation ${bookingId} paid:`, e);
           }
@@ -57,10 +70,23 @@ export async function POST(request: NextRequest) {
         if (paymentIntent.metadata?.type === "reservation" && paymentIntent.metadata?.bookingId) {
           const bookingId = paymentIntent.metadata.bookingId;
           try {
+            const before = await prisma.reservation.findUnique({
+              where: { bookingId },
+              select: { paymentStatus: true },
+            });
+            const wasPaid =
+              String(before?.paymentStatus || "").toUpperCase() === "PAID";
             await prisma.reservation.update({
               where: { bookingId },
               data: { paymentStatus: "PAID" },
             });
+            if (!wasPaid) {
+              void import("@/lib/customer-push")
+                .then(({ notifyCustomerPaymentReceived }) =>
+                  notifyCustomerPaymentReceived(bookingId)
+                )
+                .catch((err) => console.error("[webhook] payment push", err));
+            }
           } catch (e) {
             console.error(`Failed to mark reservation ${bookingId} paid from PI:`, e);
           }

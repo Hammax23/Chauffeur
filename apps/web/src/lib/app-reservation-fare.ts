@@ -1,9 +1,9 @@
 import prisma from "@/lib/prisma";
 import {
-  APP_DEFAULT_GRATUITY_PERCENT,
   calculateAppDistanceFare,
   calculateAppHourlyFare,
   clampHourlyDuration,
+  normalizeAppGratuityPercent,
   type ReservationPricingResult,
 } from "@/lib/reservation-pricing";
 import {
@@ -27,6 +27,7 @@ export type AppReservationFareInput = {
   childSeats?: unknown;
   gratuityPercent?: unknown;
   pickupLocation?: unknown;
+  dropoffLocation?: unknown;
   bookingMode?: unknown;
   hourlyDuration?: unknown;
   /** Meet & Greet add-on (airport From pickups). */
@@ -249,10 +250,7 @@ export async function resolveAppReservationFare(
   })();
   const pickupLocation =
     typeof input.pickupLocation === "string" ? input.pickupLocation : "";
-  const gratuityPercent = (() => {
-    const n = Number(input.gratuityPercent);
-    return Number.isFinite(n) && n >= 0 ? n : APP_DEFAULT_GRATUITY_PERCENT;
-  })();
+  const gratuityPercent = normalizeAppGratuityPercent(input.gratuityPercent);
   const childSeatCount = Number(input.childSeats) || 0;
   const meetGreet = parseMeetGreetFlag(input.meetGreet);
   const vehicleCount = (() => {
@@ -281,8 +279,40 @@ export async function resolveAppReservationFare(
       return { error: "Unable to calculate hourly fare" };
     }
   } else {
-    const meters = Number(input.distanceMeters) || 0;
-    if (meters <= 0) {
+    const clientMeters = Number(input.distanceMeters) || 0;
+    const dropoffLocation =
+      typeof input.dropoffLocation === "string" ? input.dropoffLocation.trim() : "";
+
+    let meters = clientMeters;
+    if (pickupLocation.length >= 3 && dropoffLocation.length >= 3) {
+      const { serverDrivingDistanceMeters, distanceAcceptable } = await import(
+        "@/lib/driving-distance"
+      );
+      const waypointParts =
+        typeof input.stops === "string" && input.stops.trim()
+          ? input.stops.includes("|")
+            ? input.stops
+                .split("|")
+                .map((s) => s.trim())
+                .filter((s) => s.length >= 3)
+            : [input.stops.trim()]
+          : [];
+      const serverDist = await serverDrivingDistanceMeters({
+        origin: pickupLocation,
+        destination: dropoffLocation,
+        waypoints: waypointParts,
+      });
+      if ("error" in serverDist) {
+        return { error: serverDist.error };
+      }
+      // Prefer server distance; reject clients that under-report significantly.
+      if (clientMeters > 0 && !distanceAcceptable(clientMeters, serverDist.meters)) {
+        return {
+          error: "Trip distance could not be verified. Please refresh the route and try again.",
+        };
+      }
+      meters = serverDist.meters;
+    } else if (meters <= 0) {
       return { error: "Valid trip distance is required" };
     }
 

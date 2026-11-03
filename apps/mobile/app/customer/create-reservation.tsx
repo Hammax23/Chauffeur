@@ -59,6 +59,7 @@ import { type BookingDraft } from "../../services/booking-draft";
 import {
   DEFAULT_RIDE_PREFS,
   normalizeRidePrefs,
+  ridePrefsExceedLuggage,
   type RidePrefs,
 } from "../../utils/ride-prefs";
 import { resetToReservationConfirmed } from "../../utils/booking-nav-reset";
@@ -68,6 +69,7 @@ import {
   filterVehicleTiersForParcel,
   findTierById,
   formatTierDisplayTitle,
+  getFleetLuggageCapacity,
   getTierCapacity,
   getTierLuggage,
   getTierSubtitle,
@@ -83,6 +85,7 @@ import {
   scaleFareForVehicleCount,
   APP_DEFAULT_GRATUITY_PERCENT,
   APP_GRATUITY_PERCENTS,
+  APP_MIN_GRATUITY_PERCENT,
   APP_MAX_GRATUITY_PERCENT,
   normalizeAppGratuityPercent,
   APP_HOURLY_DURATIONS,
@@ -489,6 +492,11 @@ export default function CreateReservationScreen() {
   const tipInputRef = useRef<TextInput>(null);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [ridePrefs, setRidePrefs] = useState<RidePrefs>(DEFAULT_RIDE_PREFS);
+  /** Bump to open Review vehicle picker (luggage capacity guidance). */
+  const [openCarsRequestKey, setOpenCarsRequestKey] = useState(0);
+  const [preferLuggageAtLeast, setPreferLuggageAtLeast] = useState<number | null>(
+    null
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const savedCardsCountRef = useRef(0);
   savedCardsCountRef.current = savedCards.length;
@@ -1107,10 +1115,62 @@ export default function CreateReservationScreen() {
     : Math.max(1, vehicleCount);
   const maxPassengers = maxPassengersPerVehicle * fleetUnitTotal;
 
+  const bookingFleetLines = useMemo(() => {
+    if (fromPlanRide && fleetLines.length > 0) {
+      return normalizeFleetLines(fleetLines);
+    }
+    if (selectedTier) {
+      return [
+        {
+          tierId: selectedTier.id,
+          quantity: parseVehicleCount(isParcel ? 1 : vehicleCount),
+        },
+      ];
+    }
+    return [] as FleetLine[];
+  }, [
+    fromPlanRide,
+    fleetLines,
+    selectedTier,
+    isParcel,
+    vehicleCount,
+  ]);
+
+  const maxLuggageBags = useMemo(
+    () => getFleetLuggageCapacity(bookingFleetLines, vehicleTiers, selectedTier),
+    [bookingFleetLines, vehicleTiers, selectedTier]
+  );
+
   useEffect(() => {
     setPassengersCount((n) => Math.min(Math.max(n, 1), maxPassengers));
     setChildSeatCount((n) => Math.min(n, maxPassengers));
   }, [maxPassengers]);
+
+  // Keep bag prefs within the selected vehicle / fleet capacity.
+  useEffect(() => {
+    if (isParcel || maxLuggageBags < 1) return;
+    setRidePrefs((prev) => {
+      const next = normalizeRidePrefs(prev, { maxBags: maxLuggageBags });
+      if (
+        next.helpWithLuggage === prev.helpWithLuggage &&
+        next.luggageBagCount === prev.luggageBagCount &&
+        next.conversation === prev.conversation &&
+        next.temperature === prev.temperature &&
+        next.airFreshener === prev.airFreshener
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  }, [maxLuggageBags, isParcel]);
+
+  // Clear luggage-fit filter once the fleet can hold the requested bags.
+  useEffect(() => {
+    if (preferLuggageAtLeast == null) return;
+    if (maxLuggageBags >= preferLuggageAtLeast) {
+      setPreferLuggageAtLeast(null);
+    }
+  }, [maxLuggageBags, preferLuggageAtLeast]);
 
   // Keep fleet lines aligned with the primary selected vehicle.
   useEffect(() => {
@@ -1471,8 +1531,77 @@ export default function CreateReservationScreen() {
       flightNumber: flightNumber.trim() || undefined,
       flightNote: flightNote.trim() || undefined,
       meetGreet: allowMeetGreet && meetGreet ? "1" : undefined,
-      ridePrefs: normalizeRidePrefs(opts?.prefsOverride ?? ridePrefs),
+      ridePrefs: normalizeRidePrefs(opts?.prefsOverride ?? ridePrefs, {
+        maxBags: maxLuggageBags,
+      }),
     };
+  };
+
+  const openVehiclesForLuggage = (neededBags: number) => {
+    setPreferLuggageAtLeast(Math.max(1, neededBags));
+    if (fromPlanRide) {
+      setOpenCarsRequestKey((k) => k + 1);
+    } else {
+      setShowTierDropdown(true);
+    }
+  };
+
+  /**
+   * Switch vehicle — if customer is looking for more luggage space,
+   * block picking a car that still can't fit (guide stays on fitting options).
+   */
+  const selectVehicleConsideringLuggage = (tierId: string) => {
+    const tier = findTierById(vehicleTiers, tierId);
+    if (!tier) return;
+
+    if (
+      !isParcel &&
+      preferLuggageAtLeast != null &&
+      preferLuggageAtLeast > 0
+    ) {
+      const nextLines: FleetLine[] = (() => {
+        const prev =
+          fromPlanRide && fleetLines.length > 0
+            ? normalizeFleetLines(fleetLines)
+            : selectedTierId
+              ? [
+                  {
+                    tierId: selectedTierId,
+                    quantity: parseVehicleCount(isParcel ? 1 : vehicleCount),
+                  },
+                ]
+              : [];
+        if (prev.length === 0) {
+          return [{ tierId, quantity: 1 }];
+        }
+        const hit = prev.find((l) => l.tierId === tierId);
+        if (hit) {
+          return normalizeFleetLines([
+            hit,
+            ...prev.filter((l) => l.tierId !== tierId),
+          ]);
+        }
+        return normalizeFleetLines([
+          { tierId, quantity: 1 },
+          ...prev.slice(1),
+        ]);
+      })();
+      const nextCap = getFleetLuggageCapacity(nextLines, vehicleTiers, tier);
+      if (nextCap < preferLuggageAtLeast) {
+        Alert.alert(
+          "Not enough luggage space",
+          `${formatTierDisplayTitle(tier.title)} holds up to ${getTierLuggage(
+            tier
+          )} ${
+            getTierLuggage(tier) === 1 ? "bag" : "bags"
+          }. Choose a vehicle marked “Fits your bags”, or add another car in Extras.`
+        );
+        return;
+      }
+    }
+
+    setSelectedTierId(tierId);
+    setShowTierDropdown(false);
   };
 
   const submitCheckout = async (opts?: {
@@ -1480,7 +1609,38 @@ export default function CreateReservationScreen() {
     prefsOverride?: RidePrefs;
   }) => {
     if (!fareEstimate || !selectedTier || isSubmitting) return;
-    const draft = buildBookingDraft(opts);
+    const prefsForCheckout = normalizeRidePrefs(
+      opts?.prefsOverride ?? ridePrefs,
+      { maxBags: maxLuggageBags }
+    );
+    if (
+      !isParcel &&
+      ridePrefsExceedLuggage(prefsForCheckout, maxLuggageBags)
+    ) {
+      const vehicleName =
+        formatTierDisplayTitle(selectedTier.title) || "This vehicle";
+      Alert.alert(
+        "Luggage capacity",
+        `${vehicleName} holds up to ${maxLuggageBags} ${
+          maxLuggageBags === 1 ? "bag" : "bags"
+        }. Choose a vehicle that fits your luggage before confirming.`,
+        [
+          { text: "Not now", style: "cancel" },
+          {
+            text: "See vehicles",
+            onPress: () =>
+              openVehiclesForLuggage(
+                Math.max(prefsForCheckout.luggageBagCount, maxLuggageBags + 1)
+              ),
+          },
+        ]
+      );
+      return;
+    }
+    const draft = buildBookingDraft({
+      ...opts,
+      prefsOverride: prefsForCheckout,
+    });
     if (!draft) return;
 
     setIsSubmitting(true);
@@ -1522,7 +1682,7 @@ export default function CreateReservationScreen() {
         guestName: [draft.firstName, draft.lastName].filter(Boolean).join(" "),
         selectedCardId,
         savedCards,
-        prefs: normalizeRidePrefs(opts?.prefsOverride ?? ridePrefs),
+        prefs: prefsForCheckout,
         stripe: {
           initPaymentSheet,
           presentPaymentSheet,
@@ -1531,7 +1691,13 @@ export default function CreateReservationScreen() {
         onCardsChanged: () => void reloadSavedCards({ force: true }),
       });
       if (result.ok) {
-        resetToReservationConfirmed(navigation as never, result.bookingId);
+        resetToReservationConfirmed(navigation as never, result.bookingId, {
+          pickupLocation: draft.pickupAddress,
+          dropoffLocation: draft.dropoffAddress,
+          serviceDate: draft.serviceDate,
+          serviceTime: draft.serviceTime,
+          vehicle: formatTierDisplayTitle(selectedTier.title),
+        });
       }
     } catch (e) {
       Alert.alert(
@@ -2132,7 +2298,7 @@ export default function CreateReservationScreen() {
             selectedTier={selectedTier ?? null}
             vehicleTiers={vehicleTiers}
             selectedTierId={selectedTierId}
-            onSelectTier={setSelectedTierId}
+            onSelectTier={selectVehicleConsideringLuggage}
             tierFare={
               selectedTier && tierFareById[selectedTier.id] != null
                 ? tierFareById[selectedTier.id]
@@ -2200,17 +2366,13 @@ export default function CreateReservationScreen() {
                 : undefined
             }
             onChangePayment={() => router.push("/customer/payment-methods")}
-            tipSummary={
-              gratuityPercent > 0
-                ? `Tip ${gratuityPercent}%`
-                : "Add a tip"
-            }
+            tipSummary={`Gratuity & Fuel ${gratuityPercent}%`}
             tipAmountLabel={
-              gratuityPercent > 0 && fareEstimate
-                ? `$${fareEstimate.gratuity.toFixed(2)}`
-                : null
+              fareEstimate ? `$${fareEstimate.gratuity.toFixed(2)}` : null
             }
             onOpenTip={() => setTipModalOpen(true)}
+            openCarsRequestKey={openCarsRequestKey}
+            preferLuggageAtLeast={preferLuggageAtLeast}
             isHourly={isHourly}
             hourlyDuration={hourlyDuration}
             onChangeHourlyDuration={setHourlyDuration}
@@ -2784,7 +2946,16 @@ export default function CreateReservationScreen() {
                       keyboardShouldPersistTaps="handled"
                       showsVerticalScrollIndicator
                     >
-                      {vehicleTiers.map((tier) => {
+                      {[...vehicleTiers]
+                        .sort((a, b) => {
+                          const need = preferLuggageAtLeast;
+                          if (need == null || need <= 0) return 0;
+                          const aOk = getTierLuggage(a) >= need ? 1 : 0;
+                          const bOk = getTierLuggage(b) >= need ? 1 : 0;
+                          if (aOk !== bOk) return bOk - aOk;
+                          return getTierLuggage(b) - getTierLuggage(a);
+                        })
+                        .map((tier) => {
                         const selected = selectedTierId === tier.id;
                         const tierFare = tierFareById[tier.id];
                         const tierLine = getTierSubtitle(
@@ -2792,6 +2963,11 @@ export default function CreateReservationScreen() {
                           tier.subtitle,
                           tier.description
                         );
+                        const bags = getTierLuggage(tier);
+                        const fitsBags =
+                          preferLuggageAtLeast != null &&
+                          preferLuggageAtLeast > 0 &&
+                          bags >= preferLuggageAtLeast;
                         return (
                           <TouchableOpacity
                             key={tier.id}
@@ -2808,8 +2984,7 @@ export default function CreateReservationScreen() {
                               selected && styles.carPickerCardSelected,
                             ]}
                             onPress={() => {
-                              setSelectedTierId(tier.id);
-                              setShowTierDropdown(false);
+                              selectVehicleConsideringLuggage(tier.id);
                             }}
                             activeOpacity={0.88}
                           >
@@ -2853,6 +3028,18 @@ export default function CreateReservationScreen() {
                                   numberOfLines={2}
                                 >
                                   {tierLine}
+                                </Text>
+                              ) : null}
+                              {fitsBags ? (
+                                <Text
+                                  style={{
+                                    color: isDark ? GOLD : "#276EF1",
+                                    fontSize: 12,
+                                    fontWeight: "700",
+                                    marginTop: 4,
+                                  }}
+                                >
+                                  Fits your bags
                                 </Text>
                               ) : null}
                             </View>
@@ -3411,12 +3598,51 @@ export default function CreateReservationScreen() {
       <RidePreferencesSheet
         visible={prefsOpen}
         value={ridePrefs}
+        maxLuggageBags={maxLuggageBags}
+        vehicleLabel={
+          selectedTier
+            ? formatTierDisplayTitle(selectedTier.title)
+            : "This vehicle"
+        }
+        onNeedLargerVehicle={() => {
+          pendingChildSeatsRef.current = null;
+          openVehiclesForLuggage(
+            Math.max(
+              (ridePrefs.helpWithLuggage ? ridePrefs.luggageBagCount : 0) + 1,
+              maxLuggageBags + 1
+            )
+          );
+        }}
         onClose={() => {
           setPrefsOpen(false);
           pendingChildSeatsRef.current = null;
         }}
         onSave={(prefs) => {
-          const nextPrefs = normalizeRidePrefs(prefs);
+          const nextPrefs = normalizeRidePrefs(prefs, {
+            maxBags: maxLuggageBags,
+          });
+          if (ridePrefsExceedLuggage(nextPrefs, maxLuggageBags)) {
+            Alert.alert(
+              "Luggage capacity",
+              `Your selected vehicle holds up to ${maxLuggageBags} ${
+                maxLuggageBags === 1 ? "bag" : "bags"
+              }. Choose a larger vehicle to continue.`,
+              [
+                { text: "Not now", style: "cancel" },
+                {
+                  text: "See vehicles",
+                  onPress: () => {
+                    setPrefsOpen(false);
+                    pendingChildSeatsRef.current = null;
+                    openVehiclesForLuggage(
+                      Math.max(nextPrefs.luggageBagCount, maxLuggageBags + 1)
+                    );
+                  },
+                },
+              ]
+            );
+            return;
+          }
           setRidePrefs(nextPrefs);
           setPrefsOpen(false);
           const seatsOverride = pendingChildSeatsRef.current;
@@ -3442,9 +3668,7 @@ export default function CreateReservationScreen() {
           const isPreset = (APP_GRATUITY_PERCENTS as readonly number[]).includes(
             gratuityPercent
           );
-          setCustomTipInput(
-            !isPreset && gratuityPercent > 0 ? String(gratuityPercent) : ""
-          );
+          setCustomTipInput(!isPreset ? String(gratuityPercent) : "");
         }}
       >
         <KeyboardAvoidingView
@@ -3468,7 +3692,10 @@ export default function CreateReservationScreen() {
             ]}
           >
             <View style={styles.tipModalHandle} />
-            <Text style={styles.tipModalTitle}>Add a tip</Text>
+            <Text style={styles.tipModalTitle}>Gratuity & Fuel</Text>
+            <Text style={styles.tipModalSubtitle}>
+              Starts at {APP_MIN_GRATUITY_PERCENT}% — you can increase anytime.
+            </Text>
             <View style={styles.tipModalOptions}>
               {APP_GRATUITY_PERCENTS.map((pct) => {
                 const selected = gratuityPercent === pct;
@@ -3511,7 +3738,7 @@ export default function CreateReservationScreen() {
                     setCustomTipInput(t.replace(/[^0-9]/g, "").slice(0, 3))
                   }
                   keyboardType="number-pad"
-                  placeholder="e.g. 12"
+                  placeholder={`Min ${APP_MIN_GRATUITY_PERCENT}`}
                   placeholderTextColor={palette.muted}
                   maxLength={3}
                   inputAccessoryViewID={
@@ -3528,16 +3755,25 @@ export default function CreateReservationScreen() {
                 activeOpacity={0.85}
                 disabled={!customTipInput.trim()}
                 onPress={() => {
-                  const next = normalizeAppGratuityPercent(
-                    parseInt(customTipInput.trim(), 10)
-                  );
-                  if (next <= 0) {
+                  const parsed = parseInt(customTipInput.trim(), 10);
+                  if (
+                    !Number.isFinite(parsed) ||
+                    parsed < APP_MIN_GRATUITY_PERCENT
+                  ) {
                     Alert.alert(
-                      "Tip",
-                      `Enter a tip between 1% and ${APP_MAX_GRATUITY_PERCENT}%.`
+                      "Gratuity & Fuel",
+                      `Minimum is ${APP_MIN_GRATUITY_PERCENT}%. Enter ${APP_MIN_GRATUITY_PERCENT}–${APP_MAX_GRATUITY_PERCENT}%.`
                     );
                     return;
                   }
+                  if (parsed > APP_MAX_GRATUITY_PERCENT) {
+                    Alert.alert(
+                      "Gratuity & Fuel",
+                      `Maximum is ${APP_MAX_GRATUITY_PERCENT}%.`
+                    );
+                    return;
+                  }
+                  const next = normalizeAppGratuityPercent(parsed);
                   Keyboard.dismiss();
                   setGratuityPercent(next);
                   setTipModalOpen(false);
@@ -3546,19 +3782,6 @@ export default function CreateReservationScreen() {
                 <Text style={styles.tipCustomApplyText}>Apply</Text>
               </TouchableOpacity>
             </View>
-
-            <TouchableOpacity
-              style={styles.tipModalNoTip}
-              onPress={() => {
-                Keyboard.dismiss();
-                setCustomTipInput("");
-                setGratuityPercent(0);
-                setTipModalOpen(false);
-              }}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.tipModalNoTipText}>No tip</Text>
-            </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
 
@@ -5336,7 +5559,14 @@ function makeStyles(palette: DriverPalette, isDark: boolean) {
     fontSize: 18,
     fontWeight: "700",
     color: palette.text,
+    marginBottom: 6,
+  },
+  tipModalSubtitle: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: palette.muted,
     marginBottom: 16,
+    lineHeight: 18,
   },
   tipModalOptions: {
     flexDirection: "row",
@@ -5414,16 +5644,6 @@ function makeStyles(palette: DriverPalette, isDark: boolean) {
     fontSize: 15,
     fontWeight: "700",
     color: isDark ? "#1A1208" : "#FFFFFF",
-  },
-  tipModalNoTip: {
-    marginTop: 10,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  tipModalNoTipText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: palette.muted,
   },
   tipAccessoryBar: {
     flexDirection: "row",

@@ -7,18 +7,14 @@ import {
   buildWebDispatchDriverEmail,
 } from "@/lib/email-templates";
 
-function siteBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_SITE_URL || "https://sarjworldwide.ca").replace(/\/$/, "");
-}
+import { ensureSignedPublicLink } from "@/lib/booking-link-token";
 
 function ensureDriverLink(bookingId: string, existing?: string | null): string {
-  if (existing?.trim()) return existing.trim();
-  return `${siteBaseUrl()}/driver/${bookingId}`;
+  return ensureSignedPublicLink(bookingId, "driver", existing);
 }
 
 function ensureTrackLink(bookingId: string, existing?: string | null): string {
-  if (existing?.trim()) return existing.trim();
-  return `${siteBaseUrl()}/track/${bookingId}`;
+  return ensureSignedPublicLink(bookingId, "track", existing);
 }
 
 /**

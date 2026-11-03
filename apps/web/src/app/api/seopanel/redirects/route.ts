@@ -5,6 +5,7 @@ import { verifySeoPanelAuth, getClientIP } from "@/lib/seo-auth";
 import { normalizeSeoPath } from "@/lib/seo-pages";
 import { sanitizePlainText, sanitizeUrl } from "@/lib/sanitize";
 import { logSeoAudit } from "@/lib/seo-audit";
+import { invalidateSeoRedirectsCache } from "@/lib/seo-config";
 
 function sanitizeDestination(raw: string): string {
   const trimmed = raw.trim();
@@ -60,6 +61,7 @@ export async function POST(request: NextRequest) {
 
     revalidatePath("/", "layout");
     revalidatePath("/api/seo-redirects");
+    await invalidateSeoRedirectsCache();
 
     await logSeoAudit({
       action: "create",

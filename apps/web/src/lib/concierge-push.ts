@@ -75,6 +75,44 @@ export async function notifyConciergeOffer(rideId: string): Promise<void> {
   }
 }
 
+/** Hotel cancelled an assigned concierge ride — notify the chauffeur. */
+export async function notifyConciergeRideCancelled(rideId: string): Promise<void> {
+  try {
+    const ride = await prisma.conciergeRideRequest.findUnique({
+      where: { id: rideId },
+      select: {
+        id: true,
+        requestCode: true,
+        pickupLocation: true,
+        hotel: { select: { name: true } },
+        assignedDriverProfile: {
+          include: { driver: { select: { id: true } } },
+        },
+      },
+    });
+    if (!ride) return;
+    const driverId = ride.assignedDriverProfile?.driver?.id;
+    if (!driverId) return;
+
+    const pickup =
+      (ride.pickupLocation || "").split(",")[0]?.trim() || "pickup";
+    await notifyUserDevices(
+      "DRIVER",
+      driverId,
+      "Concierge ride cancelled",
+      `${ride.hotel.name}: ${ride.requestCode} · ${pickup} was cancelled.`,
+      {
+        type: "concierge_cancelled",
+        channelId: "reservations",
+        rideId: ride.id,
+        requestCode: ride.requestCode,
+      }
+    );
+  } catch (e) {
+    console.error("[concierge-push] ride cancelled", e);
+  }
+}
+
 /** Log + surface for admin; openDisputes count already on admin dashboard. */
 export async function notifyCommissionDispute(rideId: string): Promise<void> {
   try {

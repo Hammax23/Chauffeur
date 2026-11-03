@@ -9,8 +9,8 @@ import {
   verifyPassword,
 } from "@/lib/admin-auth";
 import prisma from "@/lib/prisma";
+import { getAppJwtSecret } from "@/lib/app-jwt-secret";
 
-const JWT_SECRET = process.env.JWT_SECRET || "sarj-admin-jwt-secret-key-2024-secure";
 const TOKEN_EXPIRY = "24h";
 
 export const OPERATIONAL_MANAGER_COOKIE_NAME = "sarj_operational_manager_token";
@@ -24,14 +24,14 @@ export interface OperationalManagerTokenPayload {
 }
 
 export function generateOperationalManagerToken(id: string, email: string): string {
-  return jwt.sign({ role: "operational_manager", sub: id, email }, JWT_SECRET, {
+  return jwt.sign({ role: "operational_manager", sub: id, email }, getAppJwtSecret(), {
     expiresIn: TOKEN_EXPIRY,
   });
 }
 
 export function verifyOperationalManagerToken(token: string): OperationalManagerTokenPayload | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as OperationalManagerTokenPayload;
+    const decoded = jwt.verify(token, getAppJwtSecret()) as OperationalManagerTokenPayload;
     if (decoded.role !== "operational_manager" || !decoded.sub) return null;
     return decoded;
   } catch {

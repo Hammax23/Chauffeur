@@ -13,16 +13,20 @@ cloudinary.config({
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
 const DOCUMENT_TYPES = [...IMAGE_TYPES, "application/pdf"];
 
-async function isAuthorizedUploader(request: NextRequest): Promise<boolean> {
-  if (getCustomerFromRequest(request)) return true;
-  if (await verifyDriverToken(request)) return true;
+type UploaderRole = "customer" | "driver" | "admin";
+
+async function resolveUploader(request: NextRequest): Promise<UploaderRole | null> {
+  if (await verifyDriverToken(request)) return "driver";
   const admin = await verifyAdminAuth(request);
-  return !!admin.authenticated;
+  if (admin.authenticated) return "admin";
+  if (getCustomerFromRequest(request)) return "customer";
+  return null;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    if (!(await isAuthorizedUploader(request))) {
+    const role = await resolveUploader(request);
+    if (!role) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
@@ -35,6 +39,12 @@ export async function POST(request: NextRequest) {
     }
 
     const isDriverDocument = type === "driver-document";
+    if (isDriverDocument && role === "customer") {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized document upload" },
+        { status: 403 }
+      );
+    }
     const allowedTypes = isDriverDocument ? DOCUMENT_TYPES : IMAGE_TYPES;
 
     if (!allowedTypes.includes(file.type)) {

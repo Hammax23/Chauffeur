@@ -11,7 +11,7 @@ export interface PlacePrediction {
 export type PlaceAutocompleteOptions = {
   /** Google Places Autocomplete `types` — currently only `airport` is supported server-side. */
   types?: "airport";
-  /** When true, omit Canada-only `components` filter (Uber-style airport search). */
+  /** When true, omit country `components` filter (global airport / worldwide search). */
   worldwide?: boolean;
 };
 

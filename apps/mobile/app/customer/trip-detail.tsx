@@ -202,7 +202,7 @@ export default function TripDetailScreen() {
     if (sub && sub !== ride) fareRows.push({ label: "Subtotal", value: sub });
     if (hst && Number(reservation.hst) > 0) fareRows.push({ label: "HST", value: hst });
     if (tip && Number(reservation.gratuity) > 0) {
-      fareRows.push({ label: "Gratuity", value: tip });
+      fareRows.push({ label: "Gratuity & Fuel", value: tip });
     }
     for (const adj of reservation.fareAdjustments || []) {
       const statusTag =

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Switch,
   Platform,
+  Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -29,6 +30,12 @@ type Props = {
   value: RidePrefs;
   onClose: () => void;
   onSave: (prefs: RidePrefs) => void;
+  /** Max bags the selected vehicle / fleet can carry. */
+  maxLuggageBags: number;
+  /** Short vehicle label for copy, e.g. "Black Sedan". */
+  vehicleLabel?: string;
+  /** Open vehicle picker when customer needs more luggage space. */
+  onNeedLargerVehicle?: () => void;
 };
 
 const CONVO: { id: RideConversationPref; label: string }[] = [
@@ -46,19 +53,59 @@ const TEMPS: { id: RideTemperaturePref; label: string }[] = [
 /**
  * Uber-style ride preferences sheet — opens only on Confirm row tap.
  * Discard on close/backdrop; commit only via Save.
+ * Luggage stepper is capped to the selected vehicle's bag capacity.
  */
-export function RidePreferencesSheet({ visible, value, onClose, onSave }: Props) {
+export function RidePreferencesSheet({
+  visible,
+  value,
+  onClose,
+  onSave,
+  maxLuggageBags,
+  vehicleLabel,
+  onNeedLargerVehicle,
+}: Props) {
   const insets = useSafeAreaInsets();
   const { palette, isDark } = useCustomerTheme();
-  const [draft, setDraft] = useState<RidePrefs>(() => normalizeRidePrefs(value));
+  const bagCap = useMemo(() => {
+    const n = Math.floor(Number(maxLuggageBags) || 0);
+    // Fail closed: never fall back to the global 12-bag max when capacity is unknown.
+    if (!Number.isFinite(n) || n < 1) return 1;
+    return Math.min(MAX_LUGGAGE_BAGS, n);
+  }, [maxLuggageBags]);
+
+  const [draft, setDraft] = useState<RidePrefs>(() =>
+    normalizeRidePrefs(value, { maxBags: bagCap })
+  );
 
   useEffect(() => {
-    if (visible) setDraft(normalizeRidePrefs(value));
-  }, [visible, value]);
+    if (visible) setDraft(normalizeRidePrefs(value, { maxBags: bagCap }));
+  }, [visible, value, bagCap]);
 
   const sheetBg = isDark ? "#1C1813" : "#FFFFFF";
   const segmentTrack = isDark ? "rgba(255,255,255,0.06)" : "#F3EFE7";
   const iconMuted = isDark ? palette.muted : "#6B6560";
+  const vehicleName = (vehicleLabel || "This vehicle").trim() || "This vehicle";
+  const atBagCap =
+    draft.helpWithLuggage && draft.luggageBagCount >= bagCap;
+
+  const promptLargerVehicle = () => {
+    Alert.alert(
+      "More luggage space needed",
+      `${vehicleName} holds up to ${bagCap} ${
+        bagCap === 1 ? "bag" : "bags"
+      }. Choose a vehicle with higher luggage capacity to continue.`,
+      [
+        { text: "Not now", style: "cancel" },
+        {
+          text: "See vehicles",
+          onPress: () => {
+            onClose();
+            onNeedLargerVehicle?.();
+          },
+        },
+      ]
+    );
+  };
 
   const segmentSelectedStyle = {
     backgroundColor: isDark ? "#2A2622" : "#FFFFFF",
@@ -177,6 +224,47 @@ export function RidePreferencesSheet({ visible, value, onClose, onSave }: Props)
             })}
           </View>
 
+          <Text style={[styles.sectionLabel, { color: palette.text, marginTop: 22 }]}>
+            Air freshener
+          </Text>
+          <Text style={[styles.airFreshenerHint, { color: palette.muted }]}>
+            Would you like a light air freshener in the cabin?
+          </Text>
+          <View style={[styles.segment, { backgroundColor: segmentTrack }]}>
+            {(
+              [
+                { id: true as const, label: "Yes" },
+                { id: false as const, label: "No" },
+              ] as const
+            ).map((opt) => {
+              const selected = draft.airFreshener === opt.id;
+              return (
+                <TouchableOpacity
+                  key={opt.label}
+                  style={[styles.segmentItem, selected && segmentSelectedStyle]}
+                  onPress={() =>
+                    setDraft((p) => ({ ...p, airFreshener: opt.id }))
+                  }
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`Air freshener ${opt.label}`}
+                >
+                  <Text
+                    style={[
+                      styles.segmentText,
+                      { color: selected ? palette.text : iconMuted },
+                      selected && { fontWeight: "700" },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
           <View style={styles.luggageRow}>
             <View style={styles.luggageCopy}>
               <Text style={[styles.luggageTitle, { color: palette.text }]}>
@@ -184,18 +272,25 @@ export function RidePreferencesSheet({ visible, value, onClose, onSave }: Props)
               </Text>
               <Text style={[styles.luggageSub, { color: palette.muted }]}>
                 {draft.helpWithLuggage
-                  ? "How many bags are you bringing?"
+                  ? `${vehicleName} holds up to ${bagCap} ${
+                      bagCap === 1 ? "bag" : "bags"
+                    }`
                   : "Let us know if you’re bringing luggage"}
               </Text>
             </View>
             <Switch
               value={draft.helpWithLuggage}
               onValueChange={(v) =>
-                setDraft((p) => ({
-                  ...p,
-                  helpWithLuggage: v,
-                  luggageBagCount: v ? Math.max(1, p.luggageBagCount || 1) : 0,
-                }))
+                setDraft((p) =>
+                  normalizeRidePrefs(
+                    {
+                      ...p,
+                      helpWithLuggage: v,
+                      luggageBagCount: v ? Math.max(1, p.luggageBagCount || 1) : 0,
+                    },
+                    { maxBags: bagCap }
+                  )
+                )
               }
               trackColor={{
                 false: isDark ? "rgba(255,255,255,0.18)" : "#D1CDC4",
@@ -207,86 +302,140 @@ export function RidePreferencesSheet({ visible, value, onClose, onSave }: Props)
           </View>
 
           {draft.helpWithLuggage ? (
-            <View
-              style={[
-                styles.bagStepperRow,
-                {
-                  backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "#F3EFE7",
-                  borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
-                },
-              ]}
-            >
-              <Text style={[styles.bagStepperLabel, { color: palette.text }]}>
-                Number of bags
-              </Text>
-              <View style={styles.bagStepper}>
-                <Pressable
-                  onPress={() =>
-                    setDraft((p) => ({
-                      ...p,
-                      luggageBagCount: Math.max(1, (p.luggageBagCount || 1) - 1),
-                    }))
-                  }
-                  disabled={draft.luggageBagCount <= 1}
-                  hitSlop={8}
-                  style={({ pressed }) => [
-                    styles.bagStepBtn,
-                    {
-                      backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "#FFFFFF",
-                      opacity: draft.luggageBagCount <= 1 ? 0.4 : pressed ? 0.85 : 1,
-                    },
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Fewer bags"
-                >
-                  <Ionicons name="remove" size={18} color={palette.text} />
-                </Pressable>
-                <Text
-                  style={[styles.bagStepValue, { color: palette.text }]}
-                  accessibilityLabel={`${draft.luggageBagCount} bags`}
-                >
-                  {draft.luggageBagCount}
+            <>
+              <View
+                style={[
+                  styles.bagStepperRow,
+                  {
+                    backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "#F3EFE7",
+                    borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
+                  },
+                ]}
+              >
+                <Text style={[styles.bagStepperLabel, { color: palette.text }]}>
+                  Number of bags
                 </Text>
+                <View style={styles.bagStepper}>
+                  <Pressable
+                    onPress={() =>
+                      setDraft((p) =>
+                        normalizeRidePrefs(
+                          {
+                            ...p,
+                            luggageBagCount: Math.max(1, (p.luggageBagCount || 1) - 1),
+                          },
+                          { maxBags: bagCap }
+                        )
+                      )
+                    }
+                    disabled={draft.luggageBagCount <= 1}
+                    hitSlop={8}
+                    style={({ pressed }) => [
+                      styles.bagStepBtn,
+                      {
+                        backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "#FFFFFF",
+                        opacity: draft.luggageBagCount <= 1 ? 0.4 : pressed ? 0.85 : 1,
+                      },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Fewer bags"
+                  >
+                    <Ionicons name="remove" size={18} color={palette.text} />
+                  </Pressable>
+                  <Text
+                    style={[styles.bagStepValue, { color: palette.text }]}
+                    accessibilityLabel={`${draft.luggageBagCount} bags`}
+                  >
+                    {draft.luggageBagCount}
+                  </Text>
+                  <Pressable
+                    onPress={() => {
+                      if (draft.luggageBagCount >= bagCap) {
+                        promptLargerVehicle();
+                        return;
+                      }
+                      setDraft((p) =>
+                        normalizeRidePrefs(
+                          {
+                            ...p,
+                            luggageBagCount: Math.min(
+                              bagCap,
+                              (p.luggageBagCount || 1) + 1
+                            ),
+                          },
+                          { maxBags: bagCap }
+                        )
+                      );
+                    }}
+                    hitSlop={8}
+                    style={({ pressed }) => [
+                      styles.bagStepBtn,
+                      {
+                        backgroundColor: isDark ? GOLD : "#1C1916",
+                        opacity: pressed ? 0.85 : 1,
+                      },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      atBagCap
+                        ? "Need a larger vehicle for more bags"
+                        : "More bags"
+                    }
+                  >
+                    <Ionicons
+                      name="add"
+                      size={18}
+                      color={isDark ? "#1A1208" : "#FFFFFF"}
+                    />
+                  </Pressable>
+                </View>
+              </View>
+
+              {atBagCap ? (
                 <Pressable
-                  onPress={() =>
-                    setDraft((p) => ({
-                      ...p,
-                      luggageBagCount: Math.min(
-                        MAX_LUGGAGE_BAGS,
-                        (p.luggageBagCount || 1) + 1
-                      ),
-                    }))
-                  }
-                  disabled={draft.luggageBagCount >= MAX_LUGGAGE_BAGS}
-                  hitSlop={8}
+                  onPress={promptLargerVehicle}
                   style={({ pressed }) => [
-                    styles.bagStepBtn,
+                    styles.capacityHint,
                     {
-                      backgroundColor: isDark ? GOLD : "#1C1916",
-                      opacity:
-                        draft.luggageBagCount >= MAX_LUGGAGE_BAGS
-                          ? 0.4
-                          : pressed
-                            ? 0.85
-                            : 1,
+                      backgroundColor: isDark
+                        ? "rgba(232,192,120,0.12)"
+                        : "rgba(28,25,22,0.04)",
+                      borderColor: isDark
+                        ? "rgba(232,192,120,0.28)"
+                        : "rgba(0,0,0,0.08)",
+                      opacity: pressed ? 0.88 : 1,
                     },
                   ]}
                   accessibilityRole="button"
-                  accessibilityLabel="More bags"
+                  accessibilityLabel="See vehicles with more luggage space"
                 >
                   <Ionicons
-                    name="add"
+                    name="briefcase-outline"
                     size={18}
-                    color={isDark ? "#1A1208" : "#FFFFFF"}
+                    color={isDark ? GOLD : "#1C1916"}
                   />
+                  <Text style={[styles.capacityHintText, { color: palette.text }]}>
+                    Need more bags? See vehicles that fit your luggage
+                  </Text>
+                  <Ionicons name="chevron-forward" size={16} color={palette.muted} />
                 </Pressable>
-              </View>
-            </View>
+              ) : null}
+            </>
           ) : null}
 
           <TouchableOpacity
-            style={styles.saveBtn}
-            onPress={() => onSave(normalizeRidePrefs(draft))}
+            style={[styles.saveBtn, draft.helpWithLuggage ? null : { marginTop: 10 }]}
+            onPress={() => {
+              const next = normalizeRidePrefs(draft, { maxBags: bagCap });
+              if (
+                next.helpWithLuggage &&
+                next.luggageBagCount > bagCap
+              ) {
+                promptLargerVehicle();
+                return;
+              }
+              onSave(next);
+            }}
             activeOpacity={0.92}
             accessibilityRole="button"
             accessibilityLabel="Save ride preferences"
@@ -357,6 +506,13 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     marginBottom: 12,
   },
+  airFreshenerHint: {
+    marginTop: -6,
+    marginBottom: 12,
+    fontSize: 13,
+    fontWeight: "500",
+    lineHeight: 18,
+  },
   segment: {
     flexDirection: "row",
     borderRadius: 12,
@@ -404,7 +560,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     paddingVertical: 12,
     paddingHorizontal: 14,
-    marginBottom: 22,
+    marginBottom: 12,
   },
   bagStepperLabel: {
     flex: 1,
@@ -430,6 +586,22 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
+  },
+  capacityHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginBottom: 18,
+  },
+  capacityHintText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18,
   },
   saveBtn: {
     borderRadius: 14,

@@ -11,7 +11,7 @@ const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 export async function POST(request: NextRequest) {
   try {
     const clientIp = getClientIp(request);
-    const rateLimit = checkRateLimit(`payment:${clientIp}`, { maxRequests: 10, windowMs: 60 * 1000 });
+    const rateLimit = await checkRateLimit(`payment:${clientIp}`, { maxRequests: 10, windowMs: 60 * 1000 });
     if (!rateLimit.success) {
       return NextResponse.json(
         { error: `Too many requests. Please try again in ${rateLimit.resetIn} seconds.` },

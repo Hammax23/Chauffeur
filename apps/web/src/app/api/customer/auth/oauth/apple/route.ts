@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
+import { getAppJwtSecret } from "@/lib/app-jwt-secret";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { createRemoteJWKSet, decodeJwt, jwtVerify } from "jose";
 import { blockedCustomerResponse, deactivatedCustomerResponse, isCustomerBlocked, isCustomerDeactivated } from "@/lib/customer-auth";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 /** Native iOS bundle id — always accepted as Apple identity-token `aud`. */
 const NATIVE_BUNDLE_ID = "com.sarjworldwide.chauffeur";
 
@@ -28,7 +29,7 @@ function getAllowedAudiences(): string[] {
 function issueCustomerJwt(customer: { id: string; email: string }) {
   return jwt.sign(
     { id: customer.id, email: customer.email, type: "customer" },
-    JWT_SECRET,
+    getAppJwtSecret(),
     { expiresIn: "30d" }
   );
 }
@@ -72,6 +73,21 @@ function isPrismaUniqueViolation(error: unknown): boolean {
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rl = await checkRateLimit(`oauth-apple:${ip}`, {
+      maxRequests: 20,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!rl.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Too many attempts. Try again in ${rl.resetIn} seconds.`,
+        },
+        { status: 429 }
+      );
+    }
+
     const { identityToken, fullName } = await req.json();
     if (!identityToken || typeof identityToken !== "string") {
       return NextResponse.json(

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
+import { getAppJwtSecret } from "@/lib/app-jwt-secret";
 import prisma from "@/lib/prisma";
 import { subscribeChat, type ChatEvent } from "@/lib/chat-bus";
 import { listMessagesForBooking } from "@/lib/trip-chat";
@@ -9,19 +10,13 @@ export const runtime = "nodejs";
 export const fetchCache = "force-no-store";
 
 const HEARTBEAT_MS = 15_000;
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
-
 function getDriverIdFromRequest(req: NextRequest): string | null {
   const authHeader = req.headers.get("authorization");
-  let token: string | null = null;
-  if (authHeader?.startsWith("Bearer ")) {
-    token = authHeader.slice("Bearer ".length).trim();
-  } else {
-    token = req.nextUrl.searchParams.get("token");
-  }
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  const token = authHeader.slice("Bearer ".length).trim();
   if (!token) return null;
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; type: string };
+    const decoded = jwt.verify(token, getAppJwtSecret()) as { id: string; type: string };
     if (decoded.type !== "driver") return null;
     return decoded.id;
   } catch {

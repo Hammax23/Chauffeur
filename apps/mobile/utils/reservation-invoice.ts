@@ -60,7 +60,7 @@ export function buildReservationInvoiceHtml(r: Reservation): string {
   }
   if (r.hst != null && Number(r.hst) > 0) lines.push({ label: "HST", value: money(r.hst) });
   if (r.gratuity != null && Number(r.gratuity) > 0) {
-    lines.push({ label: "Gratuity", value: money(r.gratuity) });
+    lines.push({ label: "Gratuity & Fuel", value: money(r.gratuity) });
   }
   for (const adj of r.fareAdjustments || []) {
     if (!adj || Number(adj.total) <= 0) continue;

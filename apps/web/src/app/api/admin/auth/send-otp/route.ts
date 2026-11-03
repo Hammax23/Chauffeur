@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     const ip = getClientIP(request);
 
     // Check rate limiting
-    const rateLimit = checkRateLimit(ip);
+    const rateLimit = await checkRateLimit(ip);
     if (!rateLimit.allowed) {
       return NextResponse.json(
         {
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     // Verify email matches admin email
     const adminEmail = process.env.ADMIN_EMAIL;
     if (!adminEmail || email.toLowerCase() !== adminEmail.toLowerCase()) {
-      recordFailedAttempt(ip);
+      await recordFailedAttempt(ip);
       return NextResponse.json(
         { success: false, error: "Invalid admin credentials" },
         { status: 401 }
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     const authResult = await authenticateAdmin(password);
 
     if (!authResult.success) {
-      recordFailedAttempt(ip);
+      await recordFailedAttempt(ip);
       return NextResponse.json(
         { success: false, error: authResult.error },
         { status: 401 }

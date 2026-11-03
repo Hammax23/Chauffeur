@@ -2,6 +2,26 @@ import prisma from "@/lib/prisma";
 import type { SeoPage, SeoSettings } from "@prisma/client";
 import { discoverSitePages, normalizeSeoPath } from "@/lib/seo-pages";
 import { decodeHtmlEntities } from "@/lib/sanitize";
+import { getRedis, redisKey } from "@/lib/redis";
+
+const SEO_REDIRECTS_CACHE_KEY = redisKey("seo", "redirects");
+const SEO_REDIRECTS_TTL_SEC = 60;
+type ActiveRedirect = {
+  sourcePath: string;
+  destinationPath: string;
+  redirectType: number;
+};
+
+/** Drop cached redirect list after SEO panel mutations. */
+export async function invalidateSeoRedirectsCache(): Promise<void> {
+  const redis = getRedis();
+  if (!redis) return;
+  try {
+    await redis.del(SEO_REDIRECTS_CACHE_KEY);
+  } catch (err) {
+    console.warn("[seo] redirect cache invalidate failed:", err);
+  }
+}
 
 function decodePageTextFields(page: SeoPage): SeoPage {
   return {
@@ -168,24 +188,45 @@ export async function getSeoPageByPath(path: string): Promise<SeoPage | null> {
   }
 }
 
-export async function getActiveRedirects(): Promise<
-  { sourcePath: string; destinationPath: string; redirectType: number }[]
-> {
+export async function getActiveRedirects(): Promise<ActiveRedirect[]> {
   if (!process.env.DATABASE_URL?.trim()) return [];
 
+  const redis = getRedis();
+  if (redis) {
+    try {
+      const cached = await redis.get(SEO_REDIRECTS_CACHE_KEY);
+      if (cached) return JSON.parse(cached) as ActiveRedirect[];
+    } catch {
+      /* load from DB */
+    }
+  }
+
   try {
-    return await prisma.seoRedirect.findMany({
+    const rows = await prisma.seoRedirect.findMany({
       where: { isActive: true },
       select: { sourcePath: true, destinationPath: true, redirectType: true },
-    }).then((rows) =>
-      rows.map((r) => ({
-        ...r,
-        sourcePath: normalizeSeoPath(decodeHtmlEntities(r.sourcePath)),
-        destinationPath: r.destinationPath.startsWith("http")
-          ? decodeHtmlEntities(r.destinationPath)
-          : normalizeSeoPath(decodeHtmlEntities(r.destinationPath)),
-      }))
-    );
+    });
+    const mapped: ActiveRedirect[] = rows.map((r) => ({
+      ...r,
+      sourcePath: normalizeSeoPath(decodeHtmlEntities(r.sourcePath)),
+      destinationPath: r.destinationPath.startsWith("http")
+        ? decodeHtmlEntities(r.destinationPath)
+        : normalizeSeoPath(decodeHtmlEntities(r.destinationPath)),
+    }));
+
+    if (redis) {
+      try {
+        await redis.set(
+          SEO_REDIRECTS_CACHE_KEY,
+          JSON.stringify(mapped),
+          "EX",
+          SEO_REDIRECTS_TTL_SEC
+        );
+      } catch {
+        /* ignore cache write */
+      }
+    }
+    return mapped;
   } catch {
     return [];
   }

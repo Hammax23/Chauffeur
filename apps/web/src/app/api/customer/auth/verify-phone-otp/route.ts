@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
+import { getAppJwtSecret } from "@/lib/app-jwt-secret";
 import prisma from "@/lib/prisma";
 import {
   formatAuthPhoneE164,
@@ -7,11 +8,25 @@ import {
   validateAuthPhone,
 } from "@/lib/phone-us-ca";
 import { consumePhoneOtp, PHONE_OTP_LENGTH } from "@/lib/phone-otp";
-
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rl = await checkRateLimit(`verify-phone-otp:${ip}`, {
+      maxRequests: 20,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!rl.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Too many attempts. Please try again in ${rl.resetIn} seconds.`,
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
     const phone = typeof body?.phone === "string" ? body.phone : "";
     const otp = typeof body?.otp === "string" ? body.otp.trim() : "";
@@ -36,7 +51,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!consumePhoneOtp(e164, otp)) {
+    if (!await consumePhoneOtp(e164, otp)) {
       return NextResponse.json(
         { success: false, error: "Invalid code. Please try again." },
         { status: 400 }
@@ -57,7 +72,7 @@ export async function POST(req: NextRequest) {
 
     const phoneVerificationToken = jwt.sign(
       { phone: e164, purpose: "phone_verify" },
-      JWT_SECRET,
+      getAppJwtSecret(),
       { expiresIn: "15m" }
     );
 

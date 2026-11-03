@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
+import { getAppJwtSecret } from "@/lib/app-jwt-secret";
 import { publishReservationFromDb } from "@/lib/realtime-bus";
 import { claimLiveOffer, declineLiveOffer } from "@/lib/live-auto";
 import { sanitizeSpecialRequirementsForDriver } from "@/lib/driver-visible-notes";
@@ -9,8 +10,6 @@ import {
   isValidLatLng,
 } from "@/lib/geocode-address";
 import { MG_FREE_WAIT_MINUTES } from "@/lib/mg-policy";
-
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
 type StopPeriod = { start: string; end?: string };
 
@@ -30,7 +29,7 @@ function getDriverFromToken(req: NextRequest) {
 
   try {
     const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email: string; type: string };
+    const decoded = jwt.verify(token, getAppJwtSecret()) as { id: string; email: string; type: string };
     if (decoded.type !== "driver") return null;
     return decoded;
   } catch {
@@ -388,14 +387,13 @@ export async function PATCH(
 
     await publishReservationFromDb(bookingId, "status_changed");
 
-    // First On the Way — tell customer live location is unlocked (works if app is closed).
-    if (firstOnTheWay) {
-      void import("@/lib/customer-push")
-        .then(({ notifyCustomerDriverOnTheWay }) =>
-          notifyCustomerDriverOnTheWay(bookingId)
-        )
-        .catch((err) => console.error("[on-the-way] customer push", err));
-    }
+    // Lifecycle pushes (OTW / Arrived / CIC / DONE) — works if customer app is closed.
+    const { fireCustomerLifecyclePush } = await import("@/lib/customer-push");
+    fireCustomerLifecyclePush(bookingId, status, {
+      status: reservation.status,
+      driverOnTheWayAt: reservation.driverOnTheWayAt,
+      driverArrivedAt: reservation.driverArrivedAt,
+    });
 
     return NextResponse.json({ success: true, message: `Status updated to ${status}` });
   } catch (error) {

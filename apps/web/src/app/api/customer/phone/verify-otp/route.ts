@@ -10,6 +10,7 @@ import {
   validateAuthPhone,
 } from "@/lib/phone-us-ca";
 import { consumePhoneOtp, PHONE_OTP_LENGTH } from "@/lib/phone-otp";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 /**
  * Authenticated: verify OTP and persist phone on the customer.
@@ -22,6 +23,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(fail.body, { status: fail.status });
     }
     const tokenData = auth.customer;
+
+    const ip = getClientIp(req);
+    const rl = await checkRateLimit(`phone-verify-otp:${tokenData.id}:${ip}`, {
+      maxRequests: 20,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!rl.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Too many attempts. Please try again in ${rl.resetIn} seconds.`,
+        },
+        { status: 429 }
+      );
+    }
 
     const body = await req.json();
     const phone = typeof body?.phone === "string" ? body.phone : "";
@@ -47,7 +63,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!consumePhoneOtp(e164, otp)) {
+    if (!await consumePhoneOtp(e164, otp)) {
       return NextResponse.json(
         { success: false, error: "Invalid code. Please try again." },
         { status: 400 }

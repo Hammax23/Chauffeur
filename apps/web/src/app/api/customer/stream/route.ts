@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
+import { getAppJwtSecret } from "@/lib/app-jwt-secret";
 import prisma from "@/lib/prisma";
 import {
   loadReservationLiveDataMany,
@@ -25,21 +26,16 @@ export const runtime = "nodejs";
 export const fetchCache = "force-no-store";
 
 const HEARTBEAT_MS = 15_000;
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 /** Cap how many initial snapshots we replay; older bookings are still fetched on next list refresh. */
 const SNAPSHOT_LIMIT = 30;
 
 async function getActiveCustomerIdFromRequest(req: NextRequest): Promise<string | null> {
   const authHeader = req.headers.get("authorization");
-  let token: string | null = null;
-  if (authHeader?.startsWith("Bearer ")) {
-    token = authHeader.slice("Bearer ".length).trim();
-  } else {
-    token = req.nextUrl.searchParams.get("token");
-  }
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  const token = authHeader.slice("Bearer ".length).trim();
   if (!token) return null;
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; type: string };
+    const decoded = jwt.verify(token, getAppJwtSecret()) as { id: string; type: string };
     if (decoded.type !== "customer") return null;
     const customer = await prisma.customer.findUnique({
       where: { id: decoded.id },

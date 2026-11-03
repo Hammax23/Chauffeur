@@ -17,7 +17,7 @@ import { clearAttempts } from "@/lib/admin-auth";
 export async function POST(request: NextRequest) {
   try {
     const ip = getClientIP(request);
-    const rateLimit = checkRateLimit(`seo-login:${ip}`);
+    const rateLimit = await checkRateLimit(`seo-login:${ip}`);
     if (!rateLimit.allowed) {
       return NextResponse.json(
         {
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     const allowedEmail = getSeoPanelAllowedEmail();
     if (!allowedEmail || email.trim().toLowerCase() !== allowedEmail) {
-      recordFailedAttempt(`seo-login:${ip}`);
+      await recordFailedAttempt(`seo-login:${ip}`);
       return NextResponse.json(
         { success: false, error: "Invalid credentials" },
         { status: 401 }
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     const authResult = await authenticateSeoPanelPassword(password);
     if (!authResult.success) {
-      recordFailedAttempt(`seo-login:${ip}`);
+      await recordFailedAttempt(`seo-login:${ip}`);
       return NextResponse.json(
         { success: false, error: authResult.error || "Invalid credentials" },
         { status: 401 }

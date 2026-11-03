@@ -1,4 +1,6 @@
 import { NextRequest } from "next/server";
+import { enforcePlacesRateLimit } from "@/lib/places-guard";
+import { getMapsRegionBias } from "@/lib/places-countries";
 
 export const dynamic = "force-dynamic";
 
@@ -126,6 +128,9 @@ function padBounds(
 }
 
 export async function GET(req: NextRequest) {
+  const limited = await enforcePlacesRateLimit(req);
+  if (limited) return limited;
+
   const key = resolveMapsKey();
   if (!key) {
     return new Response("Maps API is not configured on the server.", { status: 503 });
@@ -145,9 +150,10 @@ export async function GET(req: NextRequest) {
     scale: "2",
     maptype: "roadmap",
     language: "en",
-    region: "ca",
     key,
   });
+  const regionBias = getMapsRegionBias();
+  if (regionBias) params.set("region", regionBias);
 
   // Dual-stroke route (Uber-like): soft outer halo + bold ink core.
   if (polyline.length > 0 && polyline.length < 8192) {

@@ -171,3 +171,101 @@ export async function notifyDriverTripReviewed(input: {
     console.error("[notifyDriverTripReviewed]", error);
   }
 }
+
+/**
+ * Live offer no longer available (claimed by another driver, revoked, or cancelled).
+ * Losers of first-accept-wins — app may be backgrounded.
+ */
+export async function notifyDriversOfferUnavailable(
+  driverIds: string[],
+  bookingId: string,
+  reason: "taken" | "revoked" = "taken"
+): Promise<void> {
+  const unique = [...new Set(driverIds.filter(Boolean))];
+  if (unique.length === 0 || !bookingId) return;
+
+  try {
+    const reservation = await prisma.reservation.findUnique({
+      where: { bookingId },
+      select: {
+        bookingId: true,
+        pickupLocation: true,
+        dropoffLocation: true,
+      },
+    });
+    const pickup = shortLocation(reservation?.pickupLocation || "Pickup");
+    const title =
+      reason === "taken" ? "Offer no longer available" : "Offer withdrawn";
+    const body =
+      reason === "taken"
+        ? `${pickup} was accepted by another chauffeur.`
+        : `${pickup} is no longer open.`;
+
+    await Promise.all(
+      unique.map((driverId) =>
+        notifyUserDevices("DRIVER", driverId, title, body, {
+          type: "offer_unavailable",
+          bookingId,
+          reason,
+          screen: "DriverDashboard",
+          channelId: "reservations",
+          collapseId: `offer_unavailable:${bookingId}:${driverId}`,
+          eventId: `offer_unavailable:${bookingId}:${driverId}:${Date.now()}`,
+        }).catch((err) =>
+          console.error("[notifyDriversOfferUnavailable]", driverId, err)
+        )
+      )
+    );
+  } catch (error) {
+    console.error("[notifyDriversOfferUnavailable]", error);
+  }
+}
+
+/** Push when a reservation is cancelled by customer or admin (not the driver). */
+export async function notifyDriverReservationCancelled(
+  bookingId: string,
+  driverId?: string
+): Promise<void> {
+  try {
+    const reservation = await prisma.reservation.findUnique({
+      where: { bookingId },
+      select: {
+        bookingId: true,
+        pickupLocation: true,
+        dropoffLocation: true,
+        serviceDate: true,
+        serviceTime: true,
+        assignedDriverId: true,
+      },
+    });
+
+    if (!reservation) return;
+    const targetDriverId = driverId || reservation.assignedDriverId;
+    if (!targetDriverId) return;
+
+    const pickup = shortLocation(reservation.pickupLocation);
+    const when = [reservation.serviceDate, reservation.serviceTime]
+      .filter(Boolean)
+      .join(" · ");
+    const body = when
+      ? `${pickup} was cancelled (${when}).`
+      : `${pickup} was cancelled.`;
+
+    await notifyUserDevices(
+      "DRIVER",
+      targetDriverId,
+      "Reservation cancelled",
+      body,
+      {
+        type: "reservation_cancelled",
+        bookingId: reservation.bookingId,
+        screen: "DriverDashboard",
+        channelId: "reservations",
+        collapseId: `reservation_cancelled:${reservation.bookingId}`,
+        eventId: `reservation_cancelled:${reservation.bookingId}:${Date.now()}`,
+      }
+    );
+  } catch (error) {
+    console.error("[notifyDriverReservationCancelled]", error);
+  }
+}

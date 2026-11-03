@@ -50,6 +50,14 @@ export async function POST(req: NextRequest) {
 
     const now = new Date();
 
+    const activeRides = await prisma.reservation.findMany({
+      where: {
+        customerId: customer.id,
+        status: { notIn: [...TERMINAL_RESERVATION_STATUSES] },
+      },
+      select: { bookingId: true, assignedDriverId: true },
+    });
+
     const [, cancelled] = await prisma.$transaction([
       prisma.customer.update({
         where: { id: customer.id },
@@ -68,6 +76,21 @@ export async function POST(req: NextRequest) {
         data: { status: "CANCELLED" },
       }),
     ]);
+
+    // Notify assigned drivers (customer tokens wiped below — no self push).
+    if (activeRides.length > 0) {
+      void import("@/lib/driver-push")
+        .then(async ({ notifyDriverReservationCancelled }) => {
+          await Promise.all(
+            activeRides
+              .filter((r) => r.assignedDriverId)
+              .map((r) =>
+                notifyDriverReservationCancelled(r.bookingId, r.assignedDriverId!)
+              )
+          );
+        })
+        .catch((err) => console.error("[deactivate] driver cancel pushes", err));
+    }
 
     try {
       const { deleteAllPushDevicesForUser } = await import("@/lib/push-devices");

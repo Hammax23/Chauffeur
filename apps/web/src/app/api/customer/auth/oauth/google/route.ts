@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
+import { getAppJwtSecret } from "@/lib/app-jwt-secret";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { OAuth2Client } from "google-auth-library";
 import { blockedCustomerResponse, deactivatedCustomerResponse, isCustomerBlocked, isCustomerDeactivated } from "@/lib/customer-auth";
-
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 /**
  * Always accept the mobile app's current Google OAuth client IDs (iOS + Web).
@@ -46,7 +46,7 @@ function peekTokenAudience(idToken: string): string | string[] | null {
 function issueCustomerJwt(customer: { id: string; email: string }) {
   return jwt.sign(
     { id: customer.id, email: customer.email, type: "customer" },
-    JWT_SECRET,
+    getAppJwtSecret(),
     { expiresIn: "30d" }
   );
 }
@@ -73,6 +73,21 @@ function customerPayload(customer: {
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rl = await checkRateLimit(`oauth-google:${ip}`, {
+      maxRequests: 20,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!rl.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Too many attempts. Try again in ${rl.resetIn} seconds.`,
+        },
+        { status: 429 }
+      );
+    }
+
     const { idToken } = await req.json();
     if (!idToken || typeof idToken !== "string") {
       return NextResponse.json(

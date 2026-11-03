@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     }
 
     const clientIp = getClientIp(req);
-    const rateLimit = checkRateLimit(`promo-active:${tokenData.id}:${clientIp}`, {
+    const rateLimit = await checkRateLimit(`promo-active:${tokenData.id}:${clientIp}`, {
       maxRequests: 40,
       windowMs: 60 * 1000,
     });

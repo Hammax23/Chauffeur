@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { getAppJwtSecret } from "@/lib/app-jwt-secret";
 import { validatePassword } from "@/lib/password-policy";
 import {
   formatAuthPhoneE164,
@@ -13,8 +14,6 @@ import {
   ensureCustomerReferralCode,
   normalizeReferralCode,
 } from "@/lib/referrals";
-
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
 
 export async function POST(req: NextRequest) {
   try {
@@ -61,7 +60,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      const verified = jwt.verify(phoneVerificationToken, JWT_SECRET) as {
+      const verified = jwt.verify(phoneVerificationToken, getAppJwtSecret()) as {
         phone?: string;
         purpose?: string;
       };
@@ -144,7 +143,7 @@ export async function POST(req: NextRequest) {
     // Generate JWT token
     const token = jwt.sign(
       { id: customer.id, email: customer.email, type: "customer" },
-      JWT_SECRET,
+      getAppJwtSecret(),
       { expiresIn: "30d" }
     );
 

@@ -42,12 +42,13 @@ function mapRidePayload(
   },
   liveOffer: boolean
 ): DriverOfferRidePayload {
+  // Pre-accept offers: hide fare + customer contact until the driver accepts.
   return {
     bookingId: r.bookingId,
     status: r.status,
     customerName: `${r.firstName} ${r.lastName}`.trim(),
-    phone: r.phone,
-    email: r.email,
+    phone: "",
+    email: "",
     serviceType: r.serviceType,
     vehicle: r.vehicle,
     passengers: r.passengers,
@@ -59,7 +60,7 @@ function mapRidePayload(
     dropoffLocation: r.dropoffLocation,
     distance: r.distance || "",
     duration: r.duration || "",
-    total: r.total,
+    total: 0,
     specialRequirements: sanitizeSpecialRequirementsForDriver(r.specialRequirements),
     createdAt: r.createdAt.toISOString(),
     liveOffer,
@@ -410,6 +411,11 @@ export async function revokeAllOpenOffers(reason?: string): Promise<number> {
       bookingId,
       serverTime,
     });
+    void import("@/lib/driver-push")
+      .then(({ notifyDriversOfferUnavailable }) =>
+        notifyDriversOfferUnavailable(driverIds, bookingId, "revoked")
+      )
+      .catch((err) => console.error("[revokeAllOpenOffers] push", err));
   }
 
   if (reason) {
@@ -462,11 +468,18 @@ export async function revokeOffersForBooking(
 
   if (open.length === 0) return;
 
+  const loserIds = open.map((o) => o.driverId);
   const serverTime = new Date().toISOString();
-  publishDriverMany(
-    open.map((o) => o.driverId),
-    { type: "offer_revoked", bookingId, serverTime }
-  );
+  publishDriverMany(loserIds, {
+    type: "offer_revoked",
+    bookingId,
+    serverTime,
+  });
+  void import("@/lib/driver-push")
+    .then(({ notifyDriversOfferUnavailable }) =>
+      notifyDriversOfferUnavailable(loserIds, bookingId, "revoked")
+    )
+    .catch((err) => console.error("[revokeOffersForBooking] push", err));
 }
 
 /**
@@ -582,6 +595,11 @@ export async function claimLiveOffer(
         bookingId,
         serverTime,
       });
+      void import("@/lib/driver-push")
+        .then(({ notifyDriversOfferUnavailable }) =>
+          notifyDriversOfferUnavailable(result.loserIds, bookingId, "taken")
+        )
+        .catch((err) => console.error("[claimLiveOffer] loser push", err));
     }
   }
 
@@ -645,6 +663,12 @@ export async function declineLiveOffer(
   }
 
   // Assigned to this driver (PENDING request or already claimed) — unassign
+  const { isDriverVisibleToCustomer } = await import("@/lib/customer-visible-driver");
+  const wasVisibleToCustomer = isDriverVisibleToCustomer({
+    status: reservation.status,
+    driverResponse: reservation.driverResponse,
+  });
+
   await prisma.$transaction(async (tx) => {
     await tx.reservation.update({
       where: { id: reservation.id },
@@ -692,6 +716,14 @@ export async function declineLiveOffer(
   void maybeBroadcastNewReservation(bookingId).catch((err) =>
     console.error("[declineLiveOffer] maybeBroadcast", err)
   );
+
+  if (wasVisibleToCustomer) {
+    void import("@/lib/customer-push")
+      .then(({ notifyCustomerDriverUnassigned }) =>
+        notifyCustomerDriverUnassigned(bookingId)
+      )
+      .catch((err) => console.error("[declineLiveOffer] customer unassign push", err));
+  }
 
   return { ok: true };
 }

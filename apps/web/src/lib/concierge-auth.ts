@@ -1,7 +1,6 @@
 import jwt from "jsonwebtoken";
 import { NextRequest } from "next/server";
-
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
+import { getAppJwtSecret } from "@/lib/app-jwt-secret";
 
 export interface ConciergeTokenPayload {
   id: string;
@@ -14,7 +13,7 @@ export interface ConciergeTokenPayload {
 
 export function verifyConciergeJwt(token: string): ConciergeTokenPayload | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as ConciergeTokenPayload;
+    const decoded = jwt.verify(token, getAppJwtSecret()) as ConciergeTokenPayload;
     if (decoded.type !== "concierge") return null;
     return decoded;
   } catch {

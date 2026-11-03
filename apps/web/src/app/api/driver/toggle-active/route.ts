@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
-
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
+import { getAppJwtSecret } from "@/lib/app-jwt-secret";
 
 function getDriverFromToken(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -10,7 +9,7 @@ function getDriverFromToken(req: NextRequest) {
 
   try {
     const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email: string; type: string };
+    const decoded = jwt.verify(token, getAppJwtSecret()) as { id: string; email: string; type: string };
     if (decoded.type !== "driver") return null;
     return decoded;
   } catch {

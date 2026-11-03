@@ -39,7 +39,7 @@ import {
 
 type Step = "phone" | "otp";
 
-const OTP_LENGTH = 4;
+const OTP_LENGTH = 6;
 const RESEND_SECONDS = 30;
 
 function phoneInputDisplay(stored: string): string {

@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { enforcePlacesRateLimit } from "@/lib/places-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,10 @@ function resolveMapsKey(): string | undefined {
   return process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim() || undefined;
 }
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
+  const limited = await enforcePlacesRateLimit(req);
+  if (limited) return limited;
+
   const key = resolveMapsKey();
   if (!key) {
     return new Response("<!doctype html><h3>Maps API not configured</h3>", {

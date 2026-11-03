@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     }
 
     const clientIp = getClientIp(req);
-    const rateLimit = checkRateLimit(`referral-attach:${tokenData.id}:${clientIp}`, {
+    const rateLimit = await checkRateLimit(`referral-attach:${tokenData.id}:${clientIp}`, {
       maxRequests: 8,
       windowMs: 60 * 60 * 1000,
     });

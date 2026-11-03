@@ -37,7 +37,7 @@ import {
 type Step = "phone" | "otp" | "details";
 type PhoneCheckStatus = "idle" | "checking" | "available" | "taken" | "invalid";
 
-const OTP_LENGTH = 4;
+const OTP_LENGTH = 6;
 const RESEND_SECONDS = 30;
 
 /** Field display: national digits for +1; rest of E.164 for allow-list. */

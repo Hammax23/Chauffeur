@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const ip = getClientIP(request);
 
     // Check rate limiting
-    const rateLimit = checkRateLimit(ip);
+    const rateLimit = await checkRateLimit(ip);
     if (!rateLimit.allowed) {
       return NextResponse.json(
         {
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     if (!result.success) {
       // Record failed attempt
-      recordFailedAttempt(ip);
+      await recordFailedAttempt(ip);
       
       return NextResponse.json(
         { success: false, error: result.error },
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Clear failed attempts on success
-    clearAttempts(ip);
+    await clearAttempts(ip);
 
     // Create response with secure cookie
     const response = NextResponse.json({

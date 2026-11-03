@@ -21,7 +21,11 @@ export async function GET(req: NextRequest) {
   }
 
   const profile = await getProfile(auth.id);
-  if (!profile) {
+  const membershipOk = !!(
+    profile &&
+    isMembershipActive(profile.membershipStatus, profile.membershipExpiresAt)
+  );
+  if (!profile || !membershipOk) {
     return NextResponse.json({
       success: true,
       enrolled: false,
@@ -34,9 +38,7 @@ export async function GET(req: NextRequest) {
   const tab = new URL(req.url).searchParams.get("tab") || "open";
 
   if (tab === "open") {
-    const eligible =
-      profile.availability === "ONLINE" &&
-      isMembershipActive(profile.membershipStatus, profile.membershipExpiresAt);
+    const eligible = profile.availability === "ONLINE";
 
     const open = eligible
       ? await prisma.conciergeRideRequest.findMany({

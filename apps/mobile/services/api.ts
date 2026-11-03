@@ -2094,8 +2094,8 @@ export async function isDriverConciergeEnrolled(): Promise<boolean> {
     }
     return enrolled;
   } catch {
-    const stored = await getStoredDriver();
-    return stored?.conciergeEnrolled === true;
+    // Fail closed: never show Hotel Concierge UI from stale local cache alone.
+    return false;
   }
 }
 

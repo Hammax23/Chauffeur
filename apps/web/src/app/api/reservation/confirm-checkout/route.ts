@@ -29,7 +29,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Not a reservation payment" }, { status: 400 });
     }
 
-    const bookingId = String(session.metadata?.bookingId || body.bookingId || "").trim();
+    // Trust Stripe Checkout metadata only — never body.bookingId (cross-booking swap).
+    const bookingId = String(session.metadata?.bookingId || "").trim();
     if (!bookingId) {
       return NextResponse.json({ success: false, error: "Missing bookingId" }, { status: 400 });
     }
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     }
 
     const expectedCents = Math.round((Number(reservation.total) || 0) * 100);
-    if (expectedCents > 0 && session.amount_total != null && session.amount_total !== expectedCents) {
+    if (session.amount_total == null || session.amount_total !== expectedCents) {
       return NextResponse.json(
         { success: false, error: "Paid amount does not match reservation total" },
         { status: 400 }

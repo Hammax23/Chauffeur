@@ -42,6 +42,8 @@ export type DriverOfferCardProps = {
   status?: string | null;
   onReject: () => void;
   onPrimary: () => void;
+  /** Upcoming only — open in-app chat with the customer. */
+  onMessage?: () => void;
   footerHint?: ReactNode;
 };
 
@@ -64,6 +66,7 @@ export function DriverOfferCard({
   status,
   onReject,
   onPrimary,
+  onMessage,
   footerHint,
 }: DriverOfferCardProps) {
   const { palette } = useDriverTheme();
@@ -72,8 +75,9 @@ export function DriverOfferCard({
   /** Warm cream/gold wash — matches driver shell, not flat grey. */
   const declineBg = palette.hintBg;
   const avatarBg = palette.avatarBg;
+  const isUpcoming = mode === "upcoming";
   const upcomingReady =
-    mode === "upcoming" &&
+    isUpcoming &&
     (status === "ACCEPTED" || status === "PENDING" || !status);
   const primaryLabel =
     mode === "request"
@@ -160,26 +164,52 @@ export function DriverOfferCard({
           ) : null}
         </View>
 
-        <View style={styles.topRight}>
-          {fareLabel ? (
-            <Text style={[styles.fare, { color: palette.text }]}>{fareLabel}</Text>
-          ) : null}
-          {phone ? (
-            <Pressable
-              onPress={callCustomer}
-              accessibilityRole="button"
-              accessibilityLabel="Call customer"
-              style={({ pressed }) => [
-                styles.phoneBtn,
-                { backgroundColor: palette.hintBg, borderColor: palette.hintBorder },
-                pressed && { opacity: 0.75 },
-              ]}
-              hitSlop={6}
-            >
-              <Ionicons name="call-outline" size={16} color={GOLD} />
-            </Pressable>
-          ) : null}
-        </View>
+        {/* Price / call / message — only after Accept (Upcoming). Hidden on Requests. */}
+        {isUpcoming ? (
+          <View style={styles.topRight}>
+            {fareLabel ? (
+              <Text style={[styles.fare, { color: palette.text }]}>{fareLabel}</Text>
+            ) : null}
+            <View style={styles.contactRow}>
+              {phone ? (
+                <Pressable
+                  onPress={callCustomer}
+                  accessibilityRole="button"
+                  accessibilityLabel="Call customer"
+                  style={({ pressed }) => [
+                    styles.phoneBtn,
+                    {
+                      backgroundColor: palette.hintBg,
+                      borderColor: palette.hintBorder,
+                    },
+                    pressed && { opacity: 0.75 },
+                  ]}
+                  hitSlop={6}
+                >
+                  <Ionicons name="call-outline" size={16} color={GOLD} />
+                </Pressable>
+              ) : null}
+              {onMessage ? (
+                <Pressable
+                  onPress={onMessage}
+                  accessibilityRole="button"
+                  accessibilityLabel="Message customer"
+                  style={({ pressed }) => [
+                    styles.phoneBtn,
+                    {
+                      backgroundColor: palette.hintBg,
+                      borderColor: palette.hintBorder,
+                    },
+                    pressed && { opacity: 0.75 },
+                  ]}
+                  hitSlop={6}
+                >
+                  <Ionicons name="chatbubble-outline" size={16} color={GOLD} />
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
       </View>
 
       <View style={[styles.whenBar, { backgroundColor: metaChipBg }]}>
@@ -321,6 +351,11 @@ const styles = StyleSheet.create({
   },
   topRight: {
     alignItems: "flex-end",
+    gap: 8,
+  },
+  contactRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   fare: {

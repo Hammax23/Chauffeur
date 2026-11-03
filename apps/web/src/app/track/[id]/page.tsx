@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { Car, MapPin, Clock, User, CheckCircle2, Loader2, Phone } from "lucide-react";
 import Image from "next/image";
 
@@ -28,7 +28,9 @@ function isCancelledStatus(status: string): boolean {
 
 export default function TrackPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const bookingId = params.id as string;
+  const linkKey = (searchParams.get("k") || "").trim();
 
   const [booking, setBooking] = useState<any>(null);
   const [currentStatus, setCurrentStatus] = useState("PENDING");
@@ -38,7 +40,17 @@ export default function TrackPage() {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch(`/api/driver-status?bookingId=${encodeURIComponent(bookingId)}`);
+      if (!linkKey) {
+        setError("This tracking link is missing a security key. Open the latest link from your confirmation email.");
+        setLoading(false);
+        return;
+      }
+      const qs = new URLSearchParams({
+        bookingId,
+        purpose: "track",
+        k: linkKey,
+      });
+      const res = await fetch(`/api/driver-status?${qs.toString()}`);
       const data = await res.json();
       if (data.success) {
         setBooking(data);
@@ -53,7 +65,7 @@ export default function TrackPage() {
     } finally {
       setLoading(false);
     }
-  }, [bookingId]);
+  }, [bookingId, linkKey]);
 
   useEffect(() => {
     fetchStatus();

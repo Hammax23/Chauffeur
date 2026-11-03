@@ -12,23 +12,6 @@ import { NextRequest, NextResponse } from "next/server";
 const OCRSPACE_API_KEY = process.env.OCRSPACE_API_KEY || "";
 const ALLOWED_HOSTS = new Set(["res.cloudinary.com"]);
 
-// Very small in-memory rate limit (edge-safe enough for single instance dev)
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT_WINDOW = 60 * 1000;
-const MAX_REQUESTS = 30;
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const record = rateLimitMap.get(ip);
-  if (!record || now > record.resetTime) {
-    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
-    return true;
-  }
-  if (record.count >= MAX_REQUESTS) return false;
-  record.count++;
-  return true;
-}
-
 function parseCandidateDates(text: string): Date[] {
   const t = text.replace(/\s+/g, " ");
 
@@ -121,63 +104,12 @@ function assertAllowedUrl(raw: string): URL | null {
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(_req: NextRequest) {
   // Temporarily disabled (requested by admin). Keep route so frontend doesn't crash if it calls it.
+  // When re-enabling: rate-limit with await checkRateLimit from @/lib/rate-limit.
   return NextResponse.json(
     { success: false, error: "OCR temporarily disabled" },
     { status: 410 }
   );
-
-  const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown";
-  if (!checkRateLimit(ip)) {
-    return NextResponse.json({ success: false, error: "Too many requests" }, { status: 429 });
-  }
-
-  try {
-    const body = await req.json();
-    const urlRaw = typeof body?.url === "string" ? body.url.trim() : "";
-    const allowedUrl = assertAllowedUrl(urlRaw);
-    if (!allowedUrl) {
-      return NextResponse.json({ success: false, error: "Invalid or disallowed URL" }, { status: 400 });
-    }
-    const assetUrl = allowedUrl as URL;
-
-    if (!OCRSPACE_API_KEY) {
-      return NextResponse.json(
-        { success: false, error: "OCR is not configured (missing OCRSPACE_API_KEY)" },
-        { status: 501 }
-      );
-    }
-
-    const ocrUrl = new URL("https://api.ocr.space/parse/imageurl");
-    ocrUrl.searchParams.set("apikey", OCRSPACE_API_KEY);
-    ocrUrl.searchParams.set("url", assetUrl.toString());
-    ocrUrl.searchParams.set("OCREngine", "2");
-    ocrUrl.searchParams.set("isOverlayRequired", "false");
-
-    const r = await fetch(ocrUrl.toString(), { method: "GET" });
-    const data = (await r.json()) as any;
-
-    if (!r.ok || data?.IsErroredOnProcessing) {
-      return NextResponse.json(
-        { success: false, error: data?.ErrorMessage?.[0] || "OCR failed" },
-        { status: 502 }
-      );
-    }
-
-    const parsedText: string =
-      data?.ParsedResults?.map((x: any) => x?.ParsedText).filter(Boolean).join("\n") || "";
-
-    const pick = chooseExpiryDate(parsedText);
-    return NextResponse.json({
-      success: true,
-      extractedExpiryDate: pick.date?.toISOString().slice(0, 10) ?? null,
-      confidence: pick.confidence,
-      rawTextPreview: parsedText.slice(0, 500),
-    });
-  } catch (e: any) {
-    console.error("OCR extract-expiry error:", e);
-    return NextResponse.json({ success: false, error: "Failed to extract expiry" }, { status: 500 });
-  }
 }
 

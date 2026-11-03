@@ -3,11 +3,26 @@ import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { blockedCustomerResponse, canCustomerSelfReactivate, deactivatedCustomerResponse, isCustomerBlocked, isCustomerDeactivated } from "@/lib/customer-auth";
-
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
+import { getAppJwtSecret } from "@/lib/app-jwt-secret";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rl = await checkRateLimit(`customer-login:${ip}`, {
+      maxRequests: 10,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!rl.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Too many login attempts. Try again in ${rl.resetIn} seconds.`,
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
     const { email, password } = body;
 
@@ -15,6 +30,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { success: false, error: "Email and password are required" },
         { status: 400 }
+      );
+    }
+
+    const emailKey = String(email).trim().toLowerCase();
+    const emailRl = await checkRateLimit(`customer-login-email:${emailKey}`, {
+      maxRequests: 8,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!emailRl.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Too many login attempts. Try again in ${emailRl.resetIn} seconds.`,
+        },
+        { status: 429 }
       );
     }
 
@@ -54,7 +84,7 @@ export async function POST(req: NextRequest) {
 
     const token = jwt.sign(
       { id: customer.id, email: customer.email, type: "customer" },
-      JWT_SECRET,
+      getAppJwtSecret(),
       { expiresIn: "30d" }
     );
 

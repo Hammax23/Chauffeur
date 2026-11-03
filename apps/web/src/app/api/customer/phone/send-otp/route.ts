@@ -11,6 +11,7 @@ import {
   normalizeE164,
 } from "@/lib/phone-us-ca";
 import { issueAndSmsPhoneOtp, PHONE_OTP_LENGTH } from "@/lib/phone-otp";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 /**
  * Authenticated: send phone OTP to complete / link a mobile number (OAuth onboarding).
@@ -23,6 +24,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(fail.body, { status: fail.status });
     }
     const tokenData = auth.customer;
+
+    const ip = getClientIp(req);
+    const rl = await checkRateLimit(`phone-send-otp:${tokenData.id}:${ip}`, {
+      maxRequests: 5,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!rl.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Too many requests. Please try again in ${rl.resetIn} seconds.`,
+        },
+        { status: 429 }
+      );
+    }
 
     const body = await req.json();
     const phone = typeof body?.phone === "string" ? body.phone : "";

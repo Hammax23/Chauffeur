@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { Car, MapPin, Clock, User, CheckCircle2, Loader2, Phone, Lock } from "lucide-react";
 
 const STATUS_STEPS = [
@@ -13,7 +13,9 @@ const STATUS_STEPS = [
 
 export default function DriverPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const bookingId = params.id as string;
+  const linkKey = (searchParams.get("k") || "").trim();
 
   const [booking, setBooking] = useState<any>(null);
   const [currentStatus, setCurrentStatus] = useState("PENDING");
@@ -27,7 +29,17 @@ export default function DriverPage() {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch(`/api/driver-status?bookingId=${encodeURIComponent(bookingId)}`);
+      if (!linkKey) {
+        setError("This driver link is missing a security key. Open the latest link from your SARJ email or SMS.");
+        setLoading(false);
+        return;
+      }
+      const qs = new URLSearchParams({
+        bookingId,
+        purpose: "driver",
+        k: linkKey,
+      });
+      const res = await fetch(`/api/driver-status?${qs.toString()}`);
       const data = await res.json();
       if (data.success) {
         setBooking(data);
@@ -44,7 +56,7 @@ export default function DriverPage() {
     } finally {
       setLoading(false);
     }
-  }, [bookingId]);
+  }, [bookingId, linkKey]);
 
   // Countdown timer for edit window
   useEffect(() => {
@@ -80,7 +92,7 @@ export default function DriverPage() {
       const res = await fetch("/api/driver-status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookingId, status: newStatus }),
+        body: JSON.stringify({ bookingId, status: newStatus, k: linkKey }),
       });
       const data = await res.json();
       if (data.success) {

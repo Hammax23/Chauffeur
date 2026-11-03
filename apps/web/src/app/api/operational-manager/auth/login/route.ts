@@ -11,7 +11,7 @@ import {
 export async function POST(request: NextRequest) {
   try {
     const ip = getClientIP(request);
-    const rateLimit = checkRateLimit(ip);
+    const rateLimit = await checkRateLimit(ip);
     if (!rateLimit.allowed) {
       return NextResponse.json(
         {
@@ -38,11 +38,11 @@ export async function POST(request: NextRequest) {
     const result = await authenticateOperationalManager(email, password);
 
     if (!result.success) {
-      recordFailedAttempt(ip);
+      await recordFailedAttempt(ip);
       return NextResponse.json({ success: false, error: result.error }, { status: 401 });
     }
 
-    clearAttempts(ip);
+    await clearAttempts(ip);
 
     const response = NextResponse.json({ success: true, message: "Login successful" });
 

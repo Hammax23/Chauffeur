@@ -245,6 +245,7 @@ export default function ReservationsPage() {
     try {
       const res = await fetch("/api/stripe/charge", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customerId: reservation.stripeCustomerId,

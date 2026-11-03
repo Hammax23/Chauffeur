@@ -1,8 +1,7 @@
 import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
 import prisma from "@/lib/prisma";
-
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
+import { getAppJwtSecret } from "@/lib/app-jwt-secret";
 
 /** Days a self-deactivated account can be restored by the customer. */
 export const CUSTOMER_REACTIVATE_WINDOW_DAYS = 30;
@@ -105,7 +104,7 @@ export function customerInactiveHttpResponse(customer: {
 
 export function verifyCustomerJwt(token: string): CustomerTokenPayload | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as {
+    const decoded = jwt.verify(token, getAppJwtSecret()) as {
       id?: string;
       email?: string;
       type?: string;

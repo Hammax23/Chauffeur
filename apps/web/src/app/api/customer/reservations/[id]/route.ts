@@ -40,12 +40,12 @@ export async function GET(
       return NextResponse.json({ success: false, error: "Reservation not found" }, { status: 404 });
     }
 
-    const siteBase = (process.env.NEXT_PUBLIC_SITE_URL || "https://sarjworldwide.ca").replace(
-      /\/$/,
-      ""
+    const { ensureSignedPublicLink } = await import("@/lib/booking-link-token");
+    const trackLink = ensureSignedPublicLink(
+      reservation.bookingId,
+      "track",
+      reservation.trackLink
     );
-    const trackLink =
-      reservation.trackLink?.trim() || `${siteBase}/track/${reservation.bookingId}`;
 
     const cancelPreview = getCancelMoneyDecision({
       serviceDate: reservation.serviceDate,
@@ -268,6 +268,15 @@ export async function DELETE(
     }
 
     await publishReservationFromDb(id, "reservation_cancelled");
+
+    // Customer already knows — notify assigned driver only.
+    if (reservation.assignedDriverId) {
+      void import("@/lib/driver-push")
+        .then(({ notifyDriverReservationCancelled }) =>
+          notifyDriverReservationCancelled(id, reservation.assignedDriverId!)
+        )
+        .catch((err) => console.error("[cancel] driver push", err));
+    }
 
     return NextResponse.json({
       success: true,

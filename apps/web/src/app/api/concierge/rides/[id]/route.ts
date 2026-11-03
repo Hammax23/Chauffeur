@@ -76,6 +76,11 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
           where: { id: ride.assignedDriverId },
           data: { availability: "ONLINE" },
         });
+        void import("@/lib/concierge-push")
+          .then(({ notifyConciergeRideCancelled }) =>
+            notifyConciergeRideCancelled(id)
+          )
+          .catch((err) => console.error("[concierge] cancel push", err));
       }
       return NextResponse.json({ success: true, ride: updated });
     }

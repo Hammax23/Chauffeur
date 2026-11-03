@@ -159,6 +159,15 @@ export async function addReservation(data: ReservationData) {
     distanceKm,
   });
 
+  // Link app account when the email already belongs to a customer (website → push).
+  const emailNorm = (data.email || "").trim().toLowerCase();
+  const linkedCustomer = emailNorm
+    ? await prisma.customer.findFirst({
+        where: { email: { equals: emailNorm, mode: "insensitive" } },
+        select: { id: true },
+      })
+    : null;
+
   const reservation = await prisma.reservation.create({
     data: {
       bookingId: data.bookingId,
@@ -200,6 +209,7 @@ export async function addReservation(data: ReservationData) {
       cardLast4: data.cardLast4,
       paymentStatus: data.paymentStatus || "PENDING",
       isLongDistance,
+      ...(linkedCustomer ? { customerId: linkedCustomer.id } : {}),
     },
   });
   return reservation;
@@ -211,7 +221,13 @@ export async function updateReservationStatus(bookingId: string, status: string)
     const now = new Date();
     const prev = await prisma.reservation.findUnique({
       where: { bookingId },
-      select: { status: true, assignedDriverId: true, driverResponse: true },
+      select: {
+        status: true,
+        assignedDriverId: true,
+        driverResponse: true,
+        driverOnTheWayAt: true,
+        driverArrivedAt: true,
+      },
     });
     if (!prev) return false;
 
@@ -221,6 +237,8 @@ export async function updateReservationStatus(bookingId: string, status: string)
       statusUpdatedAt: Date;
       driverResponse?: string;
       driverRespondedAt?: Date;
+      driverOnTheWayAt?: Date;
+      driverArrivedAt?: Date;
     } = {
       status,
       statusUpdatedAt: now,
@@ -229,6 +247,13 @@ export async function updateReservationStatus(bookingId: string, status: string)
     // Set completedAt timestamp when ride is marked as DONE
     if (status === "DONE") {
       updateData.completedAt = now;
+    }
+
+    if (status === "ON THE WAY" && !prev.driverOnTheWayAt) {
+      updateData.driverOnTheWayAt = now;
+    }
+    if (status === "ARRIVED" && !prev.driverArrivedAt) {
+      updateData.driverArrivedAt = now;
     }
 
     // Progressed trip statuses imply the assignee is accepted for customer visibility.
@@ -361,10 +386,10 @@ export async function assignDriverToReservation(
     const reopenFromTerminal = isReservationTerminal(existing.status);
     const now = new Date();
     const channel = normalizeAssignmentChannel(options.channel);
-    const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://sarjworldwide.ca").replace(/\/$/, "");
+    const { ensureSignedPublicLink } = await import("@/lib/booking-link-token");
     const ensureLinks = {
-      ...(!existing.driverLink ? { driverLink: `${baseUrl}/driver/${bookingId}` } : {}),
-      ...(!existing.trackLink ? { trackLink: `${baseUrl}/track/${bookingId}` } : {}),
+      driverLink: ensureSignedPublicLink(bookingId, "driver", existing.driverLink),
+      trackLink: ensureSignedPublicLink(bookingId, "track", existing.trackLink),
     };
 
     await prisma.reservation.update({

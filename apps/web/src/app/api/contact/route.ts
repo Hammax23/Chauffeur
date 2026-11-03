@@ -19,7 +19,7 @@ function contactRecipientEmail(): string | undefined {
 export async function POST(request: NextRequest) {
   try {
     const clientIp = getClientIp(request);
-    const rateLimit = checkRateLimit(`contact:${clientIp}`, { maxRequests: 5, windowMs: 60 * 1000 });
+    const rateLimit = await checkRateLimit(`contact:${clientIp}`, { maxRequests: 5, windowMs: 60 * 1000 });
     if (!rateLimit.success) {
       return NextResponse.json(
         { error: `Too many requests. Please try again in ${rateLimit.resetIn} seconds.` },

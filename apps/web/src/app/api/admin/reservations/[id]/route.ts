@@ -40,13 +40,23 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
+    const before =
+      typeof body.status === "string"
+        ? await getReservationById(id)
+        : null;
+    const prevStatus = String(before?.status || "").toUpperCase();
+
     const success = await updateReservation(id, body);
     
     if (!success) {
       return NextResponse.json({ success: false, error: "Reservation not found" }, { status: 404 });
     }
 
-    if (typeof body.status === "string" && ["CANCELLED", "DONE"].includes(body.status)) {
+    const nextStatus =
+      typeof body.status === "string" ? String(body.status).toUpperCase() : "";
+    const isCancelStatus = nextStatus === "CANCELLED" || nextStatus === "CANCELED";
+
+    if (typeof body.status === "string" && (isCancelStatus || nextStatus === "DONE")) {
       const { revokeOffersForBooking } = await import("@/lib/live-auto");
       await revokeOffersForBooking(id);
       try {
@@ -59,6 +69,27 @@ export async function PUT(
 
     // Notify any customer subscribed via SSE that this booking changed.
     await publishReservationFromDb(id, "status_changed");
+
+    if (
+      isCancelStatus &&
+      prevStatus !== "CANCELLED" &&
+      prevStatus !== "CANCELED"
+    ) {
+      void import("@/lib/customer-push")
+        .then(({ notifyCustomerReservationCancelled }) =>
+          notifyCustomerReservationCancelled(id)
+        )
+        .catch((err) => console.error("[admin-cancel] customer push", err));
+      void import("@/lib/driver-push")
+        .then(({ notifyDriverReservationCancelled }) =>
+          notifyDriverReservationCancelled(id)
+        )
+        .catch((err) => console.error("[admin-cancel] driver push", err));
+    } else if (nextStatus === "DONE" && prevStatus !== "DONE") {
+      void import("@/lib/customer-push")
+        .then(({ notifyCustomerTripCompleted }) => notifyCustomerTripCompleted(id))
+        .catch((err) => console.error("[admin-done] customer push", err));
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

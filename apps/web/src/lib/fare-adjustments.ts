@@ -139,7 +139,13 @@ export async function createAndChargeFareAdjustment(opts: {
       opts.customerId,
       "Payment needed",
       `Outstanding $${total.toFixed(2)} on booking ${opts.bookingId}. Update your card in the app.`,
-      { type: "fare_unpaid", bookingId: opts.bookingId }
+      {
+        type: "fare_unpaid",
+        bookingId: opts.bookingId,
+        channelId: "reservations",
+        screen: "customer/trip-detail",
+        collapseId: `fare_unpaid:${opts.bookingId}`,
+      }
     );
     return { adjustmentId: row.id, status: "FAILED", total, charged: false };
   }
@@ -172,7 +178,13 @@ export async function createAndChargeFareAdjustment(opts: {
       opts.customerId,
       "Extra charge",
       `${opts.description}: $${total.toFixed(2)} CAD charged to your card.`,
-      { type: "fare_charged", bookingId: opts.bookingId }
+      {
+        type: "fare_charged",
+        bookingId: opts.bookingId,
+        channelId: "reservations",
+        screen: "customer/trip-detail",
+        collapseId: `fare_charged:${opts.bookingId}:${opts.idempotencyKey}`,
+      }
     );
     return { adjustmentId: row.id, status: "PAID", total, charged: true };
   }
@@ -186,7 +198,13 @@ export async function createAndChargeFareAdjustment(opts: {
     opts.customerId,
     "Payment failed",
     `We could not charge $${total.toFixed(2)} (${opts.description}). Please update your card or pay in the app.`,
-    { type: "fare_unpaid", bookingId: opts.bookingId }
+    {
+      type: "fare_unpaid",
+      bookingId: opts.bookingId,
+      channelId: "reservations",
+      screen: "customer/trip-detail",
+      collapseId: `fare_unpaid:${opts.bookingId}`,
+    }
   );
   return { adjustmentId: row.id, status: "FAILED", total, charged: false };
 }
@@ -364,7 +382,13 @@ export async function markReservationNoShow(opts: {
     reservation.customerId,
     "Trip marked no-show",
     `Booking ${reservation.bookingId} was marked no-show. Prepaid fare is retained per policy.`,
-    { type: "no_show", bookingId: reservation.bookingId }
+    {
+      type: "no_show",
+      bookingId: reservation.bookingId,
+      channelId: "reservations",
+      screen: "customer/trip-detail",
+      collapseId: `no_show:${reservation.bookingId}`,
+    }
   );
 
   return { ok: true, bookingId: reservation.bookingId, status: "NO_SHOW" };

@@ -45,7 +45,8 @@ export async function POST(request: NextRequest) {
       type,
       description,
       amount,
-      idempotencyKey: `admin:${bookingId}:${type}:${amount}:${description.slice(0, 40)}:${Date.now()}`,
+      // Stable key — Date.now() allowed double-charge on retries.
+      idempotencyKey: `admin:${bookingId}:${type}:${amount.toFixed(2)}:${description.slice(0, 40)}`,
     });
 
     return NextResponse.json({ success: true, ...result });

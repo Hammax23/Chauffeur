@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useGoogleMaps } from "./GoogleMapsProvider";
 import { MapPin, Navigation, Plane, Building2, Loader2 } from "lucide-react";
+import { getPlacesCountryCodes } from "@/lib/places-countries";
 
 interface PlacesAutocompleteProps {
   value: string;
@@ -243,10 +244,17 @@ export default function PlacesAutocomplete({
       setIsOpen(true);
       updatePosition();
 
+      const countries = getPlacesCountryCodes();
       autocompleteService.current.getPlacePredictions(
         {
           input: trimmed,
-          componentRestrictions: { country: "ca" },
+          ...(countries && countries.length > 0
+            ? {
+                componentRestrictions: {
+                  country: countries.length === 1 ? countries[0] : countries,
+                },
+              }
+            : {}),
           sessionToken: sessionTokenRef.current ?? undefined,
         },
         (results, status) => {

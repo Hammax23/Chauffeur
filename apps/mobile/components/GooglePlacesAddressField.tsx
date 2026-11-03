@@ -254,7 +254,7 @@ export interface GooglePlacesAddressFieldProps {
   embeddedDivider?: boolean;
   /** Restrict autocomplete to airports (server supports `airport` only). */
   placeTypes?: "airport";
-  /** Omit Canada-only filter — used with airport composer (Uber-style). */
+  /** Omit country filter (CA/PK/US) — airport composer / global search. */
   worldwide?: boolean;
   /**
    * When true, do not render suggestions under this field.

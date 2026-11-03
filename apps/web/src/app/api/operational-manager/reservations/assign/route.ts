@@ -28,6 +28,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { default: prisma } = await import("@/lib/prisma");
+    const before = await prisma.reservation.findUnique({
+      where: { bookingId },
+      select: {
+        assignedDriverId: true,
+        status: true,
+        driverResponse: true,
+      },
+    });
+
     const result = await assignDriverToReservation(bookingId, driverId, { channel });
 
     if (!result.ok) {
@@ -55,6 +65,20 @@ export async function POST(request: NextRequest) {
       const { loadReservationLiveData, publishReservationData } = await import(
         "@/lib/realtime-bus"
       );
+      const { isDriverVisibleToCustomer } = await import(
+        "@/lib/customer-visible-driver"
+      );
+      const wasVisible =
+        !!before &&
+        isDriverVisibleToCustomer({
+          status: before.status,
+          driverResponse: before.driverResponse,
+        });
+      const replacedVisibleDriver =
+        wasVisible &&
+        !!before.assignedDriverId &&
+        before.assignedDriverId !== driverId;
+
       const live = await loadReservationLiveData(bookingId);
       if (live) {
         if (live.driver) {
@@ -85,7 +109,13 @@ export async function POST(request: NextRequest) {
         void import("@/lib/driver-sms")
           .then(({ notifyDriverAssignmentSms }) => notifyDriverAssignmentSms(bookingId, driverId))
           .catch((err) => console.error("[ops-assign] driver sms", err));
-        // Do NOT notify customer on app assign — wait until driver accepts.
+        if (replacedVisibleDriver) {
+          void import("@/lib/customer-push")
+            .then(({ notifyCustomerDriverUnassigned }) =>
+              notifyCustomerDriverUnassigned(bookingId)
+            )
+            .catch((err) => console.error("[ops-assign] customer unassign push", err));
+        }
       }
     } catch (err) {
       console.error("[ops-assign] post-assign notify", err);

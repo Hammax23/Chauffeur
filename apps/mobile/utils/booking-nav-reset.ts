@@ -9,6 +9,14 @@ const TAB_ROUTES = [
   { name: "profile" },
 ] as const;
 
+export type ReservationConfirmedSnapshot = {
+  pickupLocation?: string;
+  dropoffLocation?: string;
+  serviceDate?: string;
+  serviceTime?: string;
+  vehicle?: string;
+};
+
 /**
  * After a successful booking, wipe create/confirm from the stack so Back
  * never returns to a filled Create Reservation form.
@@ -54,7 +62,8 @@ export function resetToTripDetail(
 /** Land on confirmed screen with booking flow screens removed from the stack. */
 export function resetToReservationConfirmed(
   navigation: NavigationProp<ParamListBase>,
-  bookingId: string
+  bookingId: string,
+  snapshot?: ReservationConfirmedSnapshot
 ) {
   navigation.dispatch(
     CommonActions.reset({
@@ -67,7 +76,17 @@ export function resetToReservationConfirmed(
             routes: [...TAB_ROUTES],
           },
         },
-        { name: "reservation-pending", params: { bookingId } },
+        {
+          name: "reservation-pending",
+          params: {
+            bookingId,
+            pickupLocation: snapshot?.pickupLocation || undefined,
+            dropoffLocation: snapshot?.dropoffLocation || undefined,
+            serviceDate: snapshot?.serviceDate || undefined,
+            serviceTime: snapshot?.serviceTime || undefined,
+            vehicle: snapshot?.vehicle || undefined,
+          },
+        },
       ],
     })
   );

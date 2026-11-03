@@ -2,15 +2,59 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { sendTransactionalEmail } from "@/lib/email-delivery";
 import { buildCustomerPasswordResetOtpEmail } from "@/lib/email-templates";
+import { getAppJwtSecret } from "@/lib/app-jwt-secret";
+import { getRedis, redisKey } from "@/lib/redis";
 
 const OTP_LENGTH = 6;
 const OTP_EXPIRY_MINUTES = 1;
 const RESET_TOKEN_EXPIRY_MINUTES = 15;
 const MAX_OTP_ATTEMPTS = 3;
-
-const OTP_SECRET = process.env.JWT_SECRET || "otp-fallback-secret-key";
+const ATTEMPT_TTL_MS = OTP_EXPIRY_MINUTES * 60 * 1000;
 
 const attemptStore = new Map<string, number>();
+
+async function getAttempts(sessionId: string): Promise<number> {
+  const redis = getRedis();
+  if (redis) {
+    try {
+      const n = await redis.get(redisKey("cust-otp-att", sessionId));
+      if (n != null) return Number(n) || 0;
+    } catch {
+      /* memory */
+    }
+  }
+  return attemptStore.get(sessionId) || 0;
+}
+
+async function setAttempts(sessionId: string, count: number): Promise<void> {
+  const redis = getRedis();
+  if (redis) {
+    try {
+      await redis.set(
+        redisKey("cust-otp-att", sessionId),
+        String(count),
+        "PX",
+        ATTEMPT_TTL_MS
+      );
+      return;
+    } catch {
+      /* memory */
+    }
+  }
+  attemptStore.set(sessionId, count);
+}
+
+async function clearAttemptsStore(sessionId: string): Promise<void> {
+  const redis = getRedis();
+  if (redis) {
+    try {
+      await redis.del(redisKey("cust-otp-att", sessionId));
+    } catch {
+      /* ignore */
+    }
+  }
+  attemptStore.delete(sessionId);
+}
 
 export type PasswordResetOtpPayload = {
   /** SHA-256 hash of OTP — never store plaintext in the JWT */
@@ -31,12 +75,8 @@ function hashOtp(code: string): string {
 }
 
 export function generateCustomerOTP(): string {
-  const digits = "0123456789";
-  let otp = "";
-  for (let i = 0; i < OTP_LENGTH; i++) {
-    otp += digits[Math.floor(Math.random() * digits.length)];
-  }
-  return otp;
+  const max = 10 ** OTP_LENGTH;
+  return String(crypto.randomInt(0, max)).padStart(OTP_LENGTH, "0");
 }
 
 export function createPasswordResetOtpSession(params: {
@@ -51,23 +91,25 @@ export function createPasswordResetOtpSession(params: {
       email: params.email,
       customerId: params.customerId,
     } satisfies PasswordResetOtpPayload,
-    OTP_SECRET,
+    getAppJwtSecret(),
     { expiresIn: `${OTP_EXPIRY_MINUTES}m` }
   );
 }
 
-export function verifyPasswordResetOtp(
+export async function verifyPasswordResetOtp(
   sessionId: string,
   code: string
-): { valid: true; email: string; customerId: string } | { valid: false; error: string } {
-  const attempts = attemptStore.get(sessionId) || 0;
+): Promise<
+  { valid: true; email: string; customerId: string } | { valid: false; error: string }
+> {
+  const attempts = await getAttempts(sessionId);
   if (attempts >= MAX_OTP_ATTEMPTS) {
-    attemptStore.delete(sessionId);
+    await clearAttemptsStore(sessionId);
     return { valid: false, error: "Too many attempts. Please request a new code." };
   }
 
   try {
-    const decoded = jwt.verify(sessionId, OTP_SECRET) as PasswordResetOtpPayload & {
+    const decoded = jwt.verify(sessionId, getAppJwtSecret()) as PasswordResetOtpPayload & {
       otp?: string;
     };
 
@@ -77,7 +119,7 @@ export function verifyPasswordResetOtp(
 
     const expectedHash = decoded.otpHash || (decoded.otp ? hashOtp(decoded.otp) : "");
     if (!expectedHash || expectedHash !== hashOtp(code)) {
-      attemptStore.set(sessionId, attempts + 1);
+      await setAttempts(sessionId, attempts + 1);
       const remaining = MAX_OTP_ATTEMPTS - attempts - 1;
       return {
         valid: false,
@@ -92,7 +134,7 @@ export function verifyPasswordResetOtp(
       return { valid: false, error: "Invalid code. Please try again." };
     }
 
-    attemptStore.delete(sessionId);
+    await clearAttemptsStore(sessionId);
     return {
       valid: true,
       email: decoded.email,
@@ -117,7 +159,7 @@ export function createPasswordResetToken(params: {
       email: params.email,
       customerId: params.customerId,
     } satisfies PasswordResetOkPayload,
-    OTP_SECRET,
+    getAppJwtSecret(),
     { expiresIn: `${RESET_TOKEN_EXPIRY_MINUTES}m` }
   );
 }
@@ -126,7 +168,7 @@ export function verifyPasswordResetToken(
   resetToken: string
 ): { valid: true; email: string; customerId: string } | { valid: false; error: string } {
   try {
-    const decoded = jwt.verify(resetToken, OTP_SECRET) as PasswordResetOkPayload;
+    const decoded = jwt.verify(resetToken, getAppJwtSecret()) as PasswordResetOkPayload;
     if (decoded.purpose !== "password-reset-ok" || !decoded.customerId || !decoded.email) {
       return { valid: false, error: "Reset session expired. Please start again." };
     }
@@ -140,8 +182,8 @@ export function verifyPasswordResetToken(
   }
 }
 
-export function clearPasswordResetOtpAttempts(sessionId: string): void {
-  attemptStore.delete(sessionId);
+export async function clearPasswordResetOtpAttempts(sessionId: string): Promise<void> {
+  await clearAttemptsStore(sessionId);
 }
 
 export async function sendCustomerPasswordResetOtpEmail(

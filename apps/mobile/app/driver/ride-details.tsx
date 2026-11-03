@@ -22,7 +22,6 @@ import {
   updateRideStatus,
   getDriverChat,
   sendDriverChatMessage,
-  markDriverNoShow,
   DriverRide,
 } from "../../services/api";
 import { syncDriverLiveTracking } from "../../services/driver-live-session";
@@ -131,15 +130,72 @@ function toApiStatus(id: string): string {
   }
 }
 
+/**
+ * Parse Ride preferences block from specialRequirements for chauffeur chips.
+ * Customer format (formatRidePrefsRequirements):
+ *   Conversation: Quiet | Happy to chat | No preference
+ *   Temperature: Cool | Warm | No preference
+ *   Travelling with bags: Yes (N bag/bags) | No
+ *   Air freshener: Yes | No
+ */
 function preferenceChips(ride: DriverRide): string[] {
   const raw = String(ride.specialRequirements || "");
   const chips: string[] = [];
-  if (/quiet/i.test(raw)) chips.push("Quiet ride");
-  if (/no\s*bags|no\s*luggage/i.test(raw)) chips.push("No bags");
-  if (/any\s*temp|temperature/i.test(raw)) chips.push("Any temp.");
-  if (/distance\s*booking|long\s*distance/i.test(raw)) chips.push("Distance booking");
-  if (/Meet\s*&\s*Greet\s*:\s*Yes/i.test(raw)) chips.push("Meet & Greet");
-  return chips.slice(0, 6);
+
+  if (/Conversation:\s*Quiet/i.test(raw) || (/\bQuiet\b/i.test(raw) && !/Happy to chat/i.test(raw))) {
+    chips.push("Quiet ride");
+  } else if (/Happy to chat/i.test(raw)) {
+    chips.push("Happy to chat");
+  }
+
+  if (/Temperature:\s*Cool/i.test(raw)) {
+    chips.push("Cool cabin");
+  } else if (/Temperature:\s*Warm/i.test(raw)) {
+    chips.push("Warm cabin");
+  } else if (/Temperature:\s*No preference/i.test(raw)) {
+    chips.push("Any temp.");
+  }
+
+  const bagsMatch = raw.match(
+    /Travelling with bags:\s*Yes\s*\(\s*(\d+)\s*(bag|bags)\s*\)/i
+  );
+  if (bagsMatch) {
+    const n = parseInt(bagsMatch[1], 10);
+    if (Number.isFinite(n) && n > 0) {
+      chips.push(n === 1 ? "1 bag" : `${n} bags`);
+    }
+  } else if (
+    /Travelling with bags:\s*No/i.test(raw) ||
+    /no\s*bags|no\s*luggage/i.test(raw)
+  ) {
+    chips.push("No bags");
+  }
+
+  if (/Air\s*freshener:\s*Yes/i.test(raw)) {
+    chips.push("Air freshener");
+  }
+
+  if (/distance\s*booking|long\s*distance/i.test(raw)) {
+    chips.push("Distance booking");
+  }
+  if (/Meet\s*&\s*Greet\s*:\s*Yes/i.test(raw)) {
+    chips.push("Meet & Greet");
+  }
+  // Allow quiet + temp + bags + air freshener + extras without dropping bags/air.
+  return chips.slice(0, 8);
+}
+
+function preferenceChipIcon(label: string): string {
+  if (label === "Quiet ride") return "🔇";
+  if (label === "Happy to chat") return "💬";
+  if (label === "Cool cabin") return "❄️";
+  if (label === "Warm cabin") return "🔥";
+  if (label === "Any temp.") return "🌡️";
+  if (/^\d+\s+bags?$/i.test(label)) return "🧳";
+  if (label === "No bags") return "🧳";
+  if (label === "Air freshener") return "✨";
+  if (label === "Meet & Greet") return "✋";
+  return "";
 }
 
 /** Uber-style edge padding: keep car + route visible above the bottom sheet. */
@@ -547,13 +603,6 @@ export default function RideDetailsScreen() {
     };
   }, [ride, stopPeriods, tick]);
 
-  const freeWaitMin = ride?.freeWaitMinutes ?? 60;
-  const waitingMin = timing ? Math.floor(timing.waitingMs / 60_000) : 0;
-  const canNoShow =
-    ride?.status === "ARRIVED" &&
-    !ride.noShowMarkedAt &&
-    waitingMin >= freeWaitMin;
-
   // Route polyline — status/booking change, or driver moved ~120m since last fetch.
   const lastRouteOriginRef = useRef<{ lat: number; lng: number } | null>(null);
   const lastRouteStatusRef = useRef<string | null>(null);
@@ -796,53 +845,6 @@ export default function RideDetailsScreen() {
     } finally {
       setChipBusy(null);
     }
-  };
-
-  const onNoShow = () => {
-    if (!ride || !canNoShow) {
-      const left = Math.max(0, freeWaitMin - waitingMin);
-      Alert.alert(
-        "No-show unavailable",
-        left > 0
-          ? `Free wait is still active. You can mark no-show in about ${left} min.`
-          : "No-show is not available for this trip."
-      );
-      return;
-    }
-    Alert.alert(
-      "Mark no-show?",
-      "The rider will be marked no-show and prepaid fare is retained per policy.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Mark no-show",
-          style: "destructive",
-          onPress: () => {
-            void (async () => {
-              setIsUpdating(true);
-              try {
-                const res = await markDriverNoShow(ride.bookingId);
-                if (res.success) {
-                  void dismissPresentedForEntity({ bookingId: ride.bookingId });
-                  Alert.alert("No-show recorded", "This trip is closed.", [
-                    { text: "OK", onPress: () => router.back() },
-                  ]);
-                } else {
-                  Alert.alert("Error", res.error || "Could not mark no-show");
-                }
-              } catch (e) {
-                Alert.alert(
-                  "Error",
-                  e instanceof Error ? e.message : "Could not mark no-show"
-                );
-              } finally {
-                setIsUpdating(false);
-              }
-            })();
-          },
-        },
-      ]
-    );
   };
 
   const onAddStop = () => {
@@ -1393,25 +1395,38 @@ export default function RideDetailsScreen() {
               )}
             </View>
 
-            {/* OTW preference chips */}
-            {ride.status === "ON THE WAY" && chips.length > 0 ? (
+            {/* Ride preference chips (bags, quiet, temp, …) — visible on active trip */}
+            {chips.length > 0 &&
+            ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP"].includes(
+              ride.status
+            ) ? (
               <View style={styles.chipRow}>
-                {chips.map((c) => (
-                  <View
-                    key={c}
-                    style={[
-                      styles.prefChip,
-                      {
-                        backgroundColor:
-                          c === "Quiet ride" ? "rgba(212,160,74,0.2)" : chipBg,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.prefChipText, { color: palette.text }]}>
-                      {c === "Quiet ride" ? `🔊 ${c}` : c}
-                    </Text>
-                  </View>
-                ))}
+                {chips.map((c) => {
+                  const icon = preferenceChipIcon(c);
+                  const highlight =
+                    c === "Quiet ride" ||
+                    c === "Air freshener" ||
+                    /^\d+\s+bags?$/i.test(c);
+                  return (
+                    <View
+                      key={c}
+                      style={[
+                        styles.prefChip,
+                        {
+                          backgroundColor: highlight
+                            ? "rgba(212,160,74,0.2)"
+                            : chipBg,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[styles.prefChipText, { color: palette.text }]}
+                      >
+                        {icon ? `${icon} ${c}` : c}
+                      </Text>
+                    </View>
+                  );
+                })}
               </View>
             ) : null}
 
@@ -1433,25 +1448,6 @@ export default function RideDetailsScreen() {
                     </Text>
                   </Pressable>
                 ))}
-              </View>
-            ) : null}
-
-            {ride.status === "ARRIVED" ? (
-              <View style={[styles.noShowBox, { backgroundColor: "rgba(212,160,74,0.12)" }]}>
-                <Ionicons name="information-circle" size={16} color={GOLD} />
-                <Text style={[styles.noShowCopy, { color: palette.metaText }]}>
-                  Rider not here? You can mark a no-show after {freeWaitMin} min.
-                </Text>
-                <Pressable onPress={onNoShow} hitSlop={6}>
-                  <Text
-                    style={[
-                      styles.noShowAction,
-                      { opacity: canNoShow ? 1 : 0.45 },
-                    ]}
-                  >
-                    No-show
-                  </Text>
-                </Pressable>
               </View>
             ) : null}
 
@@ -1785,19 +1781,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   quickChipText: { fontSize: 13, fontWeight: "600" },
-  noShowBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    padding: 12,
-    borderRadius: 12,
-  },
-  noShowCopy: { flex: 1, fontSize: 12, fontWeight: "500", lineHeight: 16 },
-  noShowAction: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#9A3412",
-  },
   timeline: { flexDirection: "row", gap: 12, marginTop: 4 },
   rail: { width: 14, alignItems: "center", paddingTop: 4 },
   railCircle: {

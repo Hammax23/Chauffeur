@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { enforcePlacesRateLimit } from "@/lib/places-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,9 @@ function resolveMapsKey(): string | undefined {
 
 /** Resolve place_id to canonical formatted_address (used after autocomplete pick). */
 export async function GET(req: NextRequest) {
+  const limited = await enforcePlacesRateLimit(req);
+  if (limited) return limited;
+
   const key = resolveMapsKey();
   if (!key) {
     return NextResponse.json(

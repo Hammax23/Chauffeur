@@ -234,7 +234,11 @@ export async function routeDriverNotificationResponse(
     const data = parseNotificationData(response.notification.request.content.data);
     const type = String(data.type || "");
 
-    if (type === "concierge_offer" || type === "concierge_dispute") {
+    if (
+      type === "concierge_offer" ||
+      type === "concierge_dispute" ||
+      type === "concierge_cancelled"
+    ) {
       const rideId = String(data.rideId || "") || null;
       await dismissPresentedForEntity({ rideId });
       await clearBadgeSafely();
@@ -243,6 +247,14 @@ export async function routeDriverNotificationResponse(
       }
       router.push("/driver/concierge");
       return { kind: "navigated" as const, rideId: rideId || undefined };
+    }
+
+    if (type === "offer_unavailable") {
+      const bookingId = String(data.bookingId || "").trim();
+      await clearBadgeSafely();
+      if (bookingId) await dismissPresentedForEntity({ bookingId });
+      goRequests();
+      return { kind: "navigated" as const, bookingId: bookingId || undefined };
     }
 
     if (type === "trip_review") {
@@ -273,7 +285,12 @@ export async function routeDriverNotificationResponse(
       return { kind: "navigated" as const, bookingId };
     }
 
-    if (type !== "new_assignment" && type !== "live_offer") {
+    if (
+      type !== "new_assignment" &&
+      type !== "live_offer" &&
+      type !== "reservation_cancelled" &&
+      type !== "offer_unavailable"
+    ) {
       return { kind: "ignored" as const };
     }
 

@@ -109,6 +109,35 @@ pm2 logs sarj-worldwide --lines 50   # if dashboard shows errors / high ↺ rest
 
 On the VPS, set all variables in `apps/web/.env` (use your local `.env.local` values for Stripe, SMTP, Maps, etc.).
 
+### Redis (abuse protection + SEO redirect cache)
+
+Shared rate limits, phone OTP, admin lockouts, and short-TTL SEO redirects use Redis when configured. Without `REDIS_URL`, the app falls back to in-memory limits (fine for single-process local dev; **not** safe across multiple PM2/Docker instances).
+
+```bash
+# docker-compose (recommended): redis service is included
+# apps/web gets REDIS_URL=redis://redis:6379 automatically in compose
+
+# VPS / PM2 (web outside compose): install Redis and set in apps/web/.env
+REDIS_URL=redis://127.0.0.1:6379
+# If Redis has a password:
+# REDIS_URL=redis://:YOUR_PASSWORD@127.0.0.1:6379
+# REDIS_PASSWORD=YOUR_PASSWORD   # used by compose redis --requirepass
+```
+
+After changing env: `pm2 restart sarj-worldwide --update-env`.
+
+### Maps / Places countries
+
+Address autocomplete + route bias default to **Canada, Pakistan, US**:
+
+```bash
+GOOGLE_PLACES_COUNTRIES=ca,pk,us
+NEXT_PUBLIC_GOOGLE_PLACES_COUNTRIES=ca,pk,us
+# Worldwide (no country filter):
+# GOOGLE_PLACES_COUNTRIES=all
+# NEXT_PUBLIC_GOOGLE_PLACES_COUNTRIES=all
+```
+
 ## Mobile Deployment
 
 ```bash
@@ -130,6 +159,7 @@ eas submit --platform ios
 - Tailwind CSS
 - Prisma (Database ORM)
 - Stripe (Payments)
+- Redis / ioredis (rate limits, OTP, SEO redirect cache)
 
 ### Mobile (apps/mobile)
 - React Native
