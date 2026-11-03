@@ -60,7 +60,9 @@ export default function RegisterScreen() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [city, setCity] = useState("");
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -281,7 +283,13 @@ export default function RegisterScreen() {
   }
 
   async function handleRegister() {
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim()) {
+    if (
+      !firstName.trim() ||
+      !lastName.trim() ||
+      !email.trim() ||
+      !password.trim() ||
+      !confirmPassword.trim()
+    ) {
       Alert.alert("Error", "Please fill in all required fields");
       return;
     }
@@ -303,6 +311,10 @@ export default function RegisterScreen() {
     const passwordError = validatePassword(password);
     if (passwordError) {
       Alert.alert("Error", passwordError);
+      return;
+    }
+    if (password !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match");
       return;
     }
 
@@ -657,8 +669,7 @@ export default function RegisterScreen() {
                     secureTextEntry={!showPassword}
                     autoComplete="new-password"
                     textContentType="newPassword"
-                    returnKeyType="done"
-                    onSubmitEditing={handleRegister}
+                    returnKeyType="next"
                   />
                   <TouchableOpacity
                     style={styles.eyeBtn}
@@ -668,6 +679,40 @@ export default function RegisterScreen() {
                   >
                     <Ionicons
                       name={showPassword ? "eye-outline" : "eye-off-outline"}
+                      size={22}
+                      color="#999"
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  Confirm Password<Text style={styles.required}>*</Text>
+                </Text>
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    style={styles.passwordInput}
+                    placeholder="Re-enter your password"
+                    placeholderTextColor="#999"
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    secureTextEntry={!showConfirmPassword}
+                    autoComplete="new-password"
+                    textContentType="newPassword"
+                    returnKeyType="done"
+                    onSubmitEditing={handleRegister}
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeBtn}
+                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityLabel={
+                      showConfirmPassword ? "Hide confirm password" : "Show confirm password"
+                    }
+                  >
+                    <Ionicons
+                      name={showConfirmPassword ? "eye-outline" : "eye-off-outline"}
                       size={22}
                       color="#999"
                     />
