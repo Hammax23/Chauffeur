@@ -8,7 +8,8 @@ export default async function SeoTrackingScripts() {
 
   const settings = await getSeoSettings();
   const gtmId = settings.gtmId || DEFAULT_GTM_ID;
-  const ga4Id = settings.ga4Id || DEFAULT_GA4_ID;
+  // GA4 is pinned to the property from Google's install snippet; the SEO panel value is ignored
+  const ga4Id = DEFAULT_GA4_ID;
 
   return (
     <>
