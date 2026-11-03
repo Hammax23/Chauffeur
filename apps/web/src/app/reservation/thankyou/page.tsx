@@ -18,6 +18,25 @@ export default function ReservationThankYouPage() {
     window.location.replace("/reservation");
   }, []);
 
+  // Conversion event for Google Ads / GA4, fired once per booking (survives refresh via sessionStorage).
+  useEffect(() => {
+    if (!summary?.bookingId) return;
+    const key = `reservation_conversion_${summary.bookingId}`;
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, "1");
+    } catch {}
+    const w = window as unknown as { dataLayer?: unknown[]; gtag?: (...args: unknown[]) => void };
+    const payload = {
+      transaction_id: summary.bookingId,
+      payment_method: summary.paymentMethod,
+      service: summary.serviceLabel,
+    };
+    w.dataLayer = w.dataLayer || [];
+    w.dataLayer.push({ event: "reservation_completed", ...payload });
+    w.gtag?.("event", "reservation_completed", payload);
+  }, [summary]);
+
   if (!summary) return <main className="min-h-screen bg-[#0a0a0a]" />;
   return <ReservationThankYou {...summary} />;
 }
