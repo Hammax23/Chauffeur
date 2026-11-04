@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import nodemailer from "nodemailer";
 import { sanitizeInput, sanitizeArray } from "@/lib/sanitize";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { verifyTurnstile } from "@/lib/turnstile";
 import prisma from "@/lib/prisma";
 import { buildQuoteAdminEmail, buildQuoteUserEmail } from "@/lib/email-templates";
+import { isEmailConfigured, sendTransactionalEmail } from "@/lib/email-delivery";
 
 export async function POST(request: NextRequest) {
   try {
@@ -61,43 +61,33 @@ export async function POST(request: NextRequest) {
     const adminEmailHtml = buildQuoteAdminEmail(quotePayload);
     const userEmailHtml = buildQuoteUserEmail(quotePayload);
 
-    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
-      return NextResponse.json(
-        { error: "Email service is not configured. Please try again later or call us directly." },
-        { status: 503 }
-      );
-    }
-    if (!process.env.CONTACT_EMAIL?.trim()) {
+    if (!isEmailConfigured() || !process.env.CONTACT_EMAIL?.trim()) {
       return NextResponse.json(
         { error: "Email service is not configured. Please try again later or call us directly." },
         { status: 503 }
       );
     }
 
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT) || 465,
-      secure: true,
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
-      tls: { rejectUnauthorized: false },
-    });
-
-    await transporter.verify();
-
-    await transporter.sendMail({
-      from: `"SARJ Worldwide" <${process.env.SMTP_USER}>`,
+    const adminSent = await sendTransactionalEmail({
       to: process.env.CONTACT_EMAIL,
       replyTo: email,
       subject: `New online quote: ${passengerName} - ${serviceType}`,
       html: adminEmailHtml,
+      logLabel: "quote-admin",
     });
-
-    await transporter.sendMail({
-      from: `"SARJ Worldwide" <${process.env.SMTP_USER}>`,
+    const userSent = await sendTransactionalEmail({
       to: email,
       subject: "We received your quote request - SARJ Worldwide",
       html: userEmailHtml,
+      logLabel: "quote-user",
     });
+    if (!adminSent || !userSent) {
+      console.error("Quote form: email incomplete", { adminSent, userSent });
+      return NextResponse.json(
+        { error: "Failed to send email. Please try again later." },
+        { status: 500 }
+      );
+    }
 
     // Save quote to database
     const quoteId = `QT-${Date.now().toString(36).toUpperCase()}`;

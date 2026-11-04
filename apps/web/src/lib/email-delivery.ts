@@ -1,7 +1,10 @@
 import nodemailer from "nodemailer";
 import { Resend } from "resend";
 
-const resendClient = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+function getResendClient(): Resend | null {
+  const key = process.env.RESEND_API_KEY?.trim();
+  return key ? new Resend(key) : null;
+}
 
 export function escapeHtml(s: string): string {
   return s
@@ -9,6 +12,15 @@ export function escapeHtml(s: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+/** True when at least one outbound mail provider is configured. */
+export function isEmailConfigured(): boolean {
+  if (process.env.RESEND_API_KEY?.trim()) return true;
+  const host = process.env.SMTP_HOST?.trim();
+  const user = process.env.SMTP_USER?.trim();
+  const pass = process.env.SMTP_PASSWORD;
+  return Boolean(host && user && pass);
 }
 
 export function getSmtpTransport(): nodemailer.Transporter | null {
@@ -25,31 +37,80 @@ export function getSmtpTransport(): nodemailer.Transporter | null {
   });
 }
 
-const RESEND_FROM = "SARJ Worldwide <no-reply@sarjworldwide.ca>";
+function defaultFromAddress(): string {
+  return (
+    process.env.EMAIL_FROM?.trim() ||
+    "SARJ Worldwide <no-reply@mail.sarjworldwide.ca>"
+  );
+}
+
+function defaultReplyTo(): string | undefined {
+  const reply =
+    process.env.EMAIL_REPLY_TO?.trim() ||
+    process.env.CONTACT_EMAIL?.trim() ||
+    process.env.SMTP_USER?.trim();
+  return reply || undefined;
+}
+
+export type EmailAttachment = {
+  filename: string;
+  content: string | Buffer;
+  contentType?: string;
+};
 
 /**
- * Try Resend first, then SMTP (same pattern as driver registration / contact form).
+ * Resend first (verified domain). SMTP only if Resend is unset, or
+ * EMAIL_SMTP_FALLBACK=true (avoid Hostinger while mailbox is blocked).
  */
 export async function sendTransactionalEmail(opts: {
   to: string;
   subject: string;
   html: string;
+  replyTo?: string;
+  attachments?: EmailAttachment[];
   /** Log prefix for failures */
   logLabel?: string;
 }): Promise<boolean> {
   const { to, subject, html, logLabel = "transactional" } = opts;
+  const from = defaultFromAddress();
+  const replyTo = opts.replyTo?.trim() || defaultReplyTo();
+  const resendClient = getResendClient();
 
   if (resendClient) {
     try {
-      await resendClient.emails.send({
-        from: RESEND_FROM,
+      const attachments = opts.attachments?.map((a) => ({
+        filename: a.filename,
+        content:
+          typeof a.content === "string"
+            ? Buffer.from(a.content, "utf8")
+            : a.content,
+        contentType: a.contentType,
+      }));
+
+      const { error } = await resendClient.emails.send({
+        from,
         to,
         subject,
         html,
+        ...(replyTo ? { replyTo } : {}),
+        ...(attachments?.length ? { attachments } : {}),
       });
-      return true;
+
+      if (error) {
+        console.error(`[${logLabel}] Resend API error:`, error);
+      } else {
+        return true;
+      }
     } catch (e) {
       console.error(`[${logLabel}] Resend failed:`, e);
+    }
+
+    // Hostinger may be suspended / sender-blocked — do not auto-fallback unless opted in.
+    if (process.env.EMAIL_SMTP_FALLBACK?.trim() !== "true") {
+      console.warn(
+        `[${logLabel}] Resend failed; SMTP fallback disabled (set EMAIL_SMTP_FALLBACK=true to enable).`
+      );
+      return false;
     }
   }
 
@@ -57,10 +118,20 @@ export async function sendTransactionalEmail(opts: {
   if (smtp) {
     try {
       await smtp.sendMail({
-        from: `"SARJ Worldwide" <${process.env.SMTP_USER}>`,
+        from,
         to,
         subject,
         html,
+        ...(replyTo ? { replyTo } : {}),
+        ...(opts.attachments?.length
+          ? {
+              attachments: opts.attachments.map((a) => ({
+                filename: a.filename,
+                content: a.content,
+                contentType: a.contentType,
+              })),
+            }
+          : {}),
       });
       return true;
     } catch (e) {
@@ -68,6 +139,6 @@ export async function sendTransactionalEmail(opts: {
     }
   }
 
-  console.warn(`[${logLabel}] Email not sent (no Resend key and no SMTP):`, { to });
+  console.warn(`[${logLabel}] Email not sent (no provider succeeded):`, { to });
   return false;
 }

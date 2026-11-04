@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import nodemailer from "nodemailer";
 import { sanitizeInput, isValidEmail } from "@/lib/sanitize";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { buildContactAdminEmail, buildContactUserEmail } from "@/lib/email-templates";
 import { CONTACT_SERVICE_TYPE_SET } from "@/lib/contact-service-types";
+import { isEmailConfigured, sendTransactionalEmail } from "@/lib/email-delivery";
 import prisma from "@/lib/prisma";
 
 function contactRecipientEmail(): string | undefined {
@@ -57,8 +57,8 @@ export async function POST(request: NextRequest) {
     }
 
     const adminTo = contactRecipientEmail();
-    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
-      console.error("Contact form: SMTP not configured");
+    if (!isEmailConfigured()) {
+      console.error("Contact form: email provider not configured (RESEND_API_KEY or SMTP)");
       return NextResponse.json(
         { error: "Email service is not configured. Please try again later or call us directly." },
         { status: 503 }
@@ -97,33 +97,26 @@ export async function POST(request: NextRequest) {
       notes: additionalNotes || undefined,
     });
 
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT) || 465,
-      secure: true,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASSWORD,
-      },
-      tls: { rejectUnauthorized: false },
-    });
-
-    await transporter.verify();
-
-    await transporter.sendMail({
-      from: `"SARJ Worldwide" <${process.env.SMTP_USER}>`,
+    const adminSent = await sendTransactionalEmail({
       to: adminTo,
       replyTo: email,
       subject: `New contact form: ${fullName} - ${serviceType}`,
       html: adminEmailHtml,
+      logLabel: "contact-admin",
     });
-
-    await transporter.sendMail({
-      from: `"SARJ Worldwide" <${process.env.SMTP_USER}>`,
+    const userSent = await sendTransactionalEmail({
       to: email,
       subject: "We received your message - SARJ Worldwide",
       html: userEmailHtml,
+      logLabel: "contact-user",
     });
+    if (!adminSent || !userSent) {
+      console.error("Contact form: email incomplete", { adminSent, userSent });
+      return NextResponse.json(
+        { error: "Failed to send email. Please try again later." },
+        { status: 500 }
+      );
+    }
 
     const quoteId = `CF-${Date.now().toString(36).toUpperCase()}`;
     await prisma.quote.create({

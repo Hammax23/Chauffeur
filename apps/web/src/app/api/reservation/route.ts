@@ -1,5 +1,4 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
-import nodemailer from "nodemailer";
 import Stripe from "stripe";
 import { sanitizeInput, sanitizeArray } from "@/lib/sanitize";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
@@ -11,6 +10,7 @@ import { buildReservationAdminEmail, buildReservationUserEmail } from "@/lib/ema
 import { calculateReservationPricing, isAirportPickupLocation, AIRPORT_PICKUP_FEE } from "@/lib/reservation-pricing";
 import { getPricingConfig } from "@/lib/get-pricing-config";
 import { createReservationPaymentLink } from "@/lib/reservation-payment-link";
+import { isEmailConfigured, sendTransactionalEmail } from "@/lib/email-delivery";
 import prisma from "@/lib/prisma";
 
 const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -423,47 +423,46 @@ export async function POST(request: NextRequest) {
     let emailSent = false;
     let emailError: string | null = null;
     try {
-      if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
-        throw new Error("SMTP is not configured on the server.");
+      if (!isEmailConfigured()) {
+        throw new Error("Email provider is not configured (RESEND_API_KEY or SMTP).");
       }
       if (!process.env.CONTACT_EMAIL?.trim()) {
         throw new Error("CONTACT_EMAIL is not configured on the server.");
       }
 
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT) || 465,
-        secure: true,
-        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
-        tls: { rejectUnauthorized: false },
-      });
-
-      await transporter.verify();
-
-      const adminMailOptions: nodemailer.SendMailOptions = {
-        from: `"SARJ Worldwide" <${process.env.SMTP_USER}>`,
+      const adminSent = await sendTransactionalEmail({
         to: process.env.CONTACT_EMAIL,
         replyTo: email,
         subject: `New booking ${bookingId} - ${fullName} - ${vehicle} - ${formattedDateTime}`,
         html: adminEmailHtml,
-      };
-      if (icsContent) {
-        adminMailOptions.attachments = [
-          {
-            filename: `${bookingId}.ics`,
-            content: icsContent,
-            contentType: "text/calendar; method=REQUEST",
-          },
-        ];
-      }
-      await transporter.sendMail(adminMailOptions);
+        attachments: icsContent
+          ? [
+              {
+                filename: `${bookingId}.ics`,
+                content: icsContent,
+                contentType: "text/calendar; method=REQUEST",
+              },
+            ]
+          : undefined,
+        logLabel: "reservation-admin",
+      });
 
-      await transporter.sendMail({
-        from: `"SARJ Worldwide" <${process.env.SMTP_USER}>`,
+      const userSent = await sendTransactionalEmail({
         to: email,
         subject: `Booking ${bookingId} - Your reservation is confirmed - SARJ Worldwide`,
         html: userEmailHtml,
+        logLabel: "reservation-user",
       });
+
+      if (!adminSent || !userSent) {
+        throw new Error(
+          !adminSent && !userSent
+            ? "Failed to send confirmation emails."
+            : !adminSent
+              ? "Admin notification email failed."
+              : "Customer confirmation email failed."
+        );
+      }
       emailSent = true;
     } catch (mailErr: unknown) {
       const err = mailErr as { code?: string; message?: string };

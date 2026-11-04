@@ -1,9 +1,9 @@
 import { randomInt } from "crypto";
-import nodemailer from "nodemailer";
 import jwt from "jsonwebtoken";
 import { buildAdminOtpEmail, buildSeoPanelOtpEmail } from "@/lib/email-templates";
 import { getAppJwtSecret } from "@/lib/app-jwt-secret";
 import { getRedis, redisKey } from "@/lib/redis";
+import { isEmailConfigured, sendTransactionalEmail } from "@/lib/email-delivery";
 
 // OTP settings
 const OTP_LENGTH = 6;
@@ -146,33 +146,13 @@ export async function sendOTPEmail(
     return { success: false, error: "Admin email not configured" };
   }
 
-  // Use same SMTP config as other emails in the system
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpPort = Number(process.env.SMTP_PORT) || 465;
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPassword = process.env.SMTP_PASSWORD;
-
-  if (!smtpHost || !smtpUser || !smtpPassword) {
-    console.error("SMTP credentials not configured");
-    return { success: false, error: "SMTP not configured" };
+  if (!isEmailConfigured()) {
+    console.error("Email provider not configured (RESEND_API_KEY or SMTP)");
+    return { success: false, error: "Email not configured" };
   }
 
   try {
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: true,
-      auth: {
-        user: smtpUser,
-        pass: smtpPassword,
-      },
-      tls: {
-        rejectUnauthorized: false,
-      },
-    });
-
-    await transporter.sendMail({
-      from: `"SARJ Worldwide Security" <${smtpUser}>`,
+    const sent = await sendTransactionalEmail({
       to: adminEmail,
       subject:
         panel === "seo"
@@ -182,8 +162,11 @@ export async function sendOTPEmail(
         panel === "seo"
           ? buildSeoPanelOtpEmail(otp, OTP_EXPIRY_MINUTES)
           : buildAdminOtpEmail(otp, OTP_EXPIRY_MINUTES),
+      logLabel: panel === "seo" ? "seo-otp" : "admin-otp",
     });
-
+    if (!sent) {
+      return { success: false, error: "Failed to send email" };
+    }
     return { success: true };
   } catch (error: any) {
     console.error("Failed to send OTP email:", error);

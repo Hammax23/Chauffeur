@@ -317,6 +317,7 @@ export async function POST(request: NextRequest) {
 
     const adminSent = await sendTransactionalEmail({
       to: adminTo,
+      replyTo: result.email,
       subject: `Driver Application Submitted: ${result.name}`,
       html: adminEmailHtml,
       logLabel: "driver-register-admin",

@@ -131,6 +131,7 @@ export async function POST(req: NextRequest) {
       const name = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
       void sendTransactionalEmail({
         to: inbox,
+        replyTo: profile.email || undefined,
         subject: `App Support [${ticket.ticketId}]: ${type}`,
         logLabel: "support-ticket",
         html: `
