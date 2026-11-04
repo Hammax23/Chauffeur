@@ -430,11 +430,19 @@ function ReservationPageContent() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.details || data.error || "Failed to send emails");
+      if (!res.ok) throw new Error(data.details || data.error || "Failed to save reservation");
       if (typeof data.bookingId === "string") setBookingRef(data.bookingId);
-      setEmailSent(true);
+      if (data.emailSent) {
+        setEmailSent(true);
+      } else {
+        setEmailError(
+          typeof data.emailError === "string" && data.emailError
+            ? data.emailError
+            : "Failed to send confirmation emails."
+        );
+      }
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to send confirmation emails.";
+      const errorMessage = err instanceof Error ? err.message : "Failed to save reservation.";
       setEmailError(errorMessage);
     } finally {
       setEmailSending(false);
@@ -499,7 +507,15 @@ function ReservationPageContent() {
       if (!res.ok) throw new Error(data.details || data.error || "Failed to confirm reservation");
       if (typeof data.bookingId === "string") setBookingRef(data.bookingId);
       setPaymentSuccess(true);
-      setEmailSent(true);
+      if (data.emailSent) {
+        setEmailSent(true);
+      } else {
+        setEmailError(
+          typeof data.emailError === "string" && data.emailError
+            ? data.emailError
+            : "Failed to send confirmation emails."
+        );
+      }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Failed to confirm cash reservation.";
       setPaymentError(errorMessage);

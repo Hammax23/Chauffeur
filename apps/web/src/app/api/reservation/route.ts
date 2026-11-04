@@ -357,41 +357,7 @@ export async function POST(request: NextRequest) {
     const adminEmailHtml = buildReservationAdminEmail(reservationEmailData);
     const userEmailHtml = buildReservationUserEmail(reservationEmailData);
 
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT) || 465,
-      secure: true,
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
-      tls: { rejectUnauthorized: false },
-    });
-
-    await transporter.verify();
-
-    // Admin email with .ics calendar attachment
-    const adminMailOptions: any = {
-      from: `"SARJ Worldwide" <${process.env.SMTP_USER}>`,
-      to: process.env.CONTACT_EMAIL,
-      replyTo: email,
-      subject: `New booking ${bookingId} - ${fullName} - ${vehicle} - ${formattedDateTime}`,
-      html: adminEmailHtml,
-    };
-    if (icsContent) {
-      adminMailOptions.attachments = [{
-        filename: `${bookingId}.ics`,
-        content: icsContent,
-        contentType: "text/calendar; method=REQUEST",
-      }];
-    }
-    await transporter.sendMail(adminMailOptions);
-
-    await transporter.sendMail({
-      from: `"SARJ Worldwide" <${process.env.SMTP_USER}>`,
-      to: email,
-      subject: `Booking ${bookingId} - Your reservation is confirmed - SARJ Worldwide`,
-      html: userEmailHtml,
-    });
-
-    // Save reservation to local data store
+    // Persist booking FIRST — never lose a paid reservation if SMTP fails.
     await addReservation({
       bookingId,
       dateSubmitted: currentDate,
@@ -448,12 +414,67 @@ export async function POST(request: NextRequest) {
     const { maybeBroadcastNewReservation } = await import("@/lib/live-auto");
     await maybeBroadcastNewReservation(bookingId);
 
-    // App account with matching email → booking confirmed push (email already sent above).
     void import("@/lib/customer-push")
       .then(({ notifyCustomerBookingConfirmed }) =>
         notifyCustomerBookingConfirmed(bookingId)
       )
       .catch((err) => console.error("[reservation] booking confirm push", err));
+
+    let emailSent = false;
+    let emailError: string | null = null;
+    try {
+      if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
+        throw new Error("SMTP is not configured on the server.");
+      }
+      if (!process.env.CONTACT_EMAIL?.trim()) {
+        throw new Error("CONTACT_EMAIL is not configured on the server.");
+      }
+
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT) || 465,
+        secure: true,
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+        tls: { rejectUnauthorized: false },
+      });
+
+      await transporter.verify();
+
+      const adminMailOptions: nodemailer.SendMailOptions = {
+        from: `"SARJ Worldwide" <${process.env.SMTP_USER}>`,
+        to: process.env.CONTACT_EMAIL,
+        replyTo: email,
+        subject: `New booking ${bookingId} - ${fullName} - ${vehicle} - ${formattedDateTime}`,
+        html: adminEmailHtml,
+      };
+      if (icsContent) {
+        adminMailOptions.attachments = [
+          {
+            filename: `${bookingId}.ics`,
+            content: icsContent,
+            contentType: "text/calendar; method=REQUEST",
+          },
+        ];
+      }
+      await transporter.sendMail(adminMailOptions);
+
+      await transporter.sendMail({
+        from: `"SARJ Worldwide" <${process.env.SMTP_USER}>`,
+        to: email,
+        subject: `Booking ${bookingId} - Your reservation is confirmed - SARJ Worldwide`,
+        html: userEmailHtml,
+      });
+      emailSent = true;
+    } catch (mailErr: unknown) {
+      const err = mailErr as { code?: string; message?: string };
+      console.error("[reservation] confirmation email failed (booking saved):", mailErr);
+      if (err.code === "EAUTH") emailError = "Email authentication failed.";
+      else if (err.code === "ECONNECTION" || err.code === "ESOCKET") {
+        emailError = "Could not connect to email server.";
+      } else {
+        emailError = err.message || "Failed to send confirmation email.";
+      }
+    }
 
     // Custom / staff reservations: always attach a Stripe pay-later link when unpaid.
     let paymentUrl: string | null = null;
@@ -486,16 +507,21 @@ export async function POST(request: NextRequest) {
       success: true,
       message: "Reservation submitted successfully!",
       bookingId,
+      emailSent,
+      emailError,
       paymentUrl,
       paymentLinkError,
       paymentStatus,
       total,
     });
   } catch (error: any) {
-    console.error("Reservation email error:", error);
-    let errorMessage = "Failed to send reservation. Please try again later.";
-    if (error.code === "EAUTH") errorMessage = "Email authentication failed.";
-    else if (error.code === "ECONNECTION" || error.code === "ESOCKET") errorMessage = "Could not connect to email server.";
-    return NextResponse.json({ error: errorMessage, details: error.message }, { status: 500 });
+    console.error("Reservation error:", error);
+    return NextResponse.json(
+      {
+        error: "Failed to save reservation. Please try again later.",
+        details: error?.message || String(error),
+      },
+      { status: 500 }
+    );
   }
 }

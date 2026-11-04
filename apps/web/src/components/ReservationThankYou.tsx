@@ -129,8 +129,13 @@ export default function ReservationThankYou(p: ThankYouProps) {
               </>
             ) : p.emailError ? (
               <>
-                <Mail className="h-4 w-4 text-red-500" />
-                <span className="text-red-600">We couldn&apos;t send the confirmation email, but your booking is saved. Please keep your reference above.</span>
+                <Mail className="h-4 w-4 text-red-500 shrink-0" />
+                <span className="text-red-600 text-left">
+                  We couldn&apos;t finish email delivery for this booking. Your payment and booking details are shown above — please keep your reference.
+                  <span className="mt-1 block text-xs text-red-500/90 font-mono break-words">
+                    {p.emailError}
+                  </span>
+                </span>
               </>
             ) : (
               <>
