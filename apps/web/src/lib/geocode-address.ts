@@ -1,6 +1,9 @@
 /**
  * One-shot Google Geocoding for booking addresses (driver map fallback).
  * Never throws — callers treat null as "use address Navigate only".
+ *
+ * Soft `region` bias from address text (PK/CA/US) — avoids Canada-default
+ * wrong pins for Pakistani streets when booking coords were missing.
  */
 
 function resolveMapsKey(): string | undefined {
@@ -12,6 +15,38 @@ function resolveMapsKey(): string | undefined {
 export type GeocodedPoint = { lat: number; lng: number };
 
 const GEOCODE_TIMEOUT_MS = 3000;
+
+/** Infer Maps `region` from free-text address (multi-country SARJ). */
+export function inferGeocodeRegion(address: string): string | undefined {
+  const a = address.toLowerCase();
+  if (
+    /\b(pakistan|lahore|karachi|islamabad|rawalpindi|faisalabad|multan|peshawar|gujranwala|sialkot|punjab|sindh|balochistan|khyber)\b/.test(
+      a
+    ) ||
+    /,?\s*pk\b/.test(a)
+  ) {
+    return "pk";
+  }
+  if (
+    /\b(canada|toronto|ontario|vancouver|montreal|calgary|ottawa|mississauga|brampton|oakville|hamilton|gta)\b/.test(
+      a
+    ) ||
+    /,?\s*(on|bc|ab|qc)\s*[A-Z]?\d/i.test(address) ||
+    /,?\s*ca\b/.test(a)
+  ) {
+    return "ca";
+  }
+  if (
+    /\b(united states|usa|new york|california|texas|florida|chicago|miami|seattle|boston)\b/.test(
+      a
+    ) ||
+    /,?\s*usa\b/.test(a) ||
+    /,?\s*us\b/.test(a)
+  ) {
+    return "us";
+  }
+  return undefined;
+}
 
 export async function geocodeAddress(
   address: string | null | undefined
@@ -29,6 +64,8 @@ export async function geocodeAddress(
     key,
     language: "en",
   });
+  const region = inferGeocodeRegion(q);
+  if (region) params.set("region", region);
   const url = `https://maps.googleapis.com/maps/api/geocode/json?${params.toString()}`;
 
   try {

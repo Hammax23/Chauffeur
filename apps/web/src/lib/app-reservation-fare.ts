@@ -28,6 +28,11 @@ export type AppReservationFareInput = {
   gratuityPercent?: unknown;
   pickupLocation?: unknown;
   dropoffLocation?: unknown;
+  /** Precise coords from Places / GPS — preferred for Directions (PK/CA/US). */
+  pickupLat?: unknown;
+  pickupLng?: unknown;
+  dropoffLat?: unknown;
+  dropoffLng?: unknown;
   bookingMode?: unknown;
   hourlyDuration?: unknown;
   /** Meet & Greet add-on (airport From pickups). */
@@ -301,12 +306,34 @@ export async function resolveAppReservationFare(
         origin: pickupLocation,
         destination: dropoffLocation,
         waypoints: waypointParts,
+        originLat: input.pickupLat,
+        originLng: input.pickupLng,
+        destinationLat: input.dropoffLat,
+        destinationLng: input.dropoffLng,
       });
       if ("error" in serverDist) {
         return { error: serverDist.error };
       }
-      // Prefer server distance; reject clients that under-report significantly.
-      if (clientMeters > 0 && !distanceAcceptable(clientMeters, serverDist.meters)) {
+
+      const hasPickupCoords =
+        input.pickupLat != null &&
+        input.pickupLng != null &&
+        Number.isFinite(Number(input.pickupLat)) &&
+        Number.isFinite(Number(input.pickupLng));
+      const hasDropoffCoords =
+        input.dropoffLat != null &&
+        input.dropoffLng != null &&
+        Number.isFinite(Number(input.dropoffLat)) &&
+        Number.isFinite(Number(input.dropoffLng));
+
+      // When GPS/Places coords are present, server Directions matches the app map —
+      // always price from server meters (do not block on client drift).
+      // Address-only (no coords): still reject large under-reporting.
+      if (
+        clientMeters > 0 &&
+        !(hasPickupCoords && hasDropoffCoords) &&
+        !distanceAcceptable(clientMeters, serverDist.meters)
+      ) {
         return {
           error: "Trip distance could not be verified. Please refresh the route and try again.",
         };

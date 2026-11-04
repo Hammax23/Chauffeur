@@ -422,13 +422,28 @@ export default function TrackRideScreen() {
       return;
     }
 
+    const destLat = toPickup ? reservation.pickupLat : reservation.dropoffLat;
+    const destLng = toPickup ? reservation.pickupLng : reservation.dropoffLng;
     const destAddress = (
       toPickup ? reservation.pickupLocation : reservation.dropoffLocation
     )?.trim();
-    if (!destAddress || destAddress.length < 3) return;
+    const destHasCoords =
+      typeof destLat === "number" &&
+      typeof destLng === "number" &&
+      Number.isFinite(destLat) &&
+      Number.isFinite(destLng);
+    const destination = destHasCoords
+      ? `${destLat!.toFixed(6)},${destLng!.toFixed(6)}`
+      : destAddress;
+    if (!destination || destination.length < 3) return;
+
+    // Pin immediately from booking GPS (PK/CA/US) — don't wait for Directions.
+    if (destHasCoords) {
+      setDestCoord({ latitude: destLat!, longitude: destLng! });
+    }
 
     const phase = toPickup ? "pickup" : "dropoff";
-    const statusKey = `${phase}|${destAddress}`;
+    const statusKey = `${phase}|${destination}`;
     const statusChanged = directionsStatusKeyRef.current !== statusKey;
     const now = Date.now();
     const lastAt = lastDirectionsAtRef.current;
@@ -453,7 +468,7 @@ export default function TrackRideScreen() {
         const r = await fetchDirectionsSummary(
           {
             origin,
-            destination: destAddress,
+            destination,
             // etr407 YES = customer allowed tolls; otherwise prefer no-toll route.
             avoidTolls: !/^(yes|y)$/i.test(String(reservation.etr407 || "").trim()),
           },
@@ -462,12 +477,16 @@ export default function TrackRideScreen() {
         if (ac.signal.aborted) return;
         const decoded = r.polyline ? decodePolyline(r.polyline) : [];
         setRouteCoords(decoded.length >= 2 ? decoded : []);
-        const lastPt = r.points?.length ? r.points[r.points.length - 1] : null;
-        if (lastPt && Number.isFinite(lastPt.lat) && Number.isFinite(lastPt.lng)) {
-          setDestCoord({ latitude: lastPt.lat, longitude: lastPt.lng });
-        } else if (decoded.length > 0) {
-          const end = decoded[decoded.length - 1];
-          setDestCoord({ latitude: end.latitude, longitude: end.longitude });
+        if (destHasCoords) {
+          setDestCoord({ latitude: destLat!, longitude: destLng! });
+        } else {
+          const lastPt = r.points?.length ? r.points[r.points.length - 1] : null;
+          if (lastPt && Number.isFinite(lastPt.lat) && Number.isFinite(lastPt.lng)) {
+            setDestCoord({ latitude: lastPt.lat, longitude: lastPt.lng });
+          } else if (decoded.length > 0) {
+            const end = decoded[decoded.length - 1];
+            setDestCoord({ latitude: end.latitude, longitude: end.longitude });
+          }
         }
         setEtaSeconds(
           typeof r.durationSeconds === "number" && Number.isFinite(r.durationSeconds)
@@ -491,6 +510,10 @@ export default function TrackRideScreen() {
     reservation?.status,
     reservation?.pickupLocation,
     reservation?.dropoffLocation,
+    reservation?.pickupLat,
+    reservation?.pickupLng,
+    reservation?.dropoffLat,
+    reservation?.dropoffLng,
     reservation?.etr407,
   ]);
 

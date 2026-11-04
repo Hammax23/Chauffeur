@@ -153,6 +153,14 @@ export async function runBookingCheckout(
   let cardLast4: string | undefined;
 
   if (APP_PAYMENTS_ENABLED) {
+    const pickupLatN =
+      draft.pickupLat != null ? Number(draft.pickupLat) : NaN;
+    const pickupLngN =
+      draft.pickupLng != null ? Number(draft.pickupLng) : NaN;
+    const dropoffLatN =
+      draft.dropoffLat != null ? Number(draft.dropoffLat) : NaN;
+    const dropoffLngN =
+      draft.dropoffLng != null ? Number(draft.dropoffLng) : NaN;
     const farePayload = {
       vehicle: draft.vehicle,
       vehicleId: draft.vehicleId,
@@ -166,6 +174,11 @@ export async function runBookingCheckout(
           : undefined,
       childSeats,
       pickupLocation: draft.pickupAddress,
+      dropoffLocation: isHourly ? undefined : dropoffDisplay,
+      pickupLat: Number.isFinite(pickupLatN) ? pickupLatN : undefined,
+      pickupLng: Number.isFinite(pickupLngN) ? pickupLngN : undefined,
+      dropoffLat: Number.isFinite(dropoffLatN) ? dropoffLatN : undefined,
+      dropoffLng: Number.isFinite(dropoffLngN) ? dropoffLngN : undefined,
       stops: stopsPayload,
       distanceMeters: isHourly ? undefined : distanceMeters,
       gratuityPercent: fare.gratuityPercent,

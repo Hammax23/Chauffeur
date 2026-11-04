@@ -7,17 +7,58 @@ function resolveMapsKey(): string | undefined {
   return process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim() || undefined;
 }
 
+function isValidLatLng(lat: unknown, lng: unknown): lat is number {
+  const la = typeof lat === "number" ? lat : Number(lat);
+  const ln = typeof lng === "number" ? lng : Number(lng);
+  return (
+    Number.isFinite(la) &&
+    Number.isFinite(ln) &&
+    Math.abs(la) <= 90 &&
+    Math.abs(ln) <= 180 &&
+    !(la === 0 && ln === 0)
+  );
+}
+
+/** Prefer precise lat,lng (same as mobile Directions) over ambiguous address text. */
+export function directionsPoint(
+  address: string,
+  lat?: unknown,
+  lng?: unknown
+): string {
+  if (isValidLatLng(lat, lng)) {
+    const la = typeof lat === "number" ? lat : Number(lat);
+    const ln = typeof lng === "number" ? lng : Number(lng);
+    return `${la.toFixed(6)},${ln.toFixed(6)}`;
+  }
+  return String(address || "").trim();
+}
+
 /**
  * Server-side Google Directions distance (meters). Used so clients cannot
  * underpay by sending a fake distanceMeters.
+ *
+ * When lat/lng are provided, origin/destination use coordinates so Pakistan
+ * (and other) street names are not re-geocoded to the wrong place.
  */
 export async function serverDrivingDistanceMeters(params: {
   origin: string;
   destination: string;
   waypoints?: string[];
+  originLat?: unknown;
+  originLng?: unknown;
+  destinationLat?: unknown;
+  destinationLng?: unknown;
 }): Promise<{ meters: number } | { error: string }> {
-  const origin = String(params.origin || "").trim();
-  const destination = String(params.destination || "").trim();
+  const origin = directionsPoint(
+    params.origin,
+    params.originLat,
+    params.originLng
+  );
+  const destination = directionsPoint(
+    params.destination,
+    params.destinationLat,
+    params.destinationLng
+  );
   if (origin.length < 3 || destination.length < 3) {
     return { error: "Pickup and drop-off are required to price this trip." };
   }
@@ -43,8 +84,14 @@ export async function serverDrivingDistanceMeters(params: {
     units: "metric",
     language: "en",
   });
-  const regionBias = getMapsRegionBias();
-  if (regionBias) qs.set("region", regionBias);
+  // Region bias only when no coords (address geocode) and single-country config.
+  const usedCoords =
+    isValidLatLng(params.originLat, params.originLng) ||
+    isValidLatLng(params.destinationLat, params.destinationLng);
+  if (!usedCoords) {
+    const regionBias = getMapsRegionBias();
+    if (regionBias) qs.set("region", regionBias);
+  }
   if (waypointList.length > 0) {
     qs.set("waypoints", waypointList.join("|"));
   }
@@ -80,11 +127,14 @@ export async function serverDrivingDistanceMeters(params: {
   }
 }
 
-/** Allow small client/server drift (GPS vs address) — reject large under-reporting. */
+/**
+ * Allow small client/server drift (GPS vs address) — reject large under-reporting.
+ * Slightly wider tolerance for multi-country / urban routing variance.
+ */
 export function distanceAcceptable(
   clientMeters: number,
   serverMeters: number,
-  maxUnderReportRatio = 0.12
+  maxUnderReportRatio = 0.18
 ): boolean {
   if (!Number.isFinite(clientMeters) || clientMeters <= 0) return false;
   if (!Number.isFinite(serverMeters) || serverMeters <= 0) return false;

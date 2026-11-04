@@ -617,9 +617,17 @@ export default function RideDetailsScreen() {
     if (!ride) return;
     const towardDropoff =
       ride.status === "CIC" || ride.status === "STOP" || ride.status === "DONE";
-    const destination = towardDropoff
-      ? ride.dropoffLocation
-      : ride.pickupLocation;
+    // Prefer booking GPS pins (PK/CA/US accurate) over address re-geocode.
+    const destination =
+      towardDropoff
+        ? typeof ride.dropoffLat === "number" &&
+          typeof ride.dropoffLng === "number"
+          ? `${ride.dropoffLat},${ride.dropoffLng}`
+          : ride.dropoffLocation
+        : typeof ride.pickupLat === "number" &&
+            typeof ride.pickupLng === "number"
+          ? `${ride.pickupLat},${ride.pickupLng}`
+          : ride.pickupLocation;
     if (!destination?.trim()) return;
 
     const statusChanged = lastRouteStatusRef.current !== ride.status;
@@ -635,7 +643,9 @@ export default function RideDetailsScreen() {
 
     const origin = myCoords
       ? `${myCoords.lat},${myCoords.lng}`
-      : ride.pickupLocation;
+      : typeof ride.pickupLat === "number" && typeof ride.pickupLng === "number"
+        ? `${ride.pickupLat},${ride.pickupLng}`
+        : ride.pickupLocation;
     if (!origin?.trim()) return;
 
     const ac = new AbortController();

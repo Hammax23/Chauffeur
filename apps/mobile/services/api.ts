@@ -444,8 +444,12 @@ export interface Reservation {
   serviceDate: string;
   serviceTime: string;
   pickupLocation: string;
+  pickupLat?: number | null;
+  pickupLng?: number | null;
   stops: string;
   dropoffLocation: string;
+  dropoffLat?: number | null;
+  dropoffLng?: number | null;
   distance: string;
   duration: string;
   rideFare: number;
@@ -1296,6 +1300,11 @@ export async function createCustomerPaymentIntent(params: {
   fleetLines?: { vehicleId: string; quantity: number }[];
   childSeats?: number;
   pickupLocation: string;
+  dropoffLocation?: string;
+  pickupLat?: number;
+  pickupLng?: number;
+  dropoffLat?: number;
+  dropoffLng?: number;
   stops?: string;
   distanceMeters?: number;
   gratuityPercent: number;

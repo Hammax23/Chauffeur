@@ -1390,6 +1390,13 @@ export default function CreateReservationScreen() {
           : "We couldn't calculate the route. Please double-check the pickup and drop-off addresses."
       );
       return;
+    } else if (!pickupCoords || !dropoffCoords) {
+      // PK/CA/US: require Places/GPS pins so server fare + driver maps match the route.
+      Alert.alert(
+        "Select addresses from suggestions",
+        "Please choose pickup and drop-off from the search suggestions (or use My location) so the trip distance is accurate."
+      );
+      return;
     }
     if (!isParcel) {
       if (passengersCount > maxPassengers) {
