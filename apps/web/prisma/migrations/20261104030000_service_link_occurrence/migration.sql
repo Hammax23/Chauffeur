@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "ServiceLink" ADD COLUMN IF NOT EXISTS "occurrence" INTEGER NOT NULL DEFAULT 1;
