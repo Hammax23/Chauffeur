@@ -111,16 +111,17 @@ export async function POST(request: NextRequest) {
     await transporter.verify();
 
     await transporter.sendMail({
-      from: `"SARJ Website" <${process.env.SMTP_USER}>`,
+      from: `"SARJ Worldwide" <${process.env.SMTP_USER}>`,
       to: adminTo,
-      subject: `New Contact Form: ${fullName} — ${serviceType}`,
+      replyTo: email,
+      subject: `New contact form: ${fullName} - ${serviceType}`,
       html: adminEmailHtml,
     });
 
     await transporter.sendMail({
-      from: `"SARJ WORLDWIDE" <${process.env.SMTP_USER}>`,
+      from: `"SARJ Worldwide" <${process.env.SMTP_USER}>`,
       to: email,
-      subject: "Your Message Has Been Received - SARJ WORLDWIDE",
+      subject: "We received your message - SARJ Worldwide",
       html: userEmailHtml,
     });
 

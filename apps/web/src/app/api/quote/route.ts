@@ -61,6 +61,19 @@ export async function POST(request: NextRequest) {
     const adminEmailHtml = buildQuoteAdminEmail(quotePayload);
     const userEmailHtml = buildQuoteUserEmail(quotePayload);
 
+    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
+      return NextResponse.json(
+        { error: "Email service is not configured. Please try again later or call us directly." },
+        { status: 503 }
+      );
+    }
+    if (!process.env.CONTACT_EMAIL?.trim()) {
+      return NextResponse.json(
+        { error: "Email service is not configured. Please try again later or call us directly." },
+        { status: 503 }
+      );
+    }
+
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT) || 465,
@@ -72,16 +85,17 @@ export async function POST(request: NextRequest) {
     await transporter.verify();
 
     await transporter.sendMail({
-      from: `"SARJ Website" <${process.env.SMTP_USER}>`,
+      from: `"SARJ Worldwide" <${process.env.SMTP_USER}>`,
       to: process.env.CONTACT_EMAIL,
-      subject: `New Online Quote: ${passengerName} - ${serviceType}`,
+      replyTo: email,
+      subject: `New online quote: ${passengerName} - ${serviceType}`,
       html: adminEmailHtml,
     });
 
     await transporter.sendMail({
-      from: `"SARJ WORLDWIDE" <${process.env.SMTP_USER}>`,
+      from: `"SARJ Worldwide" <${process.env.SMTP_USER}>`,
       to: email,
-      subject: "Your Online Quote Form is Successfully Submitted - SARJ WORLDWIDE",
+      subject: "We received your quote request - SARJ Worldwide",
       html: userEmailHtml,
     });
 

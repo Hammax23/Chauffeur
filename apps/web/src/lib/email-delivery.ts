@@ -25,7 +25,7 @@ export function getSmtpTransport(): nodemailer.Transporter | null {
   });
 }
 
-const RESEND_FROM = "SARJ Worldwide <no-reply@sarjworldwide.com>";
+const RESEND_FROM = "SARJ Worldwide <no-reply@sarjworldwide.ca>";
 
 /**
  * Try Resend first, then SMTP (same pattern as driver registration / contact form).

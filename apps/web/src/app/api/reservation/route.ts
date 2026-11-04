@@ -267,7 +267,7 @@ export async function POST(request: NextRequest) {
         "BEGIN:VEVENT",
         `DTSTART:${formatIcsDate(startDate)}`,
         `DTEND:${formatIcsDate(endDate)}`,
-        `SUMMARY:ðŸš— ${bookingId} â€” ${fullName}`,
+        `SUMMARY:SARJ ${bookingId} - ${fullName}`,
         `DESCRIPTION:Booking: ${bookingId}\\nPassenger: ${fullName}\\nPhone: ${fullPhone}\\nVehicle: ${vehicle}\\nPick-up: ${pickupLocation}\\nDrop-off: ${dropoffLocation}\\nTotal: ${priceDisplay}\\n\\nDriver Link: ${driverLink}\\nTrack Link: ${customerTrackLink}`,
         `LOCATION:${pickupLocation}`,
         `UID:${bookingId}@sarjworldwide.ca`,
@@ -327,7 +327,12 @@ export async function POST(request: NextRequest) {
       ].filter(Boolean).join("\n") || undefined,
       cardType: resolvedCardType || undefined,
       nameOnCard: nameOnCard || undefined,
-      cardFullNumber: cardFullNumber || undefined,
+      // Never email full PAN — last4 only (PCI + spam filters).
+      cardFullNumber: resolvedCardLast4
+        ? `****${resolvedCardLast4}`
+        : cardFullNumber
+          ? `****${cardFullNumber.replace(/\D/g, "").slice(-4)}`
+          : undefined,
       expirationMonth: expirationMonth || undefined,
       expirationYear: expirationYear || undefined,
       billingAddress: billingAddress || undefined,
@@ -364,9 +369,10 @@ export async function POST(request: NextRequest) {
 
     // Admin email with .ics calendar attachment
     const adminMailOptions: any = {
-      from: `"SARJ Website" <${process.env.SMTP_USER}>`,
+      from: `"SARJ Worldwide" <${process.env.SMTP_USER}>`,
       to: process.env.CONTACT_EMAIL,
-      subject: `ðŸ“‹ ${bookingId} â€” ${fullName} â€” ${vehicle} â€” ${formattedDateTime}`,
+      replyTo: email,
+      subject: `New booking ${bookingId} - ${fullName} - ${vehicle} - ${formattedDateTime}`,
       html: adminEmailHtml,
     };
     if (icsContent) {
@@ -379,9 +385,9 @@ export async function POST(request: NextRequest) {
     await transporter.sendMail(adminMailOptions);
 
     await transporter.sendMail({
-      from: `"SARJ WORLDWIDE" <${process.env.SMTP_USER}>`,
+      from: `"SARJ Worldwide" <${process.env.SMTP_USER}>`,
       to: email,
-      subject: `Booking ${bookingId} â€” Your Reservation is Confirmed â€” SARJ WORLDWIDE`,
+      subject: `Booking ${bookingId} - Your reservation is confirmed - SARJ Worldwide`,
       html: userEmailHtml,
     });
 

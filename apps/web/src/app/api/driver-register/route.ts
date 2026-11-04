@@ -313,7 +313,7 @@ export async function POST(request: NextRequest) {
       referenceId: result.id,
     });
 
-    const adminTo = process.env.ADMIN_EMAIL || "reserve@sarjworldwide.com";
+    const adminTo = process.env.ADMIN_EMAIL || "reserve@sarjworldwide.ca";
 
     const adminSent = await sendTransactionalEmail({
       to: adminTo,
