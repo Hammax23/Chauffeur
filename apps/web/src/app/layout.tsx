@@ -9,8 +9,6 @@ import SeoPageServerHead from "@/components/SeoPageServerHead";
 import { SeoPageHeadLive } from "@/components/SeoPageLiveExtras";
 import { buildGlobalMetadata } from "@/lib/seo-metadata";
 import { headers } from "next/headers";
-import PageTextLinks from "@/components/PageTextLinks";
-import { getActivePageLinks } from "@/lib/page-links";
 import { DEFAULT_GTM_ID, getSeoSettings, isTrackingExcludedPath } from "@/lib/seo-config";
 
 const inter = Inter({
@@ -36,7 +34,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const [settings, pageLinks] = await Promise.all([getSeoSettings(), getActivePageLinks()]);
+  const settings = await getSeoSettings();
   const pathname = (await headers()).get("x-pathname") || "/";
   const gtmId = isTrackingExcludedPath(pathname) ? null : settings.gtmId || DEFAULT_GTM_ID;
 
@@ -75,7 +73,6 @@ export default async function RootLayout({
           </noscript>
         ) : null}
         {children}
-        <PageTextLinks links={pageLinks} />
         <FloatingContact />
       </body>
     </html>

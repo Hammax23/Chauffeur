@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
-  Plus, Loader2, RefreshCw, Briefcase, Pencil, Trash2, Save, X, Link2,
+  Plus, Loader2, RefreshCw, Briefcase, Pencil, Trash2, Save, X,
 } from "lucide-react";
 
 interface Service {
@@ -33,6 +33,7 @@ export default function SeoServicesPage() {
   });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+
   const fetchServices = useCallback(async () => {
     const res = await fetch("/api/seopanel/services", { credentials: "include" });
     const data = await res.json();
@@ -217,7 +218,6 @@ export default function SeoServicesPage() {
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-1">
-                    <Link href={`/seopanel/links?path=${encodeURIComponent(`/services/${service.slug}`)}`} title="Internal links" className="p-2 hover:bg-emerald-50 rounded-lg text-emerald-700 text-xs font-semibold flex items-center gap-1"><Link2 className="w-4 h-4" />Links</Link>
                     <Link href={`/seopanel/pages/edit?path=${encodeURIComponent(`/services/${service.slug}`)}`} className="p-2 hover:bg-blue-50 rounded-lg text-blue-600 text-xs font-semibold">SEO</Link>
                     {service.id && (
                       <>

@@ -5,8 +5,6 @@ export type SeoAuditAction = "create" | "update" | "delete" | "import" | "export
 export type SeoAuditEntity =
   | "page"
   | "blog"
-  | "service-link"
-  | "page-link"
   | "redirect"
   | "settings"
   | "city"
