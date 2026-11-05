@@ -9,26 +9,34 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const profiles = await prisma.conciergeDriverProfile.findMany({
-    orderBy: { updatedAt: "desc" },
-    include: {
-      driver: {
-        select: {
-          id: true,
-          driverId: true,
-          name: true,
-          email: true,
-          phone: true,
-          vehicle: true,
-          vehiclePlate: true,
-          rating: true,
-          isActive: true,
+  try {
+    const profiles = await prisma.conciergeDriverProfile.findMany({
+      orderBy: { updatedAt: "desc" },
+      include: {
+        driver: {
+          select: {
+            id: true,
+            driverId: true,
+            name: true,
+            email: true,
+            phone: true,
+            vehicle: true,
+            vehiclePlate: true,
+            rating: true,
+            isActive: true,
+          },
         },
       },
-    },
-  });
+    });
 
-  return NextResponse.json({ success: true, drivers: profiles });
+    return NextResponse.json({ success: true, drivers: profiles });
+  } catch (e) {
+    console.error("[admin concierge drivers GET]", e);
+    return NextResponse.json(
+      { success: false, error: "Failed to load concierge drivers" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -136,19 +144,27 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Id required" }, { status: 400 });
   }
 
-  const activeTrip = await prisma.conciergeRideRequest.findFirst({
-    where: {
-      assignedDriverId: id,
-      status: { in: ["ASSIGNED", "ON_THE_WAY", "ARRIVED", "IN_TRIP"] },
-    },
-  });
-  if (activeTrip) {
+  try {
+    const activeTrip = await prisma.conciergeRideRequest.findFirst({
+      where: {
+        assignedDriverId: id,
+        status: { in: ["ASSIGNED", "ON_THE_WAY", "ARRIVED", "IN_TRIP"] },
+      },
+    });
+    if (activeTrip) {
+      return NextResponse.json(
+        { success: false, error: "Driver has an active hotel trip — finish or cancel it first" },
+        { status: 409 }
+      );
+    }
+
+    await prisma.conciergeDriverProfile.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    console.error("[admin concierge drivers DELETE]", e);
     return NextResponse.json(
-      { success: false, error: "Driver has an active hotel trip — finish or cancel it first" },
-      { status: 409 }
+      { success: false, error: "Failed to remove driver from concierge network" },
+      { status: 500 }
     );
   }
-
-  await prisma.conciergeDriverProfile.delete({ where: { id } });
-  return NextResponse.json({ success: true });
 }

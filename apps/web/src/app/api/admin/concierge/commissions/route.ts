@@ -9,33 +9,41 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const filter = new URL(request.url).searchParams.get("filter") || "disputes";
+  try {
+    const filter = new URL(request.url).searchParams.get("filter") || "disputes";
 
-  const commissions = await prisma.commissionConfirmation.findMany({
-    where:
-      filter === "disputes"
-        ? { disputeOpen: true }
-        : filter === "pending"
-          ? {
-              OR: [{ driverClaim: "UNSET" }, { conciergeClaim: "UNSET" }],
-            }
-          : undefined,
-    orderBy: { updatedAt: "desc" },
-    take: 100,
-    include: {
-      ride: {
-        include: {
-          hotel: { select: { name: true } },
-          concierge: { select: { name: true } },
-          assignedDriverProfile: {
-            include: { driver: { select: { name: true } } },
+    const commissions = await prisma.commissionConfirmation.findMany({
+      where:
+        filter === "disputes"
+          ? { disputeOpen: true }
+          : filter === "pending"
+            ? {
+                OR: [{ driverClaim: "UNSET" }, { conciergeClaim: "UNSET" }],
+              }
+            : undefined,
+      orderBy: { updatedAt: "desc" },
+      take: 100,
+      include: {
+        ride: {
+          include: {
+            hotel: { select: { name: true } },
+            concierge: { select: { name: true } },
+            assignedDriverProfile: {
+              include: { driver: { select: { name: true } } },
+            },
           },
         },
       },
-    },
-  });
+    });
 
-  return NextResponse.json({ success: true, commissions });
+    return NextResponse.json({ success: true, commissions });
+  } catch (e) {
+    console.error("[admin concierge commissions GET]", e);
+    return NextResponse.json(
+      { success: false, error: "Failed to load commissions" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function PUT(request: NextRequest) {

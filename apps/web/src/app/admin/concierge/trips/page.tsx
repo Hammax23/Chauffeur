@@ -26,14 +26,21 @@ export default function ConciergeTripsPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      setError("");
       const qs = status ? `?status=${status}` : "";
-      const res = await fetch(`/api/admin/concierge/trips${qs}`);
-      const data = await res.json();
-      if (data.success) setTrips(data.trips || []);
+      const res = await fetch(`/api/admin/concierge/trips${qs}`, {
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) setTrips(data.trips || []);
+      else setError(data.error || `Failed to load trips (${res.status})`);
+    } catch {
+      setError("Failed to connect");
     } finally {
       setLoading(false);
     }
@@ -49,7 +56,10 @@ export default function ConciergeTripsPage() {
         <ArrowLeft className="w-4 h-4" /> Concierge
       </Link>
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Trips</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Trips</h1>
+          {error ? <p className="mt-1 text-sm text-red-600">{error}</p> : null}
+        </div>
         <select
           className="border rounded-xl px-3 py-2 text-sm"
           value={status}

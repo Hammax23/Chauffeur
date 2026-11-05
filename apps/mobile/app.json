@@ -20,7 +20,7 @@
       "supportsTablet": true,
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.sarjworldwide.chauffeur",
-      "buildNumber": "74",
+      "buildNumber": "77",
       "entitlements": {
         "com.apple.developer.applesignin": [
           "Default"
@@ -32,6 +32,11 @@
         "NSPhotoLibraryUsageDescription": "SARJ Worldwide accesses your photo library so you can select an existing photo to use as your customer profile picture. For example, when you tap Edit Profile in the Account tab and choose Select from Library, we open your Photos so you can pick one image, which is then uploaded and displayed on your profile.",
         "NSPhotoLibraryAddUsageDescription": "SARJ Worldwide saves a photo to your Photos library only when you take a new profile picture with the in-app camera and choose to keep a copy, so the image you uploaded to your customer account is also available in your Photos.",
         "NSCameraUsageDescription": "SARJ Worldwide uses the camera so you can take a new profile picture for your customer account. For example, when you tap Edit Profile in the Account tab and choose Take Photo, the camera opens so you can capture an image that is then uploaded and shown on your profile.",
+        "LSApplicationQueriesSchemes": [
+          "comgooglemaps",
+          "comgooglemaps-x-callback",
+          "googlechromes"
+        ],
         "UIBackgroundModes": [
           "location",
           "remote-notification"

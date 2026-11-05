@@ -17,7 +17,7 @@ export default function ConciergeLayout() {
       const token = await getConciergeToken();
       const ok = !!token && isAuthenticated;
       setTokenOk(ok);
-      if (!ok) router.replace("/login");
+      if (!ok) router.replace("/partner/login");
     })();
   }, [isLoading, isAuthenticated]);
 

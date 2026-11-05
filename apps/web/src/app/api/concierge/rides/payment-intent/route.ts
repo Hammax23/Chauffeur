@@ -60,15 +60,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Prefill APP method + fee; finalize on confirm endpoint or set_payment after success
-    await prisma.conciergeRideRequest.update({
-      where: { id: ride.id },
-      data: {
-        guestPaymentMethod: "APP",
-        platformFee,
-      },
-    });
-
+    // Do NOT write guestPaymentMethod / platformFee here — only after payment succeeds
+    // (confirm-payment / confirm-checkout). Abandoning Stripe must not mark the ride as APP-paid.
     return NextResponse.json({
       success: true,
       clientSecret: intent.client_secret,

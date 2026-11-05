@@ -1,3 +1,4 @@
+import * as Location from "expo-location";
 import { API_BASE_URL } from "./api";
 
 export interface PlacePrediction {
@@ -8,11 +9,68 @@ export interface PlacePrediction {
   types: string[];
 }
 
+/** Soft GPS bias for autocomplete — refreshed at most every 2 minutes. */
+let cachedBias:
+  | { lat: number; lng: number; at: number }
+  | null = null;
+let biasInFlight: Promise<{ lat: number; lng: number } | null> | null = null;
+
+/**
+ * Best-effort device location for Places bias.
+ * Never prompts for permission — only uses an already-granted fix.
+ */
+export async function getPlacesAutocompleteBias(): Promise<{
+  lat: number;
+  lng: number;
+} | null> {
+  const now = Date.now();
+  if (cachedBias && now - cachedBias.at < 120_000) {
+    return { lat: cachedBias.lat, lng: cachedBias.lng };
+  }
+  if (biasInFlight) return biasInFlight;
+
+  biasInFlight = (async () => {
+    try {
+      const perm = await Location.getForegroundPermissionsAsync();
+      if (perm.status !== "granted") return null;
+      const last = await Location.getLastKnownPositionAsync({
+        maxAge: 180_000,
+        requiredAccuracy: 5_000,
+      });
+      if (last) {
+        cachedBias = {
+          lat: last.coords.latitude,
+          lng: last.coords.longitude,
+          at: now,
+        };
+        return { lat: cachedBias.lat, lng: cachedBias.lng };
+      }
+      const cur = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      cachedBias = {
+        lat: cur.coords.latitude,
+        lng: cur.coords.longitude,
+        at: Date.now(),
+      };
+      return { lat: cachedBias.lat, lng: cachedBias.lng };
+    } catch {
+      return null;
+    } finally {
+      biasInFlight = null;
+    }
+  })();
+
+  return biasInFlight;
+}
+
 export type PlaceAutocompleteOptions = {
   /** Google Places Autocomplete `types` — currently only `airport` is supported server-side. */
   types?: "airport";
   /** When true, omit country `components` filter (global airport / worldwide search). */
   worldwide?: boolean;
+  /** Device GPS soft-bias so short typed queries rank nearby streets. */
+  location?: { lat: number; lng: number; radiusMeters?: number } | null;
 };
 
 export async function fetchPlacePredictions(
@@ -30,6 +88,26 @@ export async function fetchPlacePredictions(
   }
   if (options?.worldwide) {
     params.set("worldwide", "1");
+  }
+  const loc = options?.location;
+  if (
+    loc &&
+    Number.isFinite(loc.lat) &&
+    Number.isFinite(loc.lng) &&
+    loc.lat >= -90 &&
+    loc.lat <= 90 &&
+    loc.lng >= -180 &&
+    loc.lng <= 180
+  ) {
+    params.set("lat", String(loc.lat));
+    params.set("lng", String(loc.lng));
+    if (
+      typeof loc.radiusMeters === "number" &&
+      Number.isFinite(loc.radiusMeters) &&
+      loc.radiusMeters >= 1000
+    ) {
+      params.set("radius", String(Math.round(loc.radiusMeters)));
+    }
   }
   const res = await fetch(`${API_BASE_URL}/places/autocomplete?${params}`, {
     method: "GET",

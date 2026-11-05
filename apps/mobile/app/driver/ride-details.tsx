@@ -33,6 +33,13 @@ import { parseAppStops } from "../../utils/stops";
 import { openNavigationTo } from "../../utils/open-navigation";
 import { fetchDirectionsSummary } from "../../services/places";
 import { decodePolyline } from "../../utils/decode-polyline";
+import { distanceToPolylineMeters, haversineMeters } from "../../utils/geo";
+import {
+  getRidePhaseDestination,
+  isTowardDropoff,
+  phaseDestinationQuery,
+  phaseNavigateLabel,
+} from "../../utils/ride-phase-destination";
 import { useDriverTheme } from "../../contexts/DriverThemeContext";
 import {
   GOLD,
@@ -272,6 +279,12 @@ function fitTripCamera(
  */
 const MAP_PROVIDER = PROVIDER_DEFAULT;
 const FOLLOW_REFIT_MS = 12_000;
+/** Uber-style live Directions refresh while driving. */
+const ROUTE_TIMER_MS = 18_000;
+const ROUTE_MIN_REFETCH_MS = 8_000;
+const OFF_ROUTE_METERS = 55;
+const OFF_ROUTE_CHECK_MS = 3_000;
+const MOVE_REFETCH_METERS = 120;
 
 export default function RideDetailsScreen() {
   const { bookingId, fromNotification } = useLocalSearchParams();
@@ -303,11 +316,18 @@ export default function RideDetailsScreen() {
   >([]);
   const [chipBusy, setChipBusy] = useState<string | null>(null);
   const [trackCarMarker, setTrackCarMarker] = useState(true);
+  const [routePending, setRoutePending] = useState(false);
 
   const mapFollowRef = useRef(true);
   const mapRef = useRef<MapView | null>(null);
   const destCoordRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const routeCoordsRef = useRef<{ latitude: number; longitude: number }[]>([]);
+  const myCoordsRef = useRef<{
+    lat: number;
+    lng: number;
+    heading?: number | null;
+  } | null>(null);
+  const rideRef = useRef<DriverRide | null>(null);
   const lastFollowFitAtRef = useRef(0);
   const lastSoftCamRef = useRef<{ lat: number; lng: number } | null>(null);
   const mapPulse = useRef(new Animated.Value(0)).current;
@@ -377,7 +397,15 @@ export default function RideDetailsScreen() {
     if (!trackCarMarker) return;
     const t = setTimeout(() => setTrackCarMarker(false), 2200);
     return () => clearTimeout(t);
-  }, [trackCarMarker, myCoords?.lat, myCoords?.lng]);
+  }, [trackCarMarker, myCoords?.lat, myCoords?.lng, myCoords?.heading]);
+
+  useEffect(() => {
+    myCoordsRef.current = myCoords;
+  }, [myCoords]);
+
+  useEffect(() => {
+    rideRef.current = ride;
+  }, [ride]);
 
   // Driver GPS
   useFocusEffect(
@@ -386,13 +414,47 @@ export default function RideDetailsScreen() {
       let sub: Location.LocationSubscription | null = null;
       mapFollowRef.current = true;
       setMapFollow(true);
+      const lastCourseRef = {
+        lat: null as number | null,
+        lng: null as number | null,
+        heading: null as number | null,
+      };
+
+      const resolveHeading = (
+        lat: number,
+        lng: number,
+        gpsHeading: number | null
+      ): number | null => {
+        if (typeof gpsHeading === "number" && gpsHeading >= 0) {
+          return gpsHeading;
+        }
+        // Many phones report heading=-1 while moving slowly — derive course.
+        if (
+          lastCourseRef.lat != null &&
+          lastCourseRef.lng != null &&
+          (Math.abs(lat - lastCourseRef.lat) > 0.00003 ||
+            Math.abs(lng - lastCourseRef.lng) > 0.00003)
+        ) {
+          const bearing =
+            (Math.atan2(lng - lastCourseRef.lng, lat - lastCourseRef.lat) *
+              180) /
+            Math.PI;
+          return (bearing + 360) % 360;
+        }
+        return lastCourseRef.heading;
+      };
 
       const apply = (
         lat: number,
         lng: number,
-        heading: number | null,
+        gpsHeading: number | null,
         force: boolean
       ) => {
+        const heading = resolveHeading(lat, lng, gpsHeading);
+        lastCourseRef.lat = lat;
+        lastCourseRef.lng = lng;
+        if (heading != null) lastCourseRef.heading = heading;
+
         setMyCoords((prev) => {
           // Skip React state if pin barely moved (keeps UI fast).
           if (
@@ -403,6 +465,16 @@ export default function RideDetailsScreen() {
             prev.heading === heading
           ) {
             return prev;
+          }
+          // Custom Marker bitmaps freeze when tracksViewChanges=false —
+          // briefly re-enable when heading turns so the arrow rotates.
+          if (
+            prev &&
+            typeof heading === "number" &&
+            typeof prev.heading === "number" &&
+            Math.abs(((heading - prev.heading + 540) % 360) - 180) > 8
+          ) {
+            setTrackCarMarker(true);
           }
           return { lat, lng, heading };
         });
@@ -603,110 +675,218 @@ export default function RideDetailsScreen() {
     };
   }, [ride, stopPeriods, tick]);
 
-  // Route polyline — status/booking change, or driver moved ~120m since last fetch.
+  // Route polyline — GPS-gated, pickup-first, timed + off-route refresh.
   const lastRouteOriginRef = useRef<{ lat: number; lng: number } | null>(null);
   const lastRouteStatusRef = useRef<string | null>(null);
+  const lastRouteFetchAtRef = useRef(0);
+  const lastGoodRouteRef = useRef<{ latitude: number; longitude: number }[]>(
+    []
+  );
+  const routeFetchGenRef = useRef(0);
 
   useEffect(() => {
     lastRouteOriginRef.current = null;
     lastRouteStatusRef.current = null;
+    lastRouteFetchAtRef.current = 0;
+    lastGoodRouteRef.current = [];
+    routeFetchGenRef.current += 1;
     setRouteCoords([]);
+    setRoutePending(false);
   }, [id]);
 
+  // Clear polyline only when pickup↔drop-off phase flips (not ON THE WAY→ARRIVED).
   useEffect(() => {
     if (!ride) return;
-    const towardDropoff =
-      ride.status === "CIC" || ride.status === "STOP" || ride.status === "DONE";
-    // Prefer booking GPS pins (PK/CA/US accurate) over address re-geocode.
-    const destination =
-      towardDropoff
-        ? typeof ride.dropoffLat === "number" &&
-          typeof ride.dropoffLng === "number"
-          ? `${ride.dropoffLat},${ride.dropoffLng}`
-          : ride.dropoffLocation
-        : typeof ride.pickupLat === "number" &&
-            typeof ride.pickupLng === "number"
-          ? `${ride.pickupLat},${ride.pickupLng}`
-          : ride.pickupLocation;
-    if (!destination?.trim()) return;
+    const prev = lastRouteStatusRef.current;
+    if (prev == null) {
+      lastRouteStatusRef.current = ride.status;
+      return;
+    }
+    if (prev === ride.status) return;
+    const phaseFlip =
+      isTowardDropoff(prev) !== isTowardDropoff(ride.status);
+    lastRouteStatusRef.current = ride.status;
+    if (!phaseFlip) return;
+    routeFetchGenRef.current += 1;
+    lastRouteOriginRef.current = null;
+    lastRouteFetchAtRef.current = 0;
+    lastGoodRouteRef.current = [];
+    setRouteCoords([]);
+  }, [ride?.status, ride]);
 
-    const statusChanged = lastRouteStatusRef.current !== ride.status;
-    if (myCoords && !statusChanged) {
-      const prev = lastRouteOriginRef.current;
-      if (prev) {
-        const moved =
-          Math.abs(prev.lat - myCoords.lat) > 0.0011 ||
-          Math.abs(prev.lng - myCoords.lng) > 0.0011;
-        if (!moved) return;
+  const hasDriverGps = myCoords != null;
+  const routeTowardDropoff = ride ? isTowardDropoff(ride.status) : false;
+  const routeLive =
+    !!ride &&
+    (ride.status === "ACCEPTED" ||
+      ride.status === "ON THE WAY" ||
+      ride.status === "ARRIVED" ||
+      ride.status === "CIC" ||
+      ride.status === "STOP");
+  const routeDestKey = (() => {
+    if (!ride) return "";
+    const phase = getRidePhaseDestination(ride);
+    return phase ? phaseDestinationQuery(phase) : "";
+  })();
+  const routeStopsKey = ride?.stops ?? "";
+
+  useEffect(() => {
+    const liveRide = rideRef.current;
+    if (!liveRide || !routeLive) {
+      setRoutePending(false);
+      // Trip finished / not live — drop leftover pickup/drop-off line.
+      if (!routeLive) {
+        lastGoodRouteRef.current = [];
+        setRouteCoords([]);
       }
+      return;
     }
 
-    const origin = myCoords
-      ? `${myCoords.lat},${myCoords.lng}`
-      : typeof ride.pickupLat === "number" && typeof ride.pickupLng === "number"
-        ? `${ride.pickupLat},${ride.pickupLng}`
-        : ride.pickupLocation;
-    if (!origin?.trim()) return;
+    const phase = getRidePhaseDestination(liveRide);
+    if (!phase) {
+      setRoutePending(false);
+      return;
+    }
+    const destination = phaseDestinationQuery(phase);
+    if (!destination.trim()) {
+      setRoutePending(false);
+      return;
+    }
 
-    const ac = new AbortController();
-    const t = setTimeout(() => {
-      void (async () => {
-        const fallbackLine = (): { latitude: number; longitude: number }[] => {
-          const a = myCoords
-            ? { latitude: myCoords.lat, longitude: myCoords.lng }
-            : typeof ride.pickupLat === "number" &&
-                typeof ride.pickupLng === "number"
-              ? { latitude: ride.pickupLat, longitude: ride.pickupLng }
-              : null;
-          const b = towardDropoff
-            ? typeof ride.dropoffLat === "number" &&
-              typeof ride.dropoffLng === "number"
-              ? { latitude: ride.dropoffLat, longitude: ride.dropoffLng }
-              : null
-            : typeof ride.pickupLat === "number" &&
-                typeof ride.pickupLng === "number"
-              ? { latitude: ride.pickupLat, longitude: ride.pickupLng }
-              : null;
-          return a && b ? [a, b] : [];
-        };
+    let cancelled = false;
+    let abort = new AbortController();
+    const towardDropoff = routeTowardDropoff;
+    const stopsSnapshot = liveRide.stops;
 
-        try {
-          const dir = await fetchDirectionsSummary(
-            {
-              origin,
-              destination,
-              waypoints: towardDropoff ? parseAppStops(ride.stops) : undefined,
-              avoidTolls: false,
-            },
-            ac.signal
-          );
-          if (ac.signal.aborted) return;
-          lastRouteStatusRef.current = ride.status;
-          if (myCoords) lastRouteOriginRef.current = { lat: myCoords.lat, lng: myCoords.lng };
-          const decoded = dir.polyline ? decodePolyline(dir.polyline) : [];
-          setRouteCoords(decoded.length >= 2 ? decoded : fallbackLine());
-        } catch {
-          if (!ac.signal.aborted) setRouteCoords(fallbackLine());
+    const fallbackLine = (
+      origin: { lat: number; lng: number }
+    ): { latitude: number; longitude: number }[] => {
+      if (typeof phase.lat === "number" && typeof phase.lng === "number") {
+        return [
+          { latitude: origin.lat, longitude: origin.lng },
+          { latitude: phase.lat, longitude: phase.lng },
+        ];
+      }
+      return [];
+    };
+
+    const fetchRoute = async (
+      reason: "initial" | "phase" | "timer" | "offroute" | "moved"
+    ) => {
+      const origin = myCoordsRef.current;
+      if (!origin) {
+        setRoutePending(true);
+        return;
+      }
+
+      const now = Date.now();
+      const force = reason === "initial" || reason === "phase";
+      if (!force && now - lastRouteFetchAtRef.current < ROUTE_MIN_REFETCH_MS) {
+        return;
+      }
+
+      if (reason === "moved" && lastRouteOriginRef.current) {
+        const movedM = haversineMeters(lastRouteOriginRef.current, origin);
+        if (movedM < MOVE_REFETCH_METERS) return;
+      }
+
+      const gen = ++routeFetchGenRef.current;
+      abort.abort();
+      abort = new AbortController();
+      lastRouteFetchAtRef.current = now;
+      setRoutePending(routeCoordsRef.current.length < 2);
+
+      try {
+        const dir = await fetchDirectionsSummary(
+          {
+            origin: `${origin.lat},${origin.lng}`,
+            destination,
+            waypoints: towardDropoff
+              ? parseAppStops(stopsSnapshot)
+              : undefined,
+            avoidTolls: false,
+          },
+          abort.signal
+        );
+        if (cancelled || gen !== routeFetchGenRef.current) return;
+        lastRouteOriginRef.current = { lat: origin.lat, lng: origin.lng };
+        const decoded = dir.polyline ? decodePolyline(dir.polyline) : [];
+        if (decoded.length >= 2) {
+          lastGoodRouteRef.current = decoded;
+          setRouteCoords(decoded);
+        } else if (lastGoodRouteRef.current.length >= 2 && !force) {
+          /* keep last good route */
+        } else {
+          const fb = fallbackLine(origin);
+          if (fb.length >= 2) {
+            setRouteCoords(fb);
+          } else if (force) {
+            setRouteCoords([]);
+          }
         }
-      })();
-    }, 500);
+      } catch {
+        if (cancelled || gen !== routeFetchGenRef.current) return;
+        // AbortError / network: keep last good when we have one.
+        if (lastGoodRouteRef.current.length >= 2 && !force) {
+          /* keep last good */
+        } else {
+          const fb = fallbackLine(origin);
+          if (fb.length >= 2) setRouteCoords(fb);
+        }
+      } finally {
+        if (!cancelled && gen === routeFetchGenRef.current) {
+          setRoutePending(false);
+        }
+      }
+    };
+
+    // Wait for GPS — never use pickup as origin.
+    if (!hasDriverGps) {
+      setRoutePending(true);
+    } else {
+      void fetchRoute("initial");
+    }
+
+    const timer = setInterval(() => {
+      void fetchRoute("timer");
+    }, ROUTE_TIMER_MS);
+
+    const offRouteTimer = setInterval(() => {
+      const origin = myCoordsRef.current;
+      const line = routeCoordsRef.current;
+      if (!origin || line.length < 2) {
+        // Throttled retry — do not force-bypass min interval (API spam).
+        if (origin) void fetchRoute("timer");
+        return;
+      }
+      const dist = distanceToPolylineMeters(
+        { lat: origin.lat, lng: origin.lng },
+        line
+      );
+      if (dist > OFF_ROUTE_METERS) {
+        void fetchRoute("offroute");
+        return;
+      }
+      if (lastRouteOriginRef.current) {
+        const movedM = haversineMeters(lastRouteOriginRef.current, origin);
+        if (movedM >= MOVE_REFETCH_METERS) void fetchRoute("moved");
+      }
+    }, OFF_ROUTE_CHECK_MS);
 
     return () => {
-      ac.abort();
-      clearTimeout(t);
+      cancelled = true;
+      abort.abort();
+      clearInterval(timer);
+      clearInterval(offRouteTimer);
     };
+    // Primitive keys: avoid restarting on every refreshRide() object identity.
   }, [
     ride?.bookingId,
-    ride?.status,
-    ride?.pickupLocation,
-    ride?.dropoffLocation,
-    ride?.stops,
-    ride?.pickupLat,
-    ride?.pickupLng,
-    ride?.dropoffLat,
-    ride?.dropoffLng,
-    myCoords?.lat,
-    myCoords?.lng,
+    routeLive,
+    routeTowardDropoff,
+    routeDestKey,
+    routeStopsKey,
+    hasDriverGps,
   ]);
 
   const runStatusUpdate = async (apiStatus: string) => {
@@ -721,6 +901,22 @@ export default function RideDetailsScreen() {
     try {
       const result = await updateRideStatus(ride.bookingId, apiStatus);
       if (result.success) {
+        // Open Maps immediately on pickup→CIC (don't wait for refresh).
+        // Skip STOP→CIC so mid-trip resume doesn't re-launch navigation.
+        if (apiStatus === "CIC" && !isTowardDropoff(prev.status)) {
+          const dropTarget = getRidePhaseDestination({
+            ...prev,
+            status: "CIC",
+          });
+          if (dropTarget) {
+            void openNavigationTo({
+              lat: dropTarget.lat,
+              lng: dropTarget.lng,
+              address: dropTarget.address,
+              label: dropTarget.label,
+            });
+          }
+        }
         await refreshRide();
         syncDriverLiveTracking().catch(() => {});
         if (apiStatus === "DONE") {
@@ -787,45 +983,23 @@ export default function RideDetailsScreen() {
     ride?.status === "CIC" ||
     ride?.status === "STOP";
 
-  const navTarget = useMemo(() => {
-    if (!ride) return null;
-    if (ride.status === "CIC" || ride.status === "STOP") {
-      if (
-        typeof ride.dropoffLat === "number" &&
-        typeof ride.dropoffLng === "number"
-      ) {
-        return {
-          lat: ride.dropoffLat,
-          lng: ride.dropoffLng,
-          label: shortLoc(ride.dropoffLocation),
-        };
-      }
-      return { address: ride.dropoffLocation, label: shortLoc(ride.dropoffLocation) };
-    }
-    if (
-      typeof ride.pickupLat === "number" &&
-      typeof ride.pickupLng === "number"
-    ) {
-      return {
-        lat: ride.pickupLat,
-        lng: ride.pickupLng,
-        label: shortLoc(ride.pickupLocation),
-      };
-    }
-    return { address: ride.pickupLocation, label: shortLoc(ride.pickupLocation) };
-  }, [ride]);
+  const phaseDest = useMemo(
+    () => (ride ? getRidePhaseDestination(ride) : null),
+    [ride]
+  );
+
+  const navigateLabel = phaseDest
+    ? phaseNavigateLabel(phaseDest)
+    : "Navigate";
 
   const openNav = () => {
-    if (!navTarget) return;
-    if ("lat" in navTarget && typeof navTarget.lat === "number") {
-      openNavigationTo({
-        lat: navTarget.lat,
-        lng: navTarget.lng,
-        label: navTarget.label,
-      });
-    } else if ("address" in navTarget && navTarget.address) {
-      openNavigationTo({ address: navTarget.address, label: navTarget.label });
-    }
+    if (!phaseDest) return;
+    void openNavigationTo({
+      lat: phaseDest.lat,
+      lng: phaseDest.lng,
+      address: phaseDest.address,
+      label: phaseDest.label,
+    });
   };
 
   const callCustomer = () => {
@@ -926,36 +1100,23 @@ export default function RideDetailsScreen() {
     : "0:00";
 
   const destCoord = useMemo(() => {
-    if (!ride) return null;
-    const towardDrop =
-      ride.status === "CIC" || ride.status === "STOP" || ride.status === "DONE";
-    if (towardDrop) {
-      if (
-        typeof ride.dropoffLat === "number" &&
-        typeof ride.dropoffLng === "number"
-      ) {
-        return {
-          latitude: ride.dropoffLat,
-          longitude: ride.dropoffLng,
-          label: `Drop-off · ${shortLoc(ride.dropoffLocation)}`,
-          kind: "drop" as const,
-        };
-      }
+    if (!phaseDest) return null;
+    if (
+      typeof phaseDest.lat !== "number" ||
+      typeof phaseDest.lng !== "number"
+    ) {
       return null;
     }
-    if (
-      typeof ride.pickupLat === "number" &&
-      typeof ride.pickupLng === "number"
-    ) {
-      return {
-        latitude: ride.pickupLat,
-        longitude: ride.pickupLng,
-        label: `Pickup · ${shortLoc(ride.pickupLocation)}`,
-        kind: "pick" as const,
-      };
-    }
-    return null;
-  }, [ride]);
+    return {
+      latitude: phaseDest.lat,
+      longitude: phaseDest.lng,
+      label:
+        phaseDest.kind === "drop"
+          ? `Drop-off · ${phaseDest.label}`
+          : `Pickup · ${phaseDest.label}`,
+      kind: phaseDest.kind,
+    };
+  }, [phaseDest]);
 
   useEffect(() => {
     destCoordRef.current = destCoord
@@ -979,8 +1140,11 @@ export default function RideDetailsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on route geometry change
   }, [routeCoords, sheetTopPad, insets.top]);
 
-  const mapLat = myCoords?.lat ?? destCoord?.latitude ?? 43.6532;
-  const mapLng = myCoords?.lng ?? destCoord?.longitude ?? -79.3832;
+  // Prefer live GPS / trip pin. Numeric fallback only for MapView mount
+  // before either exists (fitTripCamera takes over once points arrive).
+  const mapLat = myCoords?.lat ?? destCoord?.latitude ?? 0;
+  const mapLng = myCoords?.lng ?? destCoord?.longitude ?? 0;
+  const hasMapAnchor = !!(myCoords || destCoord);
 
   const isParcel = ride ? isParcelServiceType(ride.serviceType) : false;
   const parcel = ride ? parseParcelRequirements(ride.specialRequirements) : null;
@@ -1022,8 +1186,8 @@ export default function RideDetailsScreen() {
         initialRegion={{
           latitude: mapLat,
           longitude: mapLng,
-          latitudeDelta: MAP_DELTA,
-          longitudeDelta: MAP_DELTA,
+          latitudeDelta: hasMapAnchor ? MAP_DELTA : 40,
+          longitudeDelta: hasMapAnchor ? MAP_DELTA : 40,
         }}
         scrollEnabled
         zoomEnabled
@@ -1180,11 +1344,29 @@ export default function RideDetailsScreen() {
         <Pressable
           onPress={openNav}
           style={[styles.navigateFab, { bottom: SCREEN_H - sheetTopPad + 12 }]}
-          accessibilityLabel="Navigate"
+          accessibilityLabel={navigateLabel}
         >
           <Ionicons name="navigate" size={16} color={GOLD} />
-          <Text style={styles.navigateText}>Navigate</Text>
+          <Text style={styles.navigateText}>{navigateLabel}</Text>
         </Pressable>
+      ) : null}
+
+      {routePending &&
+      (ride.status === "ACCEPTED" ||
+        ride.status === "ON THE WAY" ||
+        ride.status === "ARRIVED" ||
+        ride.status === "CIC" ||
+        ride.status === "STOP") ? (
+        <View
+          style={[
+            styles.routePendingPill,
+            { bottom: SCREEN_H - sheetTopPad + (showNavigate ? 56 : 12) },
+          ]}
+          pointerEvents="none"
+        >
+          <SlimSpinner size={12} stroke={2} color={GOLD} />
+          <Text style={styles.routePendingText}>Getting route…</Text>
+        </View>
       ) : null}
 
       {!mapFollow && myCoords ? (
@@ -1595,8 +1777,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 22,
+    maxWidth: "72%",
   },
-  navigateText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  navigateText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  routePendingPill: {
+    position: "absolute",
+    left: 14,
+    zIndex: 22,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(28,28,30,0.92)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+  },
+  routePendingText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
   locateFab: {
     position: "absolute",
     right: 14,

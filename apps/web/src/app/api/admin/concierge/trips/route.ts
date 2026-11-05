@@ -9,20 +9,28 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const status = new URL(request.url).searchParams.get("status");
-  const trips = await prisma.conciergeRideRequest.findMany({
-    where: status ? { status } : undefined,
-    orderBy: { createdAt: "desc" },
-    take: 100,
-    include: {
-      hotel: { select: { name: true } },
-      concierge: { select: { name: true, email: true } },
-      assignedDriverProfile: {
-        include: { driver: { select: { name: true, phone: true } } },
+  try {
+    const status = new URL(request.url).searchParams.get("status");
+    const trips = await prisma.conciergeRideRequest.findMany({
+      where: status ? { status } : undefined,
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      include: {
+        hotel: { select: { name: true } },
+        concierge: { select: { name: true, email: true } },
+        assignedDriverProfile: {
+          include: { driver: { select: { name: true, phone: true } } },
+        },
+        commission: true,
       },
-      commission: true,
-    },
-  });
+    });
 
-  return NextResponse.json({ success: true, trips });
+    return NextResponse.json({ success: true, trips });
+  } catch (e) {
+    console.error("[admin concierge trips GET]", e);
+    return NextResponse.json(
+      { success: false, error: "Failed to load trips" },
+      { status: 500 }
+    );
+  }
 }

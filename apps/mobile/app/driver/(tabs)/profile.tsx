@@ -7,7 +7,6 @@ import {
   Image,
   Alert,
   Pressable,
-  Linking,
   Platform,
   Switch,
 } from "react-native";
@@ -18,8 +17,6 @@ import { useDriverAuth } from "../../../contexts/DriverAuthContext";
 import { useDriverTheme } from "../../../contexts/DriverThemeContext";
 import { GOLD } from "../../../theme/driver-theme";
 import { DriverScreenShell } from "../../../components/driver/DriverScreenShell";
-
-const SITE = "https://sarjworldwide.ca";
 
 type MenuRowProps = {
   label: string;
@@ -86,12 +83,6 @@ export default function DriverProfileScreen() {
       refreshProfile();
     }, [refreshProfile])
   );
-
-  const openUrl = (url: string) => {
-    Linking.openURL(url).catch(() => {
-      Alert.alert("Unable to open", "Please try again later.");
-    });
-  };
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -301,7 +292,10 @@ export default function DriverProfileScreen() {
               label="Privacy Policy"
               icon="shield-checkmark-outline"
               onPress={() =>
-                router.push({ pathname: "/legal-doc", params: { doc: "privacy" } })
+                router.push({
+                  pathname: "/legal-doc",
+                  params: { doc: "privacy", from: "driver" },
+                })
               }
               chevronColor={palette.menuChevron}
               textColor={palette.text}
@@ -312,7 +306,10 @@ export default function DriverProfileScreen() {
               label="Terms & Conditions"
               icon="document-outline"
               onPress={() =>
-                router.push({ pathname: "/legal-doc", params: { doc: "terms" } })
+                router.push({
+                  pathname: "/legal-doc",
+                  params: { doc: "terms", from: "driver" },
+                })
               }
               chevronColor={palette.menuChevron}
               textColor={palette.text}
@@ -322,7 +319,7 @@ export default function DriverProfileScreen() {
             <MenuRow
               label="Contact Us"
               icon="mail-outline"
-              onPress={() => openUrl(`${SITE}/contact`)}
+              onPress={() => router.push("/driver/contact-us")}
               chevronColor={palette.menuChevron}
               textColor={palette.text}
               borderColor={palette.border}

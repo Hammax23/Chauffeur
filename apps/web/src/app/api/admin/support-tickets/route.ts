@@ -27,6 +27,10 @@ export async function GET(request: NextRequest) {
         { customer: { firstName: { contains: q, mode: "insensitive" } } },
         { customer: { lastName: { contains: q, mode: "insensitive" } } },
         { customer: { phone: { contains: q, mode: "insensitive" } } },
+        { driver: { email: { contains: q, mode: "insensitive" } } },
+        { driver: { name: { contains: q, mode: "insensitive" } } },
+        { driver: { phone: { contains: q, mode: "insensitive" } } },
+        { driver: { driverId: { contains: q, mode: "insensitive" } } },
       ];
     }
 
@@ -41,6 +45,15 @@ export async function GET(request: NextRequest) {
               id: true,
               firstName: true,
               lastName: true,
+              email: true,
+              phone: true,
+            },
+          },
+          driver: {
+            select: {
+              id: true,
+              driverId: true,
+              name: true,
               email: true,
               phone: true,
             },

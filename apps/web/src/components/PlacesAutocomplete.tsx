@@ -4,7 +4,10 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useGoogleMaps } from "./GoogleMapsProvider";
 import { MapPin, Navigation, Plane, Building2, Loader2 } from "lucide-react";
-import { getPlacesCountryCodes } from "@/lib/places-countries";
+import {
+  getDefaultPlacesLocationBias,
+  getPlacesCountryCodes,
+} from "@/lib/places-countries";
 
 interface PlacesAutocompleteProps {
   value: string;
@@ -33,8 +36,8 @@ type DropdownLayout = {
   placement: "above" | "below" | "sheet";
 };
 
-const DEBOUNCE_MS = 100;
-const MIN_INPUT_LENGTH = 1;
+const DEBOUNCE_MS = 220;
+const MIN_INPUT_LENGTH = 2;
 const PLACES_OPEN_EVENT = "sarj:places-open";
 const PLACES_CLOSE_EVENT = "sarj:places-close";
 
@@ -245,6 +248,7 @@ export default function PlacesAutocomplete({
       updatePosition();
 
       const countries = getPlacesCountryCodes();
+      const bias = getDefaultPlacesLocationBias();
       autocompleteService.current.getPlacePredictions(
         {
           input: trimmed,
@@ -255,6 +259,10 @@ export default function PlacesAutocomplete({
                 },
               }
             : {}),
+          // Soft bias so partial CA/PK/US street names rank locally
+          // (full paste-from-Google already works without this).
+          location: new google.maps.LatLng(bias.lat, bias.lng),
+          radius: bias.radiusMeters,
           sessionToken: sessionTokenRef.current ?? undefined,
         },
         (results, status) => {

@@ -59,6 +59,15 @@ export async function PATCH(
             phone: true,
           },
         },
+        driver: {
+          select: {
+            id: true,
+            driverId: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
       },
     });
 

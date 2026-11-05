@@ -31,17 +31,25 @@ export default function ConciergeStaffPage() {
     isActive: true,
   });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     try {
+      setError("");
       const [sRes, hRes] = await Promise.all([
-        fetch("/api/admin/concierge/staff"),
-        fetch("/api/admin/concierge/hotels"),
+        fetch("/api/admin/concierge/staff", { credentials: "include" }),
+        fetch("/api/admin/concierge/hotels", { credentials: "include" }),
       ]);
-      const sData = await sRes.json();
-      const hData = await hRes.json();
+      const sData = await sRes.json().catch(() => ({}));
+      const hData = await hRes.json().catch(() => ({}));
       if (sData.success) setStaff(sData.staff || []);
+      else setError(sData.error || "Failed to load staff");
       if (hData.success) setHotels(hData.hotels || []);
+      else if (sData.success) {
+        setError(hData.error || "Failed to load hotels for staff form");
+      }
+    } catch {
+      setError("Failed to connect");
     } finally {
       setLoading(false);
     }
@@ -78,6 +86,14 @@ export default function ConciergeStaffPage() {
   }
 
   async function save() {
+    if (!form.hotelId.trim()) {
+      alert("Select a hotel first");
+      return;
+    }
+    if (!editing && !form.password.trim()) {
+      alert("Password is required");
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch("/api/admin/concierge/staff", {
@@ -85,13 +101,15 @@ export default function ConciergeStaffPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editing ? { id: editing.id, ...form } : form),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!data.success) {
         alert(data.error || "Save failed");
         return;
       }
       setModal(false);
       load();
+    } catch {
+      alert("Failed to connect");
     } finally {
       setSaving(false);
     }
@@ -99,8 +117,17 @@ export default function ConciergeStaffPage() {
 
   async function remove(id: string) {
     if (!confirm("Delete this concierge?")) return;
-    await fetch(`/api/admin/concierge/staff?id=${id}`, { method: "DELETE" });
-    load();
+    try {
+      const res = await fetch(`/api/admin/concierge/staff?id=${id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) {
+        alert(data.error || "Delete failed");
+        return;
+      }
+      load();
+    } catch {
+      alert("Failed to connect");
+    }
   }
 
   if (loading) {
@@ -121,11 +148,15 @@ export default function ConciergeStaffPage() {
         <button
           type="button"
           onClick={openCreate}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C9A063] text-white text-sm font-medium"
+          disabled={hotels.length === 0}
+          title={hotels.length === 0 ? "Add a hotel first" : undefined}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C9A063] text-white text-sm font-medium disabled:opacity-50"
         >
           <Plus className="w-4 h-4" /> Add staff
         </button>
       </div>
+
+      {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
 
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <table className="w-full text-sm">
@@ -200,11 +231,14 @@ export default function ConciergeStaffPage() {
                 Active
               </label>
             </div>
+            {hotels.length === 0 ? (
+              <p className="mt-3 text-sm text-amber-700">Add a hotel first before creating staff.</p>
+            ) : null}
             <button
               type="button"
-              disabled={saving}
+              disabled={saving || !form.hotelId.trim() || !form.name.trim() || !form.email.trim() || (!editing && !form.password.trim())}
               onClick={save}
-              className="mt-5 w-full py-2.5 rounded-xl bg-[#C9A063] text-white font-medium"
+              className="mt-5 w-full py-2.5 rounded-xl bg-[#C9A063] text-white font-medium disabled:opacity-50"
             >
               Save
             </button>

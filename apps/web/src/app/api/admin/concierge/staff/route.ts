@@ -10,26 +10,34 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const hotelId = new URL(request.url).searchParams.get("hotelId");
-  const staff = await prisma.concierge.findMany({
-    where: hotelId ? { hotelId } : undefined,
-    orderBy: { name: "asc" },
-    include: { hotel: { select: { id: true, name: true } } },
-  });
+  try {
+    const hotelId = new URL(request.url).searchParams.get("hotelId");
+    const staff = await prisma.concierge.findMany({
+      where: hotelId ? { hotelId } : undefined,
+      orderBy: { name: "asc" },
+      include: { hotel: { select: { id: true, name: true } } },
+    });
 
-  return NextResponse.json({
-    success: true,
-    staff: staff.map((s: any) => ({
-      id: s.id,
-      name: s.name,
-      email: s.email,
-      phone: s.phone,
-      isActive: s.isActive,
-      hotelId: s.hotelId,
-      hotelName: s.hotel.name,
-      createdAt: s.createdAt,
-    })),
-  });
+    return NextResponse.json({
+      success: true,
+      staff: staff.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        email: s.email,
+        phone: s.phone,
+        isActive: s.isActive,
+        hotelId: s.hotelId,
+        hotelName: s.hotel.name,
+        createdAt: s.createdAt,
+      })),
+    });
+  } catch (e) {
+    console.error("[admin concierge staff GET]", e);
+    return NextResponse.json(
+      { success: false, error: "Failed to load staff" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -128,7 +136,11 @@ export async function PUT(request: NextRequest) {
         hotelName: concierge.hotel.name,
       },
     });
-  } catch (e) {
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Failed";
+    if (msg.includes("Unique")) {
+      return NextResponse.json({ success: false, error: "Email already in use" }, { status: 400 });
+    }
     console.error("[admin concierge staff PUT]", e);
     return NextResponse.json({ success: false, error: "Failed to update" }, { status: 500 });
   }
@@ -145,6 +157,17 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Id required" }, { status: 400 });
   }
 
-  await prisma.concierge.delete({ where: { id } });
-  return NextResponse.json({ success: true });
+  try {
+    await prisma.concierge.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    console.error("[admin concierge staff DELETE]", e);
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Could not delete staff. They may still have ride history — deactivate instead.",
+      },
+      { status: 409 }
+    );
+  }
 }

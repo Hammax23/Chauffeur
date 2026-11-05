@@ -13,7 +13,12 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import type { ComponentProps, MutableRefObject, Ref } from "react";
 import { randomUUID } from "expo-crypto";
-import { fetchPlaceFormattedAddress, fetchPlacePredictions, type PlacePrediction } from "../services/places";
+import {
+  fetchPlaceFormattedAddress,
+  fetchPlacePredictions,
+  getPlacesAutocompleteBias,
+  type PlacePrediction,
+} from "../services/places";
 import { useOptionalCustomerTheme } from "../contexts/CustomerThemeContext";
 import { GOLD, getDriverPalette } from "../theme/driver-theme";
 
@@ -352,9 +357,14 @@ export function GooglePlacesAddressField({
       setLoading(true);
       setBanner(null);
       try {
+        const bias = worldwide ? null : await getPlacesAutocompleteBias();
+        if (ac.signal.aborted) return;
         const list = await fetchPlacePredictions(q, sessionRef.current, ac.signal, {
           types: placeTypes,
           worldwide,
+          location: bias
+            ? { lat: bias.lat, lng: bias.lng, radiusMeters: 80_000 }
+            : null,
         });
         setPredictions(list);
       } catch (e) {

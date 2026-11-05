@@ -28,7 +28,12 @@ export default function DriverLayout() {
   useEffect(() => {
     if (authLoading) return;
     void (async () => {
-      const token = await getDriverToken();
+      let token = await getDriverToken();
+      // After screen unlock SecureStore can blip once — retry before kicking to login.
+      if (!token && isAuthenticated) {
+        await new Promise((r) => setTimeout(r, 150));
+        token = await getDriverToken();
+      }
       const ok = !!token && isAuthenticated;
       setTokenOk(ok);
       if (!ok) router.replace("/login");
@@ -136,6 +141,7 @@ export default function DriverLayout() {
           <Stack.Screen name="chat" />
           <Stack.Screen name="reviews" />
           <Stack.Screen name="concierge" />
+          <Stack.Screen name="contact-us" />
         </Stack>
       </DriverRideAlertProvider>
     </DriverThemeProvider>

@@ -101,6 +101,11 @@ export async function PATCH(req: NextRequest) {
     const updated = await prisma.conciergeDriverProfile.update({
       where: { id: profile.id },
       data: { availability },
+      include: {
+        driver: {
+          select: { id: true, driverId: true, name: true, email: true, phone: true },
+        },
+      },
     });
     return NextResponse.json({ success: true, profile: updated });
   }

@@ -38,10 +38,16 @@ export default function ConciergeHotelsPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/concierge/hotels");
-      const data = await res.json();
-      if (data.success) setHotels(data.hotels || []);
-      else setError(data.error || "Failed");
+      setError("");
+      const res = await fetch("/api/admin/concierge/hotels", {
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        setHotels(data.hotels || []);
+      } else {
+        setError(data.error || `Failed to load hotels (${res.status})`);
+      }
     } catch {
       setError("Failed to connect");
     } finally {
@@ -81,13 +87,15 @@ export default function ConciergeHotelsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editing ? { id: editing.id, ...form } : form),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!data.success) {
         alert(data.error || "Save failed");
         return;
       }
       setModal(false);
       load();
+    } catch {
+      alert("Failed to connect");
     } finally {
       setSaving(false);
     }
@@ -95,8 +103,17 @@ export default function ConciergeHotelsPage() {
 
   async function remove(id: string) {
     if (!confirm("Delete this hotel?")) return;
-    await fetch(`/api/admin/concierge/hotels?id=${id}`, { method: "DELETE" });
-    load();
+    try {
+      const res = await fetch(`/api/admin/concierge/hotels?id=${id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) {
+        alert(data.error || "Delete failed");
+        return;
+      }
+      load();
+    } catch {
+      alert("Failed to connect");
+    }
   }
 
   if (loading) {
@@ -142,6 +159,13 @@ export default function ConciergeHotelsPage() {
             </tr>
           </thead>
           <tbody className="text-gray-900">
+            {hotels.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
+                  {error ? "Could not load hotels." : "No hotels yet. Click “Add hotel” to create one."}
+                </td>
+              </tr>
+            ) : null}
             {hotels.map((h) => (
               <tr key={h.id} className="border-t border-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-900">{h.name}</td>

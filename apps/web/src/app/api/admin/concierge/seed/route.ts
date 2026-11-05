@@ -56,7 +56,10 @@ export async function POST(request: NextRequest) {
           vehicleLabel: driver.vehicle || "Sedan",
           availability: "OFFLINE",
         },
-        update: {},
+        update: {
+          membershipStatus: "ACTIVE",
+          membershipExpiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        },
       });
     }
 

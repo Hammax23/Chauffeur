@@ -29,8 +29,40 @@ type TicketRow = {
     lastName: string;
     email: string;
     phone: string;
-  };
+  } | null;
+  driver: {
+    id: string;
+    driverId: string;
+    name: string;
+    email: string;
+    phone: string;
+  } | null;
 };
+
+function ticketParty(t: TicketRow): {
+  name: string;
+  email: string;
+  phone: string;
+  role: "Customer" | "Driver";
+} {
+  if (t.driver) {
+    return {
+      name: t.driver.name || "Driver",
+      email: t.driver.email,
+      phone: t.driver.phone,
+      role: "Driver",
+    };
+  }
+  if (t.customer) {
+    return {
+      name: `${t.customer.firstName} ${t.customer.lastName}`.trim() || "Customer",
+      email: t.customer.email,
+      phone: t.customer.phone,
+      role: "Customer",
+    };
+  }
+  return { name: "Unknown", email: "—", phone: "", role: "Customer" };
+}
 
 type Summary = {
   total: number;
@@ -267,13 +299,13 @@ export default function AdminSupportTicketsPage() {
             </div>
             <p className="text-sm font-medium text-gray-600">No support tickets yet</p>
             <p className="max-w-xs text-center text-xs text-gray-400">
-              When customers submit Contact Us in the app, tickets appear here.
+              When customers or drivers submit Contact Us in the app, tickets appear here.
             </p>
           </div>
         ) : (
           <ul className="divide-y divide-gray-100">
             {tickets.map((t) => {
-              const name = `${t.customer.firstName} ${t.customer.lastName}`.trim();
+              const party = ticketParty(t);
               return (
                 <li key={t.id}>
                   <button
@@ -290,12 +322,15 @@ export default function AdminSupportTicketsPage() {
                           {statusLabel(t.status)}
                         </span>
                         <span className="text-xs font-medium text-[#A87830]">{t.type}</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                          {party.role}
+                        </span>
                       </div>
                       <p className="mt-1 truncate text-sm text-gray-800">
                         {t.subject || t.message}
                       </p>
                       <p className="mt-0.5 truncate text-xs text-gray-500">
-                        {name} · {t.customer.email} · {formatWhen(t.createdAt)}
+                        {party.name} · {party.email} · {formatWhen(t.createdAt)}
                       </p>
                     </div>
                     <ChevronRight className="h-4 w-4 shrink-0 text-gray-300" />
@@ -345,22 +380,33 @@ export default function AdminSupportTicketsPage() {
               </div>
 
               <div className="rounded-xl border border-gray-100 bg-[#FAF8F4] p-3.5">
-                <p className="font-semibold text-gray-900">
-                  {selected.customer.firstName} {selected.customer.lastName}
-                </p>
-                <p className="mt-1 flex items-center gap-1.5 text-sm text-gray-600">
-                  <Mail className="h-3.5 w-3.5 shrink-0" />
-                  {selected.customer.email}
-                </p>
-                {selected.customer.phone ? (
-                  <p className="mt-1 flex items-center gap-1.5 text-sm text-gray-600">
-                    <Phone className="h-3.5 w-3.5 shrink-0" />
-                    {selected.customer.phone}
-                  </p>
-                ) : null}
-                <p className="mt-2 text-xs text-gray-400">
-                  Submitted {formatWhen(selected.createdAt)}
-                </p>
+                {(() => {
+                  const party = ticketParty(selected);
+                  return (
+                    <>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#C9A063]">
+                        {party.role}
+                        {selected.driver?.driverId
+                          ? ` · ${selected.driver.driverId}`
+                          : ""}
+                      </p>
+                      <p className="mt-1 font-semibold text-gray-900">{party.name}</p>
+                      <p className="mt-1 flex items-center gap-1.5 text-sm text-gray-600">
+                        <Mail className="h-3.5 w-3.5 shrink-0" />
+                        {party.email}
+                      </p>
+                      {party.phone ? (
+                        <p className="mt-1 flex items-center gap-1.5 text-sm text-gray-600">
+                          <Phone className="h-3.5 w-3.5 shrink-0" />
+                          {party.phone}
+                        </p>
+                      ) : null}
+                      <p className="mt-2 text-xs text-gray-400">
+                        Submitted {formatWhen(selected.createdAt)}
+                      </p>
+                    </>
+                  );
+                })()}
               </div>
 
               {selected.subject ? (

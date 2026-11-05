@@ -11,7 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { fetchLegalDocument } from "../services/api";
+import { fetchLegalDocument, getActiveAuthRole } from "../services/api";
 import { SlimSpinner } from "../components/SlimSpinner";
 import {
   CustomerThemeProvider,
@@ -288,8 +288,13 @@ function buildHtml(body: string, isDark: boolean) {
 
 function LegalDocScreenInner() {
   const { palette, isDark, hydrated } = useCustomerTheme();
-  const params = useLocalSearchParams<{ doc?: string }>();
+  const params = useLocalSearchParams<{ doc?: string; from?: string }>();
   const docKey = resolveDoc(params.doc);
+  const fromParam = (
+    Array.isArray(params.from) ? params.from[0] : params.from || ""
+  )
+    .toLowerCase()
+    .trim();
 
   const surface = isDark ? "#070707" : "#FFFFFF";
   const text = isDark ? palette.text : "#111827";
@@ -499,7 +504,19 @@ function LegalDocScreenInner() {
       ) : null}
 
       <Pressable
-        onPress={() => router.push("/customer/contact-us")}
+        onPress={() => {
+          void (async () => {
+            // Driver privacy/terms must stay inside the driver stack.
+            // Routing to /customer/contact-us forces customer auth → looks like logout.
+            const role =
+              fromParam === "driver" || fromParam === "customer"
+                ? fromParam
+                : (await getActiveAuthRole()) || "customer";
+            router.push(
+              role === "driver" ? "/driver/contact-us" : "/customer/contact-us"
+            );
+          })();
+        }}
         style={({ pressed }) => [styles.helpRow, pressed && styles.pressed]}
       >
         <Text style={styles.helpText}>Questions? Contact support</Text>

@@ -57,14 +57,16 @@ export default function ConciergeAdminDashboard() {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/concierge/dashboard");
-      const data = await res.json();
-      if (data.success) {
+      const res = await fetch("/api/admin/concierge/dashboard", {
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
         setStats(data.stats);
         setRecent(data.recentTrips || []);
         setError("");
       } else {
-        setError(data.error || "Failed to load");
+        setError(data.error || `Failed to load (${res.status})`);
       }
     } catch {
       setError("Failed to connect");

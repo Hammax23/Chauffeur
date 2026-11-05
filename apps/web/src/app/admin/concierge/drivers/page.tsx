@@ -42,17 +42,25 @@ export default function ConciergeDriversPage() {
     referralEarnings: 0,
   });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     try {
+      setError("");
       const [pRes, dRes] = await Promise.all([
-        fetch("/api/admin/concierge/drivers"),
-        fetch("/api/admin/drivers"),
+        fetch("/api/admin/concierge/drivers", { credentials: "include" }),
+        fetch("/api/admin/drivers", { credentials: "include" }),
       ]);
-      const pData = await pRes.json();
-      const dData = await dRes.json();
+      const pData = await pRes.json().catch(() => ({}));
+      const dData = await dRes.json().catch(() => ({}));
       if (pData.success) setProfiles(pData.drivers || []);
+      else setError(pData.error || "Failed to load concierge drivers");
       if (dData.success) setDrivers(dData.drivers || []);
+      else if (pData.success) {
+        setError(dData.error || "Failed to load drivers for enrollment form");
+      }
+    } catch {
+      setError("Failed to connect");
     } finally {
       setLoading(false);
     }
@@ -93,6 +101,10 @@ export default function ConciergeDriversPage() {
   }
 
   async function save() {
+    if (!editing && !form.driverId.trim()) {
+      alert("Select a driver first");
+      return;
+    }
     setSaving(true);
     try {
       const body = editing
@@ -117,13 +129,15 @@ export default function ConciergeDriversPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!data.success) {
         alert(data.error || "Save failed");
         return;
       }
       setModal(false);
       load();
+    } catch {
+      alert("Failed to connect");
     } finally {
       setSaving(false);
     }
@@ -131,15 +145,19 @@ export default function ConciergeDriversPage() {
 
   async function unenroll(id: string, name: string) {
     if (!confirm(`Unenroll ${name} from Hotel Concierge?`)) return;
-    const res = await fetch(`/api/admin/concierge/drivers?id=${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    });
-    const data = await res.json();
-    if (!data.success) {
-      alert(data.error || "Unenroll failed");
-      return;
+    try {
+      const res = await fetch(`/api/admin/concierge/drivers?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data.success) {
+        alert(data.error || "Unenroll failed");
+        return;
+      }
+      load();
+    } catch {
+      alert("Failed to connect");
     }
-    load();
   }
 
   const enrolledIds = new Set(profiles.map((p) => p.driverId));
@@ -161,6 +179,7 @@ export default function ConciergeDriversPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Concierge drivers</h1>
+          {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
           <p className="text-sm text-gray-500 mt-1">Membership, vehicle class, and availability.</p>
         </div>
         <button
@@ -306,9 +325,9 @@ export default function ConciergeDriversPage() {
             </div>
             <button
               type="button"
-              disabled={saving}
+              disabled={saving || (!editing && !form.driverId.trim())}
               onClick={save}
-              className="mt-5 w-full py-2.5 rounded-xl bg-[#C9A063] text-white font-medium"
+              className="mt-5 w-full py-2.5 rounded-xl bg-[#C9A063] text-white font-medium disabled:opacity-50"
             >
               Save
             </button>

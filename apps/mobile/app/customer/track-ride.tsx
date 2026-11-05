@@ -222,6 +222,8 @@ export default function TrackRideScreen() {
   const [chatUnread, setChatUnread] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [driverLoc, setDriverLoc] = useState<DriverLocState | null>(null);
+  /** Re-rasterize chauffeur arrow when heading changes (Android Marker bitmap). */
+  const [trackDriverMarker, setTrackDriverMarker] = useState(true);
   /** Customer device GPS — shown as “you” on the live map (separate from chauffeur pin). */
   const [myCoords, setMyCoords] = useState<{ lat: number; lng: number } | null>(null);
   /** True when FG location was denied / blocked — hint can deep-link to Settings. */
@@ -356,6 +358,12 @@ export default function TrackRideScreen() {
     };
   }, [locationUnlocked]);
 
+  useEffect(() => {
+    if (!trackDriverMarker) return;
+    const t = setTimeout(() => setTrackDriverMarker(false), 1800);
+    return () => clearTimeout(t);
+  }, [trackDriverMarker, driverLoc?.lat, driverLoc?.lng, driverLoc?.heading]);
+
   // Apply live GPS from SSE only when On the Way (or Arrived/CIC/STOP).
   useEffect(() => {
     if (!live.location || !reservation) return;
@@ -363,13 +371,31 @@ export default function TrackRideScreen() {
       setDriverLoc(null);
       return;
     }
-    setDriverLoc({
-      lat: live.location.latitude,
-      lng: live.location.longitude,
-      heading: live.location.heading,
-      speed: live.location.speed,
-      updatedAt: live.location.updatedAt,
-      driverName: reservation.driver?.name || "Driver",
+    const nextHeading =
+      typeof live.location.heading === "number" &&
+      Number.isFinite(live.location.heading) &&
+      live.location.heading >= 0
+        ? live.location.heading
+        : null;
+    setDriverLoc((prev) => {
+      if (
+        prev &&
+        typeof nextHeading === "number" &&
+        typeof prev.heading === "number" &&
+        Math.abs(((nextHeading - prev.heading + 540) % 360) - 180) > 8
+      ) {
+        setTrackDriverMarker(true);
+      } else if (!prev) {
+        setTrackDriverMarker(true);
+      }
+      return {
+        lat: live.location!.latitude,
+        lng: live.location!.longitude,
+        heading: nextHeading ?? prev?.heading ?? null,
+        speed: live.location!.speed,
+        updatedAt: live.location!.updatedAt,
+        driverName: reservation.driver?.name || "Driver",
+      };
     });
   }, [live.location, reservation?.status, reservation?.driver?.name, locationSharing]);
 
@@ -1102,6 +1128,7 @@ export default function TrackRideScreen() {
                         ? driverLoc.heading
                         : 0
                     }
+                    tracksViewChanges={trackDriverMarker}
                     zIndex={20}
                   >
                     <View style={styles.driverMarker}>

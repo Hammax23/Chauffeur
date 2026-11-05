@@ -176,24 +176,62 @@ const DRIVER_USER_KEY = "sarj_driver_user";
 const CONCIERGE_USER_KEY = "sarj_concierge_user";
 const ACTIVE_ROLE_KEY = "sarj_active_auth_role";
 
+/**
+ * In-memory token cache — survives brief SecureStore / Keystore blips when the
+ * phone screen locks (common Android OEM issue). Without this, a null read
+ * sends unauthenticated API calls → 401 → hard logout.
+ */
+const memoryTokenCache = new Map<string, string>();
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 async function safeGet(key: string): Promise<string | null> {
-  try {
-    return await SecureStore.getItemAsync(key);
-  } catch {
-    return null;
+  // Prefer warm cache for auth tokens (screen-lock resilience).
+  if (memoryTokenCache.has(key)) {
+    return memoryTokenCache.get(key) ?? null;
   }
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const v = await SecureStore.getItemAsync(key);
+      if (v) memoryTokenCache.set(key, v);
+      return v;
+    } catch {
+      // Keystore can be briefly unavailable right after screen unlock.
+      await sleep(40 * (attempt + 1));
+    }
+  }
+  return null;
 }
 
 async function safeSet(key: string, value: string): Promise<void> {
-  await SecureStore.setItemAsync(key, value);
+  memoryTokenCache.set(key, value);
+  try {
+    await SecureStore.setItemAsync(key, value);
+  } catch {
+    // Keep memory cache so the session survives until SecureStore recovers.
+  }
 }
 
 async function safeDel(key: string): Promise<void> {
+  memoryTokenCache.delete(key);
   try {
     await SecureStore.deleteItemAsync(key);
   } catch {
     /* ignore */
   }
+}
+
+/**
+ * Hard session wipe only when the server rejected a request that *did* carry a Bearer token.
+ * Missing-token 401s (SecureStore blip / race) must not log the driver out.
+ * Background `/driver/location` also soft-fails — never nuke the trip session from GPS.
+ */
+function shouldHardLogoutOn401(endpoint: string, hadBearerToken: boolean): boolean {
+  if (!hadBearerToken) return false;
+  if (endpoint.startsWith("/driver/location")) return false;
+  return true;
 }
 
 async function clearLegacyAuthKeys(): Promise<void> {
@@ -563,7 +601,7 @@ async function apiRequest<T>(
 
   const data = await parseResponseBody<T & { error?: string }>(response);
 
-  if (response.status === 401) {
+  if (response.status === 401 && shouldHardLogoutOn401(endpoint, !!token)) {
     if (endpoint.startsWith("/driver")) {
       try {
         const { deregisterDriverPushToken } = await import("./notifications");
@@ -626,7 +664,7 @@ async function apiRequestWithResponse<T>(
 
   const data = await parseResponseBody<T>(response);
 
-  if (response.status === 401) {
+  if (response.status === 401 && shouldHardLogoutOn401(endpoint, !!token)) {
     if (endpoint.startsWith("/driver")) {
       try {
         const { deregisterDriverPushToken } = await import("./notifications");
@@ -693,7 +731,7 @@ export async function deactivateCustomerAccount() {
   });
 }
 
-/** In-app Contact Us / support ticket. */
+/** In-app Contact Us / support ticket (customer). */
 export async function submitSupportTicket(input: {
   type: string;
   message: string;
@@ -712,6 +750,30 @@ export async function submitSupportTicket(input: {
       createdAt: string;
     };
   }>("/customer/support", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+/** In-app Contact Us / support ticket (driver). */
+export async function submitDriverSupportTicket(input: {
+  type: string;
+  message: string;
+  subject?: string;
+}) {
+  return apiRequestWithResponse<{
+    success: boolean;
+    message?: string;
+    error?: string;
+    ticket?: {
+      id: string;
+      ticketId: string;
+      type: string;
+      subject: string | null;
+      status: string;
+      createdAt: string;
+    };
+  }>("/driver/support", {
     method: "POST",
     body: JSON.stringify(input),
   });

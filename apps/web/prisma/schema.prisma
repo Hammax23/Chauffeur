@@ -167,6 +167,7 @@ model Driver {
   rideOffers                  RideOffer[]
   tripReviews                 TripReview[]
   conciergeProfile            ConciergeDriverProfile?
+  supportTickets              SupportTicket[]
 }
 
 /// Live Auto Mode + ops panel toggles (single row id = "global")
@@ -315,11 +316,14 @@ model CustomerSavedPlace {
   @@index([customerId])
 }
 
-/// In-app Contact Us / support messages from the customer mobile app.
+/// In-app Contact Us / support messages (customer or driver mobile app).
 model SupportTicket {
   id          String    @id @default(cuid())
   ticketId    String    @unique
-  customerId  String
+  /// Set for customer app tickets (null for driver tickets).
+  customerId  String?
+  /// Set for driver app tickets (null for customer tickets).
+  driverId    String?
   type        String
   subject     String?
   message     String
@@ -328,10 +332,12 @@ model SupportTicket {
   resolvedAt  DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  driver      Driver?   @relation(fields: [driverId], references: [id], onDelete: Cascade)
 
   @@index([status, createdAt])
   @@index([customerId])
+  @@index([driverId])
   @@index([type])
 }
 

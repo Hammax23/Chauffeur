@@ -28,6 +28,7 @@ import {
   routeDriverLastNotificationResponse,
   routeDriverNotificationResponse,
   setNotificationBookingOpenedListener,
+  stashDriverNotificationResponse,
 } from "../services/notification-deep-link";
 import { emitInboxBadgeRefresh } from "../services/inbox-badge-bus";
 
@@ -126,6 +127,19 @@ export function DriverRideAlertProvider({ children }: { children: React.ReactNod
     }
   }, [alert?.bookingId, alert?.type, dismissRideAlert, focusRequestsTab]);
 
+  // Always capture notification taps — even before auth finishes — so a
+  // screen-lock / cold-start tap is not lost.
+  useEffect(() => {
+    const response = Notifications.addNotificationResponseReceivedListener((res) => {
+      if (!isAuthenticated) {
+        stashDriverNotificationResponse(res);
+        return;
+      }
+      void routeDriverNotificationResponse(res);
+    });
+    return () => response.remove();
+  }, [isAuthenticated]);
+
   useEffect(() => {
     if (!isAuthenticated) return;
 
@@ -159,16 +173,11 @@ export function DriverRideAlertProvider({ children }: { children: React.ReactNod
       });
     });
 
-    const response = Notifications.addNotificationResponseReceivedListener((res) => {
-      void routeDriverNotificationResponse(res);
-    });
-
     void routeDriverLastNotificationResponse();
 
     return () => {
       setNotificationBookingOpenedListener(null);
       received.remove();
-      response.remove();
       clearTimer();
     };
   }, [isAuthenticated, showRideAlert, dismissRideAlert]);

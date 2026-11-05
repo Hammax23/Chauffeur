@@ -9,12 +9,32 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const hotels = await prisma.hotel.findMany({
-    orderBy: { name: "asc" },
-    include: { _count: { select: { concierges: true, rideRequests: true } } },
-  });
+  try {
+    // Prisma relation on Hotel is `rides` (ConciergeRideRequest[]), not rideRequests.
+    const hotels = await prisma.hotel.findMany({
+      orderBy: { name: "asc" },
+      include: { _count: { select: { concierges: true, rides: true } } },
+    });
 
-  return NextResponse.json({ success: true, hotels });
+    return NextResponse.json({
+      success: true,
+      hotels: hotels.map((h: any) => ({
+        ...h,
+        _count: {
+          concierges: h._count?.concierges ?? 0,
+          // Keep legacy key for the admin UI table column.
+          rideRequests: h._count?.rides ?? 0,
+          rides: h._count?.rides ?? 0,
+        },
+      })),
+    });
+  } catch (e) {
+    console.error("[admin hotels GET]", e);
+    return NextResponse.json(
+      { success: false, error: "Failed to load hotels" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -95,6 +115,18 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Hotel id required" }, { status: 400 });
   }
 
-  await prisma.hotel.delete({ where: { id } });
-  return NextResponse.json({ success: true });
+  try {
+    await prisma.hotel.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    console.error("[admin hotels DELETE]", e);
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          "Could not delete hotel. Remove related trips/staff first, or deactivate instead.",
+      },
+      { status: 409 }
+    );
+  }
 }

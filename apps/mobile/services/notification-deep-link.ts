@@ -15,14 +15,40 @@ export type SarjNotificationData = {
 
 const TERMINAL_RIDE_STATUSES = new Set(["DONE", "CANCELLED"]);
 
+type DeepLinkResult =
+  | { kind: "navigated"; bookingId?: string; rideId?: string; terminal?: boolean }
+  | { kind: "skipped" }
+  | { kind: "ignored" }
+  | { kind: "unavailable"; bookingId?: string };
+
 /** Prevents double-navigation from cold-start + response listener. */
 const handledResponseKeys = new Set<string>();
 
 /** Serialize navigations so cold-start + tap + in-app banner don't race. */
 let routeChain: Promise<unknown> = Promise.resolve();
 
+/**
+ * Stash a tap that arrived before driver auth finished (screen lock / cold start).
+ * Processed once `flushPendingDriverNotificationResponse` runs after login.
+ */
+let pendingDriverNotificationResponse: Notifications.NotificationResponse | null =
+  null;
+
 /** Optional UI hook (in-app banner) — dismiss overlay when a booking is opened. */
 let onBookingOpenedFromNotification: ((bookingId: string) => void) | null = null;
+
+export function stashDriverNotificationResponse(
+  response: Notifications.NotificationResponse
+) {
+  pendingDriverNotificationResponse = response;
+}
+
+export async function flushPendingDriverNotificationResponse(): Promise<DeepLinkResult | null> {
+  const pending = pendingDriverNotificationResponse;
+  if (!pending) return null;
+  pendingDriverNotificationResponse = null;
+  return routeDriverNotificationResponse(pending);
+}
 
 export function setNotificationBookingOpenedListener(
   fn: ((bookingId: string) => void) | null
@@ -116,12 +142,6 @@ export async function consumeNotificationResponse(
   await clearLastResponseSafely();
   return true;
 }
-
-type DeepLinkResult =
-  | { kind: "navigated"; bookingId?: string; rideId?: string; terminal?: boolean }
-  | { kind: "skipped" }
-  | { kind: "ignored" }
-  | { kind: "unavailable"; bookingId?: string };
 
 function goRequests() {
   router.push({ pathname: "/driver", params: { tab: "requests" } });
@@ -223,16 +243,24 @@ export async function openDriverBookingFromNotification(
 
 /**
  * Single entry for notification taps (foreground, background, killed).
+ * Consumes the OS response only after routing starts successfully enough
+ * to avoid losing the tap when auth is still warming up.
  */
 export async function routeDriverNotificationResponse(
   response: Notifications.NotificationResponse
 ): Promise<DeepLinkResult> {
   return enqueueRoute(async () => {
-    const accepted = await consumeNotificationResponse(response);
-    if (!accepted) return { kind: "skipped" as const };
+    const key = responseKey(response);
+    if (key && handledResponseKeys.has(key)) {
+      return { kind: "skipped" as const };
+    }
 
     const data = parseNotificationData(response.notification.request.content.data);
     const type = String(data.type || "");
+
+    const markConsumed = async () => {
+      await consumeNotificationResponse(response);
+    };
 
     if (
       type === "concierge_offer" ||
@@ -243,9 +271,11 @@ export async function routeDriverNotificationResponse(
       await dismissPresentedForEntity({ rideId });
       await clearBadgeSafely();
       if (!(await isDriverConciergeEnrolled())) {
+        await markConsumed();
         return { kind: "skipped" as const };
       }
       router.push("/driver/concierge");
+      await markConsumed();
       return { kind: "navigated" as const, rideId: rideId || undefined };
     }
 
@@ -254,6 +284,7 @@ export async function routeDriverNotificationResponse(
       await clearBadgeSafely();
       if (bookingId) await dismissPresentedForEntity({ bookingId });
       goRequests();
+      await markConsumed();
       return { kind: "navigated" as const, bookingId: bookingId || undefined };
     }
 
@@ -262,9 +293,12 @@ export async function routeDriverNotificationResponse(
       await clearBadgeSafely();
       if (bookingId) {
         await dismissPresentedForEntity({ bookingId });
-        return resolveDriverBookingNavigation(bookingId, { type });
+        const result = await resolveDriverBookingNavigation(bookingId, { type });
+        await markConsumed();
+        return result;
       }
       router.push("/driver/reviews");
+      await markConsumed();
       return { kind: "navigated" as const };
     }
 
@@ -273,7 +307,10 @@ export async function routeDriverNotificationResponse(
       const name =
         typeof data.name === "string" && data.name.trim() ? data.name.trim() : "";
       await clearBadgeSafely();
-      if (!bookingId) return { kind: "ignored" as const };
+      if (!bookingId) {
+        await markConsumed();
+        return { kind: "ignored" as const };
+      }
       await dismissPresentedForEntity({ bookingId });
       router.push({
         pathname: "/driver/chat",
@@ -282,6 +319,7 @@ export async function routeDriverNotificationResponse(
           ...(name ? { name } : {}),
         },
       });
+      await markConsumed();
       return { kind: "navigated" as const, bookingId };
     }
 
@@ -291,24 +329,33 @@ export async function routeDriverNotificationResponse(
       type !== "reservation_cancelled" &&
       type !== "offer_unavailable"
     ) {
+      await markConsumed();
       return { kind: "ignored" as const };
     }
 
     const bookingId = String(data.bookingId || "").trim();
-    return resolveDriverBookingNavigation(bookingId, { type });
+    const result = await resolveDriverBookingNavigation(bookingId, { type });
+    await markConsumed();
+    return result;
   });
 }
 
 /**
- * Cold-start: wait until navigation stack is ready, then handle one last response.
+ * Cold-start: wait until navigation stack + auth are ready, then handle last response.
  * Call only when driver session is authenticated.
  */
 export async function routeDriverLastNotificationResponse(): Promise<DeepLinkResult> {
   return new Promise((resolve) => {
     InteractionManager.runAfterInteractions(() => {
+      // Cold start after screen lock needs more than 350ms for SecureStore + stack.
       setTimeout(() => {
         void (async () => {
           try {
+            const pending = await flushPendingDriverNotificationResponse();
+            if (pending) {
+              resolve(pending);
+              return;
+            }
             const last = await Notifications.getLastNotificationResponseAsync();
             if (!last) {
               resolve({ kind: "ignored" });
@@ -319,7 +366,7 @@ export async function routeDriverLastNotificationResponse(): Promise<DeepLinkRes
             resolve({ kind: "ignored" });
           }
         })();
-      }, 350);
+      }, 900);
     });
   });
 }

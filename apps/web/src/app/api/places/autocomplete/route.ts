@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { enforcePlacesRateLimit } from "@/lib/places-guard";
-import { getPlacesComponentsParam } from "@/lib/places-countries";
+import {
+  getPlacesComponentsParam,
+  resolvePlacesLocationBias,
+} from "@/lib/places-countries";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +11,12 @@ function resolveMapsKey(): string | undefined {
   const server = process.env.GOOGLE_MAPS_SERVER_KEY?.trim();
   if (server) return server;
   return process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim() || undefined;
+}
+
+function parseCoord(raw: string | null): number | null {
+  if (!raw?.trim()) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
 }
 
 /**
@@ -59,6 +68,18 @@ export async function GET(req: NextRequest) {
   }
   if (session.length >= 8 && session.length <= 128) {
     params.set("sessiontoken", session);
+  }
+
+  // Soft location bias — critical for short typed queries in CA/PK/US.
+  // Client may pass device GPS; otherwise we bias to the primary market centroid.
+  if (!worldwide) {
+    const bias = resolvePlacesLocationBias({
+      lat: parseCoord(req.nextUrl.searchParams.get("lat")),
+      lng: parseCoord(req.nextUrl.searchParams.get("lng")),
+      radiusMeters: parseCoord(req.nextUrl.searchParams.get("radius")),
+    });
+    params.set("location", `${bias.lat},${bias.lng}`);
+    params.set("radius", String(bias.radiusMeters));
   }
 
   const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?${params.toString()}`;

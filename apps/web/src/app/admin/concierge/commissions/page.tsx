@@ -26,13 +26,21 @@ export default function ConciergeCommissionsPage() {
   const [items, setItems] = useState<Commission[]>([]);
   const [loading, setLoading] = useState(true);
   const [resolving, setResolving] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/concierge/commissions?filter=${filter}`);
-      const data = await res.json();
-      if (data.success) setItems(data.commissions || []);
+      setError("");
+      const res = await fetch(
+        `/api/admin/concierge/commissions?filter=${filter}`,
+        { credentials: "include" }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) setItems(data.commissions || []);
+      else setError(data.error || `Failed to load commissions (${res.status})`);
+    } catch {
+      setError("Failed to connect");
     } finally {
       setLoading(false);
     }
@@ -52,9 +60,11 @@ export default function ConciergeCommissionsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, resolvedNote: note }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!data.success) alert(data.error || "Failed");
       else load();
+    } catch {
+      alert("Failed to connect");
     } finally {
       setResolving(null);
     }
@@ -66,7 +76,10 @@ export default function ConciergeCommissionsPage() {
         <ArrowLeft className="w-4 h-4" /> Concierge
       </Link>
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Commissions</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Commissions</h1>
+          {error ? <p className="mt-1 text-sm text-red-600">{error}</p> : null}
+        </div>
         <div className="flex gap-2">
           {[
             { id: "disputes", label: "Disputes" },

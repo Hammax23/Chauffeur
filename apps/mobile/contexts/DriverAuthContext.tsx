@@ -3,7 +3,6 @@ import {
   DriverProfile,
   getDriverToken,
   getStoredDriver,
-  clearDriverSession,
   persistDriverProfile,
   loginDriver,
   logoutDriver,
@@ -136,17 +135,10 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
         await persistDriverProfile(data.driver);
       }
     } catch {
-      // 401 path already deregisters via apiRequest; still clear local session.
+      // Hard 401 already cleared session via apiRequest + onUnauthorized.
+      // Network / soft failures must NOT log the driver out (screen-lock resume).
       const token = await getDriverToken();
-      if (token) {
-        try {
-          await deregisterDriverPushToken(token);
-        } catch {
-          /* ignore */
-        }
-      }
-      await clearDriverSession();
-      setDriver(null);
+      if (!token) setDriver(null);
     }
   }, []);
 
