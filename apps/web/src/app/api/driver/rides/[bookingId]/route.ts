@@ -76,6 +76,12 @@ export async function GET(
         where: { bookingId, driverId: tokenData.id, status: "OPEN" },
       }));
 
+    // Ownership for Live Auto Mode safety: only the assigned driver may render
+    // the "Ready to start" / in-trip UI. A driver tapping a stale push for a
+    // reservation now owned by someone else must be redirected home — see
+    // deep-link + ride-details gates on the client.
+    const isMine = reservation.assignedDriverId === tokenData.id;
+
     const tripReview =
       reservation.assignedDriverId === tokenData.id
         ? await prisma.tripReview.findUnique({
@@ -179,6 +185,8 @@ export async function GET(
         driverStopPeriodsJson: reservation.driverStopPeriodsJson ?? null,
         completedAt: reservation.completedAt?.toISOString() ?? null,
         liveOffer,
+        isMine,
+        assignedDriverId: reservation.assignedDriverId ?? null,
         review: tripReview
           ? {
               stars: tripReview.stars,
@@ -238,13 +246,21 @@ export async function PATCH(
       if (!claim.ok) {
         if (claim.reason === "taken") {
           return NextResponse.json(
-            { success: false, error: "This ride was just accepted by another driver." },
+            {
+              success: false,
+              error: "This ride was just accepted by another driver.",
+              code: "taken",
+            },
             { status: 409 }
           );
         }
         if (claim.reason === "busy") {
           return NextResponse.json(
-            { success: false, error: "You already have an active ride." },
+            {
+              success: false,
+              error: "You already have an active ride.",
+              code: "busy",
+            },
             { status: 409 }
           );
         }
@@ -258,6 +274,27 @@ export async function PATCH(
     });
 
     if (!reservation) {
+      // Distinguish "taken by another driver" from "not found" so the mobile
+      // client can route home with a clear message instead of a generic
+      // "Something went wrong" alert (Live Auto cross-driver leak fix).
+      const other = await prisma.reservation.findUnique({
+        where: { bookingId },
+        select: { id: true, assignedDriverId: true, status: true },
+      });
+      if (
+        other &&
+        other.assignedDriverId &&
+        other.assignedDriverId !== tokenData.id
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "This ride was accepted by another driver.",
+            code: "taken",
+          },
+          { status: 409 }
+        );
+      }
       return NextResponse.json({ success: false, error: "Ride not found" }, { status: 404 });
     }
 
@@ -382,6 +419,16 @@ export async function PATCH(
         await softHideThreadForParticipants(bookingId);
       } catch (chatErr) {
         console.error("[chat] soft-hide on DONE failed", chatErr);
+      }
+      try {
+        const { onReservationCompleted } = await import("@/lib/driver-pay");
+        await onReservationCompleted({
+          reservationId: reservation.id,
+          mode: "DONE",
+          actor: `driver:${tokenData.id}`,
+        });
+      } catch (payErr) {
+        console.error("[driver-pay] DONE hook failed (driver mobile)", payErr);
       }
     }
 

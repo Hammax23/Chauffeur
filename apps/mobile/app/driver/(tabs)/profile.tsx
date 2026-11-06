@@ -1,4 +1,4 @@
-import { useCallback, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   View,
   Text,
@@ -17,6 +17,14 @@ import { useDriverAuth } from "../../../contexts/DriverAuthContext";
 import { useDriverTheme } from "../../../contexts/DriverThemeContext";
 import { GOLD } from "../../../theme/driver-theme";
 import { DriverScreenShell } from "../../../components/driver/DriverScreenShell";
+import * as WebBrowser from "expo-web-browser";
+import {
+  getDriverEarnings,
+  getDriverConnectStatus,
+  startDriverConnectOnboarding,
+  type DriverConnectStatus,
+  type DriverEarningSummary,
+} from "../../../services/api";
 
 type MenuRowProps = {
   label: string;
@@ -77,12 +85,82 @@ export default function DriverProfileScreen() {
   const { driver, logout, refreshProfile } = useDriverAuth();
   const { palette, isDark, setThemeMode } = useDriverTheme();
   const surface = palette.cardSurface;
+  const [earnings, setEarnings] = useState<DriverEarningSummary | null>(null);
+  const [connect, setConnect] = useState<DriverConnectStatus | null>(null);
+  const [connectBusy, setConnectBusy] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       refreshProfile();
     }, [refreshProfile])
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getDriverEarnings({ summaryOnly: true });
+        if (!cancelled && res.success) setEarnings(res.summary);
+      } catch {
+        /* non-fatal — earnings tile hides silently if the call fails */
+      }
+      try {
+        const cs = await getDriverConnectStatus();
+        if (!cancelled && cs.success) setConnect(cs);
+      } catch {
+        /* non-fatal — Bank/Payouts row stays in its default state */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [driver?.id]);
+
+  const handleBankPress = async () => {
+    if (!connect?.connectAvailable) {
+      Alert.alert(
+        "Bank payouts not available",
+        "Stripe isn't configured on this environment yet. Please contact support."
+      );
+      return;
+    }
+    setConnectBusy(true);
+    try {
+      const res = await startDriverConnectOnboarding();
+      if (!res.success || !res.url) {
+        Alert.alert("Onboarding failed", res.error || "Could not start Stripe onboarding.");
+        return;
+      }
+      await WebBrowser.openBrowserAsync(res.url);
+      // When the user returns, re-pull status.
+      try {
+        const cs = await getDriverConnectStatus({ refresh: true });
+        if (cs.success) setConnect(cs);
+      } catch {
+        /* ignore */
+      }
+    } catch (e: any) {
+      Alert.alert("Onboarding failed", e?.message || "Please try again.");
+    } finally {
+      setConnectBusy(false);
+    }
+  };
+
+  const bankHint = (() => {
+    if (!connect) return "Set up to receive payouts to your bank";
+    switch (connect.status) {
+      case "ENABLED":
+        return connect.payoutsLive
+          ? "Bank account connected · payouts enabled"
+          : "Bank account connected · manual payouts active";
+      case "PENDING":
+        return "Verification pending — tap to continue";
+      case "RESTRICTED":
+        return "Action needed — tap to update details";
+      default:
+        return "Tap to set up Stripe (direct deposit)";
+    }
+  })();
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -189,6 +267,125 @@ export default function DriverProfileScreen() {
             </View>
           </View>
 
+          {earnings ? (
+            <>
+              <View style={styles.sectionHeadRow}>
+                <Text style={[styles.sectionEyebrow, { color: palette.muted }]}>Earnings</Text>
+                <Pressable
+                  onPress={() => router.push("/driver/earnings")}
+                  hitSlop={8}
+                  style={({ pressed }) => [
+                    styles.viewAllBtn,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={[styles.viewAllText, { color: GOLD }]}>View all</Text>
+                  <Ionicons name="chevron-forward" size={14} color={GOLD} />
+                </Pressable>
+              </View>
+              <Pressable
+                onPress={() => router.push("/driver/earnings")}
+                style={({ pressed }) => [
+                  styles.earningsCard,
+                  { borderColor: palette.border, backgroundColor: surface },
+                  pressed && styles.pressed,
+                ]}
+              >
+                <View style={styles.earningsHeadRow}>
+                  <View>
+                    <Text style={[styles.earningsHeadLabel, { color: palette.muted }]}>
+                      This week (Toronto)
+                    </Text>
+                    <Text style={[styles.earningsHeadValue, { color: palette.text }]}>
+                      ${earnings.thisWeek.total.toFixed(2)}
+                    </Text>
+                    <Text style={[styles.earningsHeadHint, { color: palette.muted }]}>
+                      {earnings.thisWeek.count} trip{earnings.thisWeek.count === 1 ? "" : "s"}
+                    </Text>
+                  </View>
+                  <View style={styles.earningsLifetime}>
+                    <Text style={[styles.earningsHeadLabel, { color: palette.muted }]}>
+                      Lifetime
+                    </Text>
+                    <Text style={[styles.earningsHeadValue, { color: GOLD }]}>
+                      ${earnings.lifetime.total.toFixed(2)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={[styles.earningsDivider, { backgroundColor: palette.border }]} />
+
+                <View style={styles.earningsRow}>
+                  <View style={styles.earningsPillWrap}>
+                    <View
+                      style={[
+                        styles.earningsPill,
+                        { backgroundColor: "rgba(212,160,74,0.14)" },
+                      ]}
+                    >
+                      <Text style={[styles.earningsPillLabel, { color: GOLD }]}>
+                        Owed to you
+                      </Text>
+                      <Text style={[styles.earningsPillValue, { color: GOLD }]}>
+                        ${earnings.pending.total.toFixed(2)}
+                      </Text>
+                      <Text style={[styles.earningsPillHint, { color: palette.muted }]}>
+                        {earnings.pending.count} pending
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.earningsPillWrap}>
+                    <View
+                      style={[
+                        styles.earningsPill,
+                        { backgroundColor: "rgba(52,199,89,0.12)" },
+                      ]}
+                    >
+                      <Text style={[styles.earningsPillLabel, { color: "#34C759" }]}>Paid</Text>
+                      <Text style={[styles.earningsPillValue, { color: "#34C759" }]}>
+                        ${earnings.paid.total.toFixed(2)}
+                      </Text>
+                      <Text style={[styles.earningsPillHint, { color: palette.muted }]}>
+                        {earnings.paid.count} batches
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {(earnings.held.count > 0 ||
+                  earnings.remittanceOwed.count > 0 ||
+                  (earnings.adjustments && earnings.adjustments.net !== 0)) ? (
+                  <View style={styles.earningsFooterRow}>
+                    {earnings.held.count > 0 ? (
+                      <Text style={[styles.earningsFooterText, { color: "#FF9F0A" }]}>
+                        {earnings.held.count} on hold · ${earnings.held.total.toFixed(2)}
+                      </Text>
+                    ) : null}
+                    {earnings.remittanceOwed.count > 0 ? (
+                      <Text style={[styles.earningsFooterText, { color: palette.muted }]}>
+                        You owe company ${earnings.remittanceOwed.total.toFixed(2)} (COD)
+                      </Text>
+                    ) : null}
+                    {earnings.adjustments && earnings.adjustments.net !== 0 ? (
+                      <Text
+                        style={[
+                          styles.earningsFooterText,
+                          {
+                            color:
+                              earnings.adjustments.net > 0 ? "#34C759" : "#FF453A",
+                          },
+                        ]}
+                      >
+                        Adjustments {earnings.adjustments.net > 0 ? "+" : "−"}$
+                        {Math.abs(earnings.adjustments.net).toFixed(2)}
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : null}
+              </Pressable>
+            </>
+          ) : null}
+
           <Text style={[styles.sectionEyebrow, { color: palette.muted }]}>Details</Text>
           <View
             style={[
@@ -257,6 +454,16 @@ export default function DriverProfileScreen() {
               label="Customer reviews"
               icon="star-outline"
               onPress={() => router.push("/driver/reviews")}
+              chevronColor={palette.menuChevron}
+              textColor={palette.text}
+              borderColor={palette.border}
+              surface={surface}
+            />
+            <MenuRow
+              label={connectBusy ? "Opening Stripe…" : "Bank / Payouts"}
+              icon="card-outline"
+              hint={bankHint}
+              onPress={connectBusy ? undefined : handleBankPress}
               chevronColor={palette.menuChevron}
               textColor={palette.text}
               borderColor={palette.border}
@@ -499,6 +706,26 @@ const styles = StyleSheet.create({
     marginLeft: 2,
     marginTop: 8,
   },
+  sectionHeadRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 8,
+    marginBottom: 10,
+    marginLeft: 2,
+  },
+  viewAllBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  viewAllText: {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: -0.1,
+  },
   infoCard: {
     borderRadius: 20,
     overflow: "hidden",
@@ -577,5 +804,78 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.82,
     transform: [{ scale: 0.985 }],
+  },
+  earningsCard: {
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 22,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  earningsHeadRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 14,
+  },
+  earningsLifetime: {
+    alignItems: "flex-end",
+  },
+  earningsHeadLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    marginBottom: 2,
+  },
+  earningsHeadValue: {
+    fontSize: 24,
+    fontWeight: "800",
+    letterSpacing: -0.6,
+  },
+  earningsHeadHint: {
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: "500",
+  },
+  earningsDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginBottom: 14,
+  },
+  earningsRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  earningsPillWrap: {
+    flex: 1,
+  },
+  earningsPill: {
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+  earningsPillLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    marginBottom: 2,
+  },
+  earningsPillValue: {
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: -0.4,
+  },
+  earningsPillHint: {
+    fontSize: 11,
+    fontWeight: "500",
+    marginTop: 2,
+  },
+  earningsFooterRow: {
+    marginTop: 12,
+    gap: 4,
+  },
+  earningsFooterText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

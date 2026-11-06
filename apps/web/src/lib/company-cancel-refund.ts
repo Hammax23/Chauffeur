@@ -86,6 +86,21 @@ export async function applyCompanyCancelRefund(bookingId: string): Promise<{
     },
   });
 
+  // Driver pay: if a DONE earning was already written (admin company-cancels after DONE),
+  // flag it for admin review — do NOT silently clawback.
+  if (refund.ok) {
+    try {
+      const { flagEarningsForRefundReview } = await import("@/lib/driver-pay");
+      await flagEarningsForRefundReview({
+        reservationId: reservation.id,
+        reason: "Company cancel refund applied",
+        actor: "company-cancel",
+      });
+    } catch (e) {
+      console.error("[driver-pay] flagEarningsForRefundReview failed (company cancel)", e);
+    }
+  }
+
   return refund.ok
     ? { refunded: true, amount: refund.amount }
     : { refunded: false, message: refund.message };

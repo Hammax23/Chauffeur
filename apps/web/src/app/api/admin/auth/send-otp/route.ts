@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   authenticateAdmin,
+  authenticateAdminUser,
+  hasAnyAdminUser,
   checkRateLimit,
   recordFailedAttempt,
   getClientIP,
@@ -30,7 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { email, password } = body;
+    const { email, password } = body as { email?: string; password?: string };
 
     if (!email || !password) {
       return NextResponse.json(
@@ -39,35 +41,55 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify email matches admin email
-    const adminEmail = process.env.ADMIN_EMAIL;
-    if (!adminEmail || email.toLowerCase() !== adminEmail.toLowerCase()) {
-      await recordFailedAttempt(ip);
-      return NextResponse.json(
-        { success: false, error: "Invalid admin credentials" },
-        { status: 401 }
-      );
+    const emailKey = String(email).trim().toLowerCase();
+
+    // ── Phase 2 — AdminUser lookup first ────────────────────────────────────
+    // If this email matches an active AdminUser with the right password, log in
+    // as that admin (audit trail = this admin's email, OTP sent to this inbox).
+    const adminUser = await authenticateAdminUser(emailKey, password);
+
+    let actor: { adminId: string | null; email: string | null } = {
+      adminId: null,
+      email: null,
+    };
+    let otpRecipient = emailKey;
+
+    if (adminUser) {
+      actor = { adminId: adminUser.id, email: adminUser.email };
+      otpRecipient = adminUser.email;
+    } else {
+      // No AdminUser match. Fall back to the legacy single-admin env flow only
+      // when the AdminUser table is empty (first-time bootstrap) OR the request
+      // email matches ADMIN_EMAIL explicitly.
+      const populated = await hasAnyAdminUser();
+      const legacyAdminEmail = (process.env.ADMIN_EMAIL || "").toLowerCase();
+
+      if (populated && emailKey !== legacyAdminEmail) {
+        await recordFailedAttempt(ip);
+        return NextResponse.json(
+          { success: false, error: "Invalid admin credentials" },
+          { status: 401 }
+        );
+      }
+
+      // Legacy single-admin env check (password only).
+      const legacy = await authenticateAdmin(password);
+      if (!legacy.success) {
+        await recordFailedAttempt(ip);
+        return NextResponse.json(
+          { success: false, error: legacy.error || "Invalid admin credentials" },
+          { status: 401 }
+        );
+      }
+      // Keep OTP delivery to ADMIN_EMAIL for the legacy flow.
+      otpRecipient = legacyAdminEmail || emailKey;
     }
 
-    // Verify password
-    const authResult = await authenticateAdmin(password);
-
-    if (!authResult.success) {
-      await recordFailedAttempt(ip);
-      return NextResponse.json(
-        { success: false, error: authResult.error },
-        { status: 401 }
-      );
-    }
-
-    // Password correct - generate and send OTP
+    // Password correct — generate and send OTP.
     const otp = generateOTP();
-    
-    // Create JWT-based session with OTP encoded (survives server restarts)
-    const sessionId = createOTPSession(otp);
+    const sessionId = createOTPSession(otp, actor);
 
-    // Send OTP email
-    const emailResult = await sendOTPEmail(otp);
+    const emailResult = await sendOTPEmail(otp, { to: otpRecipient });
 
     if (!emailResult.success) {
       return NextResponse.json(

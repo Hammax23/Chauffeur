@@ -285,6 +285,30 @@ export async function updateReservationStatus(bookingId: string, status: string)
       }
     }
 
+    // Driver-status link POST (and anywhere else that calls updateReservationStatus) flips to DONE
+    // — mirror the mobile PATCH behaviour and run the driver-pay completion hook once.
+    const transitioningToDone =
+      String(status).toUpperCase() === "DONE" &&
+      String(prev.status || "").toUpperCase() !== "DONE";
+    if (transitioningToDone && prev.assignedDriverId) {
+      try {
+        const fresh = await prisma.reservation.findUnique({
+          where: { bookingId },
+          select: { id: true },
+        });
+        if (fresh) {
+          const { onReservationCompleted } = await import("@/lib/driver-pay");
+          await onReservationCompleted({
+            reservationId: fresh.id,
+            mode: "DONE",
+            actor: "driver-link",
+          });
+        }
+      } catch (e) {
+        console.error("[driver-pay] DONE hook failed (updateReservationStatus)", e);
+      }
+    }
+
     return true;
   } catch {
     return false;
@@ -369,7 +393,14 @@ export async function assignDriverToReservation(
 
     const existing = await prisma.reservation.findUnique({
       where: { bookingId },
-      select: { rejectedDriverIds: true, status: true, driverLink: true, trackLink: true },
+      select: {
+        id: true,
+        rejectedDriverIds: true,
+        status: true,
+        driverLink: true,
+        trackLink: true,
+        assignedDriverId: true,
+      },
     });
 
     if (!existing) {
@@ -391,6 +422,24 @@ export async function assignDriverToReservation(
       driverLink: ensureSignedPublicLink(bookingId, "driver", existing.driverLink),
       trackLink: ensureSignedPublicLink(bookingId, "track", existing.trackLink),
     };
+
+    // Reopening from DONE/CANCELLED means the previously assigned driver's completed-trip earning
+    // (if any) must be reconciled BEFORE we re-point the reservation to a new driver:
+    //   - unpaid earning → mark REASSIGNED (then delete to free unique reservationId)
+    //   - PAID earning   → never void; audit + flag REASSIGN_AFTER_PAID for admin
+    //   - same driver    → no-op (don't void own earning)
+    if (reopenFromTerminal) {
+      try {
+        const { voidEarningOnReassignment } = await import("@/lib/driver-pay");
+        await voidEarningOnReassignment({
+          reservationId: existing.id,
+          newDriverId: driverId,
+          actor: `reassign:${channel}`,
+        });
+      } catch (e) {
+        console.error("[driver-pay] reassign hook failed", e);
+      }
+    }
 
     await prisma.reservation.update({
       where: { bookingId },
@@ -433,7 +482,12 @@ export async function assignDriverToReservation(
 }
 
 // Update reservation
-export async function updateReservation(bookingId: string, updates: Partial<ReservationData>) {
+export async function updateReservation(
+  bookingId: string,
+  updates: Partial<ReservationData>,
+  opts: { actor?: string | null } = {}
+) {
+  const actor = opts.actor || "admin";
   try {
     const data: Record<string, unknown> = { ...updates };
     const status = typeof updates.status === "string" ? updates.status : null;
@@ -441,7 +495,14 @@ export async function updateReservation(bookingId: string, updates: Partial<Rese
 
     const prev = await prisma.reservation.findUnique({
       where: { bookingId },
-      select: { status: true, assignedDriverId: true, driverResponse: true },
+      select: {
+        id: true,
+        status: true,
+        assignedDriverId: true,
+        driverResponse: true,
+        completedAt: true,
+        paymentStatus: true,
+      },
     });
     if (!prev) return false;
 
@@ -453,6 +514,20 @@ export async function updateReservation(bookingId: string, updates: Partial<Rese
       }
     }
 
+    // When admin first transitions a trip to DONE, stamp completedAt so pay aggregates
+    // and link-expiry logic behave identically to the mobile DONE path.
+    const nowForDone = new Date();
+    const transitioningToDone =
+      typeof status === "string" &&
+      status.toUpperCase() === "DONE" &&
+      String(prev.status || "").toUpperCase() !== "DONE";
+    if (transitioningToDone && !prev.completedAt && data.completedAt == null) {
+      data.completedAt = nowForDone;
+    }
+    if (transitioningToDone && data.statusUpdatedAt == null) {
+      data.statusUpdatedAt = nowForDone;
+    }
+
     await prisma.reservation.update({
       where: { bookingId },
       data,
@@ -461,6 +536,10 @@ export async function updateReservation(bookingId: string, updates: Partial<Rese
     const wasCancelled = ["CANCELLED", "CANCELED"].includes(
       String(prev.status || "").toUpperCase()
     );
+    const wasRefunded = ["REFUNDED", "PARTIALLY_REFUNDED"].includes(
+      String(prev.paymentStatus || "").toUpperCase()
+    );
+
     if (
       status &&
       ["CANCELLED", "CANCELED"].includes(String(status).toUpperCase()) &&
@@ -471,6 +550,40 @@ export async function updateReservation(bookingId: string, updates: Partial<Rese
         await applyCompanyCancelRefund(bookingId);
       } catch (e) {
         console.error("[company-cancel-refund]", e);
+      }
+    }
+
+    if (transitioningToDone && prev.assignedDriverId) {
+      try {
+        const { onReservationCompleted } = await import("@/lib/driver-pay");
+        await onReservationCompleted({
+          reservationId: prev.id,
+          mode: "DONE",
+          actor,
+        });
+      } catch (e) {
+        console.error("[driver-pay] DONE hook failed (admin updateReservation)", e);
+      }
+    }
+
+    // Admin edited paymentStatus to a REFUNDED family on a booking that previously had a different
+    // status — flag any driver-pay rows for review (no silent clawback).
+    const newPaymentStatus =
+      typeof updates.paymentStatus === "string" ? updates.paymentStatus.toUpperCase() : "";
+    if (
+      newPaymentStatus &&
+      ["REFUNDED", "PARTIALLY_REFUNDED"].includes(newPaymentStatus) &&
+      !wasRefunded
+    ) {
+      try {
+        const { flagEarningsForRefundReview } = await import("@/lib/driver-pay");
+        await flagEarningsForRefundReview({
+          reservationId: prev.id,
+          reason: `Admin set paymentStatus = ${newPaymentStatus}`,
+          actor,
+        });
+      } catch (e) {
+        console.error("[driver-pay] refund review flag failed (updateReservation)", e);
       }
     }
 

@@ -8,96 +8,98 @@ datasource db {
 }
 
 model Reservation {
-  id                    String      @id @default(cuid())
-  bookingId             String      @unique
-  dateSubmitted         DateTime    @default(now())
-  status                String      @default("PENDING")
-  firstName             String
-  lastName              String
-  email                 String
-  phone                 String
-  serviceType           String
-  vehicle               String
-  passengers            Int         @default(1)
-  childSeats            Int         @default(0)
-  childSeatType         String?
-  etr407                String      @default("No")
-  serviceDate           String
-  serviceTime           String
-  pickupLocation        String
+  id                      String               @id @default(cuid())
+  bookingId               String               @unique
+  dateSubmitted           DateTime             @default(now())
+  status                  String               @default("PENDING")
+  firstName               String
+  lastName                String
+  email                   String
+  phone                   String
+  serviceType             String
+  vehicle                 String
+  passengers              Int                  @default(1)
+  childSeats              Int                  @default(0)
+  childSeatType           String?
+  etr407                  String               @default("No")
+  serviceDate             String
+  serviceTime             String
+  pickupLocation          String
   /// Booked pickup pin (from Places/GPS). Used for driver map + Navigate.
-  pickupLat             Float?
-  pickupLng             Float?
-  stops                 String?
-  dropoffLocation       String
-  dropoffLat            Float?
-  dropoffLng            Float?
-  distance              String?
-  duration              String?
-  airline               String?
-  flightNumber          String?
-  flightNote            String?
-  rideFare              Float       @default(0)
-  stopCharge            Float       @default(0)
-  childSeatCharge       Float       @default(0)
-  subtotal              Float       @default(0)
-  hst                   Float       @default(0)
-  gratuity              Float       @default(0)
+  pickupLat               Float?
+  pickupLng               Float?
+  stops                   String?
+  dropoffLocation         String
+  dropoffLat              Float?
+  dropoffLng              Float?
+  distance                String?
+  duration                String?
+  airline                 String?
+  flightNumber            String?
+  flightNote              String?
+  rideFare                Float                @default(0)
+  stopCharge              Float                @default(0)
+  childSeatCharge         Float                @default(0)
+  subtotal                Float                @default(0)
+  hst                     Float                @default(0)
+  gratuity                Float                @default(0)
   /// Promo discount applied to subtotal (before HST).
-  discountAmount        Float       @default(0)
-  promoCode             String?
-  total                 Float       @default(0)
-  specialRequirements   String?
-  driverLink            String?
-  trackLink             String?
-  completedAt           DateTime?
-  statusUpdatedAt       DateTime?
+  discountAmount          Float                @default(0)
+  promoCode               String?
+  total                   Float                @default(0)
+  specialRequirements     String?
+  driverLink              String?
+  trackLink               String?
+  completedAt             DateTime?
+  statusUpdatedAt         DateTime?
   /// Set when ~1h pre-trip reminder push was sent (cron idempotency).
-  preTripReminderSentAt DateTime?
+  preTripReminderSentAt   DateTime?
   /// First transition to ON THE WAY — used for total trip duration (→ DONE).
-  driverOnTheWayAt      DateTime?
+  driverOnTheWayAt        DateTime?
   /// JSON array: [{ "start": ISO, "end"?: ISO }, ...] stop intervals (Stop tap → Continue tap).
-  driverStopPeriodsJson String?
-  stripeCustomerId      String?
-  stripePaymentMethodId String?
+  driverStopPeriodsJson   String?
+  stripeCustomerId        String?
+  stripePaymentMethodId   String?
   /// Captured PaymentIntent id (pi_…) for refunds / audits.
-  stripePaymentIntentId String?
-  cardType              String?
-  cardLast4             String?
-  paymentStatus         String?     @default("PENDING")
+  stripePaymentIntentId   String?
+  cardType                String?
+  cardLast4               String?
+  paymentStatus           String?              @default("PENDING")
   /// Long-distance / out-of-town cancel ladder (24h / 12h / 50%).
-  isLongDistance        Boolean     @default(false)
+  isLongDistance          Boolean              @default(false)
   /// First transition to ARRIVED — pickup wait clock.
-  driverArrivedAt       DateTime?
+  driverArrivedAt         DateTime?
   /// Billable pickup wait minutes beyond free window (audit).
-  waitMinutesBilled     Int         @default(0)
-  waitChargeAmount      Float       @default(0)
+  waitMinutesBilled       Int                  @default(0)
+  waitChargeAmount        Float                @default(0)
   /// Actual flight landing (M&G free-wait clock). Falls back to scheduled pickup if null.
-  actualLandingAt       DateTime?
+  actualLandingAt         DateTime?
   /// Billable Meet & Greet wait beyond 60 free minutes (audit).
-  mgWaitMinutesBilled   Int         @default(0)
-  mgWaitChargeAmount    Float       @default(0)
+  mgWaitMinutesBilled     Int                  @default(0)
+  mgWaitChargeAmount      Float                @default(0)
   /// Ops-marked no-show — prepaid fare retained (no auto refund).
-  noShowMarkedAt        DateTime?
-  noShowMarkedBy        String?
-  noShowNotes           String?
-  driverResponse        String?
-  driverRespondedAt     DateTime?
-  rejectedDriverIds     String?
+  noShowMarkedAt          DateTime?
+  noShowMarkedBy          String?
+  noShowNotes             String?
+  driverResponse          String?
+  driverRespondedAt       DateTime?
+  rejectedDriverIds       String?
   /// How this booking was dispatched: "app" | "web"
-  assignmentChannel     String?
-  customerId            String?
-  assignedDriverId      String?
+  assignmentChannel       String?
+  customerId              String?
+  assignedDriverId        String?
   /// Soft-hide from customer History (record kept for admin / billing / disputes).
   customerHistoryHiddenAt DateTime?
-  createdAt             DateTime    @default(now())
-  updatedAt             DateTime    @updatedAt
-  chatThread            ChatThread?
-  tripReview            TripReview?
-  promoRedemption       PromotionRedemption?
-  fareAdjustments       FareAdjustment[]
-  assignedDriver        Driver?     @relation(fields: [assignedDriverId], references: [id])
-  customer              Customer?   @relation(fields: [customerId], references: [id])
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  chatThread              ChatThread?
+  tripReview              TripReview?
+  promoRedemption         PromotionRedemption?
+  fareAdjustments         FareAdjustment[]
+  driverEarning           DriverEarning?
+  driverRemittance        DriverRemittance?
+  assignedDriver          Driver?              @relation(fields: [assignedDriverId], references: [id])
+  customer                Customer?            @relation(fields: [customerId], references: [id])
 
   @@index([customerId, customerHistoryHiddenAt])
   @@index([promoCode])
@@ -132,20 +134,20 @@ model FareAdjustment {
 }
 
 model Driver {
-  id                          String        @id @default(cuid())
-  driverId                    String        @unique
+  id                          String                  @id @default(cuid())
+  driverId                    String                  @unique
   name                        String
   phone                       String
-  email                       String        @unique
+  email                       String                  @unique
   password                    String
   vehicle                     String
   vehiclePlate                String
   vehicleCode                 String?
-  status                      String        @default("available")
-  isActive                    Boolean       @default(false)
+  status                      String                  @default("available")
+  isActive                    Boolean                 @default(false)
   photo                       String?
-  rating                      Float         @default(5.0)
-  totalTrips                  Int           @default(0)
+  rating                      Float                   @default(5.0)
+  totalTrips                  Int                     @default(0)
   pushToken                   String?
   /// Last known live location (updated by driver app while in use)
   lastLatitude                Float?
@@ -161,13 +163,245 @@ model Driver {
   municipalTaxiLimoLicenceUrl String?
   vehicleInsuranceUrl         String?
   vehicleRegistrationUrl      String?
-  createdAt                   DateTime      @default(now())
-  updatedAt                   DateTime      @updatedAt
+  /// Per-driver platform commission override (0–100). NULL ⇒ use DriverPaySettings.defaultPlatformCommissionPercent.
+  commissionPctOverride       Float?
+  /// Free-form internal payout notes (admin only — e.g. EFT details, Interac email, HST number).
+  payoutNotes                 String?
+  /// Phase 2 — Stripe Connect (Express) account id (acct_…) once onboarding begins. NULL ⇒ not onboarded.
+  stripeConnectAccountId      String?                 @unique
+  /// NOT_STARTED | PENDING | RESTRICTED | ENABLED — mirrors payouts_enabled/charges_enabled on the Connect account.
+  stripeConnectStatus         String                  @default("NOT_STARTED")
+  /// Last time we synced Connect status from Stripe (webhook or on-demand).
+  stripeConnectUpdatedAt      DateTime?
+  createdAt                   DateTime                @default(now())
+  updatedAt                   DateTime                @updatedAt
   reservations                Reservation[]
   rideOffers                  RideOffer[]
   tripReviews                 TripReview[]
   conciergeProfile            ConciergeDriverProfile?
   supportTickets              SupportTicket[]
+  earnings                    DriverEarning[]
+  remittances                 DriverRemittance[]
+  payouts                     DriverPayout[]
+  adjustments                 DriverAdjustment[]
+  taxYearSummaries            DriverTaxYearSummary[]
+}
+
+// ─── Driver Pay (Phase 1) ──────────────────────────────────────────────────
+
+/// Singleton pay settings (id = "global"). Platform commission + payout currency.
+model DriverPaySettings {
+  id                               String   @id @default("global")
+  /// Default commission % the company takes on each ride basis (0–100).
+  defaultPlatformCommissionPercent Float    @default(20)
+  payoutCurrency                   String   @default("CAD")
+  createdAt                        DateTime @default(now())
+  updatedAt                        DateTime @updatedAt
+}
+
+/// One row per completed (DONE or NO_SHOW) reservation — the driver's ledger entry.
+/// Unique on reservationId so hooks are idempotent (P2002 ⇒ treat as success).
+model DriverEarning {
+  id                   String        @id @default(cuid())
+  reservationId        String        @unique
+  bookingId            String
+  driverId             String
+  /// DONE | NO_SHOW
+  mode                 String
+  /// PENDING | PAID | VOID | REASSIGNED | HELD
+  status               String        @default("PENDING")
+  /// AWAITING_CUSTOMER_PAYMENT | COMPED | CUSTOMER_REFUNDED — only when status = HELD.
+  holdReason           String?
+  /// Admin review queue flag (e.g. post-DONE refund — no silent clawback).
+  needsReview          Boolean       @default(false)
+  /// RESERVATION_REFUNDED | REASSIGN_AFTER_PAID | ADMIN_FLAGGED | OTHER
+  reviewReason         String?
+  reviewNotes          String?
+  /// Money snapshot at the time of completion (CAD).
+  subtotal             Float         @default(0)
+  discountAmount       Float         @default(0)
+  gratuity             Float         @default(0)
+  hst                  Float         @default(0)
+  /// Phase 2 — snapshot of PAID FareAdjustment.amount (HST excluded) for this reservation
+  /// at completion time. Already included in `serviceBasis` below for Canada chauffeur rules.
+  /// Kept separate so the admin UI can show "Extras" line clearly. Backfilled rows default to 0.
+  fareAdjustmentsTotal Float         @default(0)
+  /// (subtotal − discountAmount) + fareAdjustmentsTotal (HST excluded).
+  serviceBasis         Float         @default(0)
+  /// % applied at the time of completion (frozen even if settings later change).
+  commissionPct        Float         @default(0)
+  /// round(serviceBasis * commissionPct / 100)
+  platformFee          Float         @default(0)
+  /// round(serviceBasis − platformFee) + round(gratuity)
+  driverNet            Float         @default(0)
+  /// Short internal note (admin edit reason, void reason, hold context, ...).
+  notes                String?
+  /// Set once attached to a DRAFT payout batch (nullable while unpaid).
+  payoutId             String?
+  /// Reservation.completedAt snapshot for stable weekly aggregates.
+  completedAt          DateTime
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  reservation          Reservation   @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  driver               Driver        @relation(fields: [driverId], references: [id], onDelete: Restrict)
+  payout               DriverPayout? @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+
+  @@index([driverId, status, completedAt])
+  @@index([status, completedAt])
+  @@index([payoutId])
+  @@index([needsReview, status])
+  @@index([bookingId])
+}
+
+/// COD rides — driver collected cash/card at the car and owes the company its commission share.
+/// Unique per reservation.
+model DriverRemittance {
+  id             String      @id @default(cuid())
+  reservationId  String      @unique
+  bookingId      String
+  driverId       String
+  /// OWED | REMITTED | WAIVED
+  status         String      @default("OWED")
+  /// Snapshot money: company portion owed from driver (platformFee of serviceBasis).
+  subtotal       Float       @default(0)
+  discountAmount Float       @default(0)
+  gratuity       Float       @default(0)
+  hst            Float       @default(0)
+  serviceBasis   Float       @default(0)
+  commissionPct  Float       @default(0)
+  /// Platform fee driver collected on behalf of company (what driver owes back).
+  amountOwed     Float       @default(0)
+  /// INTERAC | EFT | CHEQUE | CASH | OTHER
+  method         String?
+  reference      String?
+  remittedAt     DateTime?
+  waivedAt       DateTime?
+  waivedReason   String?
+  notes          String?
+  completedAt    DateTime
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  reservation    Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  driver         Driver      @relation(fields: [driverId], references: [id], onDelete: Restrict)
+
+  @@index([driverId, status, completedAt])
+  @@index([status, completedAt])
+  @@index([bookingId])
+}
+
+/// A batched payout the admin pays offline (Interac / EFT / cheque) → Mark Paid.
+model DriverPayout {
+  id               String             @id @default(cuid())
+  driverId         String
+  /// Sum of attached earnings.driverNet + attached positive adjustments ± minus negatives.
+  amount           Float              @default(0)
+  /// INTERAC | EFT | CHEQUE | OTHER
+  method           String             @default("INTERAC")
+  reference        String?
+  /// DRAFT | PAID | CANCELLED
+  status           String             @default("DRAFT")
+  notes            String?
+  /// Required for Mark Paid double-click safety.
+  idempotencyKey   String?            @unique
+  /// Phase 2 — Stripe Connect Transfer id (tr_…) when Mark Paid routed through Connect.
+  /// NULL for offline Interac/EFT/cheque (Phase 1 manual flow).
+  stripeTransferId String?            @unique
+  paidAt           DateTime?
+  cancelledAt      DateTime?
+  cancelledReason  String?
+  /// Window covered (optional display).
+  periodStart      DateTime?
+  periodEnd        DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  driver           Driver             @relation(fields: [driverId], references: [id], onDelete: Restrict)
+  earnings         DriverEarning[]
+  adjustments      DriverAdjustment[]
+
+  @@index([driverId, status, createdAt])
+  @@index([status, createdAt])
+}
+
+/// Signed one-off adjustments (bonuses, deductions, off-platform tips, clawbacks).
+model DriverAdjustment {
+  id        String        @id @default(cuid())
+  driverId  String
+  /// Positive = pay driver more, negative = deduct from next payout.
+  amount    Float
+  /// BONUS | DEDUCTION | CLAWBACK | OFF_PLATFORM_PAY | CORRECTION | OTHER
+  reason    String
+  notes     String?
+  /// Optional link to a specific earning/payout for context.
+  earningId String?
+  payoutId  String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  driver    Driver        @relation(fields: [driverId], references: [id], onDelete: Restrict)
+  payout    DriverPayout? @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+
+  @@index([driverId, createdAt])
+  @@index([payoutId])
+}
+
+/// Immutable audit trail — every create / edit / void / Mark Paid / release / backfill.
+model DriverPayAuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  /// EARNING | REMITTANCE | PAYOUT | SETTINGS | DRIVER | ADJUSTMENT | BACKFILL
+  entityType String
+  entityId   String?
+  /// JSON of before/after or operation payload (safe for display).
+  details    Json?
+  /// Phase 1: "admin" (JWT had no admin user id). Phase 2: per-admin identity (AdminUser.email).
+  actor      String   @default("admin")
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, createdAt])
+  @@index([createdAt])
+}
+
+// ─── Driver Pay (Phase 2) ──────────────────────────────────────────────────
+
+/// Per-admin identity for audit trails. Phase 2 addition.
+/// If this table is empty the system falls back to the legacy single-admin
+/// ADMIN_PASSWORD/ADMIN_EMAIL env flow (audit actor = "admin") for backwards compat.
+model AdminUser {
+  id          String    @id @default(cuid())
+  email       String    @unique
+  /// bcrypt hash
+  password    String
+  name        String?
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([isActive])
+}
+
+/// Canada T4A contractor-style yearly summary per driver. Not a CRA e-file — a snapshot the
+/// accountant can export to CSV. Totals are computed in America/Toronto calendar year.
+model DriverTaxYearSummary {
+  id               String   @id @default(cuid())
+  driverId         String
+  /// Calendar year in America/Toronto (e.g. 2026).
+  year             Int
+  /// Sum of PAID DriverEarning.driverNet for the year + sum of all DriverAdjustment.amount
+  /// created in the year (positive = bonus/off-platform pay, negative = clawback/deduction).
+  /// HST and remittances excluded.
+  totalPaid        Float    @default(0)
+  /// Breakdown for the accountant / dispute defence.
+  earningsPaid     Float    @default(0)
+  adjustmentsTotal Float    @default(0)
+  earningsCount    Int      @default(0)
+  adjustmentsCount Int      @default(0)
+  generatedAt      DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  driver           Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@unique([driverId, year])
+  @@index([year])
 }
 
 /// Live Auto Mode + ops panel toggles (single row id = "global")
@@ -236,46 +470,46 @@ model Quote {
 }
 
 model Customer {
-  id                 String        @id @default(cuid())
-  firstName          String
-  lastName           String
-  email              String        @unique
-  phone              String        @default("")
-  password           String
-  city               String?
-  photo              String?
+  id                             String                @id @default(cuid())
+  firstName                      String
+  lastName                       String
+  email                          String                @unique
+  phone                          String                @default("")
+  password                       String
+  city                           String?
+  photo                          String?
   /// Stripe Customer id for saved payment methods (PCI: cards live on Stripe only).
-  stripeCustomerId   String?       @unique
+  stripeCustomerId               String?               @unique
   /// OAuth provider account linking (e.g. google/apple). If set, password login still exists but should be treated as internal.
-  oauthProvider      String?
-  oauthSub           String?
+  oauthProvider                  String?
+  oauthSub                       String?
   /// Where this customer account was created (e.g. "app" via mobile, "web" via website/admin).
-  registrationSource String        @default("web")
+  registrationSource             String                @default("web")
   /// ACTIVE | BLOCKED | DEACTIVATED — blocked/deactivated customers cannot sign in.
-  accountStatus      String        @default("ACTIVE")
-  blockedAt          DateTime?
-  blockedReason      String?
+  accountStatus                  String                @default("ACTIVE")
+  blockedAt                      DateTime?
+  blockedReason                  String?
   /// Set when the customer self-deactivates (soft delete). Cleared on reactivate.
-  deactivatedAt      DateTime?
-  pushToken          String?
+  deactivatedAt                  DateTime?
+  pushToken                      String?
   /// Unpaid post-booking charges (CAD). Blocks new bookings while > 0.
-  outstandingBalance Float         @default(0)
+  outstandingBalance             Float                 @default(0)
   /// Unique share code for inviting friends (e.g. SARJ-AB12CD).
-  referralCode       String?       @unique
+  referralCode                   String?               @unique
   /// Who referred this customer (set once at signup / claim).
-  referredByCustomerId String?
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
-  reservations         Reservation[]
-  tripReviews          TripReview[]
-  supportTickets       SupportTicket[]
-  savedPlaces          CustomerSavedPlace[]
-  promotionRedemptions PromotionRedemption[]
-  referredBy           Customer?   @relation("CustomerReferrals", fields: [referredByCustomerId], references: [id], onDelete: SetNull)
-  referralsMade        Customer[]  @relation("CustomerReferrals")
+  referredByCustomerId           String?
+  createdAt                      DateTime              @default(now())
+  updatedAt                      DateTime              @updatedAt
+  reservations                   Reservation[]
+  tripReviews                    TripReview[]
+  supportTickets                 SupportTicket[]
+  savedPlaces                    CustomerSavedPlace[]
+  promotionRedemptions           PromotionRedemption[]
+  referredBy                     Customer?             @relation("CustomerReferrals", fields: [referredByCustomerId], references: [id], onDelete: SetNull)
+  referralsMade                  Customer[]            @relation("CustomerReferrals")
   referralAttributionsAsReferrer ReferralAttribution[] @relation("ReferrerAttributions")
   referralAttributionAsReferee   ReferralAttribution?  @relation("RefereeAttribution")
-  referralReward       ReferralReward?
+  referralReward                 ReferralReward?
 
   @@unique([oauthProvider, oauthSub])
   @@index([pushToken])
@@ -318,22 +552,22 @@ model CustomerSavedPlace {
 
 /// In-app Contact Us / support messages (customer or driver mobile app).
 model SupportTicket {
-  id          String    @id @default(cuid())
-  ticketId    String    @unique
+  id         String    @id @default(cuid())
+  ticketId   String    @unique
   /// Set for customer app tickets (null for driver tickets).
-  customerId  String?
+  customerId String?
   /// Set for driver app tickets (null for customer tickets).
-  driverId    String?
-  type        String
-  subject     String?
-  message     String
-  status      String    @default("NEW")
-  adminNote   String?
-  resolvedAt  DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  driver      Driver?   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  driverId   String?
+  type       String
+  subject    String?
+  message    String
+  status     String    @default("NEW")
+  adminNote  String?
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  driver     Driver?   @relation(fields: [driverId], references: [id], onDelete: Cascade)
 
   @@index([status, createdAt])
   @@index([customerId])
@@ -687,15 +921,15 @@ model SeoAuditLog {
 
 /// One chat thread per reservation (Driver ↔ Customer after accept)
 model ChatThread {
-  id                        String        @id @default(cuid())
-  reservationId             String        @unique
-  bookingId                 String        @unique
+  id                       String        @id @default(cuid())
+  reservationId            String        @unique
+  bookingId                String        @unique
   /// When set, customer + driver APIs hide messages; admin still sees full transcript.
-  hiddenFromParticipantsAt  DateTime?
-  createdAt                 DateTime      @default(now())
-  updatedAt                 DateTime      @updatedAt
-  messages                  ChatMessage[]
-  reservation               Reservation   @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  hiddenFromParticipantsAt DateTime?
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
+  messages                 ChatMessage[]
+  reservation              Reservation   @relation(fields: [reservationId], references: [id], onDelete: Cascade)
 
   @@index([bookingId])
   @@index([hiddenFromParticipantsAt])
@@ -718,31 +952,31 @@ model ChatMessage {
 // ─── Hotel Concierge Platform ───────────────────────────────────────────────
 
 model Hotel {
-  id                 String                @id @default(cuid())
-  name               String
-  address            String                @default("")
-  city               String                @default("")
-  phone              String                @default("")
-  email              String                @default("")
-  commissionPercent  Float                 @default(10)
-  isActive           Boolean               @default(true)
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
-  concierges         Concierge[]
-  rides              ConciergeRideRequest[]
+  id                String                 @id @default(cuid())
+  name              String
+  address           String                 @default("")
+  city              String                 @default("")
+  phone             String                 @default("")
+  email             String                 @default("")
+  commissionPercent Float                  @default(10)
+  isActive          Boolean                @default(true)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  concierges        Concierge[]
+  rides             ConciergeRideRequest[]
 }
 
 model Concierge {
-  id        String                @id @default(cuid())
+  id        String                 @id @default(cuid())
   hotelId   String
   name      String
-  email     String                @unique
-  phone     String                @default("")
+  email     String                 @unique
+  phone     String                 @default("")
   password  String
-  isActive  Boolean               @default(true)
-  createdAt DateTime              @default(now())
-  updatedAt DateTime              @updatedAt
-  hotel     Hotel                 @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  isActive  Boolean                @default(true)
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  hotel     Hotel                  @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   rides     ConciergeRideRequest[]
   ratings   ConciergeRating[]
 
@@ -750,48 +984,48 @@ model Concierge {
 }
 
 model ConciergeDriverProfile {
-  id                   String                @id @default(cuid())
-  driverId             String                @unique
-  membershipStatus     String                @default("ACTIVE")
-  membershipExpiresAt  DateTime?
-  vehicleClass         String                @default("SEDAN")
-  vehicleLabel         String                @default("")
-  availability         String                @default("OFFLINE")
-  referralEarnings     Float                 @default(0)
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  driver               Driver                @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  assignedRides        ConciergeRideRequest[]
+  id                  String                 @id @default(cuid())
+  driverId            String                 @unique
+  membershipStatus    String                 @default("ACTIVE")
+  membershipExpiresAt DateTime?
+  vehicleClass        String                 @default("SEDAN")
+  vehicleLabel        String                 @default("")
+  availability        String                 @default("OFFLINE")
+  referralEarnings    Float                  @default(0)
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  driver              Driver                 @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  assignedRides       ConciergeRideRequest[]
 
   @@index([availability, membershipStatus])
   @@index([vehicleClass])
 }
 
 model ConciergeRideRequest {
-  id                   String                   @id @default(cuid())
-  requestCode          String                   @unique
-  hotelId              String
-  conciergeId          String
-  assignedDriverId     String?
-  guestName            String                   @default("")
-  guestPhone           String                   @default("")
-  pickupLocation       String
-  dropoffLocation      String                   @default("")
-  notes                String?
-  vehicleRequestRule   String
-  guestPaymentMethod   String                   @default("UNSET")
-  fare                 Float                    @default(0)
-  platformFee          Float                    @default(0)
-  hotelCommission      Float                    @default(0)
-  status               String                   @default("OPEN")
-  createdAt            DateTime                 @default(now())
-  updatedAt            DateTime                 @updatedAt
-  completedAt          DateTime?
-  hotel                Hotel                    @relation(fields: [hotelId], references: [id])
-  concierge            Concierge                @relation(fields: [conciergeId], references: [id])
+  id                    String                  @id @default(cuid())
+  requestCode           String                  @unique
+  hotelId               String
+  conciergeId           String
+  assignedDriverId      String?
+  guestName             String                  @default("")
+  guestPhone            String                  @default("")
+  pickupLocation        String
+  dropoffLocation       String                  @default("")
+  notes                 String?
+  vehicleRequestRule    String
+  guestPaymentMethod    String                  @default("UNSET")
+  fare                  Float                   @default(0)
+  platformFee           Float                   @default(0)
+  hotelCommission       Float                   @default(0)
+  status                String                  @default("OPEN")
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  completedAt           DateTime?
+  hotel                 Hotel                   @relation(fields: [hotelId], references: [id])
+  concierge             Concierge               @relation(fields: [conciergeId], references: [id])
   assignedDriverProfile ConciergeDriverProfile? @relation(fields: [assignedDriverId], references: [id], onDelete: SetNull)
-  commission           CommissionConfirmation?
-  ratings              ConciergeRating[]
+  commission            CommissionConfirmation?
+  ratings               ConciergeRating[]
 
   @@index([status, createdAt])
   @@index([conciergeId])
@@ -800,21 +1034,21 @@ model ConciergeRideRequest {
 }
 
 model CommissionConfirmation {
-  id             String              @id @default(cuid())
-  rideId         String              @unique
-  driverClaim    String              @default("UNSET")
-  conciergeClaim String              @default("UNSET")
-  matched        Boolean             @default(false)
-  disputeOpen    Boolean             @default(false)
+  id             String               @id @default(cuid())
+  rideId         String               @unique
+  driverClaim    String               @default("UNSET")
+  conciergeClaim String               @default("UNSET")
+  matched        Boolean              @default(false)
+  disputeOpen    Boolean              @default(false)
   resolvedAt     DateTime?
   resolvedNote   String?
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
   ride           ConciergeRideRequest @relation(fields: [rideId], references: [id], onDelete: Cascade)
 }
 
 model ConciergeRating {
-  id          String              @id @default(cuid())
+  id          String               @id @default(cuid())
   rideId      String
   fromRole    String
   fromId      String
@@ -823,9 +1057,9 @@ model ConciergeRating {
   stars       Int
   note        String?
   conciergeId String?
-  createdAt   DateTime            @default(now())
+  createdAt   DateTime             @default(now())
   ride        ConciergeRideRequest @relation(fields: [rideId], references: [id], onDelete: Cascade)
-  concierge   Concierge?          @relation(fields: [conciergeId], references: [id], onDelete: SetNull)
+  concierge   Concierge?           @relation(fields: [conciergeId], references: [id], onDelete: SetNull)
 
   @@unique([rideId, fromRole, fromId])
   @@index([rideId])
@@ -833,31 +1067,31 @@ model ConciergeRating {
 
 /// App-only promo codes (admin-managed). Applied on mobile checkout.
 model Promotion {
-  id              String                @id @default(cuid())
+  id             String                @id @default(cuid())
   /// Stored uppercase; unique.
-  code            String                @unique
+  code           String                @unique
   /// PERCENT | FIXED
-  type            String
-  value           Float
-  isActive        Boolean               @default(true)
-  startsAt        DateTime?
-  endsAt          DateTime?
-  maxRedemptions  Int?
-  redeemedCount   Int                   @default(0)
+  type           String
+  value          Float
+  isActive       Boolean               @default(true)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  maxRedemptions Int?
+  redeemedCount  Int                   @default(0)
   /// Default 1 per customer. Null = unlimited.
-  maxPerCustomer  Int?                  @default(1)
-  minSubtotal     Float?
+  maxPerCustomer Int?                  @default(1)
+  minSubtotal    Float?
   /// Optional admin note / campaign label.
-  label           String?
+  label          String?
   /// Show soft banner on customer Home when eligible.
-  showInApp       Boolean               @default(false)
+  showInApp      Boolean               @default(false)
   /// Short headline for in-app banner (e.g. "20% off this week").
-  bannerTitle     String?
+  bannerTitle    String?
   /// Optional supporting line under the title.
-  bannerMessage   String?
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
-  redemptions     PromotionRedemption[]
+  bannerMessage  String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  redemptions    PromotionRedemption[]
 
   @@index([isActive, showInApp, startsAt, endsAt])
 }
@@ -878,19 +1112,19 @@ model PromotionRedemption {
 
 /// Friend signup attributed to a referrer (PENDING until first paid DONE trip).
 model ReferralAttribution {
-  id                   String    @id @default(cuid())
-  referrerId           String
-  refereeId            String    @unique
-  codeUsed             String
+  id                    String    @id @default(cuid())
+  referrerId            String
+  refereeId             String    @unique
+  codeUsed              String
   /// PENDING | QUALIFIED | REJECTED
-  status               String    @default("PENDING")
-  qualifiedAt          DateTime?
+  status                String    @default("PENDING")
+  qualifiedAt           DateTime?
   refereeFirstBookingId String?
-  adminNote            String?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
-  referrer             Customer  @relation("ReferrerAttributions", fields: [referrerId], references: [id], onDelete: Cascade)
-  referee              Customer  @relation("RefereeAttribution", fields: [refereeId], references: [id], onDelete: Cascade)
+  adminNote             String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  referrer              Customer  @relation("ReferrerAttributions", fields: [referrerId], references: [id], onDelete: Cascade)
+  referee               Customer  @relation("RefereeAttribution", fields: [refereeId], references: [id], onDelete: Cascade)
 
   @@index([referrerId, status])
   @@index([status, createdAt])

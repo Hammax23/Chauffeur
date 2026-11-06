@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
 import { getRedis, redisKey } from "@/lib/redis";
+import prisma from "@/lib/prisma";
 
 // Secret key for JWT - should be in env variable
 const JWT_SECRET = process.env.JWT_SECRET || "sarj-admin-jwt-secret-key-2024-secure";
@@ -77,8 +78,26 @@ async function deleteLoginAttempt(ip: string): Promise<void> {
 
 export interface AdminTokenPayload {
   role: "admin";
+  /** AdminUser.id when the per-admin identity flow is in use. Absent for legacy single-admin tokens. */
+  sub?: string;
+  /** AdminUser.email (lowercase) when available. Used for audit actor. */
+  email?: string;
   iat?: number;
   exp?: number;
+}
+
+/** Resolved actor for audit logs — email preferred, then AdminUser id, else legacy "admin". */
+export type AdminActor = {
+  adminId: string | null;
+  email: string | null;
+  actor: string;
+};
+
+export function actorFromPayload(payload: AdminTokenPayload | null): AdminActor {
+  if (!payload) return { adminId: null, email: null, actor: "admin" };
+  const email = payload.email ? String(payload.email).trim().toLowerCase() : null;
+  const adminId = payload.sub ? String(payload.sub) : null;
+  return { adminId, email, actor: email || adminId || "admin" };
 }
 
 /**
@@ -96,11 +115,17 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 /**
- * Generate JWT token for admin
+ * Generate JWT token for admin.
+ *
+ * Legacy single-admin: pass no args ⇒ token payload = `{ role: "admin" }` (back-compat).
+ * Phase 2 per-admin identity: pass `{ adminId, email }` ⇒ token = `{ role, sub, email }`.
+ * No JWT expiry — session ends only on logout or JWT_SECRET rotation.
  */
-/** No JWT expiry — session ends only on logout or JWT_SECRET rotation */
-export function generateToken(): string {
-  return jwt.sign({ role: "admin" }, JWT_SECRET);
+export function generateToken(actor?: { adminId?: string | null; email?: string | null }): string {
+  const payload: AdminTokenPayload = { role: "admin" };
+  if (actor?.adminId) payload.sub = actor.adminId;
+  if (actor?.email) payload.email = String(actor.email).trim().toLowerCase();
+  return jwt.sign(payload, JWT_SECRET);
 }
 
 /**
@@ -168,28 +193,108 @@ export async function clearAttempts(ip: string): Promise<void> {
 }
 
 /**
- * Authenticate admin login
+ * Phase 2 per-admin identity lookup.
+ * Returns the AdminUser row if email + password match an active admin, else null.
+ * Safe to call even when the AdminUser table is empty (returns null, no throw).
  */
-export async function authenticateAdmin(password: string): Promise<{ success: boolean; token?: string; error?: string }> {
-  // Get stored hash from env or use default
+export async function authenticateAdminUser(
+  email: string,
+  password: string
+): Promise<{ id: string; email: string; name: string | null } | null> {
+  const emailKey = String(email || "").trim().toLowerCase();
+  if (!emailKey || !password) return null;
+  try {
+    const user = await prisma.adminUser.findUnique({ where: { email: emailKey } });
+    if (!user || !user.isActive) return null;
+    const ok = await verifyPassword(password, user.password);
+    if (!ok) return null;
+    // Best-effort lastLoginAt — do not fail the login if the write fails.
+    try {
+      await prisma.adminUser.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      });
+    } catch {
+      /* ignore */
+    }
+    return { id: user.id, email: user.email, name: user.name };
+  } catch (err) {
+    console.error("[admin-auth] authenticateAdminUser failed", err);
+    return null;
+  }
+}
+
+/**
+ * Returns true if at least one AdminUser exists (any status).
+ * Used as the "has per-admin identity been bootstrapped?" signal — when false we
+ * fall back to the legacy single-admin ADMIN_PASSWORD env flow.
+ */
+export async function hasAnyAdminUser(): Promise<boolean> {
+  try {
+    const n = await prisma.adminUser.count();
+    return n > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Authenticate admin login.
+ *
+ * Phase 2 contract:
+ *   - If `email` is provided AND an AdminUser matches, log in as that admin
+ *     (token encodes `sub`+`email`, audit actor = that email).
+ *   - Else fall back to the legacy ADMIN_PASSWORD env flow — only when the
+ *     AdminUser table is empty OR no email was supplied, so existing single-admin
+ *     deployments keep working without migration.
+ */
+export async function authenticateAdmin(
+  password: string,
+  email?: string | null
+): Promise<{
+  success: boolean;
+  token?: string;
+  error?: string;
+  actor?: { adminId: string | null; email: string | null };
+}> {
+  const cleanEmail = email ? String(email).trim().toLowerCase() : "";
+
+  // Phase 2 — try AdminUser table first when an email is given.
+  if (cleanEmail) {
+    const user = await authenticateAdminUser(cleanEmail, password);
+    if (user) {
+      const token = generateToken({ adminId: user.id, email: user.email });
+      return {
+        success: true,
+        token,
+        actor: { adminId: user.id, email: user.email },
+      };
+    }
+
+    // If an email was supplied but there are AdminUsers configured, do NOT
+    // silently fall back to the env password — the explicit email must match.
+    const populated = await hasAnyAdminUser();
+    if (populated) {
+      return { success: false, error: "Invalid admin credentials" };
+    }
+    // Otherwise (empty AdminUser table) fall through to legacy env check so
+    // first-time bootstrap still works.
+  }
+
+  // Legacy single-admin env flow (Phase 1 backwards compat).
   const storedHash = process.env.ADMIN_PASSWORD_HASH || ADMIN_PASSWORD_HASH;
-  
-  // For backward compatibility, also check plain text password from env
   const plainPassword = process.env.ADMIN_PASSWORD;
-  
+
   let isValid = false;
-  
   if (plainPassword) {
-    // If plain password is set in env, compare directly (for easy setup)
     isValid = password === plainPassword;
   } else {
-    // Otherwise use bcrypt hash comparison
     isValid = await verifyPassword(password, storedHash);
   }
 
   if (isValid) {
     const token = generateToken();
-    return { success: true, token };
+    return { success: true, token, actor: { adminId: null, email: null } };
   }
 
   return { success: false, error: "Invalid password" };
@@ -205,15 +310,25 @@ export async function getAdminTokenFromCookies(): Promise<string | null> {
 }
 
 /**
- * Verify admin authentication from request
+ * Verify admin authentication from request.
+ *
+ * Phase 2: when the token is a per-admin token the return value also carries
+ * `adminId`, `email` and a resolved `actor` string for audit logs. Legacy
+ * single-admin tokens still authenticate but expose `actor = "admin"`.
  */
-export async function verifyAdminAuth(request?: NextRequest): Promise<{ authenticated: boolean; error?: string }> {
+export async function verifyAdminAuth(request?: NextRequest): Promise<{
+  authenticated: boolean;
+  error?: string;
+  adminId?: string | null;
+  email?: string | null;
+  actor?: string;
+}> {
   let token: string | null = null;
 
   if (request) {
     // Get from cookie in request
     token = request.cookies.get(COOKIE_NAME)?.value || null;
-    
+
     // Also check Authorization header
     if (!token) {
       const authHeader = request.headers.get("Authorization");
@@ -235,7 +350,13 @@ export async function verifyAdminAuth(request?: NextRequest): Promise<{ authenti
     return { authenticated: false, error: "Invalid or expired token" };
   }
 
-  return { authenticated: true };
+  const identity = actorFromPayload(payload);
+  return {
+    authenticated: true,
+    adminId: identity.adminId,
+    email: identity.email,
+    actor: identity.actor,
+  };
 }
 
 /**

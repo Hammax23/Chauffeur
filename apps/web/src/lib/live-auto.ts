@@ -424,6 +424,53 @@ export async function revokeAllOpenOffers(reason?: string): Promise<number> {
   return open.length;
 }
 
+/**
+ * Manual admin reassignment left a previous assignee holding a CLAIMED offer
+ * row + a stale ride-details screen that doesn't own the booking anymore.
+ *
+ * `revokeOffersForBooking` only touches OPEN offers — a CLAIMED offer for the
+ * prior driver stays as-is, and no `offer_revoked` SSE reaches them, so their
+ * open Ready-to-start / in-trip UI sits stale until they tap Start and hit
+ * the 409. Clean that up: flip the stale CLAIMED/OPEN row to REVOKED, push
+ * an SSE event (bounces ride-details immediately), and send an
+ * "offer unavailable" push so backgrounded apps clear the tray entry too.
+ */
+export async function revokePreviousAssignee(
+  bookingId: string,
+  prevDriverId: string
+): Promise<void> {
+  if (!prevDriverId) return;
+
+  const existing = await prisma.rideOffer.findUnique({
+    where: { bookingId_driverId: { bookingId, driverId: prevDriverId } },
+    select: { status: true },
+  });
+
+  if (existing && (existing.status === "CLAIMED" || existing.status === "OPEN")) {
+    await prisma.rideOffer.updateMany({
+      where: {
+        bookingId,
+        driverId: prevDriverId,
+        status: { in: ["CLAIMED", "OPEN"] },
+      },
+      data: { status: "REVOKED", respondedAt: new Date() },
+    });
+  }
+
+  const serverTime = new Date().toISOString();
+  publishDriver(prevDriverId, {
+    type: "offer_revoked",
+    bookingId,
+    serverTime,
+  });
+
+  void import("@/lib/driver-push")
+    .then(({ notifyDriversOfferUnavailable }) =>
+      notifyDriversOfferUnavailable([prevDriverId], bookingId, "revoked")
+    )
+    .catch((err) => console.error("[revokePreviousAssignee] push", err));
+}
+
 /** Revoke open offers for one booking (e.g. manual admin assign, cancel). */
 export async function revokeOffersForBooking(
   bookingId: string,

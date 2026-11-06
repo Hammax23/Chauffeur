@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { updateDriver, deleteDriver, getDriverById } from "@/lib/data-store";
 import { verifyAdminAuth } from "@/lib/admin-auth";
 import bcrypt from "bcryptjs";
+import prisma from "@/lib/prisma";
 
 export async function GET(
   request: NextRequest,
@@ -105,6 +106,34 @@ export async function DELETE(
 
   try {
     const { id } = await params;
+
+    // Driver pay guard: never hard-delete a driver with any pay history (FKs are Restrict).
+    // Admin should soft-deactivate (isActive=false) instead.
+    const [earningCount, remittanceCount, payoutCount, adjustmentCount] = await Promise.all([
+      prisma.driverEarning.count({ where: { driverId: id } }),
+      prisma.driverRemittance.count({ where: { driverId: id } }),
+      prisma.driverPayout.count({ where: { driverId: id } }),
+      prisma.driverAdjustment.count({ where: { driverId: id } }),
+    ]);
+
+    if (earningCount + remittanceCount + payoutCount + adjustmentCount > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: "DRIVER_HAS_PAY_HISTORY",
+          error:
+            "This driver has pay history. Deactivate (isActive=false) instead of deleting so earnings, remittances, and payouts stay intact for audit.",
+          counts: {
+            earnings: earningCount,
+            remittances: remittanceCount,
+            payouts: payoutCount,
+            adjustments: adjustmentCount,
+          },
+        },
+        { status: 409 }
+      );
+    }
+
     try {
       const { deleteAllPushDevicesForUser } = await import("@/lib/push-devices");
       await deleteAllPushDevicesForUser("DRIVER", id);

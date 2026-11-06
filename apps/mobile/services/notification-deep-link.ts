@@ -73,7 +73,8 @@ export function parseNotificationData(raw: unknown): SarjNotificationData {
 
 function isUnavailableError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err || "");
-  return /not found|no longer|unavailable|403|404/i.test(msg);
+  // 409 covers "accepted by another driver" (Live Auto race).
+  return /not found|no longer|unavailable|accepted by another|403|404|409/i.test(msg);
 }
 
 async function clearBadgeSafely() {
@@ -198,14 +199,37 @@ async function resolveDriverBookingNavigation(
       return { kind: "unavailable", bookingId };
     }
 
-    const status = String(detail.ride.status || "").toUpperCase();
+    const ride = detail.ride;
+    const status = String(ride.status || "").toUpperCase();
     const terminal = TERMINAL_RIDE_STATUSES.has(status);
+    const isMine = ride.isMine === true;
+    const isLiveOffer = ride.liveOffer === true;
 
     // Live offer expired / taken / completed by someone else
     if (type === "live_offer" && (status !== "PENDING" || terminal)) {
       showUnavailable(
         "Offer unavailable",
         "This live offer is no longer available. Check your other requests.",
+        showAlert
+      );
+      goRequests();
+      return { kind: "unavailable", bookingId };
+    }
+
+    // CRITICAL — Live Auto cross-driver leak fix.
+    // If this driver does not own the reservation, never render the "Ready to
+    // start" / in-trip UI (which belongs to the assigned driver). Two cases:
+    //   • isLiveOffer + PENDING → still an open offer for this driver; send to
+    //     the Requests tab where the Accept button lives.
+    //   • otherwise → already taken by another driver / revoked → clear alert.
+    if (!isMine) {
+      if (isLiveOffer && status === "PENDING" && !terminal) {
+        goRequests();
+        return { kind: "navigated", bookingId };
+      }
+      showUnavailable(
+        "Ride unavailable",
+        "This ride was accepted by another driver.",
         showAlert
       );
       goRequests();

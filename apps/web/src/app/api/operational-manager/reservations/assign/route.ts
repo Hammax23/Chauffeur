@@ -54,11 +54,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Failed to assign driver" }, { status: 500 });
     }
 
-    const { revokeOffersForBooking } = await import("@/lib/live-auto");
+    const { revokeOffersForBooking, revokePreviousAssignee } = await import(
+      "@/lib/live-auto"
+    );
     try {
       await revokeOffersForBooking(bookingId, driverId);
     } catch (err) {
       console.error("[ops-assign] revokeOffersForBooking", err);
+    }
+
+    // Reassignment: the prior assignee may be sitting on the stale
+    // Ready-to-start / in-trip screen. Push an offer_revoked so their SSE
+    // listener bounces them home instead of letting them slide Start and
+    // discover the 409 only then.
+    if (before?.assignedDriverId && before.assignedDriverId !== driverId) {
+      try {
+        await revokePreviousAssignee(bookingId, before.assignedDriverId);
+      } catch (err) {
+        console.error("[ops-assign] revokePreviousAssignee", err);
+      }
     }
 
     try {

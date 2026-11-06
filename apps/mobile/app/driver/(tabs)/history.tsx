@@ -23,6 +23,60 @@ function shortLoc(s?: string | null) {
   return s.split(",")[0]?.trim() || s.trim();
 }
 
+function PayBadge({ ride, muted }: { ride: DriverRide; muted: string }) {
+  const pay = ride.pay;
+  const status = String(ride.status || "").toUpperCase();
+  const isCancelled = status === "CANCELLED" || status === "CANCELED";
+
+  if (!pay) {
+    // No ledger row (cancelled / comped / not yet eligible)
+    return (
+      <View style={[styles.payChip, { backgroundColor: "rgba(142,142,147,0.14)" }]}>
+        <Text style={[styles.payChipText, { color: muted }]}>
+          {isCancelled ? "No pay record" : "Pending pay sync"}
+        </Text>
+      </View>
+    );
+  }
+
+  const bg =
+    pay.status === "PAID"
+      ? "rgba(52,199,89,0.14)"
+      : pay.status === "HELD"
+        ? "rgba(255,159,10,0.16)"
+        : pay.status === "VOID" || pay.status === "REASSIGNED"
+          ? "rgba(142,142,147,0.14)"
+          : "rgba(212,160,74,0.18)";
+  const fg =
+    pay.status === "PAID"
+      ? "#34C759"
+      : pay.status === "HELD"
+        ? "#FF9F0A"
+        : pay.status === "VOID" || pay.status === "REASSIGNED"
+          ? muted
+          : "#C9A063";
+
+  const noShow = pay.mode === "NO_SHOW" ? " · no-show" : "";
+  const net = typeof pay.driverNet === "number" ? `$${pay.driverNet.toFixed(2)}` : "—";
+
+  const label =
+    pay.status === "PAID"
+      ? `Paid ${net}${noShow}`
+      : pay.status === "HELD"
+        ? `On hold · ${net}${noShow}`
+        : pay.status === "VOID"
+          ? "No pay (voided)"
+          : pay.status === "REASSIGNED"
+            ? "Reassigned"
+            : `Owed ${net}${noShow}`;
+
+  return (
+    <View style={[styles.payChip, { backgroundColor: bg }]}>
+      <Text style={[styles.payChipText, { color: fg }]}>{label}</Text>
+    </View>
+  );
+}
+
 function HistoryCard({
   ride,
   text,
@@ -38,12 +92,27 @@ function HistoryCard({
   border: string;
   soft: string;
 }) {
+  const status = String(ride.status || "").toUpperCase();
+  const isNoShow = status === "NO_SHOW";
+  const isCancelled = status === "CANCELLED" || status === "CANCELED";
+
   return (
     <View style={[styles.card, { backgroundColor: surface, borderColor: border }]}>
-      <View style={[styles.whenPill, { backgroundColor: soft }]}>
-        <Text style={[styles.whenText, { color: muted }]}>
-          {ride.serviceDate}  ·  {ride.serviceTime}
-        </Text>
+      <View style={styles.cardHeaderRow}>
+        <View style={[styles.whenPill, { backgroundColor: soft }]}>
+          <Text style={[styles.whenText, { color: muted }]}>
+            {ride.serviceDate}  ·  {ride.serviceTime}
+          </Text>
+        </View>
+        {isNoShow ? (
+          <View style={[styles.statusTag, { backgroundColor: "rgba(255,69,58,0.14)" }]}>
+            <Text style={[styles.statusTagText, { color: "#FF453A" }]}>No-show</Text>
+          </View>
+        ) : isCancelled ? (
+          <View style={[styles.statusTag, { backgroundColor: "rgba(142,142,147,0.14)" }]}>
+            <Text style={[styles.statusTagText, { color: muted }]}>Cancelled</Text>
+          </View>
+        ) : null}
       </View>
 
       <Text style={[styles.label, { color: muted }]}>From</Text>
@@ -55,6 +124,10 @@ function HistoryCard({
       <Text style={[styles.place, { color: text }]} numberOfLines={2}>
         {shortLoc(ride.dropoffLocation)}
       </Text>
+
+      <View style={styles.payRow}>
+        <PayBadge ride={ride} muted={muted} />
+      </View>
     </View>
   );
 }
@@ -194,5 +267,36 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: -0.3,
     lineHeight: 22,
+  },
+  cardHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginBottom: 14,
+  },
+  statusTag: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 7,
+  },
+  statusTagText: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
+  payRow: {
+    marginTop: 14,
+    flexDirection: "row",
+  },
+  payChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  payChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.2,
   },
 });

@@ -26,6 +26,7 @@ import {
 } from "../../services/api";
 import { syncDriverLiveTracking } from "../../services/driver-live-session";
 import { dismissPresentedForEntity } from "../../services/notification-deep-link";
+import { openDriverStream } from "../../services/driver-stream";
 import { SlimSpinner } from "../../components/SlimSpinner";
 import { SlideToAct } from "../../components/driver/SlideToAct";
 import { isParcelServiceType, parseParcelRequirements } from "../../utils/parcel";
@@ -333,21 +334,88 @@ export default function RideDetailsScreen() {
   const mapPulse = useRef(new Animated.Value(0)).current;
   const sheetTopPad = Math.max(insets.top + 72, SCREEN_H * 0.42);
 
+  /**
+   * One-shot guard — show "ride taken" and bounce home.
+   * Used by every path that discovers this driver no longer owns the booking
+   * (initial load, focus refresh, live SSE revocation, 409 on slide).
+   */
+  const bounceHomeTaken = useCallback(
+    (
+      title: string = "Ride unavailable",
+      body: string = "This ride was accepted by another driver."
+    ) => {
+      void dismissPresentedForEntity({ bookingId: id });
+      Alert.alert(title, body, [
+        {
+          text: "OK",
+          onPress: () => {
+            // replace (not push) so Back doesn't return to the stale trip UI.
+            router.replace({
+              pathname: "/driver",
+              params: { tab: "requests" },
+            });
+          },
+        },
+      ]);
+    },
+    [id]
+  );
+
+  /** True once we've bounced — prevents duplicate alerts from stacked events. */
+  const bouncedRef = useRef(false);
+
   const refreshRide = useCallback(async () => {
     if (!id) return;
     try {
       const data = await getDriverRideDetail(id);
-      if (data.success && data.ride) setRide(data.ride);
-    } catch {
-      /* keep snapshot */
+      if (!data.success || !data.ride) return;
+
+      // Live Auto cross-driver safety: Ready-to-start / in-trip UI is only for
+      // the assigned driver (isMine). Open marketplace offers (liveOffer + not
+      // yet assigned) must never land here — Accept lives on Requests.
+      // isMine omitted (older API) → allow only when not a live open offer.
+      const isMine = data.ride.isMine;
+      const openLiveOffer =
+        data.ride.liveOffer === true && !data.ride.assignedDriverId;
+      if (isMine === false || openLiveOffer) {
+        if (bouncedRef.current) return;
+        bouncedRef.current = true;
+        if (openLiveOffer) {
+          void dismissPresentedForEntity({ bookingId: id });
+          router.replace({
+            pathname: "/driver",
+            params: { tab: "requests" },
+          });
+          return;
+        }
+        bounceHomeTaken();
+        return;
+      }
+      setRide(data.ride);
+    } catch (err) {
+      // 409 taken / 404 not found while loading = bounce home with a clear
+      // message instead of silently keeping a stale snapshot.
+      const msg = err instanceof Error ? err.message : "";
+      if (
+        /accepted by another driver|no longer available|not found|409|404/i.test(
+          msg
+        )
+      ) {
+        if (!bouncedRef.current) {
+          bouncedRef.current = true;
+          bounceHomeTaken();
+        }
+      }
+      /* otherwise: transient — keep snapshot */
     } finally {
       setIsLoading(false);
     }
-  }, [id]);
+  }, [id, bounceHomeTaken]);
 
   useFocusEffect(
     useCallback(() => {
       setIsLoading(true);
+      bouncedRef.current = false;
       void refreshRide();
       syncDriverLiveTracking().catch(() => {});
       if (!id) return;
@@ -356,7 +424,35 @@ export default function RideDetailsScreen() {
           if (c.success) setChatUnread(c.unreadCount || 0);
         })
         .catch(() => {});
-    }, [id, refreshRide])
+
+      // Live Auto Mode: react to first-accept-wins claim landing on another
+      // driver (loser receives offer_revoked) OR an admin reassignment while
+      // this screen is open. Dashboard SSE is paused on blur so we need our
+      // own listener here.
+      const stream = openDriverStream({
+        onEvent: (event) => {
+          if (!event.bookingId || event.bookingId !== id) return;
+          if (bouncedRef.current) return;
+          if (event.type === "offer_revoked") {
+            bouncedRef.current = true;
+            bounceHomeTaken();
+            return;
+          }
+          // Reconcile any other mutation against the server (cheap no-op when unchanged).
+          if (
+            event.type === "offer_claimed" ||
+            event.type === "offer_declined" ||
+            event.type === "snapshot" ||
+            event.type === "offer_created"
+          ) {
+            void refreshRide();
+          }
+        },
+      });
+      return () => {
+        stream.close();
+      };
+    }, [id, refreshRide, bounceHomeTaken])
   );
 
   // Only tick clocks when a live timer is on-screen (avoids 1Hz full re-renders otherwise).
@@ -927,11 +1023,40 @@ export default function RideDetailsScreen() {
         }
       } else {
         setRide(prev);
-        Alert.alert("Error", "Failed to update status");
+        // 409 "taken" — another driver owns this reservation. Live Auto race:
+        // show a clear message and send the user back to Requests instead of
+        // leaving them on the stale "Ready to start" screen.
+        if (result.code === "taken" || result.status === 409) {
+          if (!bouncedRef.current) {
+            bouncedRef.current = true;
+            bounceHomeTaken(
+              "Ride unavailable",
+              result.error || "This ride was accepted by another driver."
+            );
+          }
+        } else if (result.status === 404) {
+          if (!bouncedRef.current) {
+            bouncedRef.current = true;
+            bounceHomeTaken(
+              "Ride unavailable",
+              "This reservation is no longer available."
+            );
+          }
+        } else {
+          Alert.alert("Error", result.error || "Failed to update status");
+        }
       }
-    } catch {
+    } catch (err) {
       setRide(prev);
-      Alert.alert("Error", "Something went wrong");
+      const msg = err instanceof Error ? err.message : "";
+      if (/accepted by another driver|no longer available/i.test(msg)) {
+        if (!bouncedRef.current) {
+          bouncedRef.current = true;
+          bounceHomeTaken("Ride unavailable", msg);
+        }
+      } else {
+        Alert.alert("Error", "Something went wrong");
+      }
     } finally {
       setIsUpdating(false);
     }

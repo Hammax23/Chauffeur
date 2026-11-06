@@ -11,7 +11,7 @@ import {
 async function authorize(request: NextRequest) {
   const admin = await verifyAdminAuth(request);
   if (admin.authenticated) {
-    return { ok: true as const, actor: "admin" };
+    return { ok: true as const, actor: admin.actor || "admin" };
   }
   const ops = await verifyOperationalManagerAuth(request);
   if (ops?.authenticated) {

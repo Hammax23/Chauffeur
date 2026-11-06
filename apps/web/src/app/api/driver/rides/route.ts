@@ -91,13 +91,30 @@ export async function GET(req: NextRequest) {
     } else if (tab === "upcoming") {
       whereClause.status = { in: ["ACCEPTED", "ON THE WAY", "ARRIVED", "CIC", "STOP"] };
     } else if (tab === "completed") {
-      whereClause.status = { in: ["DONE", "CANCELLED"] };
+      whereClause.status = { in: ["DONE", "CANCELLED", "NO_SHOW"] };
     }
 
     const reservations = await prisma.reservation.findMany({
       where: whereClause,
       orderBy: { createdAt: "desc" },
-      include: { customer: true },
+      include: {
+        customer: true,
+        driverEarning:
+          tab === "completed"
+            ? {
+                select: {
+                  id: true,
+                  status: true,
+                  mode: true,
+                  driverNet: true,
+                  platformFee: true,
+                  commissionPct: true,
+                  holdReason: true,
+                  completedAt: true,
+                },
+              }
+            : false,
+      },
     });
 
     // Requests: never expose fare / phone / email until Accept → Upcoming.
@@ -108,10 +125,29 @@ export async function GET(req: NextRequest) {
       total: 0,
     });
 
+    const attachPay = (ride: any, res: any) => {
+      if (tab !== "completed") return ride;
+      const e = res.driverEarning;
+      return {
+        ...ride,
+        pay: e
+          ? {
+              status: e.status,
+              mode: e.mode,
+              driverNet: e.driverNet,
+              platformFee: e.platformFee,
+              commissionPct: e.commissionPct,
+              holdReason: e.holdReason,
+              completedAt: e.completedAt ? e.completedAt.toISOString() : null,
+            }
+          : null,
+      };
+    };
+
     const rides =
       tab === "requests"
         ? reservations.map((r) => redactRequest(mapAssignedRide(r, false)))
-        : reservations.map((r) => mapAssignedRide(r, false));
+        : reservations.map((r) => attachPay(mapAssignedRide(r, false), r));
 
     if (tab === "requests") {
       const liveOffers = await listOpenOffersForDriver(tokenData.id);

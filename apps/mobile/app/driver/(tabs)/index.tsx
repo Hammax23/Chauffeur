@@ -529,6 +529,10 @@ export default function DriverDashboard() {
       event.type === "offer_declined"
     ) {
       ssePendingHoldRef.current.delete(event.bookingId);
+      // Live Auto loser path: another driver accepted (or admin reassigned /
+      // revoked). Clear the floating banner for this booking instantly so the
+      // driver never taps a stale banner that resolves to "Ride unavailable".
+      rideAlert?.dismissRideAlertForBooking(event.bookingId);
       setRides((prev) => {
         const next = prev.filter((r) => r.bookingId !== event.bookingId);
         setRequestCount(next.length);
@@ -689,9 +693,40 @@ export default function DriverDashboard() {
         setActiveTab("upcoming");
         syncDriverLiveTracking().catch(() => {});
         fetchRides("upcoming");
-      } else {
-        Alert.alert("Error", "Failed to accept ride");
+        return;
       }
+
+      // First-accept-wins conflict — remove this offer from the list and show
+      // a clear message instead of a generic "Failed to accept" (Live Auto).
+      if (
+        result.code === "taken" ||
+        result.code === "busy" ||
+        result.status === 409
+      ) {
+        void dismissPresentedForEntity({ bookingId });
+        setRides((prev) => prev.filter((r) => r.bookingId !== bookingId));
+        setRequestCount((c) => Math.max(0, c - 1));
+        Alert.alert(
+          result.code === "busy" ? "You're on another ride" : "Ride taken",
+          result.error ||
+            (result.code === "busy"
+              ? "Finish your current trip before accepting another."
+              : "This ride was just accepted by another driver.")
+        );
+        fetchRides("requests", true);
+        return;
+      }
+
+      if (result.status === 404) {
+        void dismissPresentedForEntity({ bookingId });
+        setRides((prev) => prev.filter((r) => r.bookingId !== bookingId));
+        setRequestCount((c) => Math.max(0, c - 1));
+        Alert.alert("Offer unavailable", "This reservation is no longer available.");
+        fetchRides("requests", true);
+        return;
+      }
+
+      Alert.alert("Error", result.error || "Failed to accept ride");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Something went wrong";
       Alert.alert(
@@ -720,7 +755,23 @@ export default function DriverDashboard() {
         try {
           const result = await updateRideStatus(ride.bookingId, "ON THE WAY");
           if (!result.success) {
-            Alert.alert("Error", "Could not start the trip");
+            // 409 "taken" from another driver / admin unassign — refresh list
+            // and don't push the user into a trip screen they no longer own.
+            if (
+              result.code === "taken" ||
+              result.status === 409 ||
+              result.status === 404
+            ) {
+              Alert.alert(
+                "Ride unavailable",
+                result.error ||
+                  "This reservation is no longer assigned to you."
+              );
+              fetchRides("upcoming", true);
+              fetchRides("requests", true);
+              return;
+            }
+            Alert.alert("Error", result.error || "Could not start the trip");
             return;
           }
           syncDriverLiveTracking().catch(() => {});

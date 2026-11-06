@@ -142,6 +142,7 @@ export default function DriverLayout() {
           <Stack.Screen name="reviews" />
           <Stack.Screen name="concierge" />
           <Stack.Screen name="contact-us" />
+          <Stack.Screen name="earnings" />
         </Stack>
       </DriverRideAlertProvider>
     </DriverThemeProvider>

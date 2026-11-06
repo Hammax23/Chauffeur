@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { password } = body;
+    const { password, email } = body as { password?: string; email?: string };
 
     if (!password) {
       return NextResponse.json(
@@ -37,8 +37,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Authenticate
-    const result = await authenticateAdmin(password);
+    // Phase 2: optional per-admin identity. Legacy callers that only send password
+    // keep working (audit actor = "admin").
+    const result = await authenticateAdmin(password, email);
 
     if (!result.success) {
       // Record failed attempt

@@ -261,6 +261,24 @@ export async function DELETE(
       },
     });
 
+    // Driver pay: customer cancelled after a DONE earning existed → flag for admin review.
+    if (
+      refundResult.refunded ||
+      nextPaymentStatus === "REFUNDED" ||
+      nextPaymentStatus === "PARTIALLY_REFUNDED"
+    ) {
+      try {
+        const { flagEarningsForRefundReview } = await import("@/lib/driver-pay");
+        await flagEarningsForRefundReview({
+          reservationId: reservation.id,
+          reason: `Customer cancelled — ${decision.label}`,
+          actor: "customer",
+        });
+      } catch (e) {
+        console.error("[driver-pay] flagEarningsForRefundReview failed (customer cancel)", e);
+      }
+    }
+
     const { revokeOffersForBooking } = await import("@/lib/live-auto");
     await revokeOffersForBooking(id);
 

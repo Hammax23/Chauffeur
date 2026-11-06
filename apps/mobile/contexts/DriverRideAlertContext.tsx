@@ -42,6 +42,13 @@ export type DriverRideAlert = {
 type DriverRideAlertContextValue = {
   showRideAlert: (alert: DriverRideAlert) => void;
   dismissRideAlert: () => void;
+  /**
+   * Hide the floating banner only when it currently matches `bookingId`.
+   * Called from the dashboard SSE handler when a Live Auto offer is
+   * revoked / claimed / declined so the banner doesn't linger for 14s on
+   * a card that no longer exists in the Requests list.
+   */
+  dismissRideAlertForBooking: (bookingId: string) => void;
   focusRequestsTab: () => void;
 };
 
@@ -112,6 +119,25 @@ export function DriverRideAlertProvider({ children }: { children: React.ReactNod
     [dismissRideAlert, slide]
   );
 
+  const dismissRideAlertForBooking = useCallback(
+    (bookingId: string) => {
+      if (!bookingId) return;
+      // Avoid racing a different offer the user just saw — only hide when the
+      // currently visible banner matches this booking.
+      setAlert((prev) => {
+        if (!prev || prev.bookingId !== bookingId) return prev;
+        clearTimer();
+        Animated.timing(slide, {
+          toValue: -140,
+          duration: 180,
+          useNativeDriver: true,
+        }).start();
+        return null;
+      });
+    },
+    [slide]
+  );
+
   const focusRequestsTab = useCallback(() => {
     router.push({ pathname: "/driver", params: { tab: "requests" } });
   }, []);
@@ -153,6 +179,12 @@ export function DriverRideAlertProvider({ children }: { children: React.ReactNod
       if (data?.type === "chat" || data?.type === "chat_badge") {
         emitInboxBadgeRefresh();
       }
+      // Live Auto: another driver claimed — drop in-app banner for that booking.
+      if (data?.type === "offer_unavailable") {
+        const bookingId = String(data.bookingId || "");
+        if (bookingId) dismissRideAlertForBooking(bookingId);
+        return;
+      }
       if (data?.type === "concierge_offer") {
         // Only enrolled Concierge drivers should react to hotel offers.
         void isDriverConciergeEnrolled().then((enrolled) => {
@@ -180,11 +212,16 @@ export function DriverRideAlertProvider({ children }: { children: React.ReactNod
       received.remove();
       clearTimer();
     };
-  }, [isAuthenticated, showRideAlert, dismissRideAlert]);
+  }, [isAuthenticated, showRideAlert, dismissRideAlert, dismissRideAlertForBooking]);
 
   const value = useMemo(
-    () => ({ showRideAlert, dismissRideAlert, focusRequestsTab }),
-    [showRideAlert, dismissRideAlert, focusRequestsTab]
+    () => ({
+      showRideAlert,
+      dismissRideAlert,
+      dismissRideAlertForBooking,
+      focusRequestsTab,
+    }),
+    [showRideAlert, dismissRideAlert, dismissRideAlertForBooking, focusRequestsTab]
   );
 
   return (

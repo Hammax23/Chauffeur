@@ -46,7 +46,7 @@ export async function PUT(
         : null;
     const prevStatus = String(before?.status || "").toUpperCase();
 
-    const success = await updateReservation(id, body);
+    const success = await updateReservation(id, body, { actor: auth.actor || "admin" });
     
     if (!success) {
       return NextResponse.json({ success: false, error: "Reservation not found" }, { status: 404 });

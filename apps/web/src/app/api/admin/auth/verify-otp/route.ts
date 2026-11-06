@@ -31,9 +31,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // OTP verified - clear rate limit and issue token
+    // OTP verified - clear rate limit and issue token. For Phase 2 the OTP
+    // session carries the resolved AdminUser identity so the JWT can embed
+    // sub+email (audit trail per admin). Legacy single-admin tokens have no actor.
     await clearAttempts(ip);
-    const token = generateToken();
+    const token = generateToken(otpResult.actor || undefined);
 
     // Create response with secure cookie
     const response = NextResponse.json({

@@ -15,6 +15,9 @@ const attemptStore = new Map<string, number>();
 
 interface OTPPayload {
   otp: string;
+  /** Phase 2 — optional admin identity captured at send-otp so verify-otp can mint a per-admin JWT. */
+  adminId?: string | null;
+  email?: string | null;
   exp: number;
   iat: number;
 }
@@ -71,25 +74,35 @@ export function generateOTP(): string {
 }
 
 /**
- * Create a signed session token containing the OTP
- * This survives server restarts because the OTP is encoded in the token itself
+ * Create a signed session token containing the OTP (and, Phase 2, the admin identity
+ * resolved at send-otp time). This survives server restarts because everything is
+ * encoded in the JWT itself.
  */
-export function createOTPSession(code: string): string {
-  const token = jwt.sign(
-    { otp: code },
-    getAppJwtSecret(),
-    { expiresIn: `${OTP_EXPIRY_MINUTES}m` }
-  );
+export function createOTPSession(
+  code: string,
+  actor?: { adminId?: string | null; email?: string | null }
+): string {
+  const payload: Record<string, unknown> = { otp: code };
+  if (actor?.adminId) payload.adminId = actor.adminId;
+  if (actor?.email) payload.email = String(actor.email).trim().toLowerCase();
+  const token = jwt.sign(payload, getAppJwtSecret(), {
+    expiresIn: `${OTP_EXPIRY_MINUTES}m`,
+  });
   return token;
 }
 
 /**
- * Verify OTP code against the session token
+ * Verify OTP code against the session token. On success returns the admin identity
+ * captured at send-otp time (if any) so the caller can mint a per-admin JWT.
  */
 export async function verifyOTP(
   sessionId: string,
   code: string
-): Promise<{ valid: boolean; error?: string }> {
+): Promise<{
+  valid: boolean;
+  error?: string;
+  actor?: { adminId: string | null; email: string | null };
+}> {
   const attempts = await getAttempts(sessionId);
   if (attempts >= MAX_OTP_ATTEMPTS) {
     await clearAttemptsStore(sessionId);
@@ -106,7 +119,13 @@ export async function verifyOTP(
     }
 
     await clearAttemptsStore(sessionId);
-    return { valid: true };
+    return {
+      valid: true,
+      actor: {
+        adminId: decoded.adminId || null,
+        email: decoded.email || null,
+      },
+    };
   } catch (error: any) {
     if (error.name === "TokenExpiredError") {
       return { valid: false, error: "OTP expired. Please request a new code." };
@@ -132,16 +151,17 @@ export function generateSessionId(): string {
 }
 
 /**
- * Send OTP email to admin (ADMIN_EMAIL). Used for admin and SEO panel login.
+ * Send OTP email. Default recipient is `ADMIN_EMAIL` (legacy single-admin flow).
+ * Phase 2: pass `options.to` to deliver the code to a specific AdminUser's inbox.
  */
 export async function sendOTPEmail(
   otp: string,
-  options?: { panel?: "admin" | "seo" }
+  options?: { panel?: "admin" | "seo"; to?: string | null }
 ): Promise<{ success: boolean; error?: string }> {
-  const adminEmail = process.env.ADMIN_EMAIL;
   const panel = options?.panel ?? "admin";
+  const recipient = (options?.to || process.env.ADMIN_EMAIL || "").trim();
 
-  if (!adminEmail) {
+  if (!recipient) {
     console.error("Admin email not configured");
     return { success: false, error: "Admin email not configured" };
   }
@@ -153,7 +173,7 @@ export async function sendOTPEmail(
 
   try {
     const sent = await sendTransactionalEmail({
-      to: adminEmail,
+      to: recipient,
       subject:
         panel === "seo"
           ? "SEO Panel login verification — SARJ Worldwide"

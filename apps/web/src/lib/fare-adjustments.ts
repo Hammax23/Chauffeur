@@ -378,6 +378,22 @@ export async function markReservationNoShow(opts: {
     idempotencyKey: `no_show:${reservation.bookingId}`,
   });
 
+  // Driver pay: NO_SHOW earns like DONE because the driver did the work (showed up, waited past
+  // free window, notified ops). Called ONLY here — shared by driver + admin/ops callers so we
+  // never double-fire the ledger write.
+  if (reservation.assignedDriverId) {
+    try {
+      const { onReservationCompleted } = await import("@/lib/driver-pay");
+      await onReservationCompleted({
+        reservationId: reservation.id,
+        mode: "NO_SHOW",
+        actor: opts.markedBy || "ops",
+      });
+    } catch (e) {
+      console.error("[driver-pay] NO_SHOW hook failed", e);
+    }
+  }
+
   await notifyCustomerCharge(
     reservation.customerId,
     "Trip marked no-show",

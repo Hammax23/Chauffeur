@@ -1644,6 +1644,14 @@ export interface DriverRide {
   completedAt?: string | null;
   /** Live Auto Mode marketplace offer (not yet assigned). */
   liveOffer?: boolean;
+  /**
+   * Server-computed: reservation.assignedDriverId === current driver.
+   * False when this is a live offer (not yet claimed) or when another driver
+   * already owns the booking (stale notification race).
+   */
+  isMine?: boolean;
+  /** Driver id who owns the booking (null until first accept). */
+  assignedDriverId?: string | null;
   /** Customer trip review for this ride (when completed). */
   review?: {
     stars: number;
@@ -1651,6 +1659,132 @@ export interface DriverRide {
     createdAt: string;
     customerName: string;
   } | null;
+  /** Driver pay snapshot for completed trips (null when no ledger row exists yet). */
+  pay?: {
+    /** PENDING | PAID | VOID | REASSIGNED | HELD */
+    status: string;
+    /** DONE | NO_SHOW */
+    mode: string;
+    driverNet: number;
+    platformFee: number;
+    commissionPct: number;
+    /** AWAITING_CUSTOMER_PAYMENT | COMPED | CUSTOMER_REFUNDED */
+    holdReason?: string | null;
+    completedAt?: string | null;
+  } | null;
+}
+
+// ==================== DRIVER EARNINGS ====================
+
+export type DriverEarningSummary = {
+  pending: { count: number; total: number };
+  paid: { count: number; total: number };
+  held: { count: number; total: number };
+  remittanceOwed: { count: number; total: number };
+  lifetime: { total: number };
+  /** Phase 2 — lifetime admin adjustments (bonuses / deductions). */
+  adjustments?: {
+    positiveCount: number;
+    positiveTotal: number;
+    negativeCount: number;
+    negativeTotal: number;
+    net: number;
+  };
+  thisWeek: {
+    count: number;
+    total: number;
+    rangeStart: string;
+    rangeEnd: string;
+    tz: string;
+  };
+};
+
+export type DriverEarningRow = {
+  id: string;
+  bookingId: string;
+  mode: "DONE" | "NO_SHOW" | string;
+  status: "PENDING" | "PAID" | "VOID" | "REASSIGNED" | "HELD" | string;
+  holdReason?: string | null;
+  commissionPct: number;
+  platformFee: number;
+  gratuity: number;
+  driverNet: number;
+  serviceBasis: number;
+  completedAt: string;
+  reservation: {
+    bookingId: string;
+    serviceDate: string;
+    serviceTime: string;
+    pickupLocation: string;
+    dropoffLocation: string;
+  } | null;
+};
+
+export type DriverRemittanceRow = {
+  id: string;
+  bookingId: string;
+  status: "OWED" | "REMITTED" | "WAIVED" | string;
+  amountOwed: number;
+  commissionPct: number;
+  serviceBasis: number;
+  completedAt: string;
+  reservation: {
+    bookingId: string;
+    serviceDate: string;
+    serviceTime: string;
+    pickupLocation: string;
+  } | null;
+};
+
+export async function getDriverEarnings(params?: {
+  limit?: number;
+  cursor?: string;
+  summaryOnly?: boolean;
+}) {
+  const q = new URLSearchParams();
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.cursor) q.set("cursor", params.cursor);
+  if (params?.summaryOnly) q.set("summaryOnly", "1");
+  const qs = q.toString();
+  return apiRequest<{
+    success: boolean;
+    summary: DriverEarningSummary;
+    earnings: DriverEarningRow[];
+    remittances: DriverRemittanceRow[];
+    nextCursor: string | null;
+    error?: string;
+  }>(`/driver/earnings${qs ? `?${qs}` : ""}`);
+}
+
+// ==================== DRIVER STRIPE CONNECT (Phase 2) ====================
+
+export type DriverConnectStatus = {
+  success: boolean;
+  connectAvailable: boolean;
+  payoutsLive: boolean;
+  status: "NOT_STARTED" | "PENDING" | "RESTRICTED" | "ENABLED" | string;
+  stripeAccountId: string | null;
+  payoutsEnabled: boolean | null;
+  chargesEnabled: boolean | null;
+  requirementsDue: string[];
+  requirementsDisabledReason: string | null;
+  updatedAt: string | null;
+  error?: string;
+};
+
+export async function getDriverConnectStatus(params?: { refresh?: boolean }) {
+  const qs = params?.refresh ? "?refresh=1" : "";
+  return apiRequest<DriverConnectStatus>(`/driver/connect/status${qs}`);
+}
+
+export async function startDriverConnectOnboarding() {
+  return apiRequest<{
+    success: boolean;
+    url?: string;
+    stripeAccountId?: string;
+    expiresAt?: number;
+    error?: string;
+  }>(`/driver/connect/onboard`, { method: "POST" });
 }
 
 export type DriverTripReviewItem = {
@@ -1737,11 +1871,30 @@ export async function getDriverReviews(params?: { limit?: number; cursor?: strin
   }>(`/driver/reviews${qs ? `?${qs}` : ""}`);
 }
 
+/**
+ * Patch ride status.
+ *
+ * Returns the full envelope (no throw on non-2xx) so callers can distinguish
+ * "taken by another driver" (409 + code: "taken") from generic failures and
+ * route home cleanly. Live Auto Mode cross-driver safety depends on this.
+ */
 export async function updateRideStatus(bookingId: string, status: string) {
-  return apiRequest<{ success: boolean; message: string }>(
-    `/driver/rides/${bookingId}`,
-    { method: "PATCH", body: JSON.stringify({ status }) }
-  );
+  const res = await apiRequestWithResponse<{
+    success: boolean;
+    message?: string;
+    error?: string;
+    code?: string;
+  }>(`/driver/rides/${bookingId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+  return {
+    success: !!res.data.success,
+    status: res.status,
+    message: res.data.message,
+    error: res.data.error,
+    code: res.data.code,
+  };
 }
 
 export async function markDriverNoShow(bookingId: string, notes?: string) {
@@ -1764,11 +1917,30 @@ export async function rejectRide(bookingId: string) {
   );
 }
 
+/**
+ * First-accept-wins claim of a Live Auto offer (or manual assignment).
+ *
+ * Server returns 409 { code: "taken" } when another driver already claimed.
+ * Returned envelope lets the caller show a friendly "Ride taken" state and
+ * refresh the Requests tab instead of a generic error.
+ */
 export async function acceptRide(bookingId: string) {
-  return apiRequest<{ success: boolean; message: string }>(
-    `/driver/rides/${bookingId}`,
-    { method: "PATCH", body: JSON.stringify({ status: "ACCEPTED" }) }
-  );
+  const res = await apiRequestWithResponse<{
+    success: boolean;
+    message?: string;
+    error?: string;
+    code?: string;
+  }>(`/driver/rides/${bookingId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status: "ACCEPTED" }),
+  });
+  return {
+    success: !!res.data.success,
+    status: res.status,
+    message: res.data.message,
+    error: res.data.error,
+    code: res.data.code,
+  };
 }
 
 export type ChatSenderType = "CUSTOMER" | "DRIVER" | "ADMIN";
