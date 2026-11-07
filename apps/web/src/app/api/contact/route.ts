@@ -3,7 +3,6 @@ import { sanitizeInput, isValidEmail } from "@/lib/sanitize";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { buildContactAdminEmail, buildContactUserEmail } from "@/lib/email-templates";
-import { CONTACT_SERVICE_TYPE_SET } from "@/lib/contact-service-types";
 import { isEmailConfigured, sendTransactionalEmail } from "@/lib/email-delivery";
 import prisma from "@/lib/prisma";
 
@@ -34,26 +33,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: turnstileResult.error }, { status: 403 });
     }
 
-    const fullName = sanitizeInput(body.fullName);
+    const fullName = sanitizeInput(body.fullName || body.passengerName);
     const email = sanitizeInput(body.email);
     const phone = sanitizeInput(body.phone);
     const phoneCode = sanitizeInput(body.phoneCode) || "+1";
-    const serviceType = sanitizeInput(body.serviceType);
-    const pickup = sanitizeInput(body.pickup);
-    const dropoff = sanitizeInput(body.dropoff);
-    const pickupTime = sanitizeInput(body.pickupTime);
     const additionalNotes = sanitizeInput(body.additionalNotes);
 
-    if (!fullName || !email || !phone || !serviceType) {
+    if (!fullName || !email || !phone) {
       return NextResponse.json({ error: "Please fill in all required fields" }, { status: 400 });
     }
 
     if (!isValidEmail(email)) {
       return NextResponse.json({ error: "Please enter a valid email address" }, { status: 400 });
-    }
-
-    if (!CONTACT_SERVICE_TYPE_SET.has(serviceType)) {
-      return NextResponse.json({ error: "Please select a valid service type" }, { status: 400 });
     }
 
     const adminTo = contactRecipientEmail();
@@ -75,32 +66,20 @@ export async function POST(request: NextRequest) {
 
     const fullPhone = `${phoneCode}${phone}`;
 
-    const adminEmailHtml = buildContactAdminEmail({
+    const payload = {
       fullName,
       email,
       phone: fullPhone,
-      serviceType,
-      pickup: pickup || undefined,
-      dropoff: dropoff || undefined,
-      pickupTime: pickupTime || undefined,
       notes: additionalNotes || undefined,
-    });
+    };
 
-    const userEmailHtml = buildContactUserEmail({
-      fullName,
-      email,
-      phone: fullPhone,
-      serviceType,
-      pickup: pickup || undefined,
-      dropoff: dropoff || undefined,
-      pickupTime: pickupTime || undefined,
-      notes: additionalNotes || undefined,
-    });
+    const adminEmailHtml = buildContactAdminEmail(payload);
+    const userEmailHtml = buildContactUserEmail(payload);
 
     const adminSent = await sendTransactionalEmail({
       to: adminTo,
       replyTo: email,
-      subject: `New contact form: ${fullName} - ${serviceType}`,
+      subject: `New contact form: ${fullName}`,
       html: adminEmailHtml,
       logLabel: "contact-admin",
     });
@@ -126,11 +105,10 @@ export async function POST(request: NextRequest) {
         passengers: "N/A",
         phone: fullPhone,
         email,
-        serviceType,
+        serviceType: "Contact enquiry",
         vehicle: null,
-        pickupTime: pickupTime || null,
-        pickupLocation: pickup || "Not provided",
-        dropoffLocation: dropoff || "Not provided",
+        pickupLocation: "Not provided",
+        dropoffLocation: "Not provided",
         additionalNotes: additionalNotes || null,
         status: "NEW",
       },

@@ -134,9 +134,30 @@ function QuotePageContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setSubmitError("");
     setSubmitSuccess(false);
+
+    if (
+      !passengerName.trim() ||
+      !passengers.trim() ||
+      !phone.trim() ||
+      !email.trim() ||
+      !serviceType ||
+      !vehicleType ||
+      !pickupLocation.trim() ||
+      !dropoffLocation.trim()
+    ) {
+      setSubmitError("Please fill in all required fields.");
+      return;
+    }
+
+    const turnstileRequired = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
+    if (turnstileRequired && !turnstileToken) {
+      setSubmitError("Please complete the CAPTCHA verification.");
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       const response = await fetch("/api/quote", {
@@ -167,6 +188,7 @@ function QuotePageContent() {
       setSubmitSuccess(true);
       setToastVisible(true);
       setToastExiting(false);
+      setTurnstileToken("");
       setPassengerName("");
       setPassengers("");
       setPhone("");
@@ -178,8 +200,10 @@ function QuotePageContent() {
       setAdditionalNotes("");
       setStops([]);
       setAgree(false);
-    } catch (error: any) {
-      setSubmitError(error.message || "Something went wrong. Please try again.");
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Something went wrong. Please try again.";
+      setSubmitError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -432,7 +456,7 @@ function QuotePageContent() {
               </div>
             </div>
 
-            {/* Row 6: Notes */
+            {/* Row 6: Notes */}
             <div>
               <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Additional notes</label>
               <textarea
@@ -444,7 +468,6 @@ function QuotePageContent() {
               />
             </div>
 
-            }
             <div className="pt-2 pb-1 space-y-5">
               <label className="flex items-start gap-3 cursor-pointer group">
                 <input

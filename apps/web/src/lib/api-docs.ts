@@ -98,33 +98,48 @@
  *             type: object
  *             required:
  *               - passengerName
+ *               - passengers
  *               - email
  *               - phone
+ *               - serviceType
+ *               - vehicleType
  *               - pickupLocation
  *               - dropoffLocation
  *             properties:
  *               passengerName:
+ *                 type: string
+ *               passengers:
  *                 type: string
  *               email:
  *                 type: string
  *                 format: email
  *               phone:
  *                 type: string
- *               passengers:
+ *               phoneCode:
  *                 type: string
  *               serviceType:
+ *                 type: string
+ *               vehicleType:
  *                 type: string
  *               pickupLocation:
  *                 type: string
  *               dropoffLocation:
  *                 type: string
+ *               stops:
+ *                 type: array
+ *                 items:
+ *                   type: string
  *               additionalNotes:
+ *                 type: string
+ *               turnstileToken:
  *                 type: string
  *     responses:
  *       200:
  *         description: Quote submitted successfully
  *       400:
  *         description: Validation error
+ *       403:
+ *         description: CAPTCHA failed
  */
 
 /**
@@ -134,25 +149,37 @@
  *     tags:
  *       - General
  *     summary: Submit contact form
- *     description: Send a contact message
+ *     description: Send a contact message (Full Name, Email, Phone, Additional notes)
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - fullName
+ *               - email
+ *               - phone
  *             properties:
- *               name:
+ *               fullName:
  *                 type: string
  *               email:
  *                 type: string
  *               phone:
  *                 type: string
- *               message:
+ *               phoneCode:
+ *                 type: string
+ *               additionalNotes:
+ *                 type: string
+ *               turnstileToken:
  *                 type: string
  *     responses:
  *       200:
  *         description: Message sent successfully
+ *       400:
+ *         description: Validation error
+ *       403:
+ *         description: CAPTCHA failed
  */
 
 /**
