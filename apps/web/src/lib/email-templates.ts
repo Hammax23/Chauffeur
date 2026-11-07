@@ -273,6 +273,7 @@ export function buildQuoteAdminEmail(p: {
   vehicleType: string;
   pickup: string;
   dropoff: string;
+  pickupTime?: string;
   stops?: string[];
   notes?: string;
 }): string {
@@ -287,6 +288,7 @@ export function buildQuoteAdminEmail(p: {
     trip += emailDataRow(`Stop ${i + 1}`, s);
   });
   trip += emailDataRow("Drop-off", p.dropoff);
+  if (p.pickupTime) trip += emailDataRow("Pick-up time", p.pickupTime);
   const notes = p.notes ? emailSection("Notes", `<p style="margin:0;color:#475569;font-size:14px;line-height:1.65;">${e(p.notes)}</p>`) : "";
   return emailDocument(
     emailHeader({ eyebrow: "Sales", title: "New quote request", subtitle: "Online quote form", badge: "New lead" }) +
@@ -303,6 +305,7 @@ export function buildQuoteUserEmail(p: Parameters<typeof buildQuoteAdminEmail>[0
     summary += emailDataRow(`Stop ${i + 1}`, s);
   });
   summary += emailDataRow("Drop-off", p.dropoff);
+  if (p.pickupTime) summary += emailDataRow("Pick-up time", p.pickupTime);
   return emailDocument(
     emailHeader({ eyebrow: "SARJ Worldwide", title: "Quote request received", subtitle: "Our team is already reviewing your request", tone: "success" }) +
       emailBody(

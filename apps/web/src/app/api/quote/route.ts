@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
     const vehicleType = sanitizeInput(body.vehicleType);
     const pickupLocation = sanitizeInput(body.pickupLocation);
     const dropoffLocation = sanitizeInput(body.dropoffLocation);
+    const pickupTime = sanitizeInput(body.pickupTime);
     const additionalNotes = sanitizeInput(body.additionalNotes);
     const stops = sanitizeArray(body.stops);
 
@@ -74,7 +75,8 @@ export async function POST(request: NextRequest) {
       !serviceType ||
       !vehicleType ||
       !pickupLocation ||
-      !dropoffLocation
+      !dropoffLocation ||
+      !pickupTime
     ) {
       return NextResponse.json({ error: "Please fill in all required fields" }, { status: 400 });
     }
@@ -104,6 +106,7 @@ export async function POST(request: NextRequest) {
       vehicleType: vehicleLabel,
       pickup: pickupLocation,
       dropoff: dropoffLocation,
+      pickupTime,
       stops,
       notes: additionalNotes || undefined,
     };
@@ -150,6 +153,7 @@ export async function POST(request: NextRequest) {
         email,
         serviceType: serviceLabel,
         vehicle: vehicleLabel,
+        pickupTime,
         pickupLocation,
         stops: stops.length > 0 ? stops.join(" | ") : null,
         dropoffLocation,

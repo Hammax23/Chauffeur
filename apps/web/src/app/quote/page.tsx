@@ -3,13 +3,17 @@
 import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { User, Users, Phone, Mail, MapPin, ChevronDown, Plus, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { User, Users, Phone, Mail, MapPin, ChevronDown, Plus, CheckCircle, AlertCircle, Loader2, Clock } from "lucide-react";
 import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Turnstile from "@/components/Turnstile";
 import PlacesAutocomplete from "@/components/PlacesAutocomplete";
 import { GoogleMapsProvider } from "@/components/GoogleMapsProvider";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { fleetData } from "@/data/fleet";
+
 // Service types for quote form
 const quoteServiceTypes = [
   { value: "airport-transportation", label: "Airport Transportation" },
@@ -18,7 +22,6 @@ const quoteServiceTypes = [
   { value: "wedding-transportation", label: "Wedding Transportation" },
   { value: "corporate-business-travel", label: "Corporate and Business Travel" },
 ];
-import { fleetData } from "@/data/fleet";
 
 // Country codes: Canada first. flagCode = ISO code for flag image (flagcdn.com).
 const COUNTRY_CODES = [
@@ -73,6 +76,7 @@ function QuotePageContent() {
   const [vehicleType, setVehicleType] = useState("");
   const [pickupLocation, setPickupLocation] = useState("");
   const [dropoffLocation, setDropoffLocation] = useState("");
+  const [pickupDateTime, setPickupDateTime] = useState<Date | null>(null);
   const [additionalNotes, setAdditionalNotes] = useState("");
 
   // Submission states
@@ -145,7 +149,8 @@ function QuotePageContent() {
       !serviceType ||
       !vehicleType ||
       !pickupLocation.trim() ||
-      !dropoffLocation.trim()
+      !dropoffLocation.trim() ||
+      !pickupDateTime
     ) {
       setSubmitError("Please fill in all required fields.");
       return;
@@ -156,6 +161,15 @@ function QuotePageContent() {
       setSubmitError("Please complete the CAPTCHA verification.");
       return;
     }
+
+    const pickupTime = pickupDateTime.toLocaleString("en-US", {
+      month: "2-digit",
+      day: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
 
     setIsSubmitting(true);
 
@@ -174,6 +188,7 @@ function QuotePageContent() {
           pickupLocation,
           stops: stops.filter((s) => s.trim() !== ""),
           dropoffLocation,
+          pickupTime,
           additionalNotes,
           turnstileToken,
         }),
@@ -197,6 +212,7 @@ function QuotePageContent() {
       setVehicleType("");
       setPickupLocation("");
       setDropoffLocation("");
+      setPickupDateTime(null);
       setAdditionalNotes("");
       setStops([]);
       setAgree(false);
@@ -456,7 +472,33 @@ function QuotePageContent() {
               </div>
             </div>
 
-            {/* Row 6: Notes */}
+            {/* Row 6: Pick-up Time */}
+            <div>
+              <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">
+                Pick-up Time
+              </label>
+              <div className="relative reservation-datepicker">
+                <DatePicker
+                  selected={pickupDateTime}
+                  onChange={(date: Date | null) => setPickupDateTime(date)}
+                  showTimeSelect
+                  timeIntervals={15}
+                  timeCaption="Time"
+                  dateFormat="MMMM d, yyyy  h:mm aa"
+                  timeFormat="h:mm aa"
+                  minDate={new Date()}
+                  placeholderText="Select date & time"
+                  required
+                  className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-[15px] text-gray-900 placeholder-gray-400 bg-gray-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200"
+                  withPortal
+                />
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                  <Clock className="w-5 h-5 text-gray-400" strokeWidth={1.5} />
+                </div>
+              </div>
+            </div>
+
+            {/* Row 7: Notes */}
             <div>
               <label className="block text-gray-700 text-[13px] font-medium mb-1.5 tracking-tight">Additional notes</label>
               <textarea

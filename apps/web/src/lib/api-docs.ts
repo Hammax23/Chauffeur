@@ -105,6 +105,7 @@
  *               - vehicleType
  *               - pickupLocation
  *               - dropoffLocation
+ *               - pickupTime
  *             properties:
  *               passengerName:
  *                 type: string
@@ -124,6 +125,8 @@
  *               pickupLocation:
  *                 type: string
  *               dropoffLocation:
+ *                 type: string
+ *               pickupTime:
  *                 type: string
  *               stops:
  *                 type: array
