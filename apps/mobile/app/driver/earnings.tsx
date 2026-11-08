@@ -14,7 +14,6 @@ import {
   getDriverEarnings,
   type DriverEarningRow,
   type DriverEarningSummary,
-  type DriverRemittanceRow,
 } from "../../services/api";
 import { SlimSpinner } from "../../components/SlimSpinner";
 import { GOLD } from "../../theme/driver-theme";
@@ -25,7 +24,6 @@ type ListItem =
   | { kind: "summary"; summary: DriverEarningSummary }
   | { kind: "section"; label: string; hint?: string }
   | { kind: "earning"; row: DriverEarningRow }
-  | { kind: "remittance"; row: DriverRemittanceRow }
   | { kind: "empty"; label: string };
 
 function shortLoc(s?: string | null) {
@@ -33,21 +31,17 @@ function shortLoc(s?: string | null) {
   return s.split(",")[0]?.trim() || s.trim();
 }
 
-function statusColors(
-  status: string
-): { bg: string; fg: string; label: string } {
+function statusColors(status: string): { bg: string; fg: string; label: string } {
   switch (status) {
     case "PAID":
       return { bg: "rgba(52,199,89,0.14)", fg: "#34C759", label: "Paid" };
-    case "HELD":
-      return { bg: "rgba(255,159,10,0.16)", fg: "#FF9F0A", label: "On hold" };
     case "VOID":
-      return { bg: "rgba(142,142,147,0.16)", fg: "#8A8A8E", label: "Void" };
     case "REASSIGNED":
-      return { bg: "rgba(142,142,147,0.16)", fg: "#8A8A8E", label: "Reassigned" };
+      return { bg: "rgba(142,142,147,0.16)", fg: "#8A8A8E", label: status === "VOID" ? "Void" : "Reassigned" };
+    case "HELD":
     case "PENDING":
     default:
-      return { bg: "rgba(212,160,74,0.18)", fg: GOLD, label: "Owed to you" };
+      return { bg: "rgba(212,160,74,0.18)", fg: GOLD, label: "Pending" };
   }
 }
 
@@ -67,7 +61,6 @@ export default function DriverEarningsListScreen() {
   const { palette, isDark } = useDriverTheme();
   const [summary, setSummary] = useState<DriverEarningSummary | null>(null);
   const [earnings, setEarnings] = useState<DriverEarningRow[]>([]);
-  const [remittances, setRemittances] = useState<DriverRemittanceRow[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -90,11 +83,11 @@ export default function DriverEarningsListScreen() {
           return;
         }
         setSummary(res.summary);
-        setRemittances(res.remittances || []);
         setNextCursor(res.nextCursor);
-        setEarnings((prev) =>
-          opts?.append ? [...prev, ...(res.earnings || [])] : res.earnings || []
+        const rows = (res.earnings || []).filter(
+          (e) => e.status === "PENDING" || e.status === "PAID" || e.status === "HELD"
         );
+        setEarnings((prev) => (opts?.append ? [...prev, ...rows] : rows));
       } catch (e) {
         setError(e instanceof Error ? e.message : "Could not load earnings");
       } finally {
@@ -114,24 +107,13 @@ export default function DriverEarningsListScreen() {
 
   const items: ListItem[] = [];
   if (summary) items.push({ kind: "summary", summary });
-
-  const owedRemits = remittances.filter((r) => r.status === "OWED");
-  if (owedRemits.length > 0) {
-    items.push({
-      kind: "section",
-      label: "COD you owe company",
-      hint: "Hand to admin on your next shift",
-    });
-    for (const r of owedRemits) items.push({ kind: "remittance", row: r });
-  }
-
   items.push({
     kind: "section",
-    label: "Trip earnings",
+    label: "Trips",
     hint: earnings.length > 0 ? `${earnings.length} shown` : undefined,
   });
   if (earnings.length === 0) {
-    items.push({ kind: "empty", label: "No earnings yet — ledger populates as you complete trips." });
+    items.push({ kind: "empty", label: "No earnings yet — amounts appear when you complete trips." });
   } else {
     for (const e of earnings) items.push({ kind: "earning", row: e });
   }
@@ -141,29 +123,11 @@ export default function DriverEarningsListScreen() {
       const s = item.summary;
       return (
         <View style={styles.summaryGroup}>
-          <View
-            style={[
-              styles.weekCard,
-              { backgroundColor: cardBg, borderColor: palette.border },
-            ]}
-          >
-            <Text style={[styles.weekLabel, { color: palette.muted }]}>
-              This week · Toronto
-            </Text>
-            <Text style={[styles.weekValue, { color: palette.text }]}>
-              ${s.thisWeek.total.toFixed(2)}
-            </Text>
-            <Text style={[styles.weekHint, { color: palette.muted }]}>
-              {s.thisWeek.count} trip{s.thisWeek.count === 1 ? "" : "s"} · lifetime $
-              {s.lifetime.total.toFixed(2)}
-            </Text>
-          </View>
-
           <View style={styles.statRow}>
             <StatTile
-              label="Owed to you"
+              label="Pending"
               value={`$${s.pending.total.toFixed(2)}`}
-              hint={`${s.pending.count} pending`}
+              hint={`${s.pending.count} trip${s.pending.count === 1 ? "" : "s"}`}
               valueColor={GOLD}
               bg={cardBg}
               border={palette.border}
@@ -173,41 +137,8 @@ export default function DriverEarningsListScreen() {
             <StatTile
               label="Paid"
               value={`$${s.paid.total.toFixed(2)}`}
-              hint={`${s.paid.count} rows`}
+              hint={`${s.paid.count} trip${s.paid.count === 1 ? "" : "s"}`}
               valueColor="#34C759"
-              bg={cardBg}
-              border={palette.border}
-              labelColor={palette.muted}
-              hintColor={palette.muted}
-            />
-          </View>
-
-          <View style={styles.statRow}>
-            <StatTile
-              label="On hold"
-              value={`$${s.held.total.toFixed(2)}`}
-              hint={`${s.held.count} rows`}
-              valueColor="#FF9F0A"
-              bg={cardBg}
-              border={palette.border}
-              labelColor={palette.muted}
-              hintColor={palette.muted}
-            />
-            <StatTile
-              label="Adjustments"
-              value={
-                s.adjustments
-                  ? `${s.adjustments.net >= 0 ? "+" : "−"}$${Math.abs(s.adjustments.net).toFixed(2)}`
-                  : "$0.00"
-              }
-              hint={
-                s.adjustments
-                  ? `${s.adjustments.positiveCount} bonus · ${s.adjustments.negativeCount} ded.`
-                  : "None applied"
-              }
-              valueColor={
-                s.adjustments && s.adjustments.net < 0 ? "#FF453A" : palette.text
-              }
               bg={cardBg}
               border={palette.border}
               labelColor={palette.muted}
@@ -230,73 +161,18 @@ export default function DriverEarningsListScreen() {
     }
 
     if (item.kind === "empty") {
-      return (
-        <Text style={[styles.empty, { color: palette.muted }]}>{item.label}</Text>
-      );
+      return <Text style={[styles.empty, { color: palette.muted }]}>{item.label}</Text>;
     }
 
-    if (item.kind === "remittance") {
-      const r = item.row;
-      return (
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: cardBg, borderColor: palette.border },
-          ]}
-        >
-          <View style={styles.cardTopRow}>
-            <Text style={styles.code}>{r.bookingId}</Text>
-            <View style={[styles.statusChip, { backgroundColor: "rgba(255,159,10,0.16)" }]}>
-              <Text style={[styles.statusChipText, { color: "#FF9F0A" }]}>COD owed</Text>
-            </View>
-          </View>
-          <Text style={[styles.cardMeta, { color: palette.muted }]}>
-            {r.reservation
-              ? `${r.reservation.serviceDate} · ${r.reservation.serviceTime}`
-              : formatDate(r.completedAt)}
-          </Text>
-          {r.reservation?.pickupLocation ? (
-            <Text style={[styles.cardRoute, { color: palette.textSecondary }]} numberOfLines={1}>
-              {shortLoc(r.reservation.pickupLocation)}
-            </Text>
-          ) : null}
-          <View style={styles.cardFooter}>
-            <Text style={[styles.cardFootLabel, { color: palette.muted }]}>
-              {r.commissionPct.toFixed(1)}% of ${r.serviceBasis.toFixed(2)}
-            </Text>
-            <Text style={[styles.cardNet, { color: "#FF9F0A" }]}>
-              ${r.amountOwed.toFixed(2)}
-            </Text>
-          </View>
-        </View>
-      );
-    }
-
-    // earning
     const e = item.row;
     const chip = statusColors(e.status);
-    const netColor =
-      e.status === "PAID"
-        ? "#34C759"
-        : e.status === "HELD"
-          ? "#FF9F0A"
-          : e.status === "VOID" || e.status === "REASSIGNED"
-            ? palette.muted
-            : GOLD;
+    const netColor = e.status === "PAID" ? "#34C759" : GOLD;
     return (
-      <View
-        style={[
-          styles.card,
-          { backgroundColor: cardBg, borderColor: palette.border },
-        ]}
-      >
+      <View style={[styles.card, { backgroundColor: cardBg, borderColor: palette.border }]}>
         <View style={styles.cardTopRow}>
           <Text style={styles.code}>{e.bookingId}</Text>
           <View style={[styles.statusChip, { backgroundColor: chip.bg }]}>
-            <Text style={[styles.statusChipText, { color: chip.fg }]}>
-              {chip.label}
-              {e.mode === "NO_SHOW" ? " · no-show" : ""}
-            </Text>
+            <Text style={[styles.statusChipText, { color: chip.fg }]}>{chip.label}</Text>
           </View>
         </View>
         <Text style={[styles.cardMeta, { color: palette.muted }]}>
@@ -313,12 +189,8 @@ export default function DriverEarningsListScreen() {
           </Text>
         ) : null}
         <View style={styles.cardFooter}>
-          <Text style={[styles.cardFootLabel, { color: palette.muted }]}>
-            {e.commissionPct.toFixed(1)}% fee · tip ${e.gratuity.toFixed(2)}
-          </Text>
-          <Text style={[styles.cardNet, { color: netColor }]}>
-            ${e.driverNet.toFixed(2)}
-          </Text>
+          <Text style={[styles.cardFootLabel, { color: palette.muted }]}>You get</Text>
+          <Text style={[styles.cardNet, { color: netColor }]}>${e.driverNet.toFixed(2)}</Text>
         </View>
       </View>
     );
@@ -350,7 +222,6 @@ export default function DriverEarningsListScreen() {
           data={items}
           keyExtractor={(item, idx) => {
             if (item.kind === "earning") return `e-${item.row.id}`;
-            if (item.kind === "remittance") return `r-${item.row.id}`;
             if (item.kind === "section") return `s-${item.label}-${idx}`;
             if (item.kind === "summary") return "summary";
             return `empty-${idx}`;
@@ -379,9 +250,7 @@ export default function DriverEarningsListScreen() {
               ) : loadingMore ? (
                 <ActivityIndicator color={GOLD} />
               ) : !nextCursor && earnings.length > 0 ? (
-                <Text style={[styles.endText, { color: palette.muted }]}>
-                  End of ledger
-                </Text>
+                <Text style={[styles.endText, { color: palette.muted }]}>End of list</Text>
               ) : null}
             </View>
           }
@@ -411,12 +280,7 @@ function StatTile({
   hintColor: string;
 }) {
   return (
-    <View
-      style={[
-        styles.tile,
-        { backgroundColor: bg, borderColor: border },
-      ]}
-    >
+    <View style={[styles.tile, { backgroundColor: bg, borderColor: border }]}>
       <Text style={[styles.tileLabel, { color: labelColor }]}>{label}</Text>
       <Text style={[styles.tileValue, { color: valueColor }]}>{value}</Text>
       <Text style={[styles.tileHint, { color: hintColor }]}>{hint}</Text>
@@ -454,28 +318,6 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     gap: 10,
   },
-  weekCard: {
-    borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 16,
-  },
-  weekLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-  },
-  weekValue: {
-    fontSize: 28,
-    fontWeight: "800",
-    letterSpacing: -0.6,
-    marginTop: 4,
-  },
-  weekHint: {
-    marginTop: 4,
-    fontSize: 12,
-    fontWeight: "500",
-  },
   statRow: {
     flexDirection: "row",
     gap: 10,
@@ -507,7 +349,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "baseline",
     justifyContent: "space-between",
-    marginTop: 18,
+    marginTop: 8,
     marginBottom: 10,
   },
   sectionTitle: {

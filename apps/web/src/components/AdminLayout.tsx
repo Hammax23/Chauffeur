@@ -27,8 +27,6 @@ import {
   Tag,
   Gift,
   Wallet,
-  Receipt,
-  FileSpreadsheet,
   ShieldCheck,
 } from "lucide-react";
 
@@ -43,9 +41,7 @@ const NAV_ITEMS = [
   { href: "/admin/promotions", label: "App Promotions", icon: Tag },
   { href: "/admin/referrals", label: "Referrals", icon: Gift },
   { href: "/admin/drivers", label: "Drivers", icon: Car },
-  { href: "/admin/driver-earnings", label: "Driver Earnings", icon: Receipt },
-  { href: "/admin/driver-payouts", label: "Driver Payouts", icon: Wallet },
-  { href: "/admin/driver-tax", label: "Driver Tax (T4A)", icon: FileSpreadsheet },
+  { href: "/admin/driver-pay", label: "Driver Pay", icon: Wallet },
   { href: "/admin/trip-reviews", label: "Trip Reviews", icon: Star },
   { href: "/admin/support-tickets", label: "Support Tickets", icon: MessageSquareText },
   { href: "/admin/legal-docs", label: "App Legal Content", icon: ScrollText },

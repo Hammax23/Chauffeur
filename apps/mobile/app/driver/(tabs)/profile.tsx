@@ -17,12 +17,8 @@ import { useDriverAuth } from "../../../contexts/DriverAuthContext";
 import { useDriverTheme } from "../../../contexts/DriverThemeContext";
 import { GOLD } from "../../../theme/driver-theme";
 import { DriverScreenShell } from "../../../components/driver/DriverScreenShell";
-import * as WebBrowser from "expo-web-browser";
 import {
   getDriverEarnings,
-  getDriverConnectStatus,
-  startDriverConnectOnboarding,
-  type DriverConnectStatus,
   type DriverEarningSummary,
 } from "../../../services/api";
 
@@ -86,8 +82,6 @@ export default function DriverProfileScreen() {
   const { palette, isDark, setThemeMode } = useDriverTheme();
   const surface = palette.cardSurface;
   const [earnings, setEarnings] = useState<DriverEarningSummary | null>(null);
-  const [connect, setConnect] = useState<DriverConnectStatus | null>(null);
-  const [connectBusy, setConnectBusy] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -104,63 +98,11 @@ export default function DriverProfileScreen() {
       } catch {
         /* non-fatal — earnings tile hides silently if the call fails */
       }
-      try {
-        const cs = await getDriverConnectStatus();
-        if (!cancelled && cs.success) setConnect(cs);
-      } catch {
-        /* non-fatal — Bank/Payouts row stays in its default state */
-      }
     })();
     return () => {
       cancelled = true;
     };
   }, [driver?.id]);
-
-  const handleBankPress = async () => {
-    if (!connect?.connectAvailable) {
-      Alert.alert(
-        "Bank payouts not available",
-        "Stripe isn't configured on this environment yet. Please contact support."
-      );
-      return;
-    }
-    setConnectBusy(true);
-    try {
-      const res = await startDriverConnectOnboarding();
-      if (!res.success || !res.url) {
-        Alert.alert("Onboarding failed", res.error || "Could not start Stripe onboarding.");
-        return;
-      }
-      await WebBrowser.openBrowserAsync(res.url);
-      // When the user returns, re-pull status.
-      try {
-        const cs = await getDriverConnectStatus({ refresh: true });
-        if (cs.success) setConnect(cs);
-      } catch {
-        /* ignore */
-      }
-    } catch (e: any) {
-      Alert.alert("Onboarding failed", e?.message || "Please try again.");
-    } finally {
-      setConnectBusy(false);
-    }
-  };
-
-  const bankHint = (() => {
-    if (!connect) return "Set up to receive payouts to your bank";
-    switch (connect.status) {
-      case "ENABLED":
-        return connect.payoutsLive
-          ? "Bank account connected · payouts enabled"
-          : "Bank account connected · manual payouts active";
-      case "PENDING":
-        return "Verification pending — tap to continue";
-      case "RESTRICTED":
-        return "Action needed — tap to update details";
-      default:
-        return "Tap to set up Stripe (direct deposit)";
-    }
-  })();
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -324,13 +266,13 @@ export default function DriverProfileScreen() {
                       ]}
                     >
                       <Text style={[styles.earningsPillLabel, { color: GOLD }]}>
-                        Owed to you
+                        Pending
                       </Text>
                       <Text style={[styles.earningsPillValue, { color: GOLD }]}>
                         ${earnings.pending.total.toFixed(2)}
                       </Text>
                       <Text style={[styles.earningsPillHint, { color: palette.muted }]}>
-                        {earnings.pending.count} pending
+                        {earnings.pending.count} trip{earnings.pending.count === 1 ? "" : "s"}
                       </Text>
                     </View>
                   </View>
@@ -346,42 +288,11 @@ export default function DriverProfileScreen() {
                         ${earnings.paid.total.toFixed(2)}
                       </Text>
                       <Text style={[styles.earningsPillHint, { color: palette.muted }]}>
-                        {earnings.paid.count} batches
+                        {earnings.paid.count} trip{earnings.paid.count === 1 ? "" : "s"}
                       </Text>
                     </View>
                   </View>
                 </View>
-
-                {(earnings.held.count > 0 ||
-                  earnings.remittanceOwed.count > 0 ||
-                  (earnings.adjustments && earnings.adjustments.net !== 0)) ? (
-                  <View style={styles.earningsFooterRow}>
-                    {earnings.held.count > 0 ? (
-                      <Text style={[styles.earningsFooterText, { color: "#FF9F0A" }]}>
-                        {earnings.held.count} on hold · ${earnings.held.total.toFixed(2)}
-                      </Text>
-                    ) : null}
-                    {earnings.remittanceOwed.count > 0 ? (
-                      <Text style={[styles.earningsFooterText, { color: palette.muted }]}>
-                        You owe company ${earnings.remittanceOwed.total.toFixed(2)} (COD)
-                      </Text>
-                    ) : null}
-                    {earnings.adjustments && earnings.adjustments.net !== 0 ? (
-                      <Text
-                        style={[
-                          styles.earningsFooterText,
-                          {
-                            color:
-                              earnings.adjustments.net > 0 ? "#34C759" : "#FF453A",
-                          },
-                        ]}
-                      >
-                        Adjustments {earnings.adjustments.net > 0 ? "+" : "−"}$
-                        {Math.abs(earnings.adjustments.net).toFixed(2)}
-                      </Text>
-                    ) : null}
-                  </View>
-                ) : null}
               </Pressable>
             </>
           ) : null}
@@ -454,16 +365,6 @@ export default function DriverProfileScreen() {
               label="Customer reviews"
               icon="star-outline"
               onPress={() => router.push("/driver/reviews")}
-              chevronColor={palette.menuChevron}
-              textColor={palette.text}
-              borderColor={palette.border}
-              surface={surface}
-            />
-            <MenuRow
-              label={connectBusy ? "Opening Stripe…" : "Bank / Payouts"}
-              icon="card-outline"
-              hint={bankHint}
-              onPress={connectBusy ? undefined : handleBankPress}
               chevronColor={palette.menuChevron}
               textColor={palette.text}
               borderColor={palette.border}
