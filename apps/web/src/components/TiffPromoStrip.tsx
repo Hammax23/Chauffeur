@@ -6,7 +6,7 @@ export default function TiffPromoStrip() {
   return (
     <section
       className="relative border-y border-[#C9A063]/20 bg-gradient-to-r from-[#1a1a1a] via-[#141414] to-[#1a1a1a]"
-      aria-label="TIFF 2026 chauffeur"
+      aria-label="TIFF 2027 chauffeur"
     >
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#C9A063]/40 to-transparent" />
       <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-3.5 sm:py-4">

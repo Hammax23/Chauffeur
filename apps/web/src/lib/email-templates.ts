@@ -439,7 +439,7 @@ function reservationBillingTable(d: ReservationEmailData): string {
   }
   t += emailBillingRow("Subtotal", `$${d.subtotal.toFixed(2)}`, true);
   t += emailBillingRow(`HST (13%)`, `$${d.hst.toFixed(2)}`);
-  t += emailBillingRow(`Gratuity & Fuel (${d.gratuityPercent}%)`, `$${d.gratuity.toFixed(2)}`);
+  t += emailBillingRow(`Admin, (Fuel & Grat) (${d.gratuityPercent}%)`, `$${d.gratuity.toFixed(2)}`);
   t += emailBillingTotal("Total", d.priceDisplay);
   return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0">${t}</table>`;
 }

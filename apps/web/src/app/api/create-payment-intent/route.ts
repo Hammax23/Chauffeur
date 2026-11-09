@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { sanitizeInput } from "@/lib/sanitize";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
-import { reservationTotalCents } from "@/lib/reservation-pricing";
+import {
+  normalizeAppGratuityPercent,
+  reservationTotalCents,
+} from "@/lib/reservation-pricing";
 import { getPricingConfig } from "@/lib/get-pricing-config";
 import { getPublicFleet } from "@/lib/get-fleet";
 
@@ -29,7 +32,9 @@ export async function POST(request: NextRequest) {
     const childSeatCount = typeof body.childSeatCount === "number" ? body.childSeatCount : 0;
     const meetGreet = body.meetGreet === true;
     const bouquetFlowers = body.bouquetFlowers === true;
-    const gratuityPercent = typeof body.gratuityPercent === "number" ? body.gratuityPercent : 15;
+    const gratuityPercent = normalizeAppGratuityPercent(
+      typeof body.gratuityPercent === "number" ? body.gratuityPercent : undefined
+    );
     const pickupLocation = sanitizeInput(body.pickupLocation || "");
     const currency = sanitizeInput(body.currency) || "cad";
     const email = sanitizeInput(body.email);

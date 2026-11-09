@@ -303,7 +303,7 @@ export function calculateReservationPricing(
   const subtotal =
     rideFare + stopCharge + childSeatCharge + meetGreetCharge + bouquetCharge + airportPickupFee;
   const hst = subtotal * c.hstRate;
-  const gratuityPercent = input.gratuityPercent ?? 15;
+  const gratuityPercent = normalizeAppGratuityPercent(input.gratuityPercent);
   const gratuity = (subtotal * gratuityPercent) / 100;
   const total = subtotal + hst + gratuity;
 

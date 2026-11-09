@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Instagram, Facebook, Linkedin, Phone, Mail, MapPin } from 'lucide-react';
 import { services as staticServices } from "@/data/services";
 import { SeoBodySlot } from "@/components/SeoPageLiveExtras";
+import RemembranceDayTribute from "@/components/RemembranceDayTribute";
 
 const HIDDEN_SLUGS = ["vip-transport", "intercity-travel"];
 
@@ -106,7 +107,7 @@ const Footer = () => {
               <li>
                 <Link href="/tiff-chauffeur" className={footerLinkClass}>
                   <span className="w-0 h-[1px] bg-[#C9A063] group-hover:w-4 transition-all duration-300"></span>
-                  TIFF 2026 Chauffeur
+                  TIFF 2027 Chauffeur
                 </Link>
               </li>
               <li>
@@ -236,6 +237,8 @@ const Footer = () => {
           </div>
 
         </div>
+
+        <RemembranceDayTribute variant="footer" />
 
         {/* Bottom Bar */}
         <div className="border-t border-white/10 py-2.5">

@@ -612,7 +612,7 @@ export default function AdminDriverPayPage() {
                             </div>
                             <div className="text-xs text-gray-400 mt-0.5">
                               {formatWhen(e.completedAt)} · Company {e.commissionPct.toFixed(1)}% ·
-                              Tip {money(e.gratuity)}
+                              Fuel &amp; Grat {money(e.gratuity)}
                             </div>
                           </div>
                           <div className="font-semibold tabular-nums text-gray-900">
@@ -765,7 +765,7 @@ export default function AdminDriverPayPage() {
               Company split
             </div>
             <p className="text-sm text-gray-500">
-              Default % the company keeps from the trip amount (before tip). Tip always stays with the
+              Default % the company keeps from the trip amount (before Fuel &amp; Grat). Fuel &amp; Grat always stays with the
               driver. Per-driver override wins when set.
             </p>
             <label className="block max-w-xs">

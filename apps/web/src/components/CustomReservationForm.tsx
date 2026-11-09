@@ -26,6 +26,7 @@ import PlacesAutocomplete from "@/components/PlacesAutocomplete";
 import RouteMap from "@/components/RouteMap";
 import {
   APP_GRATUITY_PERCENTS,
+  APP_DEFAULT_GRATUITY_PERCENT,
   APP_HOURLY_DURATIONS,
   APP_MIN_HOURLY_HOURS,
   STOP_CHARGE,
@@ -134,7 +135,7 @@ export default function CustomReservationForm() {
   const [parcelNote, setParcelNote] = useState("");
 
   const [rideFare, setRideFare] = useState("");
-  const [gratuityPercent, setGratuityPercent] = useState(0);
+  const [gratuityPercent, setGratuityPercent] = useState(APP_DEFAULT_GRATUITY_PERCENT);
   const [tipModalOpen, setTipModalOpen] = useState(false);
   const [fareManual, setFareManual] = useState(false);
 
@@ -478,7 +479,7 @@ export default function CustomReservationForm() {
     setParcelNote("");
     setRideFare("");
     setFareManual(false);
-    setGratuityPercent(0);
+    setGratuityPercent(APP_DEFAULT_GRATUITY_PERCENT);
     setRouteDistance("--");
     setRouteDuration("--");
     setRouteDistanceValue(0);
@@ -1280,7 +1281,7 @@ export default function CustomReservationForm() {
             </div>
             <div className="px-4 py-3">
               <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">
-                Gratuity
+                Admin, (Fuel &amp; Grat)
               </label>
               <button
                 type="button"
@@ -1288,10 +1289,7 @@ export default function CustomReservationForm() {
                 className="w-full flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-[#f8fafc] px-3 py-3 text-left"
               >
                 <div>
-                  <div className="text-[14px] font-semibold text-gray-900">Add tip</div>
-                  <div className="text-[12px] text-gray-500 mt-0.5">
-                    {gratuityPercent > 0 ? `${gratuityPercent}%` : "Optional"}
-                  </div>
+                  <div className="text-[14px] font-semibold text-gray-900">Admin, (Fuel &amp; Grat)</div>
                 </div>
                 <span className="text-gray-400 text-sm">›</span>
               </button>
@@ -1309,7 +1307,7 @@ export default function CustomReservationForm() {
               <div className="relative z-[81] w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-2xl px-5 pt-3 pb-6 shadow-xl">
                 <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-300 sm:hidden" />
                 <div className="flex items-center justify-between mb-5">
-                  <h3 className="text-[22px] font-bold text-gray-900">Add a tip</h3>
+                  <h3 className="text-[22px] font-bold text-gray-900">Admin, (Fuel &amp; Grat)</h3>
                   <button
                     type="button"
                     onClick={() => setTipModalOpen(false)}
@@ -1319,6 +1317,9 @@ export default function CustomReservationForm() {
                     <X className="w-4 h-4" />
                   </button>
                 </div>
+                <p className="text-[13px] text-gray-500 mb-4">
+                  Mandatory on every reservation (minimum 18%). Increase to 20% or 25% if needed.
+                </p>
                 <div className="grid grid-cols-3 gap-2.5">
                   {APP_GRATUITY_PERCENTS.map((pct) => {
                     const selected = gratuityPercent === pct;
@@ -1341,16 +1342,6 @@ export default function CustomReservationForm() {
                     );
                   })}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setGratuityPercent(0);
-                    setTipModalOpen(false);
-                  }}
-                  className="mt-4 w-full py-3 text-[15px] font-semibold text-gray-500"
-                >
-                  No tip
-                </button>
               </div>
             </div>
           ) : null}
@@ -1606,12 +1597,10 @@ export default function CustomReservationForm() {
                 <span>HST (13%)</span>
                 <span className="tabular-nums">${hst.toFixed(2)}</span>
               </div>
-              {gratuityPercent > 0 && (
-                <div className="flex items-center justify-between text-[13px] text-gray-700">
-                  <span>Tip ({gratuityPercent}%)</span>
-                  <span className="tabular-nums">${gratuity.toFixed(2)}</span>
-                </div>
-              )}
+              <div className="flex items-center justify-between text-[13px] text-gray-700">
+                <span>Admin, (Fuel &amp; Grat) ({gratuityPercent}%)</span>
+                <span className="tabular-nums">${gratuity.toFixed(2)}</span>
+              </div>
               <div className="flex items-center justify-between text-[16px] font-bold pt-2 border-t border-gray-200">
                 <span className="text-gray-900">Total</span>
                 <span className="text-[#C9A063] tabular-nums">${total.toFixed(2)}</span>

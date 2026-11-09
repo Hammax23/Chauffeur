@@ -43,6 +43,7 @@ import { fleetData, RESERVATION_HIDE_HOURLY_RATE_IDS, RESERVATION_EXCLUDED_VEHIC
 import {
   calculateReservationPricing,
   APP_GRATUITY_PERCENTS,
+  APP_DEFAULT_GRATUITY_PERCENT,
   APP_HOURLY_DURATIONS,
   APP_MIN_HOURLY_HOURS,
 } from "@/lib/reservation-pricing";
@@ -253,8 +254,8 @@ function ReservationPageContent() {
   const [flightNumber, setFlightNumber] = useState("");
   const [flightNote, setFlightNote] = useState("");
 
-  // Gratuity
-  const [gratuityPercent, setGratuityPercent] = useState(0);
+  // Admin (Fuel & Grat) — mandatory, default 18%, customer may raise to 20% or 25%
+  const [gratuityPercent, setGratuityPercent] = useState(APP_DEFAULT_GRATUITY_PERCENT);
   const [tipModalOpen, setTipModalOpen] = useState(false);
 
   // Payment states (card info)
@@ -2302,7 +2303,7 @@ function ReservationPageContent() {
                       )}
 
                       <div>
-                        <div className="text-[12px] font-semibold text-gray-800 mb-2">Fare & tip</div>
+                        <div className="text-[12px] font-semibold text-gray-800 mb-2">Fare summary</div>
                         <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
                           <div className="divide-y divide-gray-100">
                             <div className="flex items-center justify-between gap-3 px-3 py-2.5">
@@ -2326,23 +2327,20 @@ function ReservationPageContent() {
                                 className="w-full min-h-11 flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-[#f8fafc] px-3 py-3 text-left hover:border-gray-300 active:bg-gray-50 transition-colors"
                               >
                                 <div className="min-w-0">
-                                  <div className="text-[14px] font-semibold text-gray-900">Add tip</div>
-                                  <div className="text-[12px] text-gray-500 mt-0.5 truncate">
-                                    {gratuityPercent > 0
-                                      ? `${gratuityPercent}%`
-                                      : "Choose a tip for your chauffeur"}
+                                  <div className="text-[14px] font-semibold text-gray-900">
+                                    Admin, (Fuel &amp; Grat)
                                   </div>
                                 </div>
                                 <ArrowRight className="w-4 h-4 text-gray-400 shrink-0" />
                               </button>
-                              {gratuityPercent > 0 ? (
-                                <div className="flex items-center justify-between gap-3 mt-2.5 px-0.5">
-                                  <span className="text-[13px] text-gray-500">Tip ({gratuityPercent}%)</span>
-                                  <span className="text-[13px] font-medium text-gray-900 tabular-nums">
-                                    ${(pricingSummary?.gratuity ?? 0).toFixed(2)}
-                                  </span>
-                                </div>
-                              ) : null}
+                              <div className="flex items-center justify-between gap-3 mt-2.5 px-0.5">
+                                <span className="text-[13px] text-gray-500">
+                                  Admin, (Fuel &amp; Grat) ({gratuityPercent}%)
+                                </span>
+                                <span className="text-[13px] font-medium text-gray-900 tabular-nums">
+                                  ${(pricingSummary?.gratuity ?? 0).toFixed(2)}
+                                </span>
+                              </div>
                             </div>
                             <div className="flex items-center justify-between gap-3 px-3 py-2.5 border-t border-gray-200">
                               <span className="text-[14px] font-semibold text-gray-900">Total</span>
@@ -2383,14 +2381,14 @@ function ReservationPageContent() {
           <button
             type="button"
             className="absolute inset-0 bg-black/45"
-            aria-label="Close tip options"
+            aria-label="Close Admin Fuel & Grat options"
             onClick={() => setTipModalOpen(false)}
           />
           <div className="relative z-[81] w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-2xl px-5 pt-3 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-5 shadow-xl">
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-300 sm:hidden" />
             <div className="flex items-center justify-between gap-3 mb-5">
               <h3 id="tip-modal-title" className="text-[22px] font-bold text-gray-900 tracking-tight">
-                Add a tip
+                Admin, (Fuel &amp; Grat)
               </h3>
               <button
                 type="button"
@@ -2401,6 +2399,9 @@ function ReservationPageContent() {
                 <X className="w-4 h-4" />
               </button>
             </div>
+            <p className="text-[13px] text-gray-500 mb-4">
+              Included on every reservation (minimum 18%). You can increase it to 20% or 25%.
+            </p>
             <div className="grid grid-cols-3 gap-2.5">
               {APP_GRATUITY_PERCENTS.map((pct) => {
                 const selected = gratuityPercent === pct;
@@ -2423,16 +2424,6 @@ function ReservationPageContent() {
                 );
               })}
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setGratuityPercent(0);
-                setTipModalOpen(false);
-              }}
-              className="mt-4 w-full min-h-11 py-3 text-[15px] font-semibold text-gray-500 hover:text-gray-800"
-            >
-              No tip
-            </button>
           </div>
         </div>
       ) : null}

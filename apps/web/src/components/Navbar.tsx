@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import ServicesNavDropdown from "@/components/ServicesNavDropdown";
 import AirportsNavDropdown from "@/components/AirportsNavDropdown";
 import { SeoBodySlot } from "@/components/SeoPageLiveExtras";
+import RemembranceDayTribute from "@/components/RemembranceDayTribute";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -30,15 +31,18 @@ const Navbar = () => {
       <div className="max-w-[1600px] mx-auto px-4 md:px-8">
         <div className="flex items-center justify-between h-[76px] md:h-[88px]">
           <div className="flex items-center gap-4 lg:gap-8">
-            <Link href="/" className="flex items-center shrink-0">
-              <Image 
-                src="/logo1.png" 
-                alt="SARJ Worldwide Chauffeur Services Logo" 
-                width={210}
-                height={110}
-                className="object-contain object-left w-auto h-[52px] sm:h-[60px] md:h-[100px] md:w-[190px]"
-              />
-            </Link>
+            <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+              <RemembranceDayTribute variant="nav" />
+              <Link href="/" className="flex items-center shrink-0">
+                <Image 
+                  src="/logo1.png" 
+                  alt="SARJ Worldwide Chauffeur Services Logo" 
+                  width={210}
+                  height={110}
+                  className="object-contain object-left w-auto h-[52px] sm:h-[60px] md:h-[100px] md:w-[190px]"
+                />
+              </Link>
+            </div>
 
             <div className="hidden lg:flex items-center gap-1">
               <Link href="/" className="text-white/90 px-3 xl:px-4 py-2.5 text-[14px] xl:text-[15px] font-normal hover:text-[#C9A063] hover:bg-white/5 hover:backdrop-blur-sm rounded-xl transition-all duration-300 whitespace-nowrap">

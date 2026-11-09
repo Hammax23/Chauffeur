@@ -7,7 +7,12 @@ import { addReservation } from "@/lib/data-store";
 import { verifyAdminAuth } from "@/lib/admin-auth";
 import { verifyOperationalManagerAuth } from "@/lib/operational-manager-auth";
 import { buildReservationAdminEmail, buildReservationUserEmail } from "@/lib/email-templates";
-import { calculateReservationPricing, isAirportPickupLocation, AIRPORT_PICKUP_FEE } from "@/lib/reservation-pricing";
+import {
+  calculateReservationPricing,
+  isAirportPickupLocation,
+  AIRPORT_PICKUP_FEE,
+  normalizeAppGratuityPercent,
+} from "@/lib/reservation-pricing";
 import { getPricingConfig } from "@/lib/get-pricing-config";
 import { createReservationPaymentLink } from "@/lib/reservation-payment-link";
 import { isEmailConfigured, sendTransactionalEmail } from "@/lib/email-delivery";
@@ -101,7 +106,9 @@ export async function POST(request: NextRequest) {
     const routeDuration = sanitizeInput(body.routeDuration);
     const routeDistanceValue = typeof body.routeDistanceValue === "number" ? body.routeDistanceValue : 0;
     const routePrice = typeof body.routePrice === "number" ? body.routePrice : 0;
-    const gratuityPercent = typeof body.gratuityPercent === "number" ? body.gratuityPercent : 15;
+    let gratuityPercent = normalizeAppGratuityPercent(
+      typeof body.gratuityPercent === "number" ? body.gratuityPercent : undefined
+    );
     const stops = sanitizeArray(body.stops);
     const airlineName = sanitizeInput(body.airlineName);
     const flightNumber = sanitizeInput(body.flightNumber);
@@ -204,6 +211,7 @@ export async function POST(request: NextRequest) {
       subtotal = serverPricing.subtotal;
       hst = serverPricing.hst;
       gratuity = serverPricing.gratuity;
+      gratuityPercent = serverPricing.gratuityPercent;
       total = serverPricing.total;
 
       if (checkoutPaymentMethod === "cash") {
