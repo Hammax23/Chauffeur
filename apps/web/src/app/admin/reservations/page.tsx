@@ -781,7 +781,7 @@ export default function ReservationsPage() {
                               </p>
                             ) : null}
                             <p><span className="text-gray-500">HST (13%):</span> ${Number(r.hst || 0).toFixed(2)}</p>
-                            <p><span className="text-gray-500">Admin, (Fuel &amp; Grat):</span> ${Number(r.gratuity || 0).toFixed(2)}</p>
+                            <p><span className="text-gray-500">Admin, Fuel &amp; Grat:</span> ${Number(r.gratuity || 0).toFixed(2)}</p>
                             <p className="font-bold text-[#C9A063] text-base pt-1 border-t border-gray-200">
                               Total: ${Number(r.total || 0).toFixed(2)} CAD
                             </p>

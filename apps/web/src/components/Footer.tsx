@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { Instagram, Facebook, Linkedin, Phone, Mail, MapPin } from 'lucide-react';
 import { services as staticServices } from "@/data/services";
 import { SeoBodySlot } from "@/components/SeoPageLiveExtras";
-import RemembranceDayTribute from "@/components/RemembranceDayTribute";
 
 const HIDDEN_SLUGS = ["vip-transport", "intercity-travel"];
 
@@ -237,8 +236,6 @@ const Footer = () => {
           </div>
 
         </div>
-
-        <RemembranceDayTribute variant="footer" />
 
         {/* Bottom Bar */}
         <div className="border-t border-white/10 py-2.5">

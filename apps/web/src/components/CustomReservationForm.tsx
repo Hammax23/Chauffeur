@@ -1281,7 +1281,7 @@ export default function CustomReservationForm() {
             </div>
             <div className="px-4 py-3">
               <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">
-                Admin, (Fuel &amp; Grat)
+                Admin, Fuel &amp; Grat
               </label>
               <button
                 type="button"
@@ -1289,7 +1289,7 @@ export default function CustomReservationForm() {
                 className="w-full flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-[#f8fafc] px-3 py-3 text-left"
               >
                 <div>
-                  <div className="text-[14px] font-semibold text-gray-900">Admin, (Fuel &amp; Grat)</div>
+                  <div className="text-[12px] font-normal text-gray-900">Admin, Fuel &amp; Grat</div>
                 </div>
                 <span className="text-gray-400 text-sm">›</span>
               </button>
@@ -1307,7 +1307,7 @@ export default function CustomReservationForm() {
               <div className="relative z-[81] w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-2xl px-5 pt-3 pb-6 shadow-xl">
                 <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-300 sm:hidden" />
                 <div className="flex items-center justify-between mb-5">
-                  <h3 className="text-[22px] font-bold text-gray-900">Admin, (Fuel &amp; Grat)</h3>
+                  <h3 className="text-[22px] font-bold text-gray-900">Admin, Fuel &amp; Grat</h3>
                   <button
                     type="button"
                     onClick={() => setTipModalOpen(false)}
@@ -1318,7 +1318,7 @@ export default function CustomReservationForm() {
                   </button>
                 </div>
                 <p className="text-[13px] text-gray-500 mb-4">
-                  Mandatory on every reservation (minimum 18%). Increase to 20% or 25% if needed.
+                  Administration Fuel and Gratuity. You can increase it to 20% or 25%.
                 </p>
                 <div className="grid grid-cols-3 gap-2.5">
                   {APP_GRATUITY_PERCENTS.map((pct) => {
@@ -1598,7 +1598,7 @@ export default function CustomReservationForm() {
                 <span className="tabular-nums">${hst.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between text-[13px] text-gray-700">
-                <span>Admin, (Fuel &amp; Grat) ({gratuityPercent}%)</span>
+                <span>Admin, Fuel &amp; Grat ({gratuityPercent}%)</span>
                 <span className="tabular-nums">${gratuity.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between text-[16px] font-bold pt-2 border-t border-gray-200">

@@ -32,7 +32,7 @@ const Navbar = () => {
         <div className="flex items-center justify-between h-[76px] md:h-[88px]">
           <div className="flex items-center gap-4 lg:gap-8">
             <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-              <RemembranceDayTribute variant="nav" />
+              <RemembranceDayTribute />
               <Link href="/" className="flex items-center shrink-0">
                 <Image 
                   src="/logo1.png" 

@@ -254,7 +254,7 @@ function ReservationPageContent() {
   const [flightNumber, setFlightNumber] = useState("");
   const [flightNote, setFlightNote] = useState("");
 
-  // Admin (Fuel & Grat) — mandatory, default 18%, customer may raise to 20% or 25%
+  // Admin, Fuel & Grat — mandatory, default 18%, customer may raise to 20% or 25%
   const [gratuityPercent, setGratuityPercent] = useState(APP_DEFAULT_GRATUITY_PERCENT);
   const [tipModalOpen, setTipModalOpen] = useState(false);
 
@@ -2327,15 +2327,15 @@ function ReservationPageContent() {
                                 className="w-full min-h-11 flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-[#f8fafc] px-3 py-3 text-left hover:border-gray-300 active:bg-gray-50 transition-colors"
                               >
                                 <div className="min-w-0">
-                                  <div className="text-[14px] font-semibold text-gray-900">
-                                    Admin, (Fuel &amp; Grat)
+                                  <div className="text-[12px] font-normal text-gray-900">
+                                    Admin, Fuel &amp; Grat
                                   </div>
                                 </div>
                                 <ArrowRight className="w-4 h-4 text-gray-400 shrink-0" />
                               </button>
                               <div className="flex items-center justify-between gap-3 mt-2.5 px-0.5">
-                                <span className="text-[13px] text-gray-500">
-                                  Admin, (Fuel &amp; Grat) ({gratuityPercent}%)
+                                <span className="text-[13px] text-gray-400">
+                                  Admin, Fuel &amp; Grat ({gratuityPercent}%)
                                 </span>
                                 <span className="text-[13px] font-medium text-gray-900 tabular-nums">
                                   ${(pricingSummary?.gratuity ?? 0).toFixed(2)}
@@ -2387,8 +2387,8 @@ function ReservationPageContent() {
           <div className="relative z-[81] w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-2xl px-5 pt-3 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-5 shadow-xl">
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-300 sm:hidden" />
             <div className="flex items-center justify-between gap-3 mb-5">
-              <h3 id="tip-modal-title" className="text-[22px] font-bold text-gray-900 tracking-tight">
-                Admin, (Fuel &amp; Grat)
+              <h3 id="tip-modal-title" className="text-[22px]  text-gray-900 tracking-tight">
+                Admin, Fuel &amp; Grat
               </h3>
               <button
                 type="button"
@@ -2400,7 +2400,7 @@ function ReservationPageContent() {
               </button>
             </div>
             <p className="text-[13px] text-gray-500 mb-4">
-              Included on every reservation (minimum 18%). You can increase it to 20% or 25%.
+              Administration Fuel and Gratuity. You can increase it to 20% or 25%.
             </p>
             <div className="grid grid-cols-3 gap-2.5">
               {APP_GRATUITY_PERCENTS.map((pct) => {
