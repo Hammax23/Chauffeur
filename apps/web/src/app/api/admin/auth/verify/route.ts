@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminAuth } from "@/lib/admin-auth";
+import { verifyAdminAuthWithRole } from "@/lib/admin-rbac";
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await verifyAdminAuth(request);
+    const auth = await verifyAdminAuthWithRole(request);
 
     if (!auth.authenticated) {
       return NextResponse.json(
@@ -14,8 +14,11 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       authenticated: true,
+      role: auth.role,
+      email: auth.email,
+      adminId: auth.adminId,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Auth verification error:", error);
     return NextResponse.json(
       { authenticated: false, error: "Verification failed" },

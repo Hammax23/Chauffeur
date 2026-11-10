@@ -19,6 +19,7 @@ type AdminRow = {
   id: string;
   email: string;
   name: string | null;
+  role?: string;
   isActive: boolean;
   lastLoginAt: string | null;
   createdAt: string;
@@ -47,6 +48,7 @@ export default function AdminUsersPage() {
     email: "",
     name: "",
     password: "",
+    role: "OWNER",
   });
   const [saving, setSaving] = useState(false);
   const [modalError, setModalError] = useState("");
@@ -79,21 +81,31 @@ export default function AdminUsersPage() {
   const openAdd = () => {
     setModalError("");
     setEditing(null);
-    setForm({ email: "", name: "", password: "" });
+    setForm({ email: "", name: "", password: "", role: "OWNER" });
     setModal("add");
   };
 
   const openEditName = (row: AdminRow) => {
     setModalError("");
     setEditing(row);
-    setForm({ email: row.email, name: row.name || "", password: "" });
+    setForm({
+      email: row.email,
+      name: row.name || "",
+      password: "",
+      role: row.role === "BILLING_ASSISTANT" ? "BILLING_ASSISTANT" : "OWNER",
+    });
     setModal("edit");
   };
 
   const openPassword = (row: AdminRow) => {
     setModalError("");
     setEditing(row);
-    setForm({ email: row.email, name: row.name || "", password: "" });
+    setForm({
+      email: row.email,
+      name: row.name || "",
+      password: "",
+      role: row.role === "BILLING_ASSISTANT" ? "BILLING_ASSISTANT" : "OWNER",
+    });
     setModal("password");
   };
 
@@ -101,7 +113,7 @@ export default function AdminUsersPage() {
     setModal(null);
     setEditing(null);
     setModalError("");
-    setForm({ email: "", name: "", password: "" });
+    setForm({ email: "", name: "", password: "", role: "OWNER" });
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -118,6 +130,7 @@ export default function AdminUsersPage() {
             email: form.email.trim(),
             name: form.name.trim() || null,
             password: form.password,
+            role: form.role,
           }),
         });
         const data = await res.json();
@@ -134,6 +147,7 @@ export default function AdminUsersPage() {
             id: editing.id,
             // Send as string (API trims + nulls empty) so admins can clear the name.
             name: form.name.trim(),
+            role: form.role,
           }),
         });
         const data = await res.json();
@@ -268,6 +282,7 @@ export default function AdminUsersPage() {
                 <tr>
                   <th className="text-left px-4 py-3">Email (login)</th>
                   <th className="text-left px-4 py-3">Name</th>
+                  <th className="text-left px-4 py-3">Role</th>
                   <th className="text-left px-4 py-3">Status</th>
                   <th className="text-left px-4 py-3">Last login</th>
                   <th className="text-left px-4 py-3">Created</th>
@@ -284,6 +299,11 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-900 font-medium">
                       {row.name || <span className="text-gray-400">—</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700">
+                        {row.role === "BILLING_ASSISTANT" ? "Billing Assistant" : "Owner"}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <span
@@ -422,8 +442,20 @@ export default function AdminUsersPage() {
                       Minimum 10 characters. Choose something unique — admins have full access.
                     </span>
                   </label>
+                  <label className="text-xs text-gray-600 flex flex-col gap-1">
+                    Role
+                    <select
+                      value={form.role}
+                      onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
+                      className="px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 bg-white focus:border-[#C9A063] focus:outline-none focus:ring-2 focus:ring-[#C9A063]/25"
+                    >
+                      <option value="OWNER">Owner (full admin)</option>
+                      <option value="BILLING_ASSISTANT">Billing Assistant (invoices only)</option>
+                    </select>
+                  </label>
                 </>
               ) : modal === "edit" ? (
+                <>
                 <label className="text-xs text-gray-600 flex flex-col gap-1">
                   Display name
                   <input
@@ -435,6 +467,18 @@ export default function AdminUsersPage() {
                     maxLength={120}
                   />
                 </label>
+                <label className="text-xs text-gray-600 flex flex-col gap-1">
+                  Role
+                  <select
+                    value={form.role}
+                    onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
+                    className="px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 bg-white focus:border-[#C9A063] focus:outline-none focus:ring-2 focus:ring-[#C9A063]/25"
+                  >
+                    <option value="OWNER">Owner (full admin)</option>
+                    <option value="BILLING_ASSISTANT">Billing Assistant (invoices only)</option>
+                  </select>
+                </label>
+                </>
               ) : (
                 <label className="text-xs text-gray-600 flex flex-col gap-1">
                   New password

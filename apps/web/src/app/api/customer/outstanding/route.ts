@@ -136,6 +136,10 @@ export async function POST(req: NextRequest) {
             failureMessage: null,
           },
         });
+        const { triggerSupplementInvoiceForAdjustment } = await import(
+          "@/lib/invoice-hooks"
+        );
+        triggerSupplementInvoiceForAdjustment(adj.id, "outstanding-retry");
         paid += 1;
       } else {
         await prisma.fareAdjustment.update({

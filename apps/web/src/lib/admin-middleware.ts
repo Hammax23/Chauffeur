@@ -12,13 +12,14 @@ export async function withAdminAuth(
   const auth = await verifyAdminAuth(request);
 
   if (!auth.authenticated) {
+    const forbidden = auth.code === "FORBIDDEN_ROLE";
     return NextResponse.json(
       { 
         success: false, 
-        error: "Unauthorized. Please login to access this resource.",
-        code: "UNAUTHORIZED"
+        error: auth.error || "Unauthorized. Please login to access this resource.",
+        code: auth.code || "UNAUTHORIZED"
       },
-      { status: 401 }
+      { status: forbidden ? 403 : 401 }
     );
   }
 

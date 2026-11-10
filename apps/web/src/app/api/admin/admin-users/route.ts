@@ -1,17 +1,16 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { hashPassword, verifyAdminAuth } from "@/lib/admin-auth";
+import { hashPassword } from "@/lib/admin-auth";
+import { requireOwnerAdmin, normalizeAdminRole } from "@/lib/admin-rbac";
 import { writeAudit } from "@/lib/driver-pay";
 
 const MIN_PW_LEN = 10;
 
-/** GET /api/admin/admin-users — list all admins (passwords never returned). */
+/** GET /api/admin/admin-users — list all admins (passwords never returned). Owner only. */
 export async function GET(req: NextRequest) {
-  const auth = await verifyAdminAuth(req);
-  if (!auth.authenticated) {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
+  const gate = await requireOwnerAdmin(req);
+  if (!gate.ok) return gate.response;
 
   try {
     const admins = await prisma.adminUser.findMany({
@@ -20,6 +19,7 @@ export async function GET(req: NextRequest) {
         id: true,
         email: true,
         name: true,
+        role: true,
         isActive: true,
         lastLoginAt: true,
         createdAt: true,
@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
         id: a.id,
         email: a.email,
         name: a.name,
+        role: normalizeAdminRole(a.role),
         isActive: a.isActive,
         lastLoginAt: a.lastLoginAt ? a.lastLoginAt.toISOString() : null,
         createdAt: a.createdAt.toISOString(),
@@ -51,18 +52,18 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** POST — create a new admin. Body: { email, password, name? } */
+/** POST — create a new admin. Body: { email, password, name?, role? } Owner only. */
 export async function POST(req: NextRequest) {
-  const auth = await verifyAdminAuth(req);
-  if (!auth.authenticated) {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
+  const gate = await requireOwnerAdmin(req);
+  if (!gate.ok) return gate.response;
+  const auth = gate.auth;
 
   try {
     const body = await req.json();
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const password = typeof body.password === "string" ? body.password : "";
     const name = typeof body.name === "string" ? body.name.trim().slice(0, 120) : null;
+    const role = normalizeAdminRole(body.role);
 
     if (!email || !email.includes("@")) {
       return NextResponse.json({ success: false, error: "Valid email required" }, { status: 400 });
@@ -84,15 +85,15 @@ export async function POST(req: NextRequest) {
 
     const hash = await hashPassword(password);
     const row = await prisma.adminUser.create({
-      data: { email, password: hash, name },
-      select: { id: true, email: true, name: true, isActive: true, createdAt: true },
+      data: { email, password: hash, name, role },
+      select: { id: true, email: true, name: true, role: true, isActive: true, createdAt: true },
     });
 
     await writeAudit({
       action: "admin_user_created",
       entityType: "ADMIN_USER",
       entityId: row.id,
-      details: { email: row.email, name: row.name },
+      details: { email: row.email, name: row.name, role: row.role },
       actor: auth.actor || "admin",
     });
 
@@ -103,12 +104,11 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/** PUT — update isActive / name / password. Body: { id, isActive?, name?, newPassword? } */
+/** PUT — update isActive / name / password / role. Body: { id, isActive?, name?, newPassword?, role? } Owner only. */
 export async function PUT(req: NextRequest) {
-  const auth = await verifyAdminAuth(req);
-  if (!auth.authenticated) {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
+  const gate = await requireOwnerAdmin(req);
+  if (!gate.ok) return gate.response;
+  const auth = gate.auth;
 
   try {
     const body = await req.json();
@@ -124,6 +124,7 @@ export async function PUT(req: NextRequest) {
     const data: Record<string, unknown> = {};
     if (typeof body.isActive === "boolean") data.isActive = body.isActive;
     if (typeof body.name === "string") data.name = body.name.trim().slice(0, 120) || null;
+    if (typeof body.role === "string") data.role = normalizeAdminRole(body.role);
     if (typeof body.newPassword === "string" && body.newPassword) {
       if (body.newPassword.length < MIN_PW_LEN) {
         return NextResponse.json(

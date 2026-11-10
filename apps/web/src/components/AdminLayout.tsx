@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   LayoutDashboard,
@@ -28,36 +28,68 @@ import {
   Gift,
   Wallet,
   ShieldCheck,
+  Receipt,
 } from "lucide-react";
 
 const NAV_ITEMS = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/reservations", label: "Reservations", icon: CalendarCheck },
-  { href: "/admin/live-auto", label: "Live Auto Mode", icon: Radio },
-  { href: "/admin/custom-reservation", label: "Custom Reservation", icon: PlusCircle },
-  { href: "/admin/quotes", label: "Online Quotes", icon: FileText },
-  { href: "/admin/fleet", label: "Fleet Pricing", icon: DollarSign },
-  { href: "/admin/app-fleets", label: "App Fleets", icon: Smartphone },
-  { href: "/admin/promotions", label: "App Promotions", icon: Tag },
-  { href: "/admin/referrals", label: "Referrals", icon: Gift },
-  { href: "/admin/drivers", label: "Drivers", icon: Car },
-  { href: "/admin/driver-pay", label: "Driver Pay", icon: Wallet },
-  { href: "/admin/trip-reviews", label: "Trip Reviews", icon: Star },
-  { href: "/admin/support-tickets", label: "Support Tickets", icon: MessageSquareText },
-  { href: "/admin/legal-docs", label: "App Legal Content", icon: ScrollText },
-  { href: "/admin/track-drivers", label: "Track Drivers", icon: MapPin },
-  { href: "/admin/concierge", label: "Hotel Concierge", icon: Building2 },
-  { href: "/admin/operational-managers", label: "Operational Managers", icon: UserCog },
-  { href: "/admin/admin-users", label: "Admin Users", icon: ShieldCheck },
-  { href: "/admin/customers", label: "Customers", icon: Users },
-  { href: "/admin/app-customers", label: "App Customers", icon: Users },
+  { href: "/admin", label: "Dashboard", icon: LayoutDashboard, roles: ["OWNER"] as const },
+  { href: "/admin/billing", label: "Billing & Invoices", icon: Receipt, roles: ["OWNER", "BILLING_ASSISTANT"] as const },
+  { href: "/admin/reservations", label: "Reservations", icon: CalendarCheck, roles: ["OWNER"] as const },
+  { href: "/admin/live-auto", label: "Live Auto Mode", icon: Radio, roles: ["OWNER"] as const },
+  { href: "/admin/custom-reservation", label: "Custom Reservation", icon: PlusCircle, roles: ["OWNER"] as const },
+  { href: "/admin/quotes", label: "Online Quotes", icon: FileText, roles: ["OWNER"] as const },
+  { href: "/admin/fleet", label: "Fleet Pricing", icon: DollarSign, roles: ["OWNER"] as const },
+  { href: "/admin/app-fleets", label: "App Fleets", icon: Smartphone, roles: ["OWNER"] as const },
+  { href: "/admin/promotions", label: "App Promotions", icon: Tag, roles: ["OWNER"] as const },
+  { href: "/admin/referrals", label: "Referrals", icon: Gift, roles: ["OWNER"] as const },
+  { href: "/admin/drivers", label: "Drivers", icon: Car, roles: ["OWNER"] as const },
+  { href: "/admin/driver-pay", label: "Driver Pay", icon: Wallet, roles: ["OWNER"] as const },
+  { href: "/admin/trip-reviews", label: "Trip Reviews", icon: Star, roles: ["OWNER"] as const },
+  { href: "/admin/support-tickets", label: "Support Tickets", icon: MessageSquareText, roles: ["OWNER"] as const },
+  { href: "/admin/legal-docs", label: "App Legal Content", icon: ScrollText, roles: ["OWNER"] as const },
+  { href: "/admin/track-drivers", label: "Track Drivers", icon: MapPin, roles: ["OWNER"] as const },
+  { href: "/admin/concierge", label: "Hotel Concierge", icon: Building2, roles: ["OWNER"] as const },
+  { href: "/admin/operational-managers", label: "Operational Managers", icon: UserCog, roles: ["OWNER"] as const },
+  { href: "/admin/admin-users", label: "Admin Users", icon: ShieldCheck, roles: ["OWNER"] as const },
+  { href: "/admin/customers", label: "Customers", icon: Users, roles: ["OWNER"] as const },
+  { href: "/admin/app-customers", label: "App Customers", icon: Users, roles: ["OWNER"] as const },
 ];
 
 const SIDEBAR_WIDTH = "w-[268px]";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [role, setRole] = useState<"OWNER" | "BILLING_ASSISTANT">("OWNER");
   const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/admin/auth/verify", { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled || !data?.authenticated) return;
+        const next =
+          data.role === "BILLING_ASSISTANT" ? "BILLING_ASSISTANT" : "OWNER";
+        setRole(next);
+        if (
+          next === "BILLING_ASSISTANT" &&
+          pathname &&
+          !pathname.startsWith("/admin/billing")
+        ) {
+          router.replace("/admin/billing");
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, router]);
+
+  const navItems = useMemo(
+    () => NAV_ITEMS.filter((item) => (item.roles as readonly string[]).includes(role)),
+    [role]
+  );
 
   const isActive = (href: string) => {
     if (href === "/admin") return pathname === "/admin";
@@ -125,7 +157,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Navigation — scrollable so footer never overlaps */}
         <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.12)_transparent]">
           <ul className="space-y-1">
-            {NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.href);
               return (

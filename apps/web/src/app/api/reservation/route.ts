@@ -428,6 +428,13 @@ export async function POST(request: NextRequest) {
       )
       .catch((err) => console.error("[reservation] booking confirm push", err));
 
+    if (String(paymentStatus || "").toUpperCase() === "PAID") {
+      const { triggerStandardInvoiceByBookingId } = await import(
+        "@/lib/invoice-hooks"
+      );
+      triggerStandardInvoiceByBookingId(bookingId, "website-reservation");
+    }
+
     let emailSent = false;
     let emailError: string | null = null;
     try {

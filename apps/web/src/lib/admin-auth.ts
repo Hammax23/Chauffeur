@@ -319,9 +319,11 @@ export async function getAdminTokenFromCookies(): Promise<string | null> {
 export async function verifyAdminAuth(request?: NextRequest): Promise<{
   authenticated: boolean;
   error?: string;
+  code?: string;
   adminId?: string | null;
   email?: string | null;
   actor?: string;
+  role?: import("@/lib/admin-roles").AdminRole;
 }> {
   let token: string | null = null;
 
@@ -351,11 +353,56 @@ export async function verifyAdminAuth(request?: NextRequest): Promise<{
   }
 
   const identity = actorFromPayload(payload);
+  const { resolveAdminAccess, isBillingAssistantPath } = await import(
+    "@/lib/admin-roles"
+  );
+  const access = await resolveAdminAccess(identity.adminId);
+  if (!access.ok) {
+    return {
+      authenticated: false,
+      error:
+        access.reason === "INACTIVE"
+          ? "Admin account is deactivated."
+          : "Admin account not found.",
+      code: access.reason === "INACTIVE" ? "INACTIVE" : "UNAUTHORIZED",
+      adminId: identity.adminId,
+      email: identity.email,
+      actor: identity.actor,
+    };
+  }
+  const role = access.role;
+
+  // Hard API/page gate: Billing Assistant cannot touch non-billing admin surfaces.
+  if (request && role === "BILLING_ASSISTANT") {
+    try {
+      const path = request.nextUrl?.pathname || new URL(request.url).pathname;
+      if (!isBillingAssistantPath(path)) {
+        return {
+          authenticated: false,
+          error: "Billing assistants may only use the Billing panel.",
+          code: "FORBIDDEN_ROLE",
+          adminId: identity.adminId,
+          email: identity.email,
+          actor: identity.actor,
+          role,
+        };
+      }
+    } catch {
+      return {
+        authenticated: false,
+        error: "Billing assistants may only use the Billing panel.",
+        code: "FORBIDDEN_ROLE",
+        role,
+      };
+    }
+  }
+
   return {
     authenticated: true,
     adminId: identity.adminId,
     email: identity.email,
     actor: identity.actor,
+    role,
   };
 }
 

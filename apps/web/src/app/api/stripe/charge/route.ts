@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { verifyAdminAuth } from "@/lib/admin-auth";
+import prisma from "@/lib/prisma";
 
 const getStripe = () => {
   const key = process.env.STRIPE_SECRET_KEY?.trim();
@@ -15,7 +16,10 @@ const getStripe = () => {
 export async function POST(req: NextRequest) {
   const auth = await verifyAdminAuth(req);
   if (!auth.authenticated) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Unauthorized", code: auth.code },
+      { status: auth.code === "FORBIDDEN_ROLE" ? 403 : 401 }
+    );
   }
 
   try {
@@ -39,6 +43,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
     }
 
+    // UI historically passes bookingId in `reservationId`.
+    const bookingOrId = typeof reservationId === "string" ? reservationId.trim() : "";
+
     const stripe = getStripe();
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amount * 100),
@@ -48,14 +55,49 @@ export async function POST(req: NextRequest) {
       off_session: true,
       confirm: true,
       description:
-        description || `Chauffeur Service - Reservation #${reservationId || ""}`,
+        description || `Chauffeur Service - Reservation #${bookingOrId || ""}`,
       metadata: {
-        reservationId: reservationId || "",
+        type: "reservation",
+        bookingId: bookingOrId,
+        reservationId: bookingOrId,
         chargedBy: "admin",
       },
     });
 
     if (paymentIntent.status === "succeeded") {
+      if (bookingOrId) {
+        try {
+          const updated = await prisma.reservation.updateMany({
+            where: {
+              OR: [{ bookingId: bookingOrId }, { id: bookingOrId }],
+            },
+            data: {
+              paymentStatus: "PAID",
+              stripePaymentIntentId: paymentIntent.id,
+            },
+          });
+          if (updated.count > 0) {
+            const row = await prisma.reservation.findFirst({
+              where: {
+                OR: [{ bookingId: bookingOrId }, { id: bookingOrId }],
+              },
+              select: { id: true, bookingId: true },
+            });
+            if (row) {
+              const { triggerStandardInvoiceByReservationId } = await import(
+                "@/lib/invoice-hooks"
+              );
+              triggerStandardInvoiceByReservationId(
+                row.id,
+                auth.actor || "admin-charge"
+              );
+            }
+          }
+        } catch (e) {
+          console.error("[stripe/charge] mark PAID / invoice failed", e);
+        }
+      }
+
       return NextResponse.json({
         success: true,
         paymentIntentId: paymentIntent.id,

@@ -100,6 +100,7 @@ model Reservation {
   driverRemittance        DriverRemittance?
   assignedDriver          Driver?              @relation(fields: [assignedDriverId], references: [id])
   customer                Customer?            @relation(fields: [customerId], references: [id])
+  invoices                Invoice[]
 
   @@index([customerId, customerHistoryHiddenAt])
   @@index([promoCode])
@@ -371,12 +372,137 @@ model AdminUser {
   /// bcrypt hash
   password    String
   name        String?
+  /// OWNER | BILLING_ASSISTANT — least-privilege billing staff cannot access money controls.
+  role        String    @default("OWNER")
   isActive    Boolean   @default(true)
   lastLoginAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   @@index([isActive])
+  @@index([role])
+}
+
+/// Sequential invoice numbers per calendar year (America/Toronto). Never reuse.
+model InvoiceSequence {
+  id         String   @id
+  year       Int      @unique
+  lastNumber Int      @default(0)
+  updatedAt  DateTime @updatedAt
+}
+
+/// Canonical tax invoice / credit note — immutable fare snapshot is source of truth.
+model Invoice {
+  id                      String      @id @default(cuid())
+  /// INV-2026-000123 (revisions: INV-2026-000123-R1, credits: INV-2026-000123-C1)
+  invoiceNumber           String      @unique
+  /// STANDARD | REVISION | SUPPLEMENT | CREDIT_NOTE
+  kind                    String      @default("STANDARD")
+  /// ISSUED | EMAILED | PARTIALLY_CREDITED | CREDITED | VOID
+  status                  String      @default("ISSUED")
+  reservationId           String
+  bookingId               String
+  parentInvoiceId         String?
+  revision                Int         @default(0)
+  /// Linked FareAdjustment id for SUPPLEMENT docs (idempotency).
+  fareAdjustmentId        String?     @unique
+  currency                String      @default("CAD")
+  /// Frozen JSON line items + trip/billing fields — never regenerate money from live reservation.
+  snapshotJson            String
+  subtotal                Float       @default(0)
+  discountAmount          Float       @default(0)
+  hst                     Float       @default(0)
+  gratuity                Float       @default(0)
+  total                   Float       @default(0)
+  customerName            String
+  customerEmail           String
+  customerPhone           String?
+  pdfStorageKey           String?
+  pdfUrl                  String?
+  dropboxPath             String?
+  qbDocId                 String?
+  /// PENDING | DONE | FAILED | SKIPPED
+  emailStatus             String      @default("PENDING")
+  qbSyncStatus            String      @default("PENDING")
+  dropboxSyncStatus       String      @default("PENDING")
+  emailedAt               DateTime?
+  lastResentAt            DateTime?
+  resentTo                String?
+  resendCount             Int         @default(0)
+  stripePaymentIntentId   String?
+  stripeRefundId          String?
+  createdByActor          String      @default("system")
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
+  reservation             Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  jobs                    InvoiceJob[]
+
+  @@index([reservationId, kind])
+  @@index([bookingId])
+  @@index([status])
+  @@index([emailStatus])
+  @@index([qbSyncStatus])
+  @@index([dropboxSyncStatus])
+  @@index([createdAt])
+}
+
+/// Outbox jobs — EMAIL / QBO_SYNC / DROPBOX_SYNC. Idempotent via uniqueKey.
+model InvoiceJob {
+  id            String    @id @default(cuid())
+  invoiceId     String
+  /// EMAIL | QBO_SYNC | DROPBOX_SYNC
+  type          String
+  /// PENDING | DONE | FAILED
+  status        String    @default("PENDING")
+  attempts      Int       @default(0)
+  lastError     String?
+  nextAttemptAt DateTime?
+  /// invoiceId:type (unique — one logical job per invoice+channel)
+  uniqueKey     String    @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  invoice       Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@index([invoiceId, type])
+}
+
+/// Owner-connected OAuth tokens for QuickBooks / Dropbox (encrypted at rest).
+model IntegrationCredential {
+  id                      String    @id @default(cuid())
+  /// QUICKBOOKS | DROPBOX
+  provider                String    @unique
+  encryptedRefreshToken   String
+  encryptedAccessToken    String?
+  accessTokenExpiresAt    DateTime?
+  /// QuickBooks company realm id (pinned for prod/staging isolation).
+  realmId                 String?
+  /// Dropbox account id / team folder root.
+  accountId               String?
+  folderPath              String?
+  /// QB item/tax mapping JSON etc.
+  metadataJson            String?
+  connectedByAdminId      String?
+  connectedByEmail        String?
+  connectedAt             DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+}
+
+/// Billing panel audit trail (send/resend/retry/connect — never silent).
+model BillingAuditLog {
+  id          String   @id @default(cuid())
+  actor       String
+  adminId     String?
+  action      String
+  invoiceId   String?
+  bookingId   String?
+  metaJson    String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([invoiceId])
+  @@index([bookingId])
+  @@index([action])
 }
 
 /// Canada T4A contractor-style yearly summary per driver. Not a CRA e-file — a snapshot the

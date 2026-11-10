@@ -500,6 +500,16 @@ export async function POST(req: NextRequest) {
         )
         .catch((err) => console.error("[app-reservation] booking confirm push", err));
 
+      if (String(paymentStatus || "").toUpperCase() === "PAID") {
+        const { triggerStandardInvoiceByReservationId } = await import(
+          "@/lib/invoice-hooks"
+        );
+        triggerStandardInvoiceByReservationId(
+          reservation.id,
+          "app-reservation"
+        );
+      }
+
       return NextResponse.json({
         success: true,
         message: "Reservation created successfully",

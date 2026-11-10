@@ -186,6 +186,10 @@ export async function createAndChargeFareAdjustment(opts: {
         collapseId: `fare_charged:${opts.bookingId}:${opts.idempotencyKey}`,
       }
     );
+    const { triggerSupplementInvoiceForAdjustment } = await import(
+      "@/lib/invoice-hooks"
+    );
+    triggerSupplementInvoiceForAdjustment(row.id, "fare-adjustment");
     return { adjustmentId: row.id, status: "PAID", total, charged: true };
   }
 

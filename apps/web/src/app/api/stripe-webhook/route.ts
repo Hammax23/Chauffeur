@@ -54,6 +54,10 @@ export async function POST(request: NextRequest) {
                   notifyCustomerPaymentReceived(bookingId)
                 )
                 .catch((err) => console.error("[webhook] payment push", err));
+              const { triggerStandardInvoiceByBookingId } = await import(
+                "@/lib/invoice-hooks"
+              );
+              triggerStandardInvoiceByBookingId(bookingId, "stripe-webhook");
             }
           } catch (e) {
             console.error(`Failed to mark reservation ${bookingId} paid:`, e);
@@ -86,6 +90,10 @@ export async function POST(request: NextRequest) {
                   notifyCustomerPaymentReceived(bookingId)
                 )
                 .catch((err) => console.error("[webhook] payment push", err));
+              const { triggerStandardInvoiceByBookingId } = await import(
+                "@/lib/invoice-hooks"
+              );
+              triggerStandardInvoiceByBookingId(bookingId, "stripe-webhook");
             }
           } catch (e) {
             console.error(`Failed to mark reservation ${bookingId} paid from PI:`, e);
@@ -104,6 +112,48 @@ export async function POST(request: NextRequest) {
       case "charge.refunded": {
         const charge = event.data.object as Stripe.Charge;
         console.log(`Refund processed for charge: ${charge.id}`);
+        try {
+          // Prefer the newest individual refund (not cumulative amount_refunded).
+          const refunds = [...(charge.refunds?.data || [])].sort(
+            (a, b) => (b.created || 0) - (a.created || 0)
+          );
+          const latest = refunds[0];
+          const refundAmount = latest
+            ? (latest.amount || 0) / 100
+            : (charge.amount_refunded || 0) / 100;
+          const stripeRefundId = latest?.id || charge.id;
+
+          let reservationId: string | undefined;
+          let bookingId = charge.metadata?.bookingId || undefined;
+          if (charge.payment_intent) {
+            const piId =
+              typeof charge.payment_intent === "string"
+                ? charge.payment_intent
+                : charge.payment_intent.id;
+            const r = await prisma.reservation.findFirst({
+              where: { stripePaymentIntentId: piId },
+              select: { bookingId: true, id: true },
+            });
+            if (r) {
+              reservationId = r.id;
+              bookingId = r.bookingId;
+            }
+          }
+          if (reservationId || bookingId) {
+            const { triggerCreditNoteForRefund } = await import(
+              "@/lib/invoice-hooks"
+            );
+            triggerCreditNoteForRefund({
+              reservationId,
+              bookingId,
+              refundAmount,
+              stripeRefundId,
+              actor: "stripe-webhook",
+            });
+          }
+        } catch (e) {
+          console.error("[webhook] credit note on refund failed", e);
+        }
         break;
       }
 

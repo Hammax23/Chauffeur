@@ -91,6 +91,11 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    const { triggerStandardInvoiceByBookingId } = await import(
+      "@/lib/invoice-hooks"
+    );
+    triggerStandardInvoiceByBookingId(bookingId, "confirm-checkout");
+
     return NextResponse.json({
       success: true,
       reservation: updated,
