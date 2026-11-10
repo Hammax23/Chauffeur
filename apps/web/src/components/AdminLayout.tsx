@@ -29,37 +29,175 @@ import {
   Wallet,
   ShieldCheck,
   Receipt,
+  ChevronDown,
+  type LucideIcon,
 } from "lucide-react";
+import { isBillingAssistantPagePath } from "@/lib/admin-assistant-paths";
 
-const NAV_ITEMS = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard, roles: ["OWNER"] as const },
-  { href: "/admin/billing", label: "Billing & Invoices", icon: Receipt, roles: ["OWNER", "BILLING_ASSISTANT"] as const },
-  { href: "/admin/reservations", label: "Reservations", icon: CalendarCheck, roles: ["OWNER"] as const },
-  { href: "/admin/live-auto", label: "Live Auto Mode", icon: Radio, roles: ["OWNER"] as const },
-  { href: "/admin/custom-reservation", label: "Custom Reservation", icon: PlusCircle, roles: ["OWNER"] as const },
-  { href: "/admin/quotes", label: "Online Quotes", icon: FileText, roles: ["OWNER"] as const },
-  { href: "/admin/fleet", label: "Fleet Pricing", icon: DollarSign, roles: ["OWNER"] as const },
-  { href: "/admin/app-fleets", label: "App Fleets", icon: Smartphone, roles: ["OWNER"] as const },
-  { href: "/admin/promotions", label: "App Promotions", icon: Tag, roles: ["OWNER"] as const },
-  { href: "/admin/referrals", label: "Referrals", icon: Gift, roles: ["OWNER"] as const },
-  { href: "/admin/drivers", label: "Drivers", icon: Car, roles: ["OWNER"] as const },
-  { href: "/admin/driver-pay", label: "Driver Pay", icon: Wallet, roles: ["OWNER"] as const },
-  { href: "/admin/trip-reviews", label: "Trip Reviews", icon: Star, roles: ["OWNER"] as const },
-  { href: "/admin/support-tickets", label: "Support Tickets", icon: MessageSquareText, roles: ["OWNER"] as const },
-  { href: "/admin/legal-docs", label: "App Legal Content", icon: ScrollText, roles: ["OWNER"] as const },
-  { href: "/admin/track-drivers", label: "Track Drivers", icon: MapPin, roles: ["OWNER"] as const },
-  { href: "/admin/concierge", label: "Hotel Concierge", icon: Building2, roles: ["OWNER"] as const },
-  { href: "/admin/operational-managers", label: "Operational Managers", icon: UserCog, roles: ["OWNER"] as const },
-  { href: "/admin/admin-users", label: "Admin Users", icon: ShieldCheck, roles: ["OWNER"] as const },
-  { href: "/admin/customers", label: "Customers", icon: Users, roles: ["OWNER"] as const },
-  { href: "/admin/app-customers", label: "App Customers", icon: Users, roles: ["OWNER"] as const },
+type AdminRole = "OWNER" | "BILLING_ASSISTANT";
+
+type NavLeaf = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  roles: readonly AdminRole[];
+  /** When true, only exact path matches (hub pages with child routes). */
+  exact?: boolean;
+};
+
+type NavGroup = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  roles: readonly AdminRole[];
+  items: NavLeaf[];
+};
+
+type NavEntry =
+  | ({ type: "link" } & NavLeaf)
+  | ({ type: "group" } & NavGroup);
+
+const NAV: NavEntry[] = [
+  {
+    type: "link",
+    href: "/admin",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    roles: ["OWNER"],
+  },
+  {
+    type: "group",
+    id: "bookings",
+    label: "Bookings",
+    icon: CalendarCheck,
+    roles: ["OWNER", "BILLING_ASSISTANT"],
+    items: [
+      {
+        href: "/admin/reservations",
+        label: "Reservations",
+        icon: CalendarCheck,
+        roles: ["OWNER", "BILLING_ASSISTANT"],
+      },
+      {
+        href: "/admin/live-auto",
+        label: "Live Auto Mode",
+        icon: Radio,
+        roles: ["OWNER", "BILLING_ASSISTANT"],
+      },
+      {
+        href: "/admin/custom-reservation",
+        label: "Custom Reservation",
+        icon: PlusCircle,
+        roles: ["OWNER", "BILLING_ASSISTANT"],
+      },
+      {
+        href: "/admin/quotes",
+        label: "Online Quotes",
+        icon: FileText,
+        roles: ["OWNER", "BILLING_ASSISTANT"],
+      },
+    ],
+  },
+  {
+    type: "group",
+    id: "website",
+    label: "Website",
+    icon: Globe,
+    roles: ["OWNER"],
+    items: [
+      { href: "/admin/fleet", label: "Fleet Pricing", icon: DollarSign, roles: ["OWNER"] },
+      { href: "/admin/customers", label: "Website Customers", icon: Users, roles: ["OWNER"] },
+    ],
+  },
+  {
+    type: "group",
+    id: "app",
+    label: "App",
+    icon: Smartphone,
+    roles: ["OWNER"],
+    items: [
+      { href: "/admin/app-fleets", label: "Fleets", icon: Smartphone, roles: ["OWNER"] },
+      { href: "/admin/promotions", label: "Promotions", icon: Tag, roles: ["OWNER"] },
+      { href: "/admin/app-customers", label: "App Customers", icon: Users, roles: ["OWNER"] },
+      { href: "/admin/referrals", label: "Referrals", icon: Gift, roles: ["OWNER"] },
+      { href: "/admin/legal-docs", label: "Legal Content", icon: ScrollText, roles: ["OWNER"] },
+    ],
+  },
+  {
+    type: "group",
+    id: "drivers",
+    label: "Drivers",
+    icon: Car,
+    roles: ["OWNER"],
+    items: [
+      { href: "/admin/drivers", label: "All Drivers", icon: Car, roles: ["OWNER"] },
+      { href: "/admin/driver-pay", label: "Driver Pay", icon: Wallet, roles: ["OWNER"] },
+      { href: "/admin/track-drivers", label: "Track Drivers", icon: MapPin, roles: ["OWNER"] },
+      { href: "/admin/trip-reviews", label: "Trip Reviews", icon: Star, roles: ["OWNER"] },
+    ],
+  },
+  {
+    type: "group",
+    id: "partners",
+    label: "Hotel Concierge",
+    icon: Building2,
+    roles: ["OWNER"],
+    items: [
+      { href: "/admin/concierge", label: "Overview", icon: Building2, roles: ["OWNER"], exact: true },
+      { href: "/admin/concierge/hotels", label: "Hotels", icon: Building2, roles: ["OWNER"] },
+      { href: "/admin/concierge/staff", label: "Staff", icon: Users, roles: ["OWNER"] },
+      { href: "/admin/concierge/drivers", label: "Drivers", icon: Car, roles: ["OWNER"] },
+      { href: "/admin/concierge/trips", label: "Trips", icon: MapPin, roles: ["OWNER"] },
+      { href: "/admin/concierge/commissions", label: "Commissions", icon: DollarSign, roles: ["OWNER"] },
+    ],
+  },
+  {
+    type: "link",
+    href: "/admin/support-tickets",
+    label: "Support Tickets",
+    icon: MessageSquareText,
+    roles: ["OWNER"],
+  },
+  {
+    type: "link",
+    href: "/admin/billing",
+    label: "Billing & Invoices",
+    icon: Receipt,
+    roles: ["OWNER", "BILLING_ASSISTANT"],
+  },
+  {
+    type: "group",
+    id: "team",
+    label: "Team & Access",
+    icon: ShieldCheck,
+    roles: ["OWNER"],
+    items: [
+      { href: "/admin/operational-managers", label: "Operational Managers", icon: UserCog, roles: ["OWNER"] },
+      { href: "/admin/admin-users", label: "Admin Users", icon: ShieldCheck, roles: ["OWNER"] },
+    ],
+  },
 ];
 
 const SIDEBAR_WIDTH = "w-[268px]";
 
+function pathActive(
+  pathname: string | null,
+  href: string,
+  exact?: boolean
+): boolean {
+  if (!pathname) return false;
+  if (href === "/admin" || exact) return pathname === href;
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function groupHasActive(pathname: string | null, items: NavLeaf[]): boolean {
+  return items.some((item) => pathActive(pathname, item.href, item.exact));
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [role, setRole] = useState<"OWNER" | "BILLING_ASSISTANT">("OWNER");
+  const [role, setRole] = useState<AdminRole>("OWNER");
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const pathname = usePathname();
   const router = useRouter();
 
@@ -69,13 +207,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .then((r) => r.json())
       .then((data) => {
         if (cancelled || !data?.authenticated) return;
-        const next =
+        const next: AdminRole =
           data.role === "BILLING_ASSISTANT" ? "BILLING_ASSISTANT" : "OWNER";
         setRole(next);
         if (
           next === "BILLING_ASSISTANT" &&
           pathname &&
-          !pathname.startsWith("/admin/billing")
+          !isBillingAssistantPagePath(pathname)
         ) {
           router.replace("/admin/billing");
         }
@@ -86,15 +224,50 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     };
   }, [pathname, router]);
 
-  const navItems = useMemo(
-    () => NAV_ITEMS.filter((item) => (item.roles as readonly string[]).includes(role)),
-    [role]
-  );
+  const navEntries = useMemo(() => {
+    return NAV.map((entry) => {
+      if (entry.type === "link") {
+        return (entry.roles as readonly string[]).includes(role) ? entry : null;
+      }
+      const items = entry.items.filter((item) =>
+        (item.roles as readonly string[]).includes(role)
+      );
+      if (!items.length || !(entry.roles as readonly string[]).includes(role)) {
+        return null;
+      }
+      return { ...entry, items };
+    }).filter(Boolean) as NavEntry[];
+  }, [role]);
 
-  const isActive = (href: string) => {
-    if (href === "/admin") return pathname === "/admin";
-    return pathname.startsWith(href);
+  // Auto-expand the group that contains the current page
+  useEffect(() => {
+    setOpenGroups((prev) => {
+      const next = { ...prev };
+      for (const entry of NAV) {
+        if (entry.type !== "group") continue;
+        if (groupHasActive(pathname, entry.items)) {
+          next[entry.id] = true;
+        }
+      }
+      return next;
+    });
+  }, [pathname]);
+
+  const toggleGroup = (id: string) => {
+    setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }));
   };
+
+  const linkClass = (active: boolean, nested = false) =>
+    `flex items-center gap-3 ${nested ? "pl-3 pr-3 py-2" : "px-3 py-2.5"} rounded-lg text-[13px] leading-snug transition-colors duration-150 group ${
+      active
+        ? "bg-[#C9A063] text-[#1a1a1a] font-semibold shadow-sm"
+        : "text-white/55 hover:text-white hover:bg-white/[0.05] font-medium"
+    }`;
+
+  const iconClass = (active: boolean) =>
+    `w-[18px] h-[18px] shrink-0 ${
+      active ? "text-[#1a1a1a]" : "text-white/40 group-hover:text-[#C9A063]"
+    }`;
 
   return (
     <div className="min-h-screen bg-[#f5f5f7]">
@@ -135,50 +308,115 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        {/* Brand */}
+        {/* Brand — wide wordmark, no circle crop */}
         <div className="shrink-0 px-5 py-5 border-b border-white/[0.06]">
           <div className="flex items-center gap-3">
-            <div className="relative shrink-0 w-10 h-10 rounded-full overflow-hidden ring-1 ring-[#C9A063]/25 bg-[#1C1C1E]">
+            <div className="relative shrink-0 w-[72px] h-9 flex items-center justify-center">
               <Image
                 src="/logo1.png"
                 alt="SARJ Worldwide"
-                width={40}
-                height={40}
-                className="object-cover w-full h-full"
+                width={72}
+                height={28}
+                className="object-contain w-[72px] h-auto max-h-9"
+                priority
               />
             </div>
             <div className="min-w-0">
-              <p className="text-[15px] font-semibold text-white tracking-tight leading-tight">SARJ</p>
-              <p className="text-[11px] text-white/40 leading-snug mt-0.5">Management Portal</p>
+              <p className="text-[15px] font-semibold text-white tracking-tight leading-tight">
+                SARJ
+              </p>
+              <p className="text-[11px] text-white/40 leading-snug mt-0.5">
+                Management Portal
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Navigation — scrollable so footer never overlaps */}
+        {/* Navigation */}
         <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.12)_transparent]">
           <ul className="space-y-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.href);
+            {navEntries.map((entry) => {
+              if (entry.type === "link") {
+                const Icon = entry.icon;
+                const active = pathActive(pathname, entry.href, entry.exact);
+                return (
+                  <li key={entry.href}>
+                    <Link
+                      href={entry.href}
+                      onClick={() => setSidebarOpen(false)}
+                      className={linkClass(active)}
+                    >
+                      <Icon
+                        className={iconClass(active)}
+                        strokeWidth={active ? 2.25 : 2}
+                      />
+                      <span className="truncate">{entry.label}</span>
+                    </Link>
+                  </li>
+                );
+              }
+
+              const GroupIcon = entry.icon;
+              const open = Boolean(openGroups[entry.id]);
+              const sectionActive = groupHasActive(pathname, entry.items);
+
               return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] leading-snug transition-colors duration-150 group ${
-                      active
-                        ? "bg-[#C9A063] text-[#1a1a1a] font-semibold shadow-sm"
-                        : "text-white/55 hover:text-white hover:bg-white/[0.05] font-medium"
+                <li key={entry.id} className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(entry.id)}
+                    aria-expanded={open}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] leading-snug transition-colors duration-150 group ${
+                      sectionActive && !open
+                        ? "text-[#C9A063] font-semibold"
+                        : "text-white/70 hover:text-white hover:bg-white/[0.05] font-semibold"
                     }`}
                   >
-                    <Icon
+                    <GroupIcon
                       className={`w-[18px] h-[18px] shrink-0 ${
-                        active ? "text-[#1a1a1a]" : "text-white/40 group-hover:text-[#C9A063]"
+                        sectionActive
+                          ? "text-[#C9A063]"
+                          : "text-white/45 group-hover:text-[#C9A063]"
                       }`}
-                      strokeWidth={active ? 2.25 : 2}
+                      strokeWidth={2}
                     />
-                    <span className="truncate">{item.label}</span>
-                  </Link>
+                    <span className="flex-1 text-left truncate tracking-wide uppercase text-[11px]">
+                      {entry.label}
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 shrink-0 text-white/35 transition-transform duration-200 ${
+                        open ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+
+                  <div
+                    className={`grid transition-[grid-template-rows] duration-200 ease-out ${
+                      open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                    }`}
+                  >
+                    <ul className="overflow-hidden min-h-0 mt-0.5 ml-2 pl-2 border-l border-white/[0.08] space-y-0.5">
+                      {entry.items.map((item) => {
+                        const Icon = item.icon;
+                        const active = pathActive(pathname, item.href, item.exact);
+                        return (
+                          <li key={item.href}>
+                            <Link
+                              href={item.href}
+                              onClick={() => setSidebarOpen(false)}
+                              className={linkClass(active, true)}
+                            >
+                              <Icon
+                                className={iconClass(active)}
+                                strokeWidth={active ? 2.25 : 2}
+                              />
+                              <span className="truncate">{item.label}</span>
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
                 </li>
               );
             })}

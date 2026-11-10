@@ -101,7 +101,7 @@ npx prisma generate
 ## Hire billing assistant
 
 1. Admin Users → Add user → role **Billing Assistant**
-2. They only see **Billing & Invoices**
+2. They see **Bookings** (Reservations, Live Auto, Custom Reservation, Quotes) + **Billing & Invoices**
 3. Deactivate = immediate offboard (they cannot reconnect QB/Dropbox)
 
 ## Go-live checklist

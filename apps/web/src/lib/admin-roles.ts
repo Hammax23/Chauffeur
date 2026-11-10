@@ -1,14 +1,20 @@
 import "server-only";
 import prisma from "@/lib/prisma";
+import {
+  isBillingAssistantPath as pathAllowed,
+  BILLING_ASSISTANT_PAGE_PREFIXES,
+  BILLING_ASSISTANT_API_PREFIXES,
+  BILLING_ASSISTANT_API_EXACT,
+} from "@/lib/admin-assistant-paths";
 
 export const ADMIN_ROLES = ["OWNER", "BILLING_ASSISTANT"] as const;
 export type AdminRole = (typeof ADMIN_ROLES)[number];
 
-/** Routes Billing Assistants may access (prefix match). */
+/** @deprecated Prefer imports from admin-assistant-paths — kept for existing callers. */
 export const BILLING_ASSISTANT_ALLOWED_PATHS = [
-  "/admin/billing",
-  "/api/admin/billing",
-  "/api/admin/auth",
+  ...BILLING_ASSISTANT_PAGE_PREFIXES,
+  ...BILLING_ASSISTANT_API_PREFIXES,
+  ...BILLING_ASSISTANT_API_EXACT,
 ] as const;
 
 export function normalizeAdminRole(raw?: string | null): AdminRole {
@@ -17,10 +23,7 @@ export function normalizeAdminRole(raw?: string | null): AdminRole {
 }
 
 export function isBillingAssistantPath(pathname: string): boolean {
-  const p = (pathname || "").split("?")[0] || "";
-  return BILLING_ASSISTANT_ALLOWED_PATHS.some(
-    (prefix) => p === prefix || p.startsWith(`${prefix}/`)
-  );
+  return pathAllowed(pathname);
 }
 
 export type AdminAccess =

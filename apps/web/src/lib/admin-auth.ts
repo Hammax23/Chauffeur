@@ -372,14 +372,14 @@ export async function verifyAdminAuth(request?: NextRequest): Promise<{
   }
   const role = access.role;
 
-  // Hard API/page gate: Billing Assistant cannot touch non-billing admin surfaces.
+  // Hard API/page gate: Billing Assistant → Billing + Bookings only.
   if (request && role === "BILLING_ASSISTANT") {
     try {
       const path = request.nextUrl?.pathname || new URL(request.url).pathname;
       if (!isBillingAssistantPath(path)) {
         return {
           authenticated: false,
-          error: "Billing assistants may only use the Billing panel.",
+          error: "Billing assistants may only use Billing and Bookings.",
           code: "FORBIDDEN_ROLE",
           adminId: identity.adminId,
           email: identity.email,
@@ -390,7 +390,7 @@ export async function verifyAdminAuth(request?: NextRequest): Promise<{
     } catch {
       return {
         authenticated: false,
-        error: "Billing assistants may only use the Billing panel.",
+        error: "Billing assistants may only use Billing and Bookings.",
         code: "FORBIDDEN_ROLE",
         role,
       };
