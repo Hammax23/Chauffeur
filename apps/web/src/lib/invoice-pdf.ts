@@ -365,8 +365,13 @@ export async function buildInvoicePdfBuffer(opts: {
       y += 14;
     }
 
-    // Footer
-    y = Math.max(y + 24, 720);
+    // Footer — sit directly under totals (never force to y=720; that spills a blank page 2).
+    const footerBlock = 58;
+    const pageBottom = doc.page.height - 36;
+    y += 22;
+    if (y + footerBlock > pageBottom) {
+      y = Math.max(y - 8, pageBottom - footerBlock);
+    }
     doc
       .moveTo(leftX, y)
       .lineTo(rightEdge, y)
@@ -382,19 +387,20 @@ export async function buildInvoicePdfBuffer(opts: {
         `${c.legalName} · ${c.addressLine1}${c.addressLine2 ? `, ${c.addressLine2}` : ""}`,
         leftX,
         y,
-        { width: pageWidth, align: "center" }
+        { width: pageWidth, align: "center", lineBreak: false }
       );
-    y = doc.y + 2;
+    y += 12;
     doc.text(`${c.email} · ${c.website.replace(/^https?:\/\//, "")}`, leftX, y, {
       width: pageWidth,
       align: "center",
+      lineBreak: false,
     });
-    y = doc.y + 4;
+    y += 12;
     doc.text(
       "Amounts are frozen at issue time and are not editable by staff.",
       leftX,
       y,
-      { width: pageWidth, align: "center" }
+      { width: pageWidth, align: "center", lineBreak: false }
     );
 
     doc.end();
