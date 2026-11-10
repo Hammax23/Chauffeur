@@ -43,9 +43,51 @@ DROPBOX_REDIRECT_URI=https://YOUR_DOMAIN/api/admin/billing/oauth/dropbox/callbac
 DROPBOX_INVOICES_ROOT=/SARJ/Invoices
 # DROPBOX_ALLOW_NON_PROD=true
 
-# Cron to drain outbox
+# Cron to drain outbox (32-byte hex). Never put this in URLs or client code.
 CRON_SECRET=
-# GET/POST /api/cron/invoice-jobs  Authorization: Bearer $CRON_SECRET
+# GET/POST /api/cron/invoice-jobs
+# Header only: Authorization: Bearer $CRON_SECRET
+# Query ?secret= is rejected on purpose
+```
+
+## Cron (email / QB / Dropbox retries)
+
+Endpoint: `POST|GET /api/cron/invoice-jobs` every **5–15 minutes** (recommend **10**).
+
+**Auth rules**
+- Requires `CRON_SECRET` env on the server
+- `Authorization: Bearer <CRON_SECRET>` only
+- `?secret=` query is always **401** (log / Referer leak)
+
+**Manual / local test** (dev server running):
+
+```bash
+cd apps/web
+npm run cron:invoice-jobs
+# or:
+# CRON_BASE_URL=https://YOUR_DOMAIN npm run cron:invoice-jobs
+```
+
+Expected JSON: `{ "success": true, "claimed": N, "done": N, "failed": N, "at": "..." }`
+
+**Linux / VPS crontab** (every 10 min):
+
+```cron
+*/10 * * * * cd /path/to/Chauffeur/apps/web && /usr/bin/node scripts/hit-invoice-cron.mjs >> /var/log/sarj-invoice-cron.log 2>&1
+```
+
+Ensure production `.env` / host env has the same `CRON_SECRET` and set `CRON_BASE_URL=https://YOUR_DOMAIN` (or `NEXT_PUBLIC_APP_URL`).
+
+**Windows Task Scheduler** (local / Windows VPS): every 10 minutes run
+
+`powershell -NoProfile -Command "cd C:\path\to\Chauffeur\apps\web; node scripts\hit-invoice-cron.mjs"`
+
+**curl** (production):
+
+```bash
+curl -sS -X POST "https://YOUR_DOMAIN/api/cron/invoice-jobs" \
+  -H "Authorization: Bearer $CRON_SECRET" \
+  -H "Accept: application/json"
 ```
 
 ## DB
@@ -68,5 +110,5 @@ npx prisma generate
 - [ ] Accountant confirms QB item/tax mapping
 - [ ] Owner connects QuickBooks + Dropbox on production
 - [ ] Staging cannot write prod QB/Dropbox (default blocked)
-- [ ] Cron hits `/api/cron/invoice-jobs` every 5–15 min
+- [x] Cron route hardened + `npm run cron:invoice-jobs` (schedule every 5–15 min on host)
 - [ ] Test one paid booking end-to-end (PDF email + archives)

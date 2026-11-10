@@ -107,13 +107,24 @@ export async function POST(req: NextRequest) {
           : NextResponse.json({ success: false, error: "Invalid provider" }, { status: 400 });
 
     if (res.status === 200) {
-      res.cookies.set("sarj_oauth_state", state, {
+      // Lax so cookies survive return from Dropbox/Intuit (admin JWT is SameSite=Strict).
+      const oauthCookie = {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
+        sameSite: "lax" as const,
         maxAge: 600,
         path: "/",
-      });
+      };
+      res.cookies.set("sarj_oauth_state", state, oauthCookie);
+      res.cookies.set(
+        "sarj_oauth_actor",
+        JSON.stringify({
+          adminId: gate.auth.adminId,
+          email: gate.auth.email,
+          actor: gate.auth.actor,
+        }),
+        oauthCookie
+      );
     }
     return res;
   }

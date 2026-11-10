@@ -512,8 +512,16 @@ async function markJob(
   });
 }
 
+export type InvoiceJobRunSummary = {
+  claimed: number;
+  done: number;
+  failed: number;
+};
+
 /** Process pending outbox jobs for one invoice (or all due jobs if invoiceId omitted). */
-export async function processInvoiceJobs(invoiceId?: string): Promise<void> {
+export async function processInvoiceJobs(
+  invoiceId?: string
+): Promise<InvoiceJobRunSummary> {
   const now = new Date();
   const jobs = await prisma.invoiceJob.findMany({
     where: {
@@ -526,6 +534,9 @@ export async function processInvoiceJobs(invoiceId?: string): Promise<void> {
     take: invoiceId ? 10 : 40,
   });
 
+  let done = 0;
+  let failed = 0;
+
   for (const job of jobs) {
     try {
       if (job.type === "EMAIL") {
@@ -534,6 +545,7 @@ export async function processInvoiceJobs(invoiceId?: string): Promise<void> {
           where: { id: job.id },
           data: { status: "DONE", lastError: null, attempts: { increment: 1 } },
         });
+        done += 1;
       } else if (job.type === "QBO_SYNC") {
         const result = await syncInvoiceToQuickBooks(job.invoiceId);
         await prisma.invoice.update({
@@ -543,16 +555,18 @@ export async function processInvoiceJobs(invoiceId?: string): Promise<void> {
             qbDocId: result.docId || undefined,
           },
         });
+        const ok = result.status !== "FAILED";
         await prisma.invoiceJob.update({
           where: { id: job.id },
           data: {
-            status: result.status === "FAILED" ? "FAILED" : "DONE",
+            status: ok ? "DONE" : "FAILED",
             lastError: result.error || null,
             attempts: { increment: 1 },
-            nextAttemptAt:
-              result.status === "FAILED" ? new Date(Date.now() + 15 * 60 * 1000) : null,
+            nextAttemptAt: ok ? null : new Date(Date.now() + 15 * 60 * 1000),
           },
         });
+        if (ok) done += 1;
+        else failed += 1;
       } else if (job.type === "DROPBOX_SYNC") {
         const { buffer } = await ensurePdf(job.invoiceId);
         const result = await syncInvoiceToDropbox(job.invoiceId, buffer);
@@ -563,21 +577,24 @@ export async function processInvoiceJobs(invoiceId?: string): Promise<void> {
             dropboxPath: result.path || undefined,
           },
         });
+        const ok = result.status !== "FAILED";
         await prisma.invoiceJob.update({
           where: { id: job.id },
           data: {
-            status: result.status === "FAILED" ? "FAILED" : "DONE",
+            status: ok ? "DONE" : "FAILED",
             lastError: result.error || null,
             attempts: { increment: 1 },
-            nextAttemptAt:
-              result.status === "FAILED" ? new Date(Date.now() + 15 * 60 * 1000) : null,
+            nextAttemptAt: ok ? null : new Date(Date.now() + 15 * 60 * 1000),
           },
         });
+        if (ok) done += 1;
+        else failed += 1;
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[invoice-engine] job failed", job.type, job.id, msg);
       await markJob(job.id, "FAILED", msg.slice(0, 500));
+      failed += 1;
       if (job.type === "EMAIL") {
         await prisma.invoice.update({
           where: { id: job.invoiceId },
@@ -596,6 +613,8 @@ export async function processInvoiceJobs(invoiceId?: string): Promise<void> {
       }
     }
   }
+
+  return { claimed: jobs.length, done, failed };
 }
 
 export async function retryInvoiceJob(opts: {
