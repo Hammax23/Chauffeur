@@ -28,16 +28,23 @@ export async function uploadInvoicePdf(opts: {
   const safeBook = opts.bookingId.replace(/[^a-zA-Z0-9_-]/g, "_");
   const publicId = `sarj/invoices/${safeBook}/${safeInv}`;
 
+  /**
+   * Upload as image/pdf (not raw). Raw PDF delivery is often blocked (401) on
+   * Cloudinary unless "PDF and ZIP files delivery" is enabled. Image resource
+   * type is the supported path for invoice archives; admin UI still streams
+   * via /api/admin/billing/invoices/[id]/pdf so preview never depends on CDN.
+   */
   const result = await new Promise<{ secure_url: string; public_id: string }>(
     (resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         {
-          folder: undefined,
           public_id: publicId,
-          resource_type: "raw",
+          resource_type: "image",
           format: "pdf",
-          overwrite: false,
-          invalidate: false,
+          type: "upload",
+          access_mode: "public",
+          overwrite: true,
+          invalidate: true,
         },
         (err, res) => {
           if (err || !res) reject(err || new Error("Cloudinary upload failed"));

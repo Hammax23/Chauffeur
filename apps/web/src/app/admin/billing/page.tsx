@@ -371,16 +371,14 @@ export default function AdminBillingPage() {
                       <td className="px-4 py-3">{badge(inv.dropboxSyncStatus)}</td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1.5">
-                          {inv.pdfUrl && (
-                            <a
-                              href={inv.pdfUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-xs font-semibold text-[#8B6914] hover:underline"
-                            >
-                              PDF
-                            </a>
-                          )}
+                          <a
+                            href={`/api/admin/billing/invoices/${encodeURIComponent(inv.id)}/pdf`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs font-semibold text-[#8B6914] hover:underline"
+                          >
+                            PDF
+                          </a>
                           <button
                             type="button"
                             disabled={busyId === inv.id}
