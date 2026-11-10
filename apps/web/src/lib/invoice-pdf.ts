@@ -72,34 +72,37 @@ export async function buildInvoicePdfBuffer(opts: {
     const rightEdge = 564;
     const pageWidth = rightEdge - leftX;
 
-    // —— Header: logo + company | invoice meta ——
+    // —— Header: wide wordmark logo (823×322) — never force a square ——
     const headerTop = 48;
+    const logoW = 138;
+    const logoH = Math.round(logoW * (322 / 823)); // ~54, preserve aspect
     if (logo) {
       try {
-        doc.image(logo, leftX, headerTop, { width: 48, height: 48 });
+        doc.image(logo, leftX, headerTop, { width: logoW });
       } catch {
         /* ignore bad image */
       }
     }
 
-    const textLeft = logo ? leftX + 60 : leftX;
+    const textLeft = logo ? leftX + logoW + 14 : leftX;
+    const metaTop = headerTop + 4;
     doc
       .fillColor(slate)
       .font("Helvetica-Bold")
-      .fontSize(14)
-      .text(brand, textLeft, headerTop + 2, { width: 280 });
+      .fontSize(13)
+      .text(brand, textLeft, metaTop, { width: 220 });
     doc
       .fillColor(muted)
       .font("Helvetica")
       .fontSize(9)
-      .text(phone, textLeft, headerTop + 20, { width: 280 });
+      .text(phone, textLeft, metaTop + 18, { width: 220 });
     if (c.hstNumber) {
-      doc.text(`GST/HST: ${c.hstNumber}`, textLeft, headerTop + 33, { width: 280 });
+      doc.text(`GST/HST: ${c.hstNumber}`, textLeft, metaTop + 31, { width: 220 });
     } else {
       doc
         .fillColor("#a00")
-        .text("GST/HST: (set BILLING_HST_NUMBER)", textLeft, headerTop + 33, {
-          width: 280,
+        .text("GST/HST: (set BILLING_HST_NUMBER)", textLeft, metaTop + 31, {
+          width: 220,
         });
     }
 
@@ -107,7 +110,7 @@ export async function buildInvoicePdfBuffer(opts: {
       .fillColor(slate)
       .font("Helvetica-Bold")
       .fontSize(11)
-      .text(`${isCredit ? "Credit" : "Invoice"} #${invoiceNumber}`, leftX, headerTop + 2, {
+      .text(`${isCredit ? "Credit" : "Invoice"} #${invoiceNumber}`, leftX, metaTop, {
         width: pageWidth,
         align: "right",
       });
@@ -115,13 +118,13 @@ export async function buildInvoicePdfBuffer(opts: {
       .fillColor(muted)
       .font("Helvetica")
       .fontSize(9)
-      .text(`Issue date: ${issued}`, leftX, headerTop + 18, {
+      .text(`Issue date: ${issued}`, leftX, metaTop + 16, {
         width: pageWidth,
         align: "right",
       });
 
-    // Gold rule
-    const ruleY = headerTop + 62;
+    // Gold rule — clear of logo height
+    const ruleY = headerTop + Math.max(logoH, 48) + 14;
     doc
       .moveTo(leftX, ruleY)
       .lineTo(rightEdge, ruleY)

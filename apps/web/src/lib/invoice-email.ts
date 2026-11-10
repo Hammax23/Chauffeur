@@ -167,7 +167,7 @@ export function buildInvoiceEmailHtml(input: InvoiceEmailInput): string {
                   <table role="presentation" cellspacing="0" cellpadding="0">
                     <tr>
                       <td style="vertical-align:middle;padding-right:14px;">
-                        <img src="${e(invoiceLogoUrl())}" width="56" height="56" alt="SARJ Worldwide" style="display:block;width:56px;height:56px;border:0;" />
+                        <img src="${e(invoiceLogoUrl())}" width="140" alt="SARJ Worldwide" style="display:block;width:140px;height:auto;max-width:140px;border:0;" />
                       </td>
                       <td style="vertical-align:middle;">
                         <p style="margin:0;color:${SLATE};font-size:18px;font-weight:700;letter-spacing:-0.01em;line-height:1.2;">${e(displayName)}</p>
