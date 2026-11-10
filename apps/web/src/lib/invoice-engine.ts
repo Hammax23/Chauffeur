@@ -9,6 +9,7 @@ import {
 import { buildInvoicePdfBuffer, invoicePdfFileName } from "@/lib/invoice-pdf";
 import { uploadInvoicePdf, isInvoiceStorageConfigured } from "@/lib/invoice-storage";
 import { sendTransactionalEmail, isEmailConfigured } from "@/lib/email-delivery";
+import { buildInvoiceEmailHtml } from "@/lib/invoice-email";
 import type { InvoiceFareSnapshot, InvoiceJobType } from "@/lib/invoice-types";
 import { roundMoney } from "@/lib/invoice-types";
 import { syncInvoiceToQuickBooks } from "@/lib/integrations/quickbooks";
@@ -386,20 +387,14 @@ async function runEmailJob(invoiceId: string): Promise<void> {
   const isCredit = inv.kind === "CREDIT_NOTE";
   const subject = isCredit
     ? `Credit note ${inv.invoiceNumber} — SARJ Worldwide`
-    : `Your SARJ invoice ${inv.invoiceNumber} (booking ${inv.bookingId})`;
+    : `Invoice ${inv.invoiceNumber} from SARJ Chauffeur`;
 
-  const html = `<!DOCTYPE html><html><body style="font-family:system-ui,sans-serif;color:#111;line-height:1.5;">
-    <p>Dear ${escapeHtml(inv.customerName || "Guest")},</p>
-    <p>Please find attached your <strong>SARJ Worldwide ${isCredit ? "credit note" : "tax invoice"}</strong>.</p>
-    <p style="margin:16px 0;padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
-      <strong>Invoice #:</strong> ${escapeHtml(inv.invoiceNumber)}<br/>
-      <strong>Booking:</strong> ${escapeHtml(inv.bookingId)}<br/>
-      <strong>Total:</strong> $${roundMoney(inv.total).toFixed(2)} CAD
-    </p>
-    <p style="font-size:13px;color:#64748b;">This is your branded SARJ invoice (tax document). If you also received a Stripe card receipt, that is payment confirmation only — not a duplicate charge.</p>
-    <p style="font-size:13px;color:#64748b;">Trip: ${escapeHtml(snapshot.trip.serviceDate)} · ${escapeHtml(snapshot.trip.pickupLocation || "")}</p>
-    <p>Thank you for choosing SARJ Worldwide.<br/>${escapeHtml(snapshot.company.email)} · ${escapeHtml(snapshot.company.phone)}</p>
-  </body></html>`;
+  const html = buildInvoiceEmailHtml({
+    invoiceNumber: inv.invoiceNumber,
+    bookingId: inv.bookingId,
+    snapshot,
+    kind: inv.kind,
+  });
 
   const sent = await sendTransactionalEmail({
     to,
@@ -426,14 +421,6 @@ async function runEmailJob(invoiceId: string): Promise<void> {
   });
 }
 
-function escapeHtml(s: string): string {
-  return String(s || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 const MAX_RESENDS_PER_INVOICE = 8;
 
 export async function resendInvoiceEmail(opts: {
@@ -455,10 +442,20 @@ export async function resendInvoiceEmail(opts: {
   if (!isEmailConfigured()) return { ok: false, error: "Email not configured" };
 
   const { buffer } = await ensurePdf(inv.id);
+  const snapshot = parseSnapshot(inv.snapshotJson);
+  const isCredit = inv.kind === "CREDIT_NOTE";
   const sent = await sendTransactionalEmail({
     to,
-    subject: `Your SARJ invoice ${inv.invoiceNumber} (copy)`,
-    html: `<p>Attached is a copy of invoice <strong>${escapeHtml(inv.invoiceNumber)}</strong> for booking ${escapeHtml(inv.bookingId)}.</p>`,
+    subject: isCredit
+      ? `Credit note ${inv.invoiceNumber} — SARJ Worldwide (copy)`
+      : `Invoice ${inv.invoiceNumber} from SARJ Chauffeur (copy)`,
+    html: buildInvoiceEmailHtml({
+      invoiceNumber: inv.invoiceNumber,
+      bookingId: inv.bookingId,
+      snapshot,
+      kind: inv.kind,
+      isCopy: true,
+    }),
     attachments: [
       {
         filename: invoicePdfFileName(inv.invoiceNumber),

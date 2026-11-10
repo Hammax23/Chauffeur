@@ -108,7 +108,10 @@ npx prisma generate
 
 - [ ] `BILLING_HST_NUMBER` set
 - [ ] Accountant confirms QB item/tax mapping
-- [ ] Owner connects QuickBooks + Dropbox on production
-- [ ] Staging cannot write prod QB/Dropbox (default blocked)
+- [ ] Owner connects QuickBooks on production (optional until accountant ready)
+- [x] Dropbox prod redirect URI documented (`https://YOUR_DOMAIN/api/admin/billing/oauth/dropbox/callback`)
+- [ ] Owner reconnects Dropbox on production after redirect URI is live in Dropbox console
+- [ ] Staging cannot write prod QB/Dropbox (default blocked; do not set `*_ALLOW_NON_PROD` on prod)
 - [x] Cron route hardened + `npm run cron:invoice-jobs` (schedule every 5–15 min on host)
-- [ ] Test one paid booking end-to-end (PDF email + archives)
+- [x] Invoice email + PDF professional layout (logo, items table, Paid/Due, credit notes)
+- [ ] Test one paid booking end-to-end (PDF email + Dropbox archive)
