@@ -36,7 +36,7 @@ export type LandingPageContent = {
   routesTitle: [string, string];
   routesIntro: string;
   routesFrom: string;
-  routes: { to: string; km: string; time: string }[];
+  routes: { from?: string; to: string; km: string; time: string }[];
 };
 
 const PHONE_DISPLAY = "+1 (416) 893-5779";
@@ -199,15 +199,15 @@ export default function LandingPage({ content }: { content: LandingPageContent }
             <div className="grid items-stretch gap-5 sm:grid-cols-2 lg:grid-cols-4">
               {content.routes.map((r) => (
                 <Link
-                  key={r.to}
-                  href={`/reservation?mode=distance&pickup=${encodeURIComponent(content.routesFrom)}&dropoff=${encodeURIComponent(r.to)}`}
+                  key={`${r.from ?? content.routesFrom}-${r.to}`}
+                  href={`/reservation?mode=distance&pickup=${encodeURIComponent(r.from ?? content.routesFrom)}&dropoff=${encodeURIComponent(r.to)}`}
                   className="group relative flex flex-col items-center overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.07] to-white/[0.02] p-6 pt-7 text-center transition duration-300 hover:-translate-y-1.5 hover:border-[#C9A063]/60 hover:shadow-[0_24px_60px_-20px_rgba(201,160,99,0.35)]"
                 >
                   <span className="absolute inset-x-0 top-0 h-0.5 origin-center scale-x-0 bg-gradient-to-r from-transparent via-[#C9A063] to-transparent transition-transform duration-500 group-hover:scale-x-100" />
 
                   {/* From */}
                   <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/40">From</p>
-                  <p className="mt-1.5 text-[13px] font-medium text-white/75">{content.routesFrom}</p>
+                  <p className="mt-1.5 text-[13px] font-medium text-white/75">{r.from ?? content.routesFrom}</p>
 
                   {/* Connector */}
                   <div className="my-3 flex flex-col items-center" aria-hidden>

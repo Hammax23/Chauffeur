@@ -161,8 +161,12 @@ export async function getSeoSettings(): Promise<SeoSettings> {
     const settings = await prisma.seoSettings.findUnique({ where: { id: "global" } });
     if (settings) return decodeSettingsText(settings);
 
-    return await prisma.seoSettings.create({
-      data: {
+    // upsert (not create): parallel requests on an empty DB would otherwise race
+    // and hit "Unique constraint failed on id".
+    return await prisma.seoSettings.upsert({
+      where: { id: "global" },
+      update: {},
+      create: {
         id: "global",
         siteUrl: DEFAULT_SETTINGS.siteUrl,
         siteName: DEFAULT_SETTINGS.siteName,
