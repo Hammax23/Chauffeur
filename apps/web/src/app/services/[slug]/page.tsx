@@ -31,6 +31,8 @@ import ServiceQuoteForm from "@/components/ServiceQuoteForm";
 import { SERVICE_PAGE_COPY } from "@/lib/service-page-copy";
 import PopularRoutes from "@/components/PopularRoutes";
 import ServiceFAQSection from "@/components/ServiceFAQSection";
+import ServiceRelatedLinks from "@/components/ServiceRelatedLinks";
+import { getActiveServiceLinks } from "@/lib/service-links";
 import { GoogleMapsProvider } from "@/components/GoogleMapsProvider";
 import type { Metadata } from "next";
 import { buildPageMetadata } from "@/lib/seo-metadata";
@@ -111,9 +113,10 @@ export default async function ServicePage({ params }: Props) {
   if (!service) notFound();
 
   const Icon = iconMap[service.icon];
-  const [settings, seoPage] = await Promise.all([
+  const [settings, seoPage, serviceLinks] = await Promise.all([
     getSeoSettings(),
     getSeoPageByPath(`/services/${slug}`),
+    getActiveServiceLinks(slug),
   ]);
   const baseUrl = settings.siteUrl.replace(/\/$/, "");
   const serviceUrl = `${baseUrl}/services/${slug}`;
@@ -286,6 +289,9 @@ export default async function ServicePage({ params }: Props) {
         {/* Full-width Sections Below */}
         <div className="max-w-[1250px] w-full mx-auto px-6 sm:px-8 md:px-12 py-0 flex flex-col gap-12 md:gap-16">
 
+
+          {/* Internal links managed from SEO panel */}
+          <ServiceRelatedLinks links={serviceLinks} />
 
           {/* CTA strip */}
           <section className="w-full">

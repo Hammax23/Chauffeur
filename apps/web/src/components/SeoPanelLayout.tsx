@@ -22,8 +22,7 @@ import {
   Newspaper,
   MapPin,
   Briefcase,
-  Package,
-} from "lucide-react";
+  Package, Link2 } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/seopanel", label: "Dashboard", icon: LayoutDashboard },
@@ -31,6 +30,7 @@ const NAV_ITEMS = [
   { href: "/seopanel/pages", label: "Page SEO", icon: FileText },
   { href: "/seopanel/cities", label: "City Manager", icon: MapPin },
   { href: "/seopanel/services", label: "Service Manager", icon: Briefcase },
+  { href: "/seopanel/links", label: "Page Links", icon: Link2 },
   { href: "/seopanel/global", label: "Global Settings", icon: Globe },
   { href: "/seopanel/redirects", label: "Redirects", icon: ArrowRightLeft },
   { href: "/seopanel/sitemap", label: "Sitemap", icon: Map },
