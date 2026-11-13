@@ -17,7 +17,7 @@ interface Vehicle {
 }
 
 // Shown first (in this order); every other vehicle follows in the carousel.
-const FEATURED_IDS = ["lexus-es", "cadillac-escalade", "sprinter-van", "mercedes-s-class", "chevrolet-suburban"];
+const FEATURED_IDS = ["cadillac-xts", "chevrolet-suburban", "cadillac-escalade"];
 
 const BADGES: Record<string, string> = {
   Sedan: "Luxury sedan",
