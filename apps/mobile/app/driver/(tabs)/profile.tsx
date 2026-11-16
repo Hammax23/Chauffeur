@@ -17,10 +17,16 @@ import { useDriverAuth } from "../../../contexts/DriverAuthContext";
 import { useDriverTheme } from "../../../contexts/DriverThemeContext";
 import { GOLD } from "../../../theme/driver-theme";
 import { DriverScreenShell } from "../../../components/driver/DriverScreenShell";
+import * as WebBrowser from "expo-web-browser";
 import {
+  getDriverConnectStatus,
   getDriverEarnings,
+  startDriverConnectOnboarding,
+  type DriverConnectStatus,
   type DriverEarningSummary,
 } from "../../../services/api";
+
+WebBrowser.maybeCompleteAuthSession();
 
 type MenuRowProps = {
   label: string;
@@ -82,11 +88,23 @@ export default function DriverProfileScreen() {
   const { palette, isDark, setThemeMode } = useDriverTheme();
   const surface = palette.cardSurface;
   const [earnings, setEarnings] = useState<DriverEarningSummary | null>(null);
+  const [connect, setConnect] = useState<DriverConnectStatus | null>(null);
+  const [connectBusy, setConnectBusy] = useState(false);
+
+  const loadConnect = useCallback(async (refresh = false) => {
+    try {
+      const res = await getDriverConnectStatus({ refresh });
+      if (res.success) setConnect(res);
+    } catch {
+      /* non-fatal */
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       refreshProfile();
-    }, [refreshProfile])
+      void loadConnect(true);
+    }, [refreshProfile, loadConnect])
   );
 
   useEffect(() => {
@@ -357,6 +375,64 @@ export default function DriverProfileScreen() {
                 )}
               </View>
             ))}
+          </View>
+
+          <Text style={[styles.sectionEyebrow, { color: palette.muted }]}>Payouts</Text>
+          <View style={styles.menuList}>
+            <MenuRow
+              label="Payout bank"
+              icon="card-outline"
+              hint={
+                connectBusy
+                  ? "Opening Stripe…"
+                  : connect?.status === "ENABLED"
+                    ? "Attached — ready for payouts"
+                    : connect?.status === "PENDING"
+                      ? "Setup in progress — tap to continue"
+                      : connect?.status === "RESTRICTED"
+                        ? "Action needed — tap to fix"
+                        : connect?.connectAvailable === false
+                          ? "Payouts unavailable on this environment"
+                          : "Tap to attach your bank / debit card"
+              }
+              onPress={
+                connectBusy || connect?.connectAvailable === false
+                  ? undefined
+                  : async () => {
+                      try {
+                        setConnectBusy(true);
+                        if (connect?.status === "ENABLED") {
+                          Alert.alert(
+                            "Bank attached",
+                            "Your payout bank is connected. SARJ can transfer earnings to this account from Driver Pay."
+                          );
+                          return;
+                        }
+                        const res = await startDriverConnectOnboarding();
+                        if (!res.success || !res.url) {
+                          Alert.alert("Could not start", res.error || "Try again later.");
+                          return;
+                        }
+                        await WebBrowser.openAuthSessionAsync(
+                          res.url,
+                          "sarjworldwide://driver/profile"
+                        );
+                        await loadConnect(true);
+                      } catch (e) {
+                        Alert.alert(
+                          "Bank setup failed",
+                          e instanceof Error ? e.message : "Try again later."
+                        );
+                      } finally {
+                        setConnectBusy(false);
+                      }
+                    }
+              }
+              chevronColor={palette.menuChevron}
+              textColor={palette.text}
+              borderColor={palette.border}
+              surface={surface}
+            />
           </View>
 
           <Text style={[styles.sectionEyebrow, { color: palette.muted }]}>Account</Text>

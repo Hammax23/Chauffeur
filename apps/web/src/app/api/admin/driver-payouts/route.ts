@@ -77,19 +77,71 @@ export async function GET(req: NextRequest) {
     const readyDrivers = readyDriverIds.length
       ? await prisma.driver.findMany({
           where: { id: { in: readyDriverIds } },
-          select: { id: true, driverId: true, name: true, email: true, vehicle: true },
+          select: {
+            id: true,
+            driverId: true,
+            name: true,
+            email: true,
+            vehicle: true,
+            stripeConnectStatus: true,
+            stripeConnectAccountId: true,
+            stripeConnectUpdatedAt: true,
+          },
         })
       : [];
     const readyDriverMap = new Map(readyDrivers.map((d) => [d.id, d]));
-    const ready = readyRaw.map((r) => ({
-      driverId: r.driverId,
-      driver: readyDriverMap.get(r.driverId) || null,
-      count: r._count,
-      total: roundMoney(r._sum.driverNet || 0),
-    }));
+    const { isStripeConnectEnabled, refreshConnectStatusForDriver } = await import(
+      "@/lib/stripe-connect"
+    );
+    const payoutsLive = isStripeConnectEnabled();
+
+    // Soft-refresh Connect status for drivers who started onboarding but aren't ENABLED yet
+    // (webhook miss / return without refresh). Cap to avoid Stripe rate spikes.
+    const toRefresh = readyDrivers
+      .filter(
+        (d) =>
+          d.stripeConnectAccountId &&
+          d.stripeConnectStatus !== "ENABLED" &&
+          d.stripeConnectStatus !== "NOT_STARTED"
+      )
+      .slice(0, 8);
+    await Promise.all(
+      toRefresh.map(async (d) => {
+        try {
+          const snap = await refreshConnectStatusForDriver(d.id, "admin_ready_refresh");
+          d.stripeConnectStatus = snap.status;
+        } catch {
+          /* keep DB status */
+        }
+      })
+    );
+
+    const ready = readyRaw.map((r) => {
+      const d = readyDriverMap.get(r.driverId) || null;
+      const connectStatus = d?.stripeConnectStatus || "NOT_STARTED";
+      return {
+        driverId: r.driverId,
+        driver: d
+          ? {
+              id: d.id,
+              driverId: d.driverId,
+              name: d.name,
+              email: d.email,
+              vehicle: d.vehicle,
+            }
+          : null,
+        count: r._count,
+        total: roundMoney(r._sum.driverNet || 0),
+        stripeConnectStatus: connectStatus,
+        stripeConnectAccountId: d?.stripeConnectAccountId || null,
+        bankAttached: connectStatus === "ENABLED",
+        canTransfer: payoutsLive && connectStatus === "ENABLED",
+      };
+    });
 
     return NextResponse.json({
       success: true,
+      payoutsLive,
       payouts: page.map((p) => ({
         id: p.id,
         driverId: p.driverId,
@@ -98,6 +150,7 @@ export async function GET(req: NextRequest) {
         reference: p.reference,
         status: p.status,
         notes: p.notes,
+        stripeTransferId: p.stripeTransferId || null,
         idempotencyKey: p.idempotencyKey,
         paidAt: p.paidAt ? p.paidAt.toISOString() : null,
         cancelledAt: p.cancelledAt ? p.cancelledAt.toISOString() : null,

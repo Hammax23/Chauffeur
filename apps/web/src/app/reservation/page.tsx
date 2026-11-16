@@ -747,6 +747,10 @@ function ReservationPageContent() {
       if (!pickupLocation.trim()) { setStepError("Please enter a pickup location."); return false; }
       if (bookingMode === "distance" && !dropoffLocation.trim()) { setStepError("Please enter a drop-off location."); return false; }
       if (!pickupDateTime) { setStepError("Please select date and time."); return false; }
+      if (pickupDateTime.getTime() < Date.now() - 60_000) {
+        setStepError("Please select a future date and time.");
+        return false;
+      }
       if (isParcel) {
         if (!recipientName.trim()) { setStepError("Please enter the recipient name."); return false; }
         if (!recipientPhone.trim()) { setStepError("Please enter the recipient phone number."); return false; }
@@ -1206,13 +1210,34 @@ function ReservationPageContent() {
                           <div className="relative reservation-datepicker">
                             <DatePicker
                               selected={pickupDateTime}
-                              onChange={(date: Date | null) => { setPickupDateTime(date); setStepError(""); }}
+                              onChange={(date: Date | null) => {
+                                if (!date) {
+                                  setPickupDateTime(null);
+                                  setStepError("");
+                                  return;
+                                }
+                                const now = new Date();
+                                const next =
+                                  date.toDateString() === now.toDateString() &&
+                                  date.getTime() < now.getTime()
+                                    ? now
+                                    : date;
+                                setPickupDateTime(next);
+                                setStepError("");
+                              }}
                               showTimeSelect
                               timeIntervals={15}
                               timeCaption="Time"
                               dateFormat="MMM d, yyyy  h:mm aa"
                               timeFormat="h:mm aa"
                               minDate={new Date()}
+                              minTime={
+                                !pickupDateTime ||
+                                pickupDateTime.toDateString() === new Date().toDateString()
+                                  ? new Date()
+                                  : new Date(new Date().setHours(0, 0, 0, 0))
+                              }
+                              maxTime={new Date(new Date().setHours(23, 45, 0, 0))}
                               placeholderText="Select date & time"
                               className="w-full min-h-11 px-3 py-2.5 pr-9 border border-gray-200 rounded-lg text-base text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063] transition-all duration-200"
                               withPortal

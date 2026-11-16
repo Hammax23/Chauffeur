@@ -75,6 +75,9 @@ type ReadyDriver = {
   driver: DriverBrief | null;
   count: number;
   total: number;
+  stripeConnectStatus?: string;
+  bankAttached?: boolean;
+  canTransfer?: boolean;
 };
 
 type Payout = {
@@ -85,6 +88,7 @@ type Payout = {
   reference: string | null;
   status: string;
   notes: string | null;
+  stripeTransferId?: string | null;
   paidAt: string | null;
   createdAt: string;
   driver: DriverBrief;
@@ -102,7 +106,7 @@ type SettingsDriver = {
 
 type Tab = "to-pay" | "paid" | "waiting" | "cash" | "settings";
 
-const PAY_METHODS = ["INTERAC", "EFT", "CHEQUE"] as const;
+const PAY_METHODS = ["STRIPE_CONNECT", "INTERAC", "EFT", "CHEQUE"] as const;
 
 function money(n: number | null | undefined) {
   if (typeof n !== "number" || !Number.isFinite(n)) return "—";
@@ -156,10 +160,11 @@ export default function AdminDriverPayPage() {
   const [savingSettings, setSavingSettings] = useState(false);
 
   const [payModal, setPayModal] = useState<ReadyDriver | null>(null);
-  const [payMethod, setPayMethod] = useState<(typeof PAY_METHODS)[number]>("INTERAC");
+  const [payMethod, setPayMethod] = useState<(typeof PAY_METHODS)[number]>("STRIPE_CONNECT");
   const [payReference, setPayReference] = useState("");
   const [editEarning, setEditEarning] = useState<Earning | null>(null);
   const [editPct, setEditPct] = useState("");
+  const [payoutsLive, setPayoutsLive] = useState(false);
 
   const load = useCallback(async (opts?: { soft?: boolean }) => {
     try {
@@ -198,6 +203,7 @@ export default function AdminDriverPayPage() {
       if (!pendingData.success) throw new Error(pendingData.error || "Failed to load earnings");
 
       setReady(readyData.ready || []);
+      setPayoutsLive(Boolean(readyData.payoutsLive));
       setPaidPayouts(paidData.success ? paidData.payouts || [] : []);
       setDraftPayouts(draftData.success ? draftData.payouts || [] : []);
 
@@ -251,6 +257,13 @@ export default function AdminDriverPayPage() {
 
   const oneClickPay = async () => {
     if (!payModal) return;
+    const viaConnect = payMethod === "STRIPE_CONNECT";
+    if (viaConnect && !payModal.canTransfer) {
+      setError(
+        "Driver bank is not attached yet. Ask them to open the driver app → Profile → Payout bank."
+      );
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -280,7 +293,7 @@ export default function AdminDriverPayPage() {
           expectedAmount: createData.amount,
           method: payMethod,
           reference: payReference.trim() || undefined,
-          viaConnect: false,
+          viaConnect,
           idempotencyKey: `pay-${createData.payoutId}-${Date.now()}`,
         }),
       });
@@ -288,12 +301,17 @@ export default function AdminDriverPayPage() {
       if (!markData.success) {
         // Create already succeeded — reload so Unfinished pay shows the DRAFT to Complete/Cancel.
         await load({ soft: true });
-        throw new Error(markData.error || "Could not mark paid — finish it under Unfinished pay");
+        throw new Error(
+          markData.error ||
+            (viaConnect
+              ? "Stripe transfer failed — payout left unfinished"
+              : "Could not mark paid — finish it under Unfinished pay")
+        );
       }
 
       setPayModal(null);
       setPayReference("");
-      setPayMethod("INTERAC");
+      setPayMethod("STRIPE_CONNECT");
       await load({ soft: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Pay failed");
@@ -306,6 +324,8 @@ export default function AdminDriverPayPage() {
     setBusy(true);
     setError("");
     try {
+      const method = (payout.method || "INTERAC").toUpperCase();
+      const viaConnect = method === "STRIPE_CONNECT";
       const markRes = await fetch("/api/admin/driver-payouts", {
         method: "POST",
         credentials: "include",
@@ -314,8 +334,8 @@ export default function AdminDriverPayPage() {
           action: "markPaid",
           payoutId: payout.id,
           expectedAmount: payout.amount,
-          method: payout.method || "INTERAC",
-          viaConnect: false,
+          method,
+          viaConnect,
           idempotencyKey: `finish-${payout.id}-${Date.now()}`,
         }),
       });
@@ -444,7 +464,14 @@ export default function AdminDriverPayPage() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Pay your drivers</h1>
           <p className="text-gray-500 text-sm mt-1 max-w-xl">
-            Trips land here when done. Set the company %, then Mark Paid after Interac / EFT / cheque.
+            Drivers attach their payout bank in the app. When status is{" "}
+            <span className="font-semibold text-gray-700">Bank attached</span>, pay here via Stripe
+            Transfer. Interac / EFT / cheque remain as manual backup.
+            {!payoutsLive ? (
+              <span className="block mt-1 text-amber-700">
+                Stripe Connect transfers are off (`STRIPE_CONNECT_ENABLED`).
+              </span>
+            ) : null}
           </p>
         </div>
         <button
@@ -581,6 +608,25 @@ export default function AdminDriverPayPage() {
                           {r.driver?.driverId || r.driverId} · {r.count} trip
                           {r.count === 1 ? "" : "s"}
                         </div>
+                        <div className="mt-1">
+                          {r.bankAttached ? (
+                            <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 text-[11px] font-semibold">
+                              Bank attached
+                            </span>
+                          ) : r.stripeConnectStatus === "PENDING" ? (
+                            <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 text-[11px] font-semibold">
+                              Bank setup pending
+                            </span>
+                          ) : r.stripeConnectStatus === "RESTRICTED" ? (
+                            <span className="inline-flex items-center rounded-full bg-rose-50 text-rose-800 border border-rose-200 px-2 py-0.5 text-[11px] font-semibold">
+                              Bank restricted — driver must fix in app
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-600 border border-gray-200 px-2 py-0.5 text-[11px] font-semibold">
+                              Bank not attached
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </button>
                     <div className="text-lg font-bold text-gray-900 tabular-nums">{money(r.total)}</div>
@@ -589,7 +635,7 @@ export default function AdminDriverPayPage() {
                       disabled={busy}
                       onClick={() => {
                         setPayModal(r);
-                        setPayMethod("INTERAC");
+                        setPayMethod(r.canTransfer ? "STRIPE_CONNECT" : "INTERAC");
                         setPayReference("");
                       }}
                       className="px-4 py-2 rounded-xl bg-[#C9A063] text-white text-sm font-semibold hover:bg-[#B8935A] disabled:opacity-60"
@@ -660,6 +706,11 @@ export default function AdminDriverPayPage() {
                     {p.method}
                     {p.reference ? ` · ${p.reference}` : ""} · {p.earnings?.length || 0} trips ·{" "}
                     {formatWhen(p.paidAt || p.createdAt)}
+                    {p.stripeTransferId ? (
+                      <span className="block mt-0.5 font-mono text-[11px] text-gray-400">
+                        Stripe {p.stripeTransferId}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
                 <div className="inline-flex items-center gap-1.5 text-emerald-700 text-sm font-semibold">
@@ -841,10 +892,20 @@ export default function AdminDriverPayPage() {
           <h3 className="text-lg font-bold text-gray-900 mb-1">
             Pay {payModal.driver?.name || "driver"}
           </h3>
-          <p className="text-sm text-gray-500 mb-4">
-            {money(payModal.total)} for {payModal.count} trip{payModal.count === 1 ? "" : "s"}. Mark
-            paid after you send Interac / EFT / cheque.
+          <p className="text-sm text-gray-500 mb-3">
+            {money(payModal.total)} for {payModal.count} trip{payModal.count === 1 ? "" : "s"}.
           </p>
+          <div className="mb-4 text-xs">
+            {payModal.bankAttached ? (
+              <span className="inline-flex rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1 font-semibold">
+                Bank attached — Stripe Transfer available
+              </span>
+            ) : (
+              <span className="inline-flex rounded-full bg-amber-50 text-amber-900 border border-amber-200 px-2.5 py-1 font-semibold">
+                Bank not attached — driver must finish payout bank in the app
+              </span>
+            )}
+          </div>
           <label className="block mb-3">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Method</span>
             <select
@@ -852,24 +913,33 @@ export default function AdminDriverPayPage() {
               onChange={(e) => setPayMethod(e.target.value as (typeof PAY_METHODS)[number])}
               className="mt-1.5 w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm"
             >
-              {PAY_METHODS.map((m) => (
-                <option key={m} value={m}>
-                  {m === "INTERAC" ? "Interac" : m === "EFT" ? "EFT" : "Cheque"}
-                </option>
-              ))}
+              <option value="STRIPE_CONNECT" disabled={!payModal.canTransfer}>
+                Stripe Transfer (direct to driver bank)
+                {!payModal.canTransfer ? " — unavailable" : ""}
+              </option>
+              <option value="INTERAC">Interac (manual)</option>
+              <option value="EFT">EFT (manual)</option>
+              <option value="CHEQUE">Cheque (manual)</option>
             </select>
           </label>
-          <label className="block mb-5">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Reference (optional)
-            </span>
-            <input
-              value={payReference}
-              onChange={(e) => setPayReference(e.target.value)}
-              placeholder="e.g. Interac confirmation #"
-              className="mt-1.5 w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm"
-            />
-          </label>
+          {payMethod !== "STRIPE_CONNECT" ? (
+            <label className="block mb-5">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Reference (optional)
+              </span>
+              <input
+                value={payReference}
+                onChange={(e) => setPayReference(e.target.value)}
+                placeholder="e.g. Interac confirmation #"
+                className="mt-1.5 w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm"
+              />
+            </label>
+          ) : (
+            <p className="text-xs text-gray-500 mb-5">
+              Money moves from your Stripe platform balance to the driver&apos;s connected bank.
+              Ledger flips to Paid only after the transfer succeeds.
+            </p>
+          )}
           <div className="flex gap-2 justify-end">
             <button
               type="button"
@@ -881,12 +951,12 @@ export default function AdminDriverPayPage() {
             </button>
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || (payMethod === "STRIPE_CONNECT" && !payModal.canTransfer)}
               onClick={() => void oneClickPay()}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C9A063] text-white text-sm font-semibold disabled:opacity-60"
             >
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              Mark Paid
+              {payMethod === "STRIPE_CONNECT" ? "Transfer & mark paid" : "Mark Paid"}
             </button>
           </div>
         </Modal>

@@ -53,12 +53,26 @@ export async function POST(request: NextRequest) {
       }
 
       case "account.application.deauthorized": {
-        // Driver disconnected the Connect account; log but keep the row (admin can decide).
         const account = event.data.object as Stripe.Account;
+        const { default: prisma } = await import("@/lib/prisma");
+        const driver = await prisma.driver.findUnique({
+          where: { stripeConnectAccountId: account.id },
+          select: { id: true },
+        });
+        if (driver) {
+          await prisma.driver.update({
+            where: { id: driver.id },
+            data: {
+              stripeConnectStatus: "NOT_STARTED",
+              stripeConnectAccountId: null,
+              stripeConnectUpdatedAt: new Date(),
+            },
+          });
+        }
         await writeAudit({
           action: "connect_account_deauthorized",
           entityType: "CONNECT",
-          entityId: null,
+          entityId: driver?.id || null,
           details: { stripeAccountId: account.id },
           actor: "stripe_webhook",
         });

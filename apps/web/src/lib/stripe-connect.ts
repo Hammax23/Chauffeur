@@ -63,9 +63,13 @@ export function connectReturnUrl(driverId: string): string {
 /** Compute our internal status from a fetched Stripe.Account. */
 export function deriveStatus(account: Stripe.Account | null | undefined): StripeConnectStatus {
   if (!account) return "NOT_STARTED";
-  if (account.payouts_enabled && account.charges_enabled) return "ENABLED";
-  // disabled_reason or requirements.disabled_reason indicates restriction.
+  // Express payout destinations: payouts_enabled (and/or transfers capability) is enough.
+  // Do NOT require charges_enabled — transfer-only accounts often never get charges.
+  const transfersActive =
+    account.capabilities?.transfers === "active" || account.payouts_enabled === true;
   const disabled = (account.requirements?.disabled_reason as string | null) || null;
+  if (disabled && !transfersActive) return "RESTRICTED";
+  if (account.payouts_enabled || transfersActive) return "ENABLED";
   if (disabled) return "RESTRICTED";
   return "PENDING";
 }
@@ -282,11 +286,37 @@ export async function createConnectTransferForPayout(opts: {
   if (!driver.stripeConnectAccountId) {
     return { ok: false, error: "Driver has no Connect account", code: "NO_ACCOUNT" };
   }
-  if (driver.stripeConnectStatus !== "ENABLED") {
+
+  // Live preflight — never trust a stale ENABLED flag alone.
+  try {
+    const live = await refreshConnectStatusForDriver(driver.id, opts.actor || "admin");
+    if (live.status !== "ENABLED") {
+      return {
+        ok: false,
+        error: `Driver Connect status is ${live.status} — bank must be fully attached`,
+        code: "NOT_ENABLED",
+      };
+    }
+  } catch {
+    if (driver.stripeConnectStatus !== "ENABLED") {
+      return {
+        ok: false,
+        error: `Driver Connect status is ${driver.stripeConnectStatus} — must be ENABLED`,
+        code: "NOT_ENABLED",
+      };
+    }
+  }
+
+  // Reuse an existing transfer id on this payout (orphan-transfer safety).
+  const existingPayout = await prisma.driverPayout.findUnique({
+    where: { id: opts.payoutId },
+    select: { stripeTransferId: true },
+  });
+  if (existingPayout?.stripeTransferId) {
     return {
-      ok: false,
-      error: `Driver Connect status is ${driver.stripeConnectStatus} — must be ENABLED`,
-      code: "NOT_ENABLED",
+      ok: true,
+      transferId: existingPayout.stripeTransferId,
+      amountCents: Math.round(Math.max(0, Number(opts.amountCad) || 0) * 100),
     };
   }
 
@@ -294,6 +324,9 @@ export async function createConnectTransferForPayout(opts: {
   if (amountCents < 1) {
     return { ok: false, error: "Amount must be > $0", code: "ZERO_AMOUNT" };
   }
+
+  // Always stable per payout — never use UI Date.now() keys (double-pay risk).
+  const transferIdempotencyKey = `payout-transfer:${opts.payoutId}`;
 
   try {
     const transfer = await stripe.transfers.create(
@@ -308,9 +341,15 @@ export async function createConnectTransferForPayout(opts: {
         },
       },
       {
-        idempotencyKey: opts.idempotencyKey || `payout-transfer:${opts.payoutId}`,
+        idempotencyKey: transferIdempotencyKey,
       }
     );
+
+    // Persist immediately so a later DB flip failure does not orphan an unpaid Transfer.
+    await prisma.driverPayout.update({
+      where: { id: opts.payoutId },
+      data: { stripeTransferId: transfer.id },
+    });
 
     await writeAudit({
       action: "connect_transfer_created",

@@ -701,7 +701,7 @@ export async function createPayoutBatch(opts: {
   | { ok: false; error: string; code?: string }
 > {
   const method = (opts.method || "INTERAC").toUpperCase();
-  if (!["INTERAC", "EFT", "CHEQUE", "OTHER"].includes(method)) {
+  if (!["INTERAC", "EFT", "CHEQUE", "OTHER", "STRIPE_CONNECT"].includes(method)) {
     return { ok: false, error: `Unsupported method: ${method}` };
   }
 
@@ -843,7 +843,10 @@ export async function markPayoutPaid(opts: {
   method?: string;
   reference?: string;
   notes?: string;
-  /** Phase 2 — when true AND driver is Connect-ENABLED + STRIPE_CONNECT_ENABLED=true, route via Stripe Transfer. */
+  /**
+   * When true: Stripe Connect Transfer must succeed BEFORE ledger flips to PAID.
+   * Requires STRIPE_CONNECT_ENABLED=true and driver stripeConnectStatus=ENABLED.
+   */
   viaConnect?: boolean;
   actor?: string;
 }): Promise<
@@ -853,6 +856,86 @@ export async function markPayoutPaid(opts: {
   const idemKey = opts.idempotencyKey?.slice(0, 120) || null;
 
   try {
+    // Preload payout for Connect preflight (transfer before PAID flip).
+    const existing = await prisma.driverPayout.findUnique({
+      where: { id: opts.payoutId },
+      include: { earnings: { select: { id: true, driverNet: true, status: true } } },
+    });
+    if (!existing) return { ok: false, error: "Payout not found", code: "NOT_FOUND" };
+
+    if (existing.status === "PAID") {
+      if (idemKey && existing.idempotencyKey === idemKey) {
+        return {
+          ok: true,
+          amount: existing.amount,
+          earningCount: existing.earnings.length,
+          stripeTransferId: existing.stripeTransferId || null,
+        };
+      }
+      return { ok: false, error: "Payout already marked PAID.", code: "ALREADY_PAID" };
+    }
+    if (existing.status !== "DRAFT") {
+      return {
+        ok: false,
+        error: `Cannot mark ${existing.status} payout as PAID.`,
+        code: "INVALID_STATUS",
+      };
+    }
+
+    const freshAmount = roundMoney(
+      existing.earnings.reduce((s, r) => s + (r.driverNet || 0), 0)
+    );
+    if (Math.abs(freshAmount - roundMoney(opts.expectedAmount)) > 0.009) {
+      return {
+        ok: false,
+        error: `Amount mismatch — batch now totals $${freshAmount.toFixed(2)} (expected $${opts.expectedAmount.toFixed(2)}).`,
+        code: "AMOUNT_MISMATCH",
+      };
+    }
+
+    let stripeTransferId: string | null = null;
+
+    if (opts.viaConnect) {
+      const { createConnectTransferForPayout, isStripeConnectEnabled } = await import(
+        "@/lib/stripe-connect"
+      );
+      if (!isStripeConnectEnabled()) {
+        return {
+          ok: false,
+          error: "Stripe Connect payouts are not enabled on the server.",
+          code: "CONNECT_DISABLED",
+        };
+      }
+      const transfer = await createConnectTransferForPayout({
+        payoutId: opts.payoutId,
+        driverId: existing.driverId,
+        amountCad: freshAmount,
+        actor: opts.actor,
+      });
+      if (!transfer.ok) {
+        await writeAudit({
+          action: "payout_connect_transfer_failed",
+          entityType: "PAYOUT",
+          entityId: opts.payoutId,
+          details: { error: transfer.error, code: transfer.code },
+          actor: opts.actor,
+        });
+        const fundsHint =
+          /insufficient|balance/i.test(transfer.error || "")
+            ? " Fund your Stripe platform CAD balance, then retry."
+            : "";
+        return {
+          ok: false,
+          error:
+            transfer.code === "NOT_ENABLED" || transfer.code === "NO_ACCOUNT"
+              ? "Driver has not finished attaching their payout bank in the app."
+              : `${transfer.error}${fundsHint}`,
+          code: transfer.code,
+        };
+      }
+      stripeTransferId = transfer.transferId;
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const payout = await tx.driverPayout.findUnique({
         where: { id: opts.payoutId },
@@ -860,10 +943,13 @@ export async function markPayoutPaid(opts: {
       });
       if (!payout) throw Object.assign(new Error("Payout not found"), { code: "NOT_FOUND" });
 
-      // Idempotency: if an earlier call already stored this key and PAID, return success.
       if (payout.status === "PAID") {
         if (idemKey && payout.idempotencyKey === idemKey) {
-          return { amount: payout.amount, earningCount: payout.earnings.length };
+          return {
+            amount: payout.amount,
+            earningCount: payout.earnings.length,
+            driverId: payout.driverId,
+          };
         }
         throw Object.assign(new Error("Payout already marked PAID."), { code: "ALREADY_PAID" });
       }
@@ -873,23 +959,9 @@ export async function markPayoutPaid(opts: {
         });
       }
 
-      // Re-sum nets at this instant — reject if someone edited an attached earning.
-      const freshAmount = roundMoney(payout.earnings.reduce((s, r) => s + (r.driverNet || 0), 0));
-      if (Math.abs(freshAmount - roundMoney(opts.expectedAmount)) > 0.009) {
-        throw Object.assign(
-          new Error(
-            `Amount mismatch — batch now totals $${freshAmount.toFixed(2)} (expected $${opts.expectedAmount.toFixed(
-              2
-            )}).`
-          ),
-          { code: "AMOUNT_MISMATCH" }
-        );
-      }
-
-      // Idempotency key uniqueness up front to avoid P2002 race.
       if (idemKey) {
-        const existing = await tx.driverPayout.findUnique({ where: { idempotencyKey: idemKey } });
-        if (existing && existing.id !== payout.id) {
+        const dup = await tx.driverPayout.findUnique({ where: { idempotencyKey: idemKey } });
+        if (dup && dup.id !== payout.id) {
           throw Object.assign(new Error("Duplicate idempotency key."), { code: "DUPLICATE_KEY" });
         }
       }
@@ -905,10 +977,15 @@ export async function markPayoutPaid(opts: {
           status: "PAID",
           paidAt: new Date(),
           idempotencyKey: idemKey,
-          method: opts.method ? opts.method.toUpperCase().slice(0, 32) : payout.method,
+          method: opts.method
+            ? opts.method.toUpperCase().slice(0, 32)
+            : opts.viaConnect
+              ? "STRIPE_CONNECT"
+              : payout.method,
           reference: opts.reference ? opts.reference.slice(0, 120) : payout.reference,
           notes: opts.notes ? opts.notes.slice(0, 500) : payout.notes,
           amount: freshAmount,
+          ...(stripeTransferId ? { stripeTransferId } : {}),
         },
       });
 
@@ -919,51 +996,6 @@ export async function markPayoutPaid(opts: {
       };
     });
 
-    // Phase 2 — optional Connect Transfer path.
-    // Runs AFTER the local flip (so the admin ledger is authoritative). If the transfer
-    // fails we flag the payout for review but keep status PAID (the local ledger does
-    // not lie — admin can still reconcile manually). Rationale: Mark Paid is the admin
-    // asserting cash has left their books; the Connect Transfer is just automation.
-    let stripeTransferId: string | null = null;
-    if (opts.viaConnect) {
-      const { createConnectTransferForPayout, isStripeConnectEnabled } = await import(
-        "@/lib/stripe-connect"
-      );
-      if (isStripeConnectEnabled()) {
-        const transfer = await createConnectTransferForPayout({
-          payoutId: opts.payoutId,
-          driverId: result.driverId,
-          amountCad: result.amount,
-          idempotencyKey: idemKey || `payout-transfer:${opts.payoutId}`,
-          actor: opts.actor,
-        });
-        if (transfer.ok) {
-          stripeTransferId = transfer.transferId;
-          await prisma.driverPayout.update({
-            where: { id: opts.payoutId },
-            data: { stripeTransferId: transfer.transferId },
-          });
-        } else {
-          await prisma.driverPayout.update({
-            where: { id: opts.payoutId },
-            data: {
-              notes: [`[Connect ${transfer.code || "ERR"}] ${transfer.error}`, opts.notes || ""]
-                .filter(Boolean)
-                .join("\n")
-                .slice(0, 500),
-            },
-          });
-          await writeAudit({
-            action: "payout_connect_transfer_failed",
-            entityType: "PAYOUT",
-            entityId: opts.payoutId,
-            details: { error: transfer.error, code: transfer.code },
-            actor: opts.actor,
-          });
-        }
-      }
-    }
-
     await writeAudit({
       action: "payout_marked_paid",
       entityType: "PAYOUT",
@@ -971,8 +1003,9 @@ export async function markPayoutPaid(opts: {
       details: {
         amount: result.amount,
         earningCount: result.earningCount,
-        method: opts.method || null,
+        method: opts.method || (opts.viaConnect ? "STRIPE_CONNECT" : null),
         stripeTransferId,
+        viaConnect: Boolean(opts.viaConnect),
       },
       actor: opts.actor,
     });
