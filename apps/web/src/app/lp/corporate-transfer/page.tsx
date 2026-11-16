@@ -33,10 +33,10 @@ const content: LandingPageContent = {
   routesIntro: "Reliable transfers between offices, airports and meetings. Choose a route to start your booking.",
   routesFrom: "Downtown Toronto",
   routes: [
-    { to: "Toronto Pearson (YYZ)", km: "≈ 28 km", time: "≈ 35 min" },
-    { to: "Billy Bishop Airport (YTZ)", km: "≈ 4 km", time: "≈ 12 min" },
-    { to: "Mississauga", km: "≈ 30 km", time: "≈ 35 min" },
-    { to: "Hamilton", km: "≈ 70 km", time: "≈ 1 hr" },
+    { from: "Toronto Pearson (YYZ)", to: "Downtown Toronto", km: "≈ 28 km", time: "≈ 35 min" },
+    { from: "Downtown Toronto", to: "Niagara Falls", km: "≈ 130 km", time: "≈ 1 hr 30 min" },
+    { from: "Downtown Toronto", to: "Muskoka", km: "≈ 170 km", time: "≈ 2 hr" },
+    { from: "Toronto Pearson (YYZ)", to: "Hamilton", km: "≈ 75 km", time: "≈ 55 min" },
   ],
 };
 

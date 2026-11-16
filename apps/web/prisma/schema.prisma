@@ -1030,6 +1030,44 @@ model ManagedService {
   @@index([isActive, sortOrder])
 }
 
+/// Internal links shown on a service page, managed from the SEO panel (blog posts or any URL)
+model ServiceLink {
+  id          String   @id @default(cuid())
+  serviceSlug String
+  label       String
+  url         String
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([serviceSlug, isActive, sortOrder])
+}
+
+/// Text links placed on a word/phrase of any public page, managed from the SEO panel
+model PageLink {
+  id         String   @id @default(cuid())
+  /// Normalised page path, e.g. "/", "/about", "/services/airport-transfers"
+  pagePath   String
+  /// Word or phrase that becomes the link
+  phrase     String
+  url        String
+  /// Which mention of the phrase on the page gets the link (1 = first)
+  occurrence Int      @default(1)
+  newTab     Boolean  @default(false)
+  /// "text" = link a word; "edit" = change a link that already exists in the page (phrase = its current text)
+  kind       String   @default("text")
+  /// kind "edit" only: unlink but keep the text
+  removeLink Boolean  @default(false)
+  /// kind "edit" only: replace the link text
+  newText    String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([pagePath, isActive])
+}
+
 /// Audit trail for SEO panel changes
 model SeoAuditLog {
   id          String   @id @default(cuid())

@@ -4,7 +4,7 @@ import { Phone } from "lucide-react";
 
 const TopNav = () => {
   return (
-    <div className="fixed top-0 left-0 right-0 z-[60] bg-black/90 backdrop-blur-xl border-b border-white/10">
+    <div data-autolink-skip className="fixed top-0 left-0 right-0 z-[60] bg-black/90 backdrop-blur-xl border-b border-white/10">
       <div className="max-w-[1600px] mx-auto px-4 sm:px-8">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center h-[32px] gap-2">
           <div className="hidden sm:block" />

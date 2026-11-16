@@ -33,10 +33,10 @@ const content: LandingPageContent = {
   routesIntro: "Your chauffeur meets you at arrivals and takes you straight there. Choose a route to start your booking.",
   routesFrom: "Toronto Pearson (YYZ)",
   routes: [
-    { to: "CN Tower & Downtown Toronto", km: "≈ 28 km", time: "≈ 35 min" },
-    { to: "Niagara Falls", km: "≈ 130 km", time: "≈ 1 hr 30 min" },
-    { to: "Niagara-on-the-Lake", km: "≈ 150 km", time: "≈ 1 hr 45 min" },
-    { to: "Hamilton", km: "≈ 75 km", time: "≈ 55 min" },
+    { from: "Toronto Pearson (YYZ)", to: "Downtown Toronto", km: "≈ 28 km", time: "≈ 35 min" },
+    { from: "Downtown Toronto", to: "Niagara Falls", km: "≈ 130 km", time: "≈ 1 hr 30 min" },
+    { from: "Downtown Toronto", to: "Muskoka", km: "≈ 170 km", time: "≈ 2 hr" },
+    { from: "Toronto Pearson (YYZ)", to: "Hamilton", km: "≈ 75 km", time: "≈ 55 min" },
   ],
 };
 
