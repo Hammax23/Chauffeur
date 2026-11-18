@@ -114,7 +114,7 @@ export const fleetData: FleetVehicle[] = [
     image: "https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?w=800&auto=format&fit=crop",
     category: "SUV",
     seating: "6 maximum, 5 comfortable",
-    luggage: "4 large, 2 medium",
+    luggage: "5 large, 2 medium, 4 small",
     price: 160,
     pricePerKm: 3.65,
   },
