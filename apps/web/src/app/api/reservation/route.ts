@@ -160,21 +160,27 @@ export async function POST(request: NextRequest) {
       formattedDateTime = new Date(`${serviceDate}T${serviceTime}`).toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" });
     } catch {}
 
-    // Billing calculations
+    // Billing calculations — same charge keys / tax order as Online Reservation
+    const pricingConfig = await getPricingConfig();
+    const charges = pricingConfig.charges;
     const activeStops = stops ? stops.length : 0;
-    let stopCharge = activeStops * 20;
-    let childSeatCharge = childSeatCount * 25;
-    let meetGreetCharge = meetGreet ? 110 : 0;
-    let bouquetCharge = bouquetFlowers ? 75 : 0;
-    let airportPickupFee = isAirportPickupLocation(pickupLocation) ? AIRPORT_PICKUP_FEE : 0;
+    let stopCharge = activeStops * charges.stop;
+    let childSeatCharge = childSeatCount * charges.childSeat;
+    let meetGreetCharge = meetGreet ? charges.meetGreet : 0;
+    let bouquetCharge = bouquetFlowers ? charges.bouquet : 0;
+    let airportPickupFee = isAirportPickupLocation(pickupLocation)
+      ? (charges.airportPickup ?? AIRPORT_PICKUP_FEE)
+      : 0;
+    // Custom/admin path keeps client ride fare (ops may override); public path recalculates below.
     let rideFare = routePrice;
-    let subtotal = rideFare + stopCharge + childSeatCharge + meetGreetCharge + bouquetCharge + airportPickupFee;
+    let subtotal =
+      rideFare + stopCharge + childSeatCharge + meetGreetCharge + bouquetCharge + airportPickupFee;
     let {
       gratuity,
       hst,
       total,
       gratuityPercent: normalizedGratPct,
-    } = applyGratuityThenHst(subtotal, gratuityPercent);
+    } = applyGratuityThenHst(subtotal, gratuityPercent, charges.hstRate);
     gratuityPercent = normalizedGratPct;
 
     let paymentStatus = "PENDING";
@@ -185,7 +191,6 @@ export async function POST(request: NextRequest) {
     let resolvedPaymentIntentId = stripePaymentIntentId;
 
     if (!wantsSkipTurnstile) {
-      const pricingConfig = await getPricingConfig();
       const serverPricing = calculateReservationPricing(
         {
           vehicleId,
@@ -200,7 +205,7 @@ export async function POST(request: NextRequest) {
           pickupLocation,
         },
         pricingConfig.fleet,
-        pricingConfig.charges
+        charges
       );
 
       if (!serverPricing) {

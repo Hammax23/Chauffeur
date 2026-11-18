@@ -2296,6 +2296,7 @@ function ReservationPageContent() {
                         const totalAmount = pricingSummary?.total ?? routePrice ?? 0;
 
                         if (!showFullFare) {
+                          // Pre-card: vehicle price only — no Total / fees / HST.
                           return (
                             <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
                               <div className="divide-y divide-gray-100">
@@ -2314,20 +2315,9 @@ function ReservationPageContent() {
                                     </span>
                                   </div>
                                 ) : null}
-                                <div className="flex items-center justify-between gap-3 px-3 py-3">
-                                  <span className="text-[14px] font-semibold text-gray-900">
-                                    Total
-                                  </span>
-                                  <span className="text-[15px] font-bold text-gray-900 tabular-nums">
-                                    ${Number(totalAmount).toFixed(2)}{" "}
-                                    <span className="text-[11px] font-semibold text-gray-500">
-                                      CAD
-                                    </span>
-                                  </span>
-                                </div>
                               </div>
                               {currentStep === 4 ? (
-                                <div className="px-3 pb-3">
+                                <div className="px-3 pb-3 pt-0">
                                   <button
                                     type="button"
                                     onClick={() => setTipModalOpen(true)}
@@ -2544,10 +2534,16 @@ function ReservationPageContent() {
           <div className="px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] flex items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-                Estimated total
+                Selected vehicle
               </p>
               <p className="text-[18px] font-bold text-gray-900 tabular-nums leading-tight">
-                ${(pricingSummary?.total ?? routePrice ?? 0).toFixed(2)}{" "}
+                $
+                {(
+                  pricingSummary?.rideFare ??
+                  routePrice ??
+                  (selectedVehicle ? resolveVehicle(selectedVehicle)?.price : 0) ??
+                  0
+                ).toFixed(2)}{" "}
                 <span className="text-[12px] font-semibold text-gray-500">CAD</span>
               </p>
             </div>
@@ -2567,13 +2563,33 @@ function ReservationPageContent() {
         <div className="sm:hidden fixed bottom-0 inset-x-0 z-[45] border-t border-gray-200/80 bg-white/95 backdrop-blur-md">
           <div className="px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] flex items-center gap-3">
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-                Total due
-              </p>
-              <p className="text-[18px] font-bold text-gray-900 tabular-nums leading-tight">
-                ${(pricingSummary?.total ?? routePrice ?? 0).toFixed(2)}{" "}
-                <span className="text-[12px] font-semibold text-gray-500">CAD</span>
-              </p>
+              {cardDetailsComplete || checkoutPaymentMethod !== "card" ? (
+                <>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                    Total due
+                  </p>
+                  <p className="text-[18px] font-bold text-gray-900 tabular-nums leading-tight">
+                    ${(pricingSummary?.total ?? routePrice ?? 0).toFixed(2)}{" "}
+                    <span className="text-[12px] font-semibold text-gray-500">CAD</span>
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                    Selected vehicle
+                  </p>
+                  <p className="text-[18px] font-bold text-gray-900 tabular-nums leading-tight">
+                    $
+                    {(
+                      pricingSummary?.rideFare ??
+                      routePrice ??
+                      (selectedVehicle ? resolveVehicle(selectedVehicle)?.price : 0) ??
+                      0
+                    ).toFixed(2)}{" "}
+                    <span className="text-[12px] font-semibold text-gray-500">CAD</span>
+                  </p>
+                </>
+              )}
             </div>
             <button
               type="button"

@@ -46,6 +46,7 @@ import {
   EXTRA_KM_RATE,
   isAirportPickupLocation,
   applyGratuityThenHst,
+  HST_RATE,
 } from "@/lib/reservation-pricing";
 import {
   PARCEL_SERVICE_TYPE,
@@ -128,6 +129,12 @@ export default function CustomReservationForm() {
   const [pricingDefaults, setPricingDefaults] = useState({
     baseDistanceKm: BASE_DISTANCE_KM,
     extraKmRate: EXTRA_KM_RATE,
+    stop: STOP_CHARGE,
+    childSeat: CHILD_SEAT_CHARGE,
+    meetGreet: MEET_GREET_CHARGE,
+    bouquet: BOUQUET_CHARGE,
+    hstRate: HST_RATE,
+    airportPickup: AIRPORT_PICKUP_FEE,
   });
   const [adultsCount, setAdultsCount] = useState(1);
   const [childrenCount, setChildrenCount] = useState(0);
@@ -211,14 +218,35 @@ export default function CustomReservationForm() {
   useEffect(() => {
     fetch("/api/pricing-config")
       .then((res) => res.json())
-      .then((data: { success?: boolean; charges?: { baseDistanceKm?: number; extraKmRate?: number } }) => {
-        if (data?.success && data.charges) {
-          setPricingDefaults({
-            baseDistanceKm: data.charges.baseDistanceKm ?? BASE_DISTANCE_KM,
-            extraKmRate: data.charges.extraKmRate ?? EXTRA_KM_RATE,
-          });
+      .then(
+        (data: {
+          success?: boolean;
+          charges?: {
+            baseDistanceKm?: number;
+            extraKmRate?: number;
+            stop?: number;
+            childSeat?: number;
+            meetGreet?: number;
+            bouquet?: number;
+            hstRate?: number;
+            airportPickup?: number;
+          };
+        }) => {
+          if (data?.success && data.charges) {
+            const c = data.charges;
+            setPricingDefaults({
+              baseDistanceKm: c.baseDistanceKm ?? BASE_DISTANCE_KM,
+              extraKmRate: c.extraKmRate ?? EXTRA_KM_RATE,
+              stop: c.stop ?? STOP_CHARGE,
+              childSeat: c.childSeat ?? CHILD_SEAT_CHARGE,
+              meetGreet: c.meetGreet ?? MEET_GREET_CHARGE,
+              bouquet: c.bouquet ?? BOUQUET_CHARGE,
+              hstRate: c.hstRate ?? HST_RATE,
+              airportPickup: c.airportPickup ?? AIRPORT_PICKUP_FEE,
+            });
+          }
         }
-      })
+      )
       .catch(() => {});
   }, []);
 
@@ -275,13 +303,13 @@ export default function CustomReservationForm() {
 
   const stopCount = stops.filter((s) => s.trim()).length;
   const rideFareNum = parseFloat(rideFare) || 0;
-  const stopCharge = stopCount * STOP_CHARGE;
-  const childSeatCharge = isParcel ? 0 : childSeatCount * CHILD_SEAT_CHARGE;
-  const meetGreetCharge = !isParcel && meetGreet ? MEET_GREET_CHARGE : 0;
-  const bouquetCharge = !isParcel && bouquetFlowers ? BOUQUET_CHARGE : 0;
-  // Same GTAA / airport rule as website reservation + API
+  // Same charge keys + tax order as Online Reservation (config-aware)
+  const stopCharge = stopCount * pricingDefaults.stop;
+  const childSeatCharge = isParcel ? 0 : childSeatCount * pricingDefaults.childSeat;
+  const meetGreetCharge = !isParcel && meetGreet ? pricingDefaults.meetGreet : 0;
+  const bouquetCharge = !isParcel && bouquetFlowers ? pricingDefaults.bouquet : 0;
   const airportPickupFee = isAirportPickupLocation(pickupLocation)
-    ? AIRPORT_PICKUP_FEE
+    ? pricingDefaults.airportPickup
     : 0;
   const subtotal =
     rideFareNum +
@@ -290,7 +318,11 @@ export default function CustomReservationForm() {
     meetGreetCharge +
     bouquetCharge +
     airportPickupFee;
-  const { gratuity, hst, total } = applyGratuityThenHst(subtotal, gratuityPercent);
+  const { gratuity, hst, total } = applyGratuityThenHst(
+    subtotal,
+    gratuityPercent,
+    pricingDefaults.hstRate
+  );
 
   const setModeDistance = () => {
     setBookingMode("distance");
@@ -1271,7 +1303,7 @@ export default function CustomReservationForm() {
                                       Child Seat
                                     </span>
                                     <span className="block text-[12px] text-gray-500">
-                                      ${CHILD_SEAT_CHARGE} per seat
+                                      ${pricingDefaults.childSeat.toFixed(0)} per seat
                                     </span>
                                   </div>
                                   <div className="flex items-center gap-2">
@@ -1316,7 +1348,7 @@ export default function CustomReservationForm() {
                                   <span className="block text-[12px] text-gray-500">
                                     Personal airport assistance{" "}
                                     <span className="text-[#C9A063] font-semibold">
-                                      +${MEET_GREET_CHARGE}
+                                      +${pricingDefaults.meetGreet.toFixed(0)}
                                     </span>
                                   </span>
                                 </div>
@@ -1347,7 +1379,7 @@ export default function CustomReservationForm() {
                                   <span className="block text-[12px] text-gray-500">
                                     Fresh flowers for your ride{" "}
                                     <span className="text-[#C9A063] font-semibold">
-                                      +${BOUQUET_CHARGE}
+                                      +${pricingDefaults.bouquet.toFixed(0)}
                                     </span>
                                   </span>
                                 </div>
@@ -2005,21 +2037,26 @@ export default function CustomReservationForm() {
 
                   <div className="mt-3 space-y-2 border-t border-gray-200/90 pt-3">
                     {currentStep < 4 ? (
+                      // Pre-confirmation: vehicle price only — no Total / fees / HST
+                      // (custom flow has no card element; full fare unlocks on step 4).
                       <>
                         {selectedVehicle ? (
-                          <div className="flex items-center justify-between text-[13px] text-gray-700">
-                            <span>Selected vehicle</span>
-                            <span className="tabular-nums font-medium">
-                              ${rideFareNum.toFixed(2)}
-                            </span>
+                          <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                            <div className="flex items-center justify-between gap-3 px-3 py-3">
+                              <div className="min-w-0">
+                                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-0.5">
+                                  Selected vehicle
+                                </div>
+                                <div className="text-[13px] font-medium text-gray-900 truncate">
+                                  {resolveVehicle(selectedVehicle)?.name ?? selectedVehicle}
+                                </div>
+                              </div>
+                              <span className="text-[14px] font-semibold text-gray-900 tabular-nums shrink-0">
+                                ${rideFareNum.toFixed(2)}
+                              </span>
+                            </div>
                           </div>
                         ) : null}
-                        <div className="flex items-center justify-between text-[16px] font-bold pt-1">
-                          <span className="text-gray-900">Total</span>
-                          <span className="text-[#C9A063] tabular-nums">
-                            ${total.toFixed(2)} CAD
-                          </span>
-                        </div>
                       </>
                     ) : (
                       <>
@@ -2071,7 +2108,9 @@ export default function CustomReservationForm() {
                           <span className="tabular-nums">${gratuity.toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between text-[13px] text-gray-700">
-                          <span>HST (13%)</span>
+                          <span>
+                            HST ({(pricingDefaults.hstRate * 100).toFixed(0)}%)
+                          </span>
                           <span className="tabular-nums">${hst.toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between text-[16px] font-bold pt-2 border-t border-gray-200">
