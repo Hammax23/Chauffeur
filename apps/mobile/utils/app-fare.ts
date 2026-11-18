@@ -24,6 +24,20 @@ export function normalizeAppGratuityPercent(raw?: number | null): number {
     Math.max(APP_MIN_GRATUITY_PERCENT, Math.round(n))
   );
 }
+
+/** Subtotal → Admin/Fuel/Grat → HST on (subtotal + grat). Keep in sync with web. */
+export function applyGratuityThenHst(
+  subtotal: number,
+  gratuityPercentRaw?: number | null,
+  hstRate: number = HST_RATE
+): { gratuityPercent: number; gratuity: number; hst: number; total: number } {
+  const gratuityPercent = normalizeAppGratuityPercent(gratuityPercentRaw);
+  const gratuity = (subtotal * gratuityPercent) / 100;
+  const taxable = subtotal + gratuity;
+  const hst = taxable * hstRate;
+  const total = taxable + hst;
+  return { gratuityPercent, gratuity, hst, total };
+}
 export const BASE_DISTANCE_KM = 17;
 export const EXTRA_KM_RATE = 3.2;
 /** Website / app hourly minimum (same as web reservation). */
@@ -84,10 +98,10 @@ export function scaleFareForVehicleCount(
   const taxable = roundMoney(
     Math.max(0, subtotal - (fare.discountAmount != null ? fare.discountAmount : 0))
   );
-  // Keep tip % on full subtotal (same as unit fare builder).
+  // Keep tip % on full subtotal; HST on (discounted subtotal + grat)
   const gratuity = roundMoney(subtotal * ((fare.gratuityPercent || 0) / 100));
-  const hst = roundMoney(taxable * HST_RATE);
-  const total = roundMoney(taxable + hst + gratuity);
+  const hst = roundMoney((taxable + gratuity) * HST_RATE);
+  const total = roundMoney(taxable + gratuity + hst);
   return {
     ...fare,
     rideFare,
@@ -110,7 +124,7 @@ export function parseVehicleCount(raw?: string | number | null): number {
 
 /**
  * Apply promo discount to an existing fare (mirrors server promotions.ts).
- * Discount off subtotal; HST on discounted amount; tip stays on original subtotal.
+ * Discount off subtotal; tip on original subtotal; HST on (discounted subtotal + tip).
  */
 export function applyPromoDiscount(
   fare: AppFareResult,
@@ -121,8 +135,8 @@ export function applyPromoDiscount(
     Math.min(Math.max(0, discountAmount), fare.subtotal)
   );
   const taxable = roundMoney(Math.max(0, fare.subtotal - discount));
-  const hst = roundMoney(taxable * HST_RATE);
-  const total = roundMoney(taxable + hst + fare.gratuity);
+  const hst = roundMoney((taxable + fare.gratuity) * HST_RATE);
+  const total = roundMoney(taxable + fare.gratuity + hst);
   return {
     ...fare,
     hst,
@@ -182,11 +196,10 @@ function finalizeAppFare(input: {
       : 0;
   const meetGreetCharge = input.meetGreet === true ? MEET_GREET_CHARGE : 0;
   const subtotal = rideFare + stopCharge + childSeatCharge + airportPickupFee + meetGreetCharge;
-  const hst = subtotal * HST_RATE;
-
-  const gratuityPercent = normalizeAppGratuityPercent(input.gratuityPercent);
-  const gratuity = (subtotal * gratuityPercent) / 100;
-  const total = subtotal + hst + gratuity;
+  const { gratuityPercent, gratuity, hst, total } = applyGratuityThenHst(
+    subtotal,
+    input.gratuityPercent
+  );
 
   return {
     rideFare,

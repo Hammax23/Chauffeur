@@ -58,10 +58,10 @@ export function buildReservationInvoiceHtml(r: Reservation): string {
   if (r.subtotal != null && Number(r.subtotal) !== Number(r.rideFare)) {
     lines.push({ label: "Subtotal", value: money(r.subtotal) });
   }
-  if (r.hst != null && Number(r.hst) > 0) lines.push({ label: "HST", value: money(r.hst) });
   if (r.gratuity != null && Number(r.gratuity) > 0) {
-    lines.push({ label: "Gratuity & Fuel", value: money(r.gratuity) });
+    lines.push({ label: "Admin, Fuel & Grat", value: money(r.gratuity) });
   }
+  if (r.hst != null && Number(r.hst) > 0) lines.push({ label: "HST", value: money(r.hst) });
   for (const adj of r.fareAdjustments || []) {
     if (!adj || Number(adj.total) <= 0) continue;
     if (adj.status === "WAIVED") continue;

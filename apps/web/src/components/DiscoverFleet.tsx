@@ -13,16 +13,6 @@ interface FleetVehicle {
   luggage: string;
 }
 
-function parsePassengers(seating: string): number {
-  const match = seating.match(/(\d+)/);
-  return match ? parseInt(match[1], 10) : 3;
-}
-
-function parseLuggage(luggage: string): number {
-  const match = luggage.match(/(\d+)/);
-  return match ? parseInt(match[1], 10) : 2;
-}
-
 const GAP = 20;
 const AUTO_MS = 4000;
 
@@ -270,19 +260,19 @@ const DiscoverFleet = () => {
                 draggable={false}
                 onDragStart={(e) => e.preventDefault()}
                 onClick={onCardClick}
-                className="snap-start shrink-0 w-[78%] sm:w-[46%] md:w-[31%] lg:w-[23.5%] bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-[#C9A063]/50 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)] transition-shadow duration-300 group"
+                className="snap-start shrink-0 w-[78%] sm:w-[46%] md:w-[31%] lg:w-[23.5%] flex flex-col bg-white border border-gray-200 rounded-2xl overflow-hidden hover:border-[#C9A063]/50 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)] transition-shadow duration-300 group"
               >
                 <div className="px-5 pt-5 pb-2">
-                  <span className="text-gray-900 text-lg font-bold block leading-tight">
+                  <span className="text-gray-900 text-lg font-bold block leading-tight tracking-tight">
                     {vehicle.category}
                   </span>
-                  <span className="text-gray-500 text-sm font-medium mt-0.5 block">
+                  <span className="text-gray-500 text-sm font-medium mt-0.5 block truncate">
                     {vehicle.name}
                   </span>
                 </div>
 
                 <div className="px-4 pb-3 pointer-events-none">
-                  <div className="h-[150px] sm:h-[160px] flex items-center justify-center bg-gradient-to-b from-gray-50 to-white rounded-lg overflow-hidden">
+                  <div className="h-[140px] sm:h-[150px] flex items-center justify-center bg-gradient-to-b from-gray-50 to-white rounded-xl overflow-hidden">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={vehicle.imageUrl}
@@ -293,18 +283,32 @@ const DiscoverFleet = () => {
                   </div>
                 </div>
 
-                <div className="px-5 pb-5 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <Users className="w-4 h-4 text-[#C9A063] shrink-0" strokeWidth={2} />
-                    <span className="text-sm text-gray-700 truncate">
-                      {parsePassengers(vehicle.seating)} Passengers
-                    </span>
+                <div className="mt-auto px-4 pb-4 space-y-2">
+                  <div className="flex items-center gap-3 rounded-xl bg-[#F7F6F4] px-3 py-2.5">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white border border-gray-200/80">
+                      <Users className="w-4 h-4 text-[#C9A063]" strokeWidth={2} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8B7355]">
+                        Seating Capacity
+                      </p>
+                      <p className="mt-0.5 text-[13px] font-medium text-gray-800 leading-snug">
+                        {vehicle.seating || "—"}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <Briefcase className="w-4 h-4 text-[#C9A063] shrink-0" strokeWidth={2} />
-                    <span className="text-sm text-gray-700 truncate">
-                      {parseLuggage(vehicle.luggage)} Luggages
-                    </span>
+                  <div className="flex items-center gap-3 rounded-xl bg-[#F7F6F4] px-3 py-2.5">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white border border-gray-200/80">
+                      <Briefcase className="w-4 h-4 text-[#C9A063]" strokeWidth={2} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8B7355]">
+                        Luggage Capacity
+                      </p>
+                      <p className="mt-0.5 text-[13px] font-medium text-gray-800 leading-snug">
+                        {vehicle.luggage || "—"}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </Link>

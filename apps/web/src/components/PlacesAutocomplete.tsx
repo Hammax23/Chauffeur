@@ -85,11 +85,13 @@ export default function PlacesAutocomplete({
   const [mounted, setMounted] = useState(false);
 
   const autocompleteService = useRef<google.maps.places.AutocompleteService | null>(null);
+  const placesService = useRef<google.maps.places.PlacesService | null>(null);
   const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestIdRef = useRef(0);
+  const [resolvingPlaceId, setResolvingPlaceId] = useState<string | null>(null);
 
   const { isLoaded } = useGoogleMaps();
 
@@ -176,9 +178,16 @@ export default function PlacesAutocomplete({
   }, [value, isUserTyping]);
 
   useEffect(() => {
-    if (isLoaded && !autocompleteService.current) {
-      autocompleteService.current = new google.maps.places.AutocompleteService();
-      refreshSessionToken();
+    if (isLoaded && window.google?.maps?.places) {
+      if (!autocompleteService.current) {
+        autocompleteService.current = new google.maps.places.AutocompleteService();
+      }
+      if (!placesService.current) {
+        // Attribution container required by PlacesService (not shown in UI)
+        const attribution = document.createElement("div");
+        placesService.current = new google.maps.places.PlacesService(attribution);
+      }
+      if (!sessionTokenRef.current) refreshSessionToken();
     }
   }, [isLoaded, refreshSessionToken]);
 
@@ -322,12 +331,59 @@ export default function PlacesAutocomplete({
     scheduleFetch(newValue);
   };
 
-  const handleSelect = (prediction: Prediction) => {
+  /** Resolve place_id → full formatted_address (includes postal code when Google has it). */
+  const resolveFormattedAddress = useCallback(
+    (placeId: string): Promise<string | null> => {
+      return new Promise((resolve) => {
+        if (!placesService.current) {
+          resolve(null);
+          return;
+        }
+        placesService.current.getDetails(
+          {
+            placeId,
+            fields: ["formatted_address", "name", "address_component"],
+            sessionToken: sessionTokenRef.current ?? undefined,
+          },
+          (place, status) => {
+            if (
+              status === google.maps.places.PlacesServiceStatus.OK &&
+              place?.formatted_address
+            ) {
+              resolve(place.formatted_address);
+              return;
+            }
+            resolve(null);
+          }
+        );
+      });
+    },
+    []
+  );
+
+  const handleSelect = async (prediction: Prediction) => {
+    setResolvingPlaceId(prediction.place_id);
+    setIsLoading(true);
+
+    // Optimistic: show prediction while details load
     setInputValue(prediction.description);
-    onChange(prediction.description);
+
+    let address = prediction.description;
+    try {
+      const detailed = await resolveFormattedAddress(prediction.place_id);
+      if (detailed?.trim()) {
+        address = detailed.trim();
+      }
+    } catch {
+      // keep prediction.description
+    }
+
+    setInputValue(address);
+    onChange(address);
     setPredictions([]);
     setIsOpen(false);
     setIsLoading(false);
+    setResolvingPlaceId(null);
     setIsUserTyping(false);
     setHighlightedIndex(-1);
     notifyPlacesOpen(false);
@@ -502,9 +558,18 @@ export default function PlacesAutocomplete({
                               text={prediction.structured_formatting.main_text}
                               query={inputValue}
                             />
+                            {resolvingPlaceId === prediction.place_id ? (
+                              <Loader2 className="inline-block ml-2 w-3.5 h-3.5 animate-spin text-[#C9A063] align-[-2px]" />
+                            ) : null}
                           </div>
                           <div className="text-[12px] text-gray-500 leading-snug mt-0.5 break-words">
-                            {prediction.structured_formatting.secondary_text}
+                            {/* Full prediction line is more complete than secondary alone */}
+                            {prediction.description.includes(",")
+                              ? prediction.description
+                                  .slice(prediction.structured_formatting.main_text.length)
+                                  .replace(/^,\s*/, "") ||
+                                prediction.structured_formatting.secondary_text
+                              : prediction.structured_formatting.secondary_text}
                           </div>
                         </div>
                       </button>

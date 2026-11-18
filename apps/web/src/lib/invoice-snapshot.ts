@@ -91,10 +91,10 @@ export function buildStandardFareSnapshot(
   if (discountAmount > 0) {
     lines.push({ key: "discount", label: "Discount", amount: -discountAmount });
   }
-  if (hst > 0) lines.push({ key: "hst", label: "HST (13%)", amount: hst });
   if (gratuity > 0) {
     lines.push({ key: "gratuity", label: "Admin, Fuel & Grat", amount: gratuity });
   }
+  if (hst > 0) lines.push({ key: "hst", label: "HST (13%)", amount: hst });
   lines.push(...meetGreetBouquetExtras(r.specialRequirements));
 
   const guest = `${r.firstName || ""} ${r.lastName || ""}`.trim() || "Guest";

@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   const params = new URLSearchParams({
     place_id: placeId,
     key,
-    fields: "formatted_address,geometry/location,name",
+    fields: "formatted_address,geometry/location,name,address_component",
     language: "en",
   });
   if (session.length >= 8 && session.length <= 128) {

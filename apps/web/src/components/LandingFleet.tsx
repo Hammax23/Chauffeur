@@ -116,12 +116,32 @@ export default function LandingFleet() {
                 <p className="mt-1 text-xs font-semibold text-[#B8935A]">Best for 1–{guests} guests</p>
                 <p className="mt-3 flex-1 text-sm font-light leading-6 text-gray-600">{v.description}</p>
 
-                <ul className="mt-5 flex w-full flex-wrap justify-center gap-x-4 gap-y-2 border-t border-gray-100 pt-4 text-xs text-gray-500">
-                  <li className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5 text-[#C9A063]" />{guests} guests</li>
-                  <li className="flex items-center gap-1.5"><Briefcase className="h-3.5 w-3.5 text-[#C9A063]" />{num(v.luggage, 2)} bags</li>
-                  <li className="flex items-center gap-1.5"><Wifi className="h-3.5 w-3.5 text-[#C9A063]" />Wi-Fi</li>
-                  <li className="flex items-center gap-1.5"><Droplets className="h-3.5 w-3.5 text-[#C9A063]" />Water</li>
-                </ul>
+                <div className="mt-5 w-full space-y-2.5 border-t border-gray-100 pt-4 text-left">
+                  <div className="flex items-start gap-2">
+                    <Users className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" strokeWidth={2} />
+                    <p className="text-[12px] leading-snug text-gray-700">
+                      <span className="font-semibold text-[#3B6EA5]">Seating Capacity:</span>{" "}
+                      {v.seating || "—"}
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Briefcase className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" strokeWidth={2} />
+                    <p className="text-[12px] leading-snug text-gray-700">
+                      <span className="font-semibold text-[#3B6EA5]">Luggage Capacity:</span>{" "}
+                      {v.luggage || "—"}
+                    </p>
+                  </div>
+                  <ul className="flex flex-wrap gap-x-4 gap-y-2 pt-1 text-xs text-gray-500">
+                    <li className="flex items-center gap-1.5">
+                      <Wifi className="h-3.5 w-3.5 text-[#C9A063]" />
+                      Wi-Fi
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Droplets className="h-3.5 w-3.5 text-[#C9A063]" />
+                      Water
+                    </li>
+                  </ul>
+                </div>
 
                 <Link
                   href={`/reservation?mode=distance&vehicleId=${encodeURIComponent(v.id)}`}

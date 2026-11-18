@@ -17,9 +17,16 @@ interface PaymentFormProps {
   beforeSubmit?: ReactNode;
   onSuccess: (paymentIntentId: string) => void;
   onError: (error: string) => void;
+  onCardComplete?: (complete: boolean) => void;
 }
 
-function PaymentForm({ disabled, beforeSubmit, onSuccess, onError }: PaymentFormProps) {
+function PaymentForm({
+  disabled,
+  beforeSubmit,
+  onSuccess,
+  onError,
+  onCardComplete,
+}: PaymentFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -88,12 +95,16 @@ function PaymentForm({ disabled, beforeSubmit, onSuccess, onError }: PaymentForm
               setElementReady(true);
               setElementError(null);
             }}
+            onChange={(event) => {
+              onCardComplete?.(Boolean(event.complete));
+            }}
             onLoadError={(event) => {
               const msg =
                 event?.error?.message ||
                 "Card form failed to load. Check that Stripe publishable and secret keys are from the same account, then restart the server.";
               setElementError(msg);
               setElementReady(false);
+              onCardComplete?.(false);
               onError(msg);
             }}
           />
@@ -159,6 +170,7 @@ export interface StripePaymentProps {
   beforeSubmit?: ReactNode;
   onSuccess: (paymentIntentId: string) => void;
   onError: (error: string) => void;
+  onCardComplete?: (complete: boolean) => void;
   metadata?: Record<string, string>;
 }
 
@@ -179,6 +191,7 @@ export default function StripePayment({
   beforeSubmit,
   onSuccess,
   onError,
+  onCardComplete,
   metadata,
 }: StripePaymentProps) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -197,6 +210,9 @@ export default function StripePayment({
   }, []);
 
   useEffect(() => {
+    // New PaymentIntent / amount change → card form remounts; reset completeness
+    onCardComplete?.(false);
+
     if (amountCents <= 0) {
       setError(
         "Invalid amount. Please complete your trip details and wait for the route/price to calculate."
@@ -256,6 +272,7 @@ export default function StripePayment({
     pickupLocation,
     email,
     metadata,
+    onCardComplete,
   ]);
 
   const elementsOptions = useMemo(
@@ -314,6 +331,7 @@ export default function StripePayment({
         beforeSubmit={beforeSubmit}
         onSuccess={onSuccess}
         onError={onError}
+        onCardComplete={onCardComplete}
       />
     </Elements>
   );

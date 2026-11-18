@@ -42,10 +42,10 @@ import {
   MEET_GREET_CHARGE,
   BOUQUET_CHARGE,
   AIRPORT_PICKUP_FEE,
-  HST_RATE,
   BASE_DISTANCE_KM,
   EXTRA_KM_RATE,
   isAirportPickupLocation,
+  applyGratuityThenHst,
 } from "@/lib/reservation-pricing";
 import {
   PARCEL_SERVICE_TYPE,
@@ -290,9 +290,7 @@ export default function CustomReservationForm() {
     meetGreetCharge +
     bouquetCharge +
     airportPickupFee;
-  const hst = subtotal * HST_RATE;
-  const gratuity = subtotal * (gratuityPercent / 100);
-  const total = subtotal + hst + gratuity;
+  const { gratuity, hst, total } = applyGratuityThenHst(subtotal, gratuityPercent);
 
   const setModeDistance = () => {
     setBookingMode("distance");
@@ -2006,61 +2004,86 @@ export default function CustomReservationForm() {
                   </div>
 
                   <div className="mt-3 space-y-2 border-t border-gray-200/90 pt-3">
-                    <div className="text-[12px] font-semibold text-gray-800 mb-1">Fare & tip</div>
-                    <div className="flex items-center justify-between text-[13px] text-gray-700">
-                      <span>Ride fare</span>
-                      <span className="tabular-nums font-medium">${rideFareNum.toFixed(2)}</span>
-                    </div>
-                    {stopCharge > 0 && (
-                      <div className="flex items-center justify-between text-[13px] text-gray-700">
-                        <span>Stops</span>
-                        <span className="tabular-nums">${stopCharge.toFixed(2)}</span>
-                      </div>
+                    {currentStep < 4 ? (
+                      <>
+                        {selectedVehicle ? (
+                          <div className="flex items-center justify-between text-[13px] text-gray-700">
+                            <span>Selected vehicle</span>
+                            <span className="tabular-nums font-medium">
+                              ${rideFareNum.toFixed(2)}
+                            </span>
+                          </div>
+                        ) : null}
+                        <div className="flex items-center justify-between text-[16px] font-bold pt-1">
+                          <span className="text-gray-900">Total</span>
+                          <span className="text-[#C9A063] tabular-nums">
+                            ${total.toFixed(2)} CAD
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-[12px] font-semibold text-gray-800 mb-1">
+                          Fare summary
+                        </div>
+                        <div className="flex items-center justify-between text-[13px] text-gray-700">
+                          <span>Ride fare</span>
+                          <span className="tabular-nums font-medium">
+                            ${rideFareNum.toFixed(2)}
+                          </span>
+                        </div>
+                        {stopCharge > 0 && (
+                          <div className="flex items-center justify-between text-[13px] text-gray-700">
+                            <span>Stops</span>
+                            <span className="tabular-nums">${stopCharge.toFixed(2)}</span>
+                          </div>
+                        )}
+                        {childSeatCharge > 0 && (
+                          <div className="flex items-center justify-between text-[13px] text-gray-700">
+                            <span>Child seat</span>
+                            <span className="tabular-nums">${childSeatCharge.toFixed(2)}</span>
+                          </div>
+                        )}
+                        {meetGreetCharge > 0 && (
+                          <div className="flex items-center justify-between text-[13px] text-gray-700">
+                            <span>Meet &amp; Greet</span>
+                            <span className="tabular-nums">${meetGreetCharge.toFixed(2)}</span>
+                          </div>
+                        )}
+                        {bouquetCharge > 0 && (
+                          <div className="flex items-center justify-between text-[13px] text-gray-700">
+                            <span>Bouquet</span>
+                            <span className="tabular-nums">${bouquetCharge.toFixed(2)}</span>
+                          </div>
+                        )}
+                        {airportPickupFee > 0 && (
+                          <div className="flex items-center justify-between text-[13px] text-gray-700">
+                            <span>Airport pickup fee ( GTA )</span>
+                            <span className="tabular-nums">${airportPickupFee.toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between text-[13px] text-gray-700 border-t border-gray-100 pt-2">
+                          <span>Subtotal</span>
+                          <span className="tabular-nums">${subtotal.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[13px] text-gray-700">
+                          <span>Admin, Fuel &amp; Grat ({gratuityPercent}%)</span>
+                          <span className="tabular-nums">${gratuity.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[13px] text-gray-700">
+                          <span>HST (13%)</span>
+                          <span className="tabular-nums">${hst.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[16px] font-bold pt-2 border-t border-gray-200">
+                          <span className="text-gray-900">Total</span>
+                          <span className="text-[#C9A063] tabular-nums">${total.toFixed(2)}</span>
+                        </div>
+                        <div className="text-[11px] text-gray-500 pt-1">
+                          Payment:{" "}
+                          <span className="font-semibold text-gray-700">{paymentStatus}</span>
+                        </div>
+                      </>
                     )}
-                    {childSeatCharge > 0 && (
-                      <div className="flex items-center justify-between text-[13px] text-gray-700">
-                        <span>Child seat</span>
-                        <span className="tabular-nums">${childSeatCharge.toFixed(2)}</span>
-                      </div>
-                    )}
-                    {meetGreetCharge > 0 && (
-                      <div className="flex items-center justify-between text-[13px] text-gray-700">
-                        <span>Meet &amp; Greet</span>
-                        <span className="tabular-nums">${meetGreetCharge.toFixed(2)}</span>
-                      </div>
-                    )}
-                    {bouquetCharge > 0 && (
-                      <div className="flex items-center justify-between text-[13px] text-gray-700">
-                        <span>Bouquet</span>
-                        <span className="tabular-nums">${bouquetCharge.toFixed(2)}</span>
-                      </div>
-                    )}
-                    {airportPickupFee > 0 && (
-                      <div className="flex items-center justify-between text-[13px] text-gray-700">
-                        <span>Airport pickup fee ( GTA )</span>
-                        <span className="tabular-nums">${airportPickupFee.toFixed(2)}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between text-[13px] text-gray-700 border-t border-gray-100 pt-2">
-                      <span>Subtotal</span>
-                      <span className="tabular-nums">${subtotal.toFixed(2)}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[13px] text-gray-700">
-                      <span>HST (13%)</span>
-                      <span className="tabular-nums">${hst.toFixed(2)}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[13px] text-gray-700">
-                      <span>Admin, Fuel &amp; Grat ({gratuityPercent}%)</span>
-                      <span className="tabular-nums">${gratuity.toFixed(2)}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[16px] font-bold pt-2 border-t border-gray-200">
-                      <span className="text-gray-900">Total</span>
-                      <span className="text-[#C9A063] tabular-nums">${total.toFixed(2)}</span>
-                    </div>
-                    <div className="text-[11px] text-gray-500 pt-1">
-                      Payment:{" "}
-                      <span className="font-semibold text-gray-700">{paymentStatus}</span>
-                    </div>
                     {currentStep >= 3 && currentStep < 4 && selectedVehicle ? (
                       <button
                         type="button"

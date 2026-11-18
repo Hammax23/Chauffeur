@@ -28,6 +28,26 @@ export function normalizeAppGratuityPercent(raw?: number | null): number {
   );
 }
 
+/**
+ * Correct tax order:
+ * 1) Subtotal
+ * 2) Admin, Fuel & Grat (% of subtotal)
+ * 3) HST on (subtotal + Admin/Fuel/Grat)
+ * 4) Total = taxable + HST
+ */
+export function applyGratuityThenHst(
+  subtotal: number,
+  gratuityPercentRaw?: number | null,
+  hstRate: number = HST_RATE
+): { gratuityPercent: number; gratuity: number; hst: number; total: number } {
+  const gratuityPercent = normalizeAppGratuityPercent(gratuityPercentRaw);
+  const gratuity = (subtotal * gratuityPercent) / 100;
+  const taxable = subtotal + gratuity;
+  const hst = taxable * hstRate;
+  const total = taxable + hst;
+  return { gratuityPercent, gratuity, hst, total };
+}
+
 // Distance-based pricing: Base price covers first X km, then extra per km after
 export const BASE_DISTANCE_KM = 17;
 export const EXTRA_KM_RATE = 3.2;
@@ -144,11 +164,10 @@ export function calculateAppDistanceFare(input: {
       : 0;
   const meetGreetCharge = input.meetGreet === true ? MEET_GREET_CHARGE : 0;
   const subtotal = rideFare + stopCharge + childSeatCharge + airportPickupFee + meetGreetCharge;
-  const hst = subtotal * HST_RATE;
-
-  const gratuityPercent = normalizeAppGratuityPercent(input.gratuityPercent);
-  const gratuity = (subtotal * gratuityPercent) / 100;
-  const total = subtotal + hst + gratuity;
+  const { gratuityPercent, gratuity, hst, total } = applyGratuityThenHst(
+    subtotal,
+    input.gratuityPercent
+  );
 
   return {
     rideFare,
@@ -192,11 +211,10 @@ export function calculateAppHourlyFare(input: {
       : 0;
   const meetGreetCharge = input.meetGreet === true ? MEET_GREET_CHARGE : 0;
   const subtotal = rideFare + stopCharge + childSeatCharge + airportPickupFee + meetGreetCharge;
-  const hst = subtotal * HST_RATE;
-
-  const gratuityPercent = normalizeAppGratuityPercent(input.gratuityPercent);
-  const gratuity = (subtotal * gratuityPercent) / 100;
-  const total = subtotal + hst + gratuity;
+  const { gratuityPercent, gratuity, hst, total } = applyGratuityThenHst(
+    subtotal,
+    input.gratuityPercent
+  );
 
   return {
     rideFare,
@@ -302,10 +320,11 @@ export function calculateReservationPricing(
   const airportPickupFee = applyAirport ? (c.airportPickup ?? AIRPORT_PICKUP_FEE) : 0;
   const subtotal =
     rideFare + stopCharge + childSeatCharge + meetGreetCharge + bouquetCharge + airportPickupFee;
-  const hst = subtotal * c.hstRate;
-  const gratuityPercent = normalizeAppGratuityPercent(input.gratuityPercent);
-  const gratuity = (subtotal * gratuityPercent) / 100;
-  const total = subtotal + hst + gratuity;
+  const { gratuityPercent, gratuity, hst, total } = applyGratuityThenHst(
+    subtotal,
+    input.gratuityPercent,
+    c.hstRate
+  );
 
   return {
     rideFare,

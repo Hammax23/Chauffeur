@@ -12,6 +12,7 @@ import {
   isAirportPickupLocation,
   AIRPORT_PICKUP_FEE,
   normalizeAppGratuityPercent,
+  applyGratuityThenHst,
 } from "@/lib/reservation-pricing";
 import { getPricingConfig } from "@/lib/get-pricing-config";
 import { createReservationPaymentLink } from "@/lib/reservation-payment-link";
@@ -168,9 +169,13 @@ export async function POST(request: NextRequest) {
     let airportPickupFee = isAirportPickupLocation(pickupLocation) ? AIRPORT_PICKUP_FEE : 0;
     let rideFare = routePrice;
     let subtotal = rideFare + stopCharge + childSeatCharge + meetGreetCharge + bouquetCharge + airportPickupFee;
-    let hst = subtotal * 0.13;
-    let gratuity = (subtotal * gratuityPercent) / 100;
-    let total = subtotal + hst + gratuity;
+    let {
+      gratuity,
+      hst,
+      total,
+      gratuityPercent: normalizedGratPct,
+    } = applyGratuityThenHst(subtotal, gratuityPercent);
+    gratuityPercent = normalizedGratPct;
 
     let paymentStatus = "PENDING";
     let resolvedStripeCustomerId = stripeCustomerId;

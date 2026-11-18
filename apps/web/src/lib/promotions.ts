@@ -61,9 +61,9 @@ export function applyDiscountToPricing(
 ): AppFareWithPromo {
   const discount = roundMoney(Math.min(Math.max(0, discountAmount), pricing.subtotal));
   const taxable = roundMoney(Math.max(0, pricing.subtotal - discount));
-  const hst = roundMoney(taxable * HST_RATE);
-  // Gratuity stays on original (pre-discount) subtotal
-  const total = roundMoney(taxable + hst + pricing.gratuity);
+  // Gratuity stays on original (pre-discount) subtotal; HST on (discounted subtotal + grat)
+  const hst = roundMoney((taxable + pricing.gratuity) * HST_RATE);
+  const total = roundMoney(taxable + pricing.gratuity + hst);
   return {
     ...pricing,
     hst,

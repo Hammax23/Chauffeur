@@ -382,8 +382,9 @@ export async function resolveAppReservationFare(
       ) / 100;
     const tipPct = Number(basePricing.gratuityPercent) || 0;
     const gratuity = Math.round(subtotal * (tipPct / 100) * 100) / 100;
-    const hst = Math.round(subtotal * 0.13 * 100) / 100;
-    const total = Math.round((subtotal + hst + gratuity) * 100) / 100;
+    // HST on (subtotal + Admin/Fuel/Grat)
+    const hst = Math.round((subtotal + gratuity) * 0.13 * 100) / 100;
+    const total = Math.round((subtotal + gratuity + hst) * 100) / 100;
     basePricing = {
       ...basePricing,
       rideFare,
