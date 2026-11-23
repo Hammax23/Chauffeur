@@ -358,10 +358,8 @@ export default function CustomReservationForm() {
         setStepError("Please select date and time.");
         return false;
       }
-      if (pickupDateTime.getTime() < Date.now() - 60_000) {
-        setStepError("Please select a future date and time.");
-        return false;
-      }
+      // Custom Reservation (admin): past date/time allowed for backdated bookings.
+      // Online /reservation page still blocks past times.
       if (isParcel) {
         if (!recipientName.trim()) {
           setStepError("Please enter the recipient name.");
@@ -1085,19 +1083,7 @@ export default function CustomReservationForm() {
                           <DatePicker
                             selected={pickupDateTime}
                             onChange={(date: Date | null) => {
-                              if (!date) {
-                                setPickupDateTime(null);
-                                setStepError("");
-                                return;
-                              }
-                              const now = new Date();
-                              // If today was picked with a past clock time, snap to now
-                              const next =
-                                date.toDateString() === now.toDateString() &&
-                                date.getTime() < now.getTime()
-                                  ? now
-                                  : date;
-                              setPickupDateTime(next);
+                              setPickupDateTime(date);
                               setStepError("");
                             }}
                             showTimeSelect
@@ -1105,13 +1091,8 @@ export default function CustomReservationForm() {
                             timeCaption="Time"
                             dateFormat="MMM d, yyyy  h:mm aa"
                             timeFormat="h:mm aa"
-                            minDate={new Date()}
-                            minTime={
-                              !pickupDateTime ||
-                              pickupDateTime.toDateString() === new Date().toDateString()
-                                ? new Date()
-                                : new Date(new Date().setHours(0, 0, 0, 0))
-                            }
+                            // Admin custom booking: allow any past/future date & time
+                            minTime={new Date(new Date().setHours(0, 0, 0, 0))}
                             maxTime={new Date(new Date().setHours(23, 45, 0, 0))}
                             placeholderText="Select date & time"
                             className="w-full min-h-11 px-3 py-2.5 pr-9 border border-gray-200 rounded-lg text-base text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063]"
