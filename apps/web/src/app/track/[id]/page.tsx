@@ -228,17 +228,28 @@ export default function TrackPage() {
                 <Car className="w-3.5 h-3.5 text-[#C9A063]" />
                 Ride Details
               </h3>
-              {booking.serviceDate && (
-                <div className="bg-white/5 rounded-lg p-2.5 mb-3">
-                  <p className="text-gray-500 text-[10px] uppercase">Date & Time</p>
-                  <div className="mt-1 flex items-center gap-4">
-                    <p className="text-gray-300 text-sm sm:text-base font-medium">
-                      {booking.serviceDate}
-                    </p>
-                    <p className="text-gray-300 text-sm sm:text-base font-medium tabular-nums">
-                      {booking.serviceTime}
-                    </p>
-                  </div>
+              {(booking.serviceDate || booking.serviceTime) && (
+                <div className="mb-3 space-y-2.5">
+                  {booking.serviceDate ? (
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <span className="inline-flex min-w-[7.5rem] sm:min-w-[8.5rem] items-center justify-center rounded-full border border-white/25 bg-white/10 px-3.5 py-1.5 text-[12px] sm:text-[13px] font-bold text-white">
+                        Pickup Date
+                      </span>
+                      <span className="text-[14px] sm:text-[15px] font-bold text-white tabular-nums">
+                        {booking.serviceDate}
+                      </span>
+                    </div>
+                  ) : null}
+                  {booking.serviceTime ? (
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <span className="inline-flex min-w-[7.5rem] sm:min-w-[8.5rem] items-center justify-center rounded-full border border-white/25 bg-white/10 px-3.5 py-1.5 text-[12px] sm:text-[13px] font-bold text-white">
+                        Pickup Time
+                      </span>
+                      <span className="text-[14px] sm:text-[15px] font-bold text-white tabular-nums">
+                        {booking.serviceTime}
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               )}
               <div className="space-y-2">
