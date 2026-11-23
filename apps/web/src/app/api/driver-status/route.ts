@@ -93,13 +93,14 @@ export async function GET(request: NextRequest) {
 
     // Track links get less PII than driver operational links.
     const isTrack = purpose === "track";
+    const rawPhoto = (reservation.assignedDriver?.photo || "").trim();
     const driverInfo = showDriver
       ? {
           chauffeurName: reservation.assignedDriver!.name,
           chauffeurPhone: isTrack ? null : reservation.assignedDriver!.phone,
           chauffeurVehicle: reservation.assignedDriver!.vehicle,
           chauffeurPlate: reservation.assignedDriver!.vehiclePlate,
-          chauffeurPhoto: reservation.assignedDriver!.photo,
+          chauffeurPhoto: rawPhoto || null,
         }
       : null;
 

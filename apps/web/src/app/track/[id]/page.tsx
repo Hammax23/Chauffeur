@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Car, MapPin, Clock, User, CheckCircle2, Loader2, Phone } from "lucide-react";
-import Image from "next/image";
-
 const STATUS_STEPS = [
   { key: "PENDING", label: "Reservation Confirmed", description: "Your booking has been received", icon: CheckCircle2, color: "text-gray-400", bgColor: "bg-gray-100" },
   { key: "ACCEPTED", label: "Chauffeur Assigned", description: "Your chauffeur has accepted this ride", icon: User, color: "text-emerald-500", bgColor: "bg-emerald-50" },
@@ -133,8 +131,9 @@ export default function TrackPage() {
               <Car className="w-6 h-6 text-white" />
             </div>
             <div className="text-left">
-              <h2 className="text-white font-bold text-lg">SARJ Worldwide</h2>
-              <p className="text-[#C9A063] text-xs">Live Tracking</p>
+              <h2 className="text-white font-bold text-lg leading-tight">
+                SARJ Worldwide Chauffeured Services
+              </h2>
             </div>
           </div>
           
@@ -142,36 +141,20 @@ export default function TrackPage() {
             <div className="w-1.5 h-1.5 rounded-full bg-[#C9A063] animate-pulse" />
             <span className="text-[#C9A063] text-xs font-medium tracking-widest uppercase">Live Status</span>
           </div>
-          <h1 className="text-white text-2xl font-bold mb-1">Track Your Ride</h1>
           <p className="text-gray-400 text-sm">{bookingId}</p>
         </div>
       </div>
 
       <div className="max-w-lg mx-auto px-4 sm:px-6">
-        {/* Current Status Card */}
-        <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-4 sm:p-6 mb-4 sm:mb-6">
-          {cancelled ? (
-            <div className="text-center">
-              <div className="w-16 h-16 bg-red-500/15 rounded-full flex items-center justify-center mx-auto mb-3">
-                <Clock className="w-8 h-8 text-red-400" />
-              </div>
-              <h2 className="text-white text-xl font-bold mb-1">Ride Cancelled</h2>
-              <p className="text-gray-400 text-sm">This reservation was cancelled.</p>
+        {cancelled ? (
+          <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-4 sm:p-6 mb-4 sm:mb-6 text-center">
+            <div className="w-16 h-16 bg-red-500/15 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Clock className="w-8 h-8 text-red-400" />
             </div>
-          ) : (() => {
-            const current = STATUS_STEPS[statusIndex] || STATUS_STEPS[0];
-            const CurrentIcon = current.icon;
-            return (
-              <div className="text-center">
-                <div className={`w-16 h-16 ${current.bgColor} rounded-full flex items-center justify-center mx-auto mb-3`}>
-                  <CurrentIcon className={`w-8 h-8 ${current.color}`} />
-                </div>
-                <h2 className="text-white text-xl font-bold mb-1">{current.label}</h2>
-                <p className="text-gray-400 text-sm">{current.description}</p>
-              </div>
-            );
-          })()}
-        </div>
+            <h2 className="text-white text-xl font-bold mb-1">Ride Cancelled</h2>
+            <p className="text-gray-400 text-sm">This reservation was cancelled.</p>
+          </div>
+        ) : null}
 
         {/* Chauffeur & Ride Details - Combined Card */}
         {booking && (
@@ -185,18 +168,48 @@ export default function TrackPage() {
                 </h3>
                 <div className="flex items-center gap-3 sm:gap-4">
                   <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-[#C9A063] to-[#A68B5B] flex items-center justify-center overflow-hidden ring-2 ring-[#C9A063]/30 flex-shrink-0">
-                    {booking.chauffeurPhoto ? (
-                      <Image src={booking.chauffeurPhoto} alt={booking.chauffeurName} width={56} height={56} className="w-full h-full object-cover" />
-                    ) : (
+                    {typeof booking.chauffeurPhoto === "string" &&
+                    booking.chauffeurPhoto.trim() ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- driver Cloudinary/external URLs
+                      <img
+                        src={booking.chauffeurPhoto.trim()}
+                        alt={booking.chauffeurName || "Chauffeur"}
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                          const fallback = e.currentTarget.nextElementSibling;
+                          if (fallback instanceof HTMLElement) {
+                            fallback.style.display = "flex";
+                          }
+                        }}
+                      />
+                    ) : null}
+                    <span
+                      className={`w-full h-full items-center justify-center ${
+                        typeof booking.chauffeurPhoto === "string" &&
+                        booking.chauffeurPhoto.trim()
+                          ? "hidden"
+                          : "flex"
+                      }`}
+                      aria-hidden={
+                        typeof booking.chauffeurPhoto === "string" &&
+                        booking.chauffeurPhoto.trim()
+                          ? true
+                          : undefined
+                      }
+                    >
                       <User className="w-7 h-7 text-white" />
-                    )}
+                    </span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-white font-semibold">{booking.chauffeurName}</p>
-                    <span className="text-[#C9A063] text-sm flex items-center gap-1.5 mt-0.5">
-                      <Phone className="w-3 h-3" />
-                      {booking.chauffeurPhone}
-                    </span>
+                    {booking.chauffeurPhone ? (
+                      <span className="text-[#C9A063] text-sm flex items-center gap-1.5 mt-0.5">
+                        <Phone className="w-3 h-3" />
+                        {booking.chauffeurPhone}
+                      </span>
+                    ) : null}
                     <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1.5 text-gray-300 text-xs sm:text-sm">
                       <span className="flex items-center gap-1.5">
                         <Car className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#C9A063]" />
