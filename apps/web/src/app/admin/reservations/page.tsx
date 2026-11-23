@@ -1168,9 +1168,20 @@ export default function ReservationsPage() {
                           </div>
                         )}
 
-                        {/* Delete Button */}
+                        {/* Edit / Delete — always available for admin (incl. PAID / ACCEPTED) */}
                         <div className="flex items-center gap-2 ml-auto">
                           <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingReservation({ ...r });
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 bg-[#1C1C1E] text-white rounded-lg text-sm font-medium hover:bg-[#2C2C2E] transition-colors"
+                          >
+                            <Pencil className="w-4 h-4" /> Edit
+                          </button>
+                          <button
+                            type="button"
                             onClick={(e) => { e.stopPropagation(); setDeleteConfirm(r.bookingId); }}
                             className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors"
                           >
@@ -1237,12 +1248,18 @@ export default function ReservationsPage() {
                 <p className="text-[#C9A063] text-sm font-medium">{editingReservation.bookingId}</p>
               </div>
               <button
+                type="button"
                 onClick={() => setEditingReservation(null)}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
+            {editingReservation.paymentStatus === "PAID" ? (
+              <div className="mx-6 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+                Payment is PAID — editing updates trip/contact details only (does not change the Stripe charge).
+              </div>
+            ) : null}
             <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto">
               {/* Status */}
               <div>
