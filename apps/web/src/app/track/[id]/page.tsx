@@ -229,23 +229,23 @@ export default function TrackPage() {
                 Ride Details
               </h3>
               {(booking.serviceDate || booking.serviceTime) && (
-                <div className="mb-3 space-y-2.5">
+                <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 sm:gap-x-4">
                   {booking.serviceDate ? (
-                    <div className="flex items-center gap-3 sm:gap-4">
-                      <span className="inline-flex min-w-[7.5rem] sm:min-w-[8.5rem] items-center justify-center rounded-full border border-white/25 bg-white/10 px-3.5 py-1.5 text-[12px] sm:text-[13px] font-bold text-white">
+                    <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+                      <span className="inline-flex items-center justify-center rounded-full border border-white/25 bg-white/10 px-2.5 sm:px-3 py-1 text-[11px] sm:text-[12px] font-bold text-white whitespace-nowrap">
                         Pickup Date
                       </span>
-                      <span className="text-[14px] sm:text-[15px] font-bold text-white tabular-nums">
+                      <span className="text-[13px] sm:text-[14px] font-bold text-white tabular-nums whitespace-nowrap">
                         {booking.serviceDate}
                       </span>
                     </div>
                   ) : null}
                   {booking.serviceTime ? (
-                    <div className="flex items-center gap-3 sm:gap-4">
-                      <span className="inline-flex min-w-[7.5rem] sm:min-w-[8.5rem] items-center justify-center rounded-full border border-white/25 bg-white/10 px-3.5 py-1.5 text-[12px] sm:text-[13px] font-bold text-white">
+                    <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+                      <span className="inline-flex items-center justify-center rounded-full border border-white/25 bg-white/10 px-2.5 sm:px-3 py-1 text-[11px] sm:text-[12px] font-bold text-white whitespace-nowrap">
                         Pickup Time
                       </span>
-                      <span className="text-[14px] sm:text-[15px] font-bold text-white tabular-nums">
+                      <span className="text-[13px] sm:text-[14px] font-bold text-white tabular-nums whitespace-nowrap">
                         {booking.serviceTime}
                       </span>
                     </div>
