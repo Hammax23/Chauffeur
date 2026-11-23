@@ -232,7 +232,9 @@ export default function TrackPage() {
                 <div className="bg-white/5 rounded-lg p-2.5 mb-3">
                   <p className="text-gray-500 text-[10px] uppercase">Date & Time</p>
                   <p className="text-gray-300 text-sm font-medium">{booking.serviceDate}</p>
-                  <p className="text-[#C9A063] text-xs">{booking.serviceTime}</p>
+                  <p className="text-[#C9A063] text-xl sm:text-2xl font-bold tracking-wide mt-0.5">
+                    {booking.serviceTime}
+                  </p>
                 </div>
               )}
               <div className="space-y-2">
