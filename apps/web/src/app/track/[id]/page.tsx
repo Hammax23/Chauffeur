@@ -235,7 +235,7 @@ export default function TrackPage() {
                     <p className="text-gray-300 text-sm sm:text-base font-medium min-w-0">
                       {booking.serviceDate}
                     </p>
-                    <p className="text-[#C9A063] text-xl sm:text-2xl font-bold tracking-wide tabular-nums shrink-0">
+                    <p className="text-[#C9A063] text-lg sm:text-xl font-bold tracking-wide tabular-nums shrink-0">
                       {booking.serviceTime}
                     </p>
                   </div>
