@@ -231,10 +231,14 @@ export default function TrackPage() {
               {booking.serviceDate && (
                 <div className="bg-white/5 rounded-lg p-2.5 mb-3">
                   <p className="text-gray-500 text-[10px] uppercase">Date & Time</p>
-                  <p className="text-gray-300 text-sm font-medium">{booking.serviceDate}</p>
-                  <p className="text-[#C9A063] text-xl sm:text-2xl font-bold tracking-wide mt-0.5">
-                    {booking.serviceTime}
-                  </p>
+                  <div className="mt-1 flex items-center justify-between gap-3">
+                    <p className="text-gray-300 text-sm sm:text-base font-medium min-w-0">
+                      {booking.serviceDate}
+                    </p>
+                    <p className="text-[#C9A063] text-xl sm:text-2xl font-bold tracking-wide tabular-nums shrink-0">
+                      {booking.serviceTime}
+                    </p>
+                  </div>
                 </div>
               )}
               <div className="space-y-2">
