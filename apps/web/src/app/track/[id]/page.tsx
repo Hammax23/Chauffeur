@@ -24,6 +24,21 @@ function isCancelledStatus(status: string): boolean {
   return normalizeTrackStatus(status) === "CANCELLED";
 }
 
+/** Display as month/day/year (e.g. 11/23/2026). */
+function formatPickupDate(raw?: string | null): string {
+  const s = (raw || "").trim();
+  if (!s) return "";
+  const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) {
+    return `${Number(iso[2])}/${Number(iso[3])}/${iso[1]}`;
+  }
+  const parsed = new Date(s);
+  if (!Number.isNaN(parsed.getTime())) {
+    return `${parsed.getMonth() + 1}/${parsed.getDate()}/${parsed.getFullYear()}`;
+  }
+  return s;
+}
+
 export default function TrackPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -236,7 +251,7 @@ export default function TrackPage() {
                         Pickup Date
                       </span>
                       <span className="text-[13px] sm:text-[14px] font-bold text-white tabular-nums whitespace-nowrap">
-                        {booking.serviceDate}
+                        {formatPickupDate(booking.serviceDate)}
                       </span>
                     </div>
                   ) : null}
