@@ -2,6 +2,7 @@ import "server-only";
 import type { InvoiceFareSnapshot, InvoiceKind, InvoiceLineItem } from "@/lib/invoice-types";
 import { roundMoney } from "@/lib/invoice-types";
 import { getBillingCompany } from "@/lib/billing-company";
+import { HST_RATE } from "@/lib/reservation-pricing";
 
 export type ReservationInvoiceSource = {
   id: string;
@@ -221,5 +222,105 @@ export function buildCreditNoteSnapshot(
     creditOfInvoiceNumber: opts.creditOfInvoiceNumber,
     refundAmount,
     stripeRefundId: opts.stripeRefundId || null,
+  };
+}
+
+export type StandaloneInvoiceInput = {
+  bookingId: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  serviceType?: string;
+  vehicle?: string;
+  serviceDate?: string;
+  serviceTime?: string;
+  pickupLocation?: string;
+  dropoffLocation?: string;
+  /** Pipe-separated or free text; split on | or newlines */
+  stops?: string;
+  passengers?: number;
+  paymentMethodLabel?: string;
+  alreadyPaid?: boolean;
+  lines: { label: string; amount: number }[];
+  hstRate?: number;
+};
+
+/** Manual / walk-in invoice — no reservation. Line amounts are pre-tax. */
+export function buildStandaloneSnapshot(
+  input: StandaloneInvoiceInput
+): InvoiceFareSnapshot {
+  const company = getBillingCompany();
+  const hstRate =
+    typeof input.hstRate === "number" && input.hstRate >= 0 ? input.hstRate : HST_RATE;
+
+  const lines: InvoiceLineItem[] = input.lines
+    .map((l, i) => ({
+      key: `line_${i + 1}`,
+      label: String(l.label || "").trim() || `Line ${i + 1}`,
+      amount: roundMoney(l.amount),
+    }))
+    .filter((l) => Number.isFinite(l.amount) && Math.abs(l.amount) > 0.0001);
+
+  const subtotal = roundMoney(lines.reduce((s, l) => s + l.amount, 0));
+  const hst = roundMoney(subtotal * hstRate);
+  const total = roundMoney(subtotal + hst);
+
+  const stops = String(input.stops || "")
+    .split(/[|\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const paid = Boolean(input.alreadyPaid);
+  const method = String(input.paymentMethodLabel || "").trim() || "Manual / external";
+
+  return {
+    version: 1,
+    issuedAt: new Date().toISOString(),
+    currency: "CAD",
+    bookingId: input.bookingId,
+    reservationId: null,
+    kind: "STANDARD",
+    revision: 0,
+    customer: {
+      name: String(input.customerName || "").trim() || "Guest",
+      email: String(input.customerEmail || "").trim().toLowerCase(),
+      phone: String(input.customerPhone || "").trim(),
+    },
+    trip: {
+      serviceType: String(input.serviceType || "").trim() || "Manual billing",
+      vehicle: String(input.vehicle || "").trim(),
+      serviceDate: String(input.serviceDate || "").trim(),
+      serviceTime: String(input.serviceTime || "").trim(),
+      pickupLocation: String(input.pickupLocation || "").trim(),
+      dropoffLocation: String(input.dropoffLocation || "").trim(),
+      stops,
+      passengers: Math.max(0, Math.floor(Number(input.passengers) || 0)),
+    },
+    lines: [
+      ...lines,
+      ...(hst > 0
+        ? [{ key: "hst", label: `HST (${(hstRate * 100).toFixed(0)}%)`, amount: hst }]
+        : []),
+    ],
+    subtotal,
+    discountAmount: 0,
+    hst,
+    gratuity: 0,
+    total,
+    paymentStatus: paid ? "PAID" : "MANUAL",
+    paymentMethodLabel: method,
+    stripePaymentIntentId: null,
+    cardLast4: null,
+    cardType: null,
+    company: {
+      legalName: company.legalName,
+      addressLine1: company.addressLine1,
+      addressLine2: company.addressLine2,
+      country: company.country,
+      phone: company.phone,
+      email: company.email,
+      website: company.website,
+      hstNumber: company.hstNumber,
+    },
   };
 }

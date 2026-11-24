@@ -25,6 +25,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (session.metadata?.type === "manual_invoice") {
+      const { confirmManualInvoiceCheckoutSession } = await import(
+        "@/lib/manual-invoice-payment"
+      );
+      const result = await confirmManualInvoiceCheckoutSession({
+        sessionId,
+        actor: "checkout-confirm",
+      });
+      if (!result.ok) {
+        return NextResponse.json({ success: false, error: result.error }, { status: 400 });
+      }
+      return NextResponse.json({
+        success: true,
+        kind: "manual_invoice",
+        invoice: {
+          invoiceNumber: result.invoiceNumber,
+          bookingId: result.bookingId,
+          total: result.total,
+        },
+        // Keep shape compatible with pay/success page
+        reservation: {
+          bookingId: result.bookingId,
+          total: result.total,
+          paymentStatus: "PAID",
+        },
+      });
+    }
+
     if (session.metadata?.type !== "reservation") {
       return NextResponse.json({ success: false, error: "Not a reservation payment" }, { status: 400 });
     }

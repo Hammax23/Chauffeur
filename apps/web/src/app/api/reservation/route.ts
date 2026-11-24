@@ -35,7 +35,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
-    // Staff-only path (admin or operational manager). Never allow public skip of Turnstile.
+    // Staff-only path (Owner, Billing Assistant, or operational manager).
+    // Never allow public skip of Turnstile.
     const wantsSkipTurnstile = body.skipTurnstile === true;
     if (wantsSkipTurnstile) {
       const adminAuth = await verifyAdminAuth(request);
@@ -43,7 +44,10 @@ export async function POST(request: NextRequest) {
         const opsAuth = await verifyOperationalManagerAuth(request);
         if (!opsAuth.authenticated) {
           return NextResponse.json(
-            { error: "Sign in as admin or operational manager to create a reservation without verification." },
+            {
+              error:
+                "Sign in as admin, billing assistant, or operational manager to create a reservation without verification.",
+            },
             { status: 401 }
           );
         }

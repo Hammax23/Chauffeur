@@ -135,6 +135,8 @@ export default function ReservationsPage() {
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [chargingId, setChargingId] = useState<string | null>(null);
   const [chargeResult, setChargeResult] = useState<{ id: string; success: boolean; message: string } | null>(null);
@@ -214,7 +216,10 @@ export default function ReservationsPage() {
       const res = await fetch("/api/admin/reservations");
       const data = await res.json();
       if (data.success) {
-        setReservations(data.reservations || []);
+        const rows: Reservation[] = data.reservations || [];
+        setReservations(rows);
+        const alive = new Set(rows.map((r) => r.bookingId));
+        setSelectedIds((prev) => prev.filter((id) => alive.has(id)));
         setError("");
       } else {
         setError(data.error || "Failed to fetch");
@@ -301,6 +306,21 @@ export default function ReservationsPage() {
     return acc;
   }, {} as Record<string, number>);
 
+  const filteredIds = filtered.map((r) => r.bookingId);
+  const selectedVisibleCount = filteredIds.filter((id) => selectedIds.includes(id)).length;
+  const allVisibleSelected =
+    filteredIds.length > 0 && selectedVisibleCount === filteredIds.length;
+  const someVisibleSelected =
+    selectedVisibleCount > 0 && selectedVisibleCount < filteredIds.length;
+
+  const toggleSelectAllVisible = () => {
+    if (allVisibleSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !filteredIds.includes(id)));
+      return;
+    }
+    setSelectedIds((prev) => [...new Set([...prev, ...filteredIds])]);
+  };
+
   const handleDelete = async (bookingId: string) => {
     setActionLoading(true);
     try {
@@ -308,6 +328,7 @@ export default function ReservationsPage() {
       const data = await res.json();
       if (data.success) {
         setReservations(prev => prev.filter(r => r.bookingId !== bookingId));
+        setSelectedIds((prev) => prev.filter((id) => id !== bookingId));
         setDeleteConfirm(null);
         setExpandedRow(null);
       } else {
@@ -318,6 +339,50 @@ export default function ReservationsPage() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = selectedIds.filter(Boolean);
+    if (!ids.length) return;
+    if (ids.length > 100) {
+      alert("You can delete at most 100 reservations at a time. Deselect some and try again.");
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const res = await fetch("/api/admin/reservations/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ bookingIds: ids }),
+      });
+      const data = await res.json();
+      const deleted: string[] = Array.isArray(data.deleted) ? data.deleted : [];
+      if (deleted.length) {
+        const gone = new Set(deleted);
+        setReservations((prev) => prev.filter((r) => !gone.has(r.bookingId)));
+        setSelectedIds((prev) => prev.filter((id) => !gone.has(id)));
+        if (expandedRow && gone.has(expandedRow)) setExpandedRow(null);
+      }
+      setBulkDeleteConfirm(false);
+      if (data.failedCount > 0) {
+        alert(
+          `Deleted ${data.deletedCount || deleted.length}. Failed: ${(data.failed || []).join(", ") || data.failedCount}`
+        );
+      } else if (!data.success && !deleted.length) {
+        alert(data.error || "Failed to delete reservations");
+      }
+    } catch {
+      alert("Error deleting reservations");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const toggleSelect = (bookingId: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(bookingId) ? prev.filter((id) => id !== bookingId) : [...prev, bookingId]
+    );
   };
 
   const handleUpdate = async (bookingId: string, updates: Partial<Reservation>) => {
@@ -433,14 +498,38 @@ export default function ReservationsPage() {
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Reservations</h1>
           <p className="text-gray-500 mt-1">Manage all bookings and trips</p>
         </div>
-        <button
-          onClick={() => fetchReservations(true)}
-          disabled={refreshing}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#1C1C1E] text-white rounded-xl text-sm font-medium hover:bg-[#2C2C2E] transition-all"
-        >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-          Refresh
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {selectedIds.length > 0 ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setSelectedIds([])}
+                disabled={actionLoading}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-all disabled:opacity-50"
+              >
+                Clear ({selectedIds.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setBulkDeleteConfirm(true)}
+                disabled={actionLoading}
+                className="flex items-center gap-2 px-4 py-2.5 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 transition-all disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete selected ({selectedIds.length})
+              </button>
+            </>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => fetchReservations(true)}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#1C1C1E] text-white rounded-xl text-sm font-medium hover:bg-[#2C2C2E] transition-all"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Status Filter Tabs */}
@@ -513,8 +602,41 @@ export default function ReservationsPage() {
 
       {/* Reservations Table */}
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+        {/* Mobile select-all (desktop header is lg-only) */}
+        <div className="lg:hidden flex items-center justify-between gap-3 px-4 py-3 bg-gray-50 border-b border-gray-200">
+          <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={allVisibleSelected}
+              ref={(el) => {
+                if (el) el.indeterminate = someVisibleSelected;
+              }}
+              onChange={toggleSelectAllVisible}
+              disabled={filteredIds.length === 0}
+              className="w-4 h-4 rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063] cursor-pointer disabled:opacity-40"
+              aria-label="Select all visible reservations"
+            />
+            Select all visible
+          </label>
+          <span className="text-xs text-gray-500">{selectedVisibleCount} selected</span>
+        </div>
+
         {/* Table Header */}
-        <div className="hidden lg:grid grid-cols-[180px_1fr_1fr_140px_120px_100px_90px] gap-4 px-5 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+        <div className="hidden lg:grid grid-cols-[44px_180px_1fr_1fr_140px_120px_100px_90px] gap-4 px-5 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider items-center">
+          <span className="flex items-center justify-center">
+            <input
+              type="checkbox"
+              checked={allVisibleSelected}
+              ref={(el) => {
+                if (el) el.indeterminate = someVisibleSelected;
+              }}
+              onChange={toggleSelectAllVisible}
+              disabled={filteredIds.length === 0}
+              className="w-4 h-4 rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063] cursor-pointer disabled:opacity-40"
+              title={allVisibleSelected ? "Deselect all visible" : "Select all visible"}
+              aria-label="Select all visible reservations"
+            />
+          </span>
           <span>Booking ID</span>
           <span>Passenger</span>
           <span>Route</span>
@@ -534,16 +656,30 @@ export default function ReservationsPage() {
           <div className="divide-y divide-gray-100">
             {filtered.map((r) => {
               const isExpanded = expandedRow === r.bookingId;
+              const isSelected = selectedIds.includes(r.bookingId);
               const statusStyle = STATUS_COLORS[r.status] || STATUS_COLORS.PENDING;
               const isParcel = isParcelServiceType(r.serviceType);
               const parcelInfo = parseParcelRequirements(r.specialRequirements);
               return (
-                <div key={r.bookingId}>
+                <div key={r.bookingId} className={isSelected ? "bg-[#C9A063]/5" : undefined}>
                   {/* Row */}
                   <div
                     onClick={() => setExpandedRow(isExpanded ? null : r.bookingId)}
-                    className="grid grid-cols-1 lg:grid-cols-[180px_1fr_1fr_140px_120px_100px_90px] gap-2 lg:gap-4 px-5 py-4 hover:bg-gray-50 cursor-pointer transition-colors items-center"
+                    className="grid grid-cols-1 lg:grid-cols-[44px_180px_1fr_1fr_140px_120px_100px_90px] gap-2 lg:gap-4 px-5 py-4 hover:bg-gray-50 cursor-pointer transition-colors items-center"
                   >
+                    {/* Select */}
+                    <div
+                      className="flex items-center justify-start lg:justify-center"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(r.bookingId)}
+                        className="w-4 h-4 rounded border-gray-300 text-[#C9A063] focus:ring-[#C9A063] cursor-pointer"
+                        aria-label={`Select ${r.bookingId}`}
+                      />
+                    </div>
                     {/* Booking ID */}
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-bold text-[#C9A063]">{r.bookingId}</span>
@@ -1201,7 +1337,9 @@ export default function ReservationsPage() {
       {/* Footer */}
       <div className="text-center mt-6">
         <p className="text-gray-400 text-xs">
-          Auto-refreshes every 30 seconds • {filtered.length} of {reservations.length} reservations shown
+          Auto-refreshes every 30 seconds • {filtered.length} of {reservations.length} reservations
+          shown
+          {selectedIds.length > 0 ? ` • ${selectedIds.length} selected` : ""}
         </p>
       </div>
 
@@ -1231,6 +1369,55 @@ export default function ReservationsPage() {
                 >
                   {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                   Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation */}
+      {bulkDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-8 h-8 text-red-500" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Delete selected?</h3>
+              <p className="text-gray-500 text-sm mb-1">
+                This will permanently delete{" "}
+                <span className="font-semibold text-gray-800">{selectedIds.length}</span>{" "}
+                reservation{selectedIds.length === 1 ? "" : "s"}.
+              </p>
+              {selectedIds.length > 100 ? (
+                <p className="text-amber-700 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+                  Max 100 at a time — clear some selections first.
+                </p>
+              ) : null}
+              <p className="text-[11px] text-gray-400 mb-6 max-h-24 overflow-y-auto px-2">
+                {selectedIds.slice(0, 12).join(", ")}
+                {selectedIds.length > 12 ? ` +${selectedIds.length - 12} more` : ""}
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setBulkDeleteConfirm(false)}
+                  className="flex-1 px-4 py-3 border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors"
+                  disabled={actionLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleBulkDelete()}
+                  className="flex-1 px-4 py-3 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
+                  disabled={
+                    actionLoading || selectedIds.length === 0 || selectedIds.length > 100
+                  }
+                >
+                  {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  Delete {selectedIds.length}
                 </button>
               </div>
             </div>

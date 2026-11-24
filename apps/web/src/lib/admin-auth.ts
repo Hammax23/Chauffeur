@@ -372,14 +372,16 @@ export async function verifyAdminAuth(request?: NextRequest): Promise<{
   }
   const role = access.role;
 
-  // Hard API/page gate: Billing Assistant → Billing + Bookings only.
+  // Hard API/page gate: Billing Assistant → Billing + reservation/booking tools only.
   if (request && role === "BILLING_ASSISTANT") {
     try {
+      // Use real request path only (never trust client x-pathname for auth).
       const path = request.nextUrl?.pathname || new URL(request.url).pathname;
-      if (!isBillingAssistantPath(path)) {
+      if (!isBillingAssistantPath(path, request.method)) {
         return {
           authenticated: false,
-          error: "Billing assistants may only use Billing and Bookings.",
+          error:
+            "Billing assistants may only use Billing, Reservations, and Custom Reservation.",
           code: "FORBIDDEN_ROLE",
           adminId: identity.adminId,
           email: identity.email,
@@ -390,7 +392,8 @@ export async function verifyAdminAuth(request?: NextRequest): Promise<{
     } catch {
       return {
         authenticated: false,
-        error: "Billing assistants may only use Billing and Bookings.",
+        error:
+          "Billing assistants may only use Billing, Reservations, and Custom Reservation.",
         code: "FORBIDDEN_ROLE",
         role,
       };

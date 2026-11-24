@@ -33,9 +33,17 @@ function SuccessInner() {
           return;
         }
         setStatus("ok");
-        setMessage("Payment successful. Your reservation is marked as paid.");
-        setTotal(data.reservation?.total ?? null);
-        setCode(data.reservation?.bookingId || bookingId);
+        setMessage(
+          data.kind === "manual_invoice"
+            ? "Payment successful. Your invoice will be emailed shortly."
+            : "Payment successful. Your reservation is marked as paid."
+        );
+        setTotal(data.reservation?.total ?? data.invoice?.total ?? null);
+        setCode(
+          data.invoice?.invoiceNumber ||
+            data.reservation?.bookingId ||
+            bookingId
+        );
       })
       .catch(() => {
         setStatus("error");

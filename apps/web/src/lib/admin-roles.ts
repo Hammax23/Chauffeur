@@ -22,8 +22,11 @@ export function normalizeAdminRole(raw?: string | null): AdminRole {
   return r === "BILLING_ASSISTANT" ? "BILLING_ASSISTANT" : "OWNER";
 }
 
-export function isBillingAssistantPath(pathname: string): boolean {
-  return pathAllowed(pathname);
+export function isBillingAssistantPath(
+  pathname: string,
+  method?: string | null
+): boolean {
+  return pathAllowed(pathname, method);
 }
 
 export type AdminAccess =

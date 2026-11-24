@@ -20,7 +20,8 @@ export type InvoiceFareSnapshot = {
   issuedAt: string;
   currency: "CAD";
   bookingId: string;
-  reservationId: string;
+  /** Null/empty for standalone manual invoices. */
+  reservationId: string | null;
   kind: InvoiceKind;
   revision: number;
   customer: {

@@ -30,6 +30,26 @@ export async function POST(request: NextRequest) {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
+        if (session.payment_status === "paid" && session.metadata?.type === "manual_invoice") {
+          try {
+            const { markManualInvoicePaidAndDeliver } = await import(
+              "@/lib/manual-invoice-payment"
+            );
+            const piId =
+              typeof session.payment_intent === "string"
+                ? session.payment_intent
+                : session.payment_intent?.id || null;
+            await markManualInvoicePaidAndDeliver({
+              invoiceId: session.metadata.invoiceId || null,
+              bookingId: session.metadata.bookingId || null,
+              paymentIntentId: piId,
+              actor: "stripe-webhook",
+            });
+          } catch (e) {
+            console.error("[webhook] manual invoice checkout paid failed", e);
+          }
+          break;
+        }
         if (
           session.payment_status === "paid" &&
           session.metadata?.type === "reservation" &&
@@ -71,6 +91,22 @@ export async function POST(request: NextRequest) {
         console.log(`Payment succeeded: ${paymentIntent.id}`);
         console.log("Amount:", paymentIntent.amount / 100, paymentIntent.currency.toUpperCase());
         console.log("Metadata:", paymentIntent.metadata);
+        if (paymentIntent.metadata?.type === "manual_invoice") {
+          try {
+            const { markManualInvoicePaidAndDeliver } = await import(
+              "@/lib/manual-invoice-payment"
+            );
+            await markManualInvoicePaidAndDeliver({
+              invoiceId: paymentIntent.metadata.invoiceId || null,
+              bookingId: paymentIntent.metadata.bookingId || null,
+              paymentIntentId: paymentIntent.id,
+              actor: "stripe-webhook",
+            });
+          } catch (e) {
+            console.error("[webhook] manual invoice PI paid failed", e);
+          }
+          break;
+        }
         if (paymentIntent.metadata?.type === "reservation" && paymentIntent.metadata?.bookingId) {
           const bookingId = paymentIntent.metadata.bookingId;
           try {

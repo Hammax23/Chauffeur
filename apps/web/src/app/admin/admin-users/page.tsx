@@ -450,7 +450,7 @@ export default function AdminUsersPage() {
                       className="px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 bg-white focus:border-[#C9A063] focus:outline-none focus:ring-2 focus:ring-[#C9A063]/25"
                     >
                       <option value="OWNER">Owner (full admin)</option>
-                      <option value="BILLING_ASSISTANT">Billing Assistant (invoices only)</option>
+                      <option value="BILLING_ASSISTANT">Billing Assistant (billing + reservations)</option>
                     </select>
                   </label>
                 </>
@@ -475,7 +475,7 @@ export default function AdminUsersPage() {
                     className="px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 bg-white focus:border-[#C9A063] focus:outline-none focus:ring-2 focus:ring-[#C9A063]/25"
                   >
                     <option value="OWNER">Owner (full admin)</option>
-                    <option value="BILLING_ASSISTANT">Billing Assistant (invoices only)</option>
+                    <option value="BILLING_ASSISTANT">Billing Assistant (billing + reservations)</option>
                   </select>
                 </label>
                 </>

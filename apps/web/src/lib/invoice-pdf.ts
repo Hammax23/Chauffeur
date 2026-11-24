@@ -242,6 +242,16 @@ export async function buildInvoicePdfBuffer(opts: {
       align: "right",
     });
     y += 12;
+    if (snapshot.customer.phone) {
+      doc
+        .fillColor(muted)
+        .font("Helvetica")
+        .fontSize(8)
+        .text(formatInvoicePhone(snapshot.customer.phone), leftX, y, {
+          width: colW - 8,
+        });
+      y += 10;
+    }
     if (snapshot.paymentMethodLabel || snapshot.paymentStatus) {
       doc
         .fillColor(muted)
@@ -255,6 +265,51 @@ export async function buildInvoicePdfBuffer(opts: {
     }
 
     y += 6;
+
+    // Optional trip / service block (reservation invoices + filled manual fields)
+    const trip = snapshot.trip;
+    const tripRows: { label: string; value: string }[] = [];
+    if (trip?.serviceType) tripRows.push({ label: "Service", value: trip.serviceType });
+    if (trip?.vehicle) tripRows.push({ label: "Vehicle", value: trip.vehicle });
+    if (trip?.serviceDate || trip?.serviceTime) {
+      tripRows.push({
+        label: "Date / time",
+        value: [trip.serviceDate, trip.serviceTime].filter(Boolean).join(" · "),
+      });
+    }
+    if (trip?.pickupLocation) tripRows.push({ label: "Pickup", value: trip.pickupLocation });
+    if (trip?.dropoffLocation) tripRows.push({ label: "Drop-off", value: trip.dropoffLocation });
+    if (trip?.stops?.length) {
+      tripRows.push({ label: "Stops", value: trip.stops.join(" → ") });
+    }
+    if (trip?.passengers && trip.passengers > 0) {
+      tripRows.push({ label: "Passengers", value: String(trip.passengers) });
+    }
+
+    if (tripRows.length > 0) {
+      doc
+        .moveTo(leftX, y)
+        .lineTo(rightEdge, y)
+        .lineWidth(0.8)
+        .strokeColor("#e5e7eb")
+        .stroke();
+      y += 10;
+      doc.fillColor(muted).font("Helvetica-Bold").fontSize(8).text("TRIP / SERVICE", leftX, y);
+      y += 12;
+      doc.font("Helvetica").fontSize(9);
+      for (const row of tripRows) {
+        const rowTop = y;
+        doc.fillColor(muted).text(`${row.label}:`, leftX, rowTop, { width: 88 });
+        doc.fillColor(slate).text(row.value, leftX + 90, rowTop, { width: pageWidth - 90 });
+        y = Math.max(doc.y, rowTop + 12) + 2;
+        if (y > 700) {
+          doc.addPage();
+          y = 48;
+        }
+      }
+      y += 4;
+    }
+
     doc
       .moveTo(leftX, y)
       .lineTo(rightEdge, y)

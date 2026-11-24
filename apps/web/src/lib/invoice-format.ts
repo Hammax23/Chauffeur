@@ -150,9 +150,29 @@ export function buildInvoiceDisplayLines(
     l.key === "discount" ||
     /hst|grat|discount/i.test(l.label);
 
+  // Manual standalone invoices use line_1…line_n — show those only (no synthetic trip fare).
+  const customLines = snapshot.lines.filter(
+    (l) => !taxish(l) && /^line_\d+$/i.test(l.key)
+  );
+  const hasReservationFareKeys = snapshot.lines.some(
+    (l) => l.key === "rideFare" || l.key === "subtotal" || l.key === "supplement"
+  );
+  if (customLines.length > 0 && !hasReservationFareKeys) {
+    return customLines.map((l) => {
+      const amount = roundMoney(l.amount);
+      return {
+        description: l.label,
+        quantity: 1,
+        unitPrice: amount,
+        amount,
+      };
+    });
+  }
+
   const extras = snapshot.lines.filter(
     (l) =>
       !taxish(l) &&
+      !/^line_\d+$/i.test(l.key) &&
       (l.key === "stopCharge" ||
         l.key === "childSeat" ||
         l.key === "supplement" ||

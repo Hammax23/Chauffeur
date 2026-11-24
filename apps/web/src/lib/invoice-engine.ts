@@ -3,8 +3,10 @@ import prisma from "@/lib/prisma";
 import {
   buildCreditNoteSnapshot,
   buildStandardFareSnapshot,
+  buildStandaloneSnapshot,
   buildSupplementSnapshot,
   type ReservationInvoiceSource,
+  type StandaloneInvoiceInput,
 } from "@/lib/invoice-snapshot";
 import { buildInvoicePdfBuffer, invoicePdfFileName } from "@/lib/invoice-pdf";
 import { uploadInvoicePdf, isInvoiceStorageConfigured } from "@/lib/invoice-storage";
@@ -145,6 +147,7 @@ export async function ensureStandardInvoiceForReservation(
           status: "ISSUED",
           reservationId,
           bookingId: r.bookingId,
+          source: "RESERVATION",
           revision: 0,
           snapshotJson: JSON.stringify(snapshot),
           subtotal: snapshot.subtotal,
@@ -233,6 +236,7 @@ export async function ensureSupplementInvoiceForAdjustment(
           status: "ISSUED",
           reservationId: adj.reservationId,
           bookingId: adj.bookingId,
+          source: "RESERVATION",
           fareAdjustmentId: adj.id,
           revision: 0,
           snapshotJson: JSON.stringify(snapshot),
@@ -310,6 +314,7 @@ export async function issueCreditNoteForRefund(opts: {
       status: "ISSUED",
       reservationId: opts.reservationId,
       bookingId: standard.bookingId,
+      source: "RESERVATION",
       parentInvoiceId: standard.id,
       revision: 0,
       snapshotJson: JSON.stringify(snapshot),
@@ -379,6 +384,13 @@ async function runEmailJob(invoiceId: string): Promise<void> {
   if (!isEmailConfigured()) {
     throw new Error("Email provider not configured");
   }
+  // Defense: never send held manual card invoices even if a job was queued early.
+  if (inv.source === "MANUAL") {
+    const { manualInvoiceEmailHeld } = await import("@/lib/manual-invoice-payment");
+    if (manualInvoiceEmailHeld(inv)) {
+      throw new Error("Manual invoice email held until payment succeeds");
+    }
+  }
   const { buffer } = await ensurePdf(invoiceId);
   const snapshot = parseSnapshot(inv.snapshotJson);
   const to = inv.customerEmail;
@@ -433,6 +445,17 @@ export async function resendInvoiceEmail(opts: {
   if (!inv) return { ok: false, error: "Invoice not found" };
   if (inv.resendCount >= MAX_RESENDS_PER_INVOICE) {
     return { ok: false, error: "Resend limit reached for this invoice" };
+  }
+
+  // Manual card invoices: never email until Stripe marks snapshot PAID.
+  if (inv.source === "MANUAL") {
+    const { manualInvoiceEmailHeld } = await import("@/lib/manual-invoice-payment");
+    if (manualInvoiceEmailHeld(inv)) {
+      return {
+        ok: false,
+        error: "Payment not complete — invoice email is held until card payment succeeds",
+      };
+    }
   }
 
   const alternate = opts.toEmail?.trim().toLowerCase() || "";
@@ -647,6 +670,109 @@ export async function retryInvoiceJob(opts: {
   return { ok: true };
 }
 
+function makeManualBookingId(): string {
+  const stamp = Date.now().toString(36).toUpperCase();
+  const suffix = Math.floor(Math.random() * 1000)
+    .toString()
+    .padStart(3, "0");
+  return `MAN-${stamp}${suffix}`;
+}
+
+/** Walk-in / phone billing — no Reservation row required. */
+export async function issueStandaloneInvoice(
+  input: Omit<StandaloneInvoiceInput, "bookingId"> & { bookingId?: string },
+  opts: { actor: string; adminId?: string | null }
+) {
+  const customerName = String(input.customerName || "").trim();
+  const customerEmail = String(input.customerEmail || "").trim().toLowerCase();
+  if (!customerName) return { ok: false as const, error: "Customer name is required" };
+  if (!customerEmail || !customerEmail.includes("@")) {
+    return { ok: false as const, error: "Valid customer email is required" };
+  }
+  const rawLines = Array.isArray(input.lines) ? input.lines : [];
+  if (!rawLines.length) {
+    return { ok: false as const, error: "Add at least one line item" };
+  }
+  if (rawLines.length > 20) {
+    return { ok: false as const, error: "Maximum 20 line items" };
+  }
+
+  const bookingId = String(input.bookingId || "").trim() || makeManualBookingId();
+  const snapshot = buildStandaloneSnapshot({
+    ...input,
+    bookingId,
+    customerName,
+    customerEmail,
+  });
+  if (!snapshot.lines.some((l) => l.key.startsWith("line_"))) {
+    return { ok: false as const, error: "Line amounts must be non-zero" };
+  }
+
+  const invoiceNumber = await prisma.$transaction(async (tx) =>
+    allocateInvoiceNumber(tx as any)
+  );
+
+  const alreadyPaid = Boolean(input.alreadyPaid);
+  const method = String(input.paymentMethodLabel || "").trim();
+  // Credit card / Stripe collect: hold email + sync until payment succeeds.
+  // Cash/e-Transfer with alreadyPaid still emails immediately.
+  const deferDelivery = !alreadyPaid && /^credit\s*card$/i.test(method);
+
+  const row = await prisma.invoice.create({
+    data: {
+      invoiceNumber,
+      kind: "STANDARD",
+      status: "ISSUED",
+      reservationId: null,
+      bookingId,
+      source: "MANUAL",
+      revision: 0,
+      snapshotJson: JSON.stringify(snapshot),
+      subtotal: snapshot.subtotal,
+      discountAmount: snapshot.discountAmount,
+      hst: snapshot.hst,
+      gratuity: snapshot.gratuity,
+      total: snapshot.total,
+      customerName: snapshot.customer.name,
+      customerEmail: snapshot.customer.email,
+      customerPhone: snapshot.customer.phone || null,
+      createdByActor: opts.actor,
+      emailStatus: deferDelivery ? "SKIPPED" : "PENDING",
+      qbSyncStatus: deferDelivery ? "SKIPPED" : "PENDING",
+      dropboxSyncStatus: deferDelivery ? "SKIPPED" : "PENDING",
+    },
+  });
+
+  if (!deferDelivery) {
+    await enqueueJobs(row.id, ["EMAIL", "QBO_SYNC", "DROPBOX_SYNC"]);
+    void processInvoiceJobs(row.id).catch(() => {});
+  }
+
+  await writeBillingAudit({
+    actor: opts.actor,
+    adminId: opts.adminId,
+    action: "MANUAL_STANDALONE_INVOICE_ISSUED",
+    invoiceId: row.id,
+    bookingId,
+    meta: {
+      source: "MANUAL",
+      lineCount: rawLines.length,
+      alreadyPaid,
+      deferDelivery,
+    },
+  });
+
+  return {
+    ok: true as const,
+    invoiceId: row.id,
+    invoiceNumber: row.invoiceNumber,
+    bookingId,
+    total: snapshot.total,
+    alreadyPaid,
+    deferDelivery,
+  };
+}
+
 /** Manual cash / unpaid → issue STANDARD once marked paid by assistant workflow. */
 export async function issueManualInvoiceForReservation(
   reservationId: string,
@@ -682,6 +808,7 @@ export async function issueManualInvoiceForReservation(
         status: "ISSUED",
         reservationId,
         bookingId: r.bookingId,
+        source: "RESERVATION",
         revision: 0,
         snapshotJson: JSON.stringify(snapshot),
         subtotal: snapshot.subtotal,
