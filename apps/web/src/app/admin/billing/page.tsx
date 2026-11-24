@@ -47,7 +47,7 @@ const labelClass = "block text-xs font-semibold text-gray-600 mb-1.5";
 
 const emptyStandalone = () => ({
   customerName: "",
-  customerEmail: "",
+  customerEmails: [""] as string[],
   customerPhone: "",
   serviceType: "Point-to-Point transportation",
   vehicle: "",
@@ -60,6 +60,18 @@ const emptyStandalone = () => ({
   paymentMethodLabel: "Credit card",
   alreadyPaid: false,
 });
+
+function splitEmails(raw: string | null | undefined): string[] {
+  const parts = String(raw || "")
+    .split(/[,;\n]+/)
+    .map((e) => e.trim())
+    .filter(Boolean);
+  return parts.length ? parts : [""];
+}
+
+function joinEmails(emails: string[]): string {
+  return emails.map((e) => e.trim()).filter(Boolean).join(", ");
+}
 
 type InvoiceRow = {
   id: string;
@@ -276,7 +288,7 @@ export default function AdminBillingPage() {
       setLoadedReservationId(r.id);
       setStandalone({
         customerName: r.customerName,
-        customerEmail: r.customerEmail,
+        customerEmails: splitEmails(r.customerEmail),
         customerPhone: r.customerPhone,
         serviceType: r.serviceType || "Point-to-Point transportation",
         vehicle: r.vehicle,
@@ -438,9 +450,18 @@ export default function AdminBillingPage() {
         }))
         .filter((l) => l.label && Number.isFinite(l.amount) && Math.abs(l.amount) > 0.0001);
 
+      const customerEmail = joinEmails(standalone.customerEmails);
+      if (!customerEmail.includes("@")) {
+        setMessage("Add at least one valid customer email");
+        setBusyId(null);
+        return;
+      }
+
+      const { customerEmails: _emails, ...standaloneRest } = standalone;
       const payload = {
         action: "issue_standalone",
-        ...standalone,
+        ...standaloneRest,
+        customerEmail,
         ...(loadedBookingId ? { bookingId: loadedBookingId } : {}),
         ...(loadedReservationId ? { reservationId: loadedReservationId } : {}),
         alreadyPaid: isCardCollect ? false : standalone.alreadyPaid,
@@ -718,17 +739,69 @@ export default function AdminBillingPage() {
                     className={fieldClass}
                   />
                 </div>
-                <div>
-                  <label className={labelClass}>Email *</label>
-                  <input
-                    type="email"
-                    value={standalone.customerEmail}
-                    onChange={(e) =>
-                      setStandalone((s) => ({ ...s, customerEmail: e.target.value }))
-                    }
-                    placeholder="guest@email.com"
-                    className={fieldClass}
-                  />
+                <div className="sm:col-span-1">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <label className="block text-xs font-semibold text-gray-600">
+                      Email *{" "}
+                      <span className="font-normal text-gray-400">
+                        (all get invoice when paid)
+                      </span>
+                    </label>
+                    {standalone.customerEmails.length < 5 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setStandalone((s) => ({
+                            ...s,
+                            customerEmails: [...s.customerEmails, ""],
+                          }))
+                        }
+                        className="text-[11px] font-semibold text-[#8B6914] hover:underline whitespace-nowrap"
+                      >
+                        + Add email
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {standalone.customerEmails.map((value, idx) => (
+                      <div key={idx} className="flex gap-2 items-center">
+                        <input
+                          type="email"
+                          autoComplete={idx === 0 ? "email" : "off"}
+                          value={value}
+                          onChange={(e) => {
+                            const next = e.target.value;
+                            setStandalone((s) => ({
+                              ...s,
+                              customerEmails: s.customerEmails.map((em, i) =>
+                                i === idx ? next : em
+                              ),
+                            }));
+                          }}
+                          placeholder={
+                            idx === 0 ? "guest@email.com" : "assistant@email.com"
+                          }
+                          className={fieldClass}
+                        />
+                        {standalone.customerEmails.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setStandalone((s) => ({
+                                ...s,
+                                customerEmails: s.customerEmails.filter(
+                                  (_, i) => i !== idx
+                                ),
+                              }))
+                            }
+                            className="text-xs font-semibold text-rose-700 shrink-0"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <label className={labelClass}>Phone</label>

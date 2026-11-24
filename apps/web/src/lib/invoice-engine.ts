@@ -10,7 +10,11 @@ import {
 } from "@/lib/invoice-snapshot";
 import { buildInvoicePdfBuffer, invoicePdfFileName } from "@/lib/invoice-pdf";
 import { uploadInvoicePdf, isInvoiceStorageConfigured } from "@/lib/invoice-storage";
-import { sendTransactionalEmail, isEmailConfigured } from "@/lib/email-delivery";
+import {
+  sendTransactionalEmail,
+  isEmailConfigured,
+  parseEmailList,
+} from "@/lib/email-delivery";
 import { buildInvoiceEmailHtml } from "@/lib/invoice-email";
 import type { InvoiceFareSnapshot, InvoiceJobType } from "@/lib/invoice-types";
 import { roundMoney } from "@/lib/invoice-types";
@@ -684,11 +688,16 @@ export async function issueStandaloneInvoice(
   opts: { actor: string; adminId?: string | null }
 ) {
   const customerName = String(input.customerName || "").trim();
-  const customerEmail = String(input.customerEmail || "").trim().toLowerCase();
+  const emailList = parseEmailList(input.customerEmail);
   if (!customerName) return { ok: false as const, error: "Customer name is required" };
-  if (!customerEmail || !customerEmail.includes("@")) {
-    return { ok: false as const, error: "Valid customer email is required" };
+  if (!emailList.length) {
+    return {
+      ok: false as const,
+      error: "At least one valid customer email is required",
+    };
   }
+  // Store joined list — delivery parses and sends to every address.
+  const customerEmail = emailList.join(", ");
   const rawLines = Array.isArray(input.lines) ? input.lines : [];
   if (!rawLines.length) {
     return { ok: false as const, error: "Add at least one line item" };
