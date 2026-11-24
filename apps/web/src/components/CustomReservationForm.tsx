@@ -152,7 +152,7 @@ export default function CustomReservationForm() {
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
+  const [emails, setEmails] = useState<string[]>([""]);
   const [phone, setPhone] = useState("");
   const [countryCode, setCountryCode] = useState(COUNTRY_CODES[0].code);
   const [specialRequirements, setSpecialRequirements] = useState("");
@@ -386,13 +386,21 @@ export default function CustomReservationForm() {
         setStepError("Please enter last name.");
         return false;
       }
-      if (!email.trim()) {
-        setStepError("Please enter email address.");
-        return false;
-      }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        setStepError("Please enter a valid email address.");
-        return false;
+      {
+        const parts = emails.map((e) => e.trim()).filter(Boolean);
+        const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+        if (!parts.length) {
+          setStepError("Please enter at least one email address.");
+          return false;
+        }
+        if (parts.some((e) => !emailRe.test(e))) {
+          setStepError("Please enter a valid email on each filled row.");
+          return false;
+        }
+        if (parts.length > 5) {
+          setStepError("Maximum 5 email addresses.");
+          return false;
+        }
       }
       if (!phone.trim()) {
         setStepError("Please enter phone number.");
@@ -462,7 +470,7 @@ export default function CustomReservationForm() {
         body: JSON.stringify({
           firstName,
           lastName,
-          email,
+          email: emails.map((e) => e.trim()).filter(Boolean).join(", "),
           phone,
           phoneCode: countryCode,
           serviceType,
@@ -586,10 +594,11 @@ export default function CustomReservationForm() {
 
   const shareEmail = () => {
     if (!paymentLink) return;
+    const primaryEmail = emails.map((e) => e.trim()).filter(Boolean)[0] || "";
     const subject = `Payment link — ${createdBookingId} — SARJ Worldwide`;
     const body = `Hello${firstName ? ` ${firstName}` : ""},\n\nPlease use this secure Stripe link to pay for your reservation ${createdBookingId}:\n\n${paymentLink}\n\nThank you,\nSARJ Worldwide`;
     window.open(
-      `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
+      `mailto:${encodeURIComponent(primaryEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
       "_blank"
     );
   };
@@ -602,7 +611,7 @@ export default function CustomReservationForm() {
     setHourlyDuration(APP_MIN_HOURLY_HOURS);
     setFirstName("");
     setLastName("");
-    setEmail("");
+    setEmails([""]);
     setPhone("");
     setSelectedVehicle("");
     setVehicleCategoryFilter("All");
@@ -1575,25 +1584,68 @@ export default function CustomReservationForm() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
-                        Email Address *
-                      </label>
-                      <div className="relative">
-                        <Mail
-                          className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#C9A063]"
-                          strokeWidth={2}
-                        />
-                        <input
-                          type="email"
-                          placeholder="john.smith@example.com"
-                          value={email}
-                          onChange={(e) => {
-                            setEmail(e.target.value);
-                            setStepError("");
-                          }}
-                          className="w-full min-h-11 pl-9 pr-3 py-2.5 border border-gray-200 rounded-lg text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063]"
-                        />
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <label className="block text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wider">
+                          Email Address *
+                        </label>
+                        {emails.length < 5 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEmails((rows) => [...rows, ""]);
+                              setStepError("");
+                            }}
+                            className="text-[11px] font-semibold text-[#8B6914] hover:underline"
+                          >
+                            + Add another email
+                          </button>
+                        )}
                       </div>
+                      <div className="space-y-2">
+                        {emails.map((value, idx) => (
+                          <div key={idx} className="flex gap-2 items-center">
+                            <div className="relative flex-1">
+                              <Mail
+                                className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#C9A063]"
+                                strokeWidth={2}
+                              />
+                              <input
+                                type="email"
+                                autoComplete={idx === 0 ? "email" : "off"}
+                                placeholder={
+                                  idx === 0
+                                    ? "customer@email.com"
+                                    : "assistant@email.com"
+                                }
+                                value={value}
+                                onChange={(e) => {
+                                  const next = e.target.value;
+                                  setEmails((rows) =>
+                                    rows.map((r, i) => (i === idx ? next : r))
+                                  );
+                                  setStepError("");
+                                }}
+                                className="w-full min-h-11 pl-9 pr-3 py-2.5 border border-gray-200 rounded-lg text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/20 focus:border-[#C9A063]"
+                              />
+                            </div>
+                            {emails.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEmails((rows) => rows.filter((_, i) => i !== idx))
+                                }
+                                className="text-xs font-semibold text-rose-700 px-1 shrink-0"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <p className="mt-1.5 text-[11px] text-gray-500">
+                        First = customer. Add more for assistant — confirmation goes to
+                        every email.
+                      </p>
                     </div>
                     <div>
                       <label className="block text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-1">

@@ -58,12 +58,30 @@ export type EmailAttachment = {
   contentType?: string;
 };
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+
+/** Split comma / semicolon / whitespace-separated addresses; dedupe case-insensitively. */
+export function parseEmailList(raw: string | string[] | null | undefined): string[] {
+  const parts = Array.isArray(raw)
+    ? raw.flatMap((s) => String(s || "").split(/[,;\n]+/))
+    : String(raw || "").split(/[,;\n]+/);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of parts) {
+    const e = part.trim().toLowerCase();
+    if (!e || !EMAIL_RE.test(e) || seen.has(e)) continue;
+    seen.add(e);
+    out.push(e);
+  }
+  return out;
+}
+
 /**
  * Resend first (verified domain). SMTP only if Resend is unset, or
  * EMAIL_SMTP_FALLBACK=true (avoid Hostinger while mailbox is blocked).
  */
 export async function sendTransactionalEmail(opts: {
-  to: string;
+  to: string | string[];
   subject: string;
   html: string;
   replyTo?: string;
@@ -71,7 +89,13 @@ export async function sendTransactionalEmail(opts: {
   /** Log prefix for failures */
   logLabel?: string;
 }): Promise<boolean> {
-  const { to, subject, html, logLabel = "transactional" } = opts;
+  const recipients = parseEmailList(opts.to);
+  if (!recipients.length) {
+    console.warn(`[${opts.logLabel || "transactional"}] No valid recipients`);
+    return false;
+  }
+  const to = recipients.length === 1 ? recipients[0] : recipients;
+  const { subject, html, logLabel = "transactional" } = opts;
   const from = defaultFromAddress();
   const replyTo = opts.replyTo?.trim() || defaultReplyTo();
   const resendClient = getResendClient();
@@ -119,7 +143,7 @@ export async function sendTransactionalEmail(opts: {
     try {
       await smtp.sendMail({
         from,
-        to,
+        to: recipients.join(", "),
         subject,
         html,
         ...(replyTo ? { replyTo } : {}),
@@ -139,6 +163,6 @@ export async function sendTransactionalEmail(opts: {
     }
   }
 
-  console.warn(`[${logLabel}] Email not sent (no provider succeeded):`, { to });
+  console.warn(`[${logLabel}] Email not sent (no provider succeeded):`, { to: recipients });
   return false;
 }

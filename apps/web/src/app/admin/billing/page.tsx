@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   Copy,
   ExternalLink,
+  Trash2,
 } from "lucide-react";
 import { fleetData, type FleetVehicle } from "@/data/fleet";
 import { PARCEL_SERVICE_TYPE } from "@/lib/parcel";
@@ -1003,78 +1004,125 @@ export default function AdminBillingPage() {
                       <td className="px-4 py-3">{badge(inv.qbSyncStatus)}</td>
                       <td className="px-4 py-3">{badge(inv.dropboxSyncStatus)}</td>
                       <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="flex flex-nowrap items-center gap-0">
                           <a
                             href={`/api/admin/billing/invoices/${encodeURIComponent(inv.id)}/pdf`}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-xs font-semibold text-[#8B6914] hover:underline"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-[#C9A063]/15 text-[#8B6914] ring-1 ring-[#C9A063]/35 hover:bg-[#C9A063]/25"
                           >
+                            <FileText className="w-3 h-3" />
                             PDF
                           </a>
-                          {inv.emailStatus !== "SKIPPED" && (
+                          <span
+                            className="mx-2 h-5 w-px shrink-0 bg-gray-300"
+                            aria-hidden
+                          />
+                          {inv.emailStatus !== "SKIPPED" ? (
                             <button
                               type="button"
                               disabled={busyId === inv.id}
                               onClick={() =>
                                 void postAction({ action: "resend", invoiceId: inv.id })
                               }
-                              className="inline-flex items-center gap-1 text-xs font-semibold text-gray-700 hover:text-black"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 disabled:opacity-40"
                             >
                               <Send className="w-3 h-3" />
                               Resend
                             </button>
-                          )}
-                          {inv.emailStatus === "SKIPPED" && (
-                            <span className="text-[10px] font-semibold text-amber-800">
-                              Email held until paid
+                          ) : (
+                            <span className="text-[10px] font-semibold text-amber-800 px-1 whitespace-nowrap">
+                              Held
                             </span>
                           )}
                           {inv.emailStatus === "FAILED" && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void postAction({
-                                  action: "retry",
-                                  invoiceId: inv.id,
-                                  type: "EMAIL",
-                                })
-                              }
-                              className="text-xs font-semibold text-rose-700"
-                            >
-                              Retry email
-                            </button>
+                            <>
+                              <span
+                                className="mx-2 h-5 w-px shrink-0 bg-gray-300"
+                                aria-hidden
+                              />
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void postAction({
+                                    action: "retry",
+                                    invoiceId: inv.id,
+                                    type: "EMAIL",
+                                  })
+                                }
+                                className="inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-50 whitespace-nowrap"
+                              >
+                                Retry email
+                              </button>
+                            </>
                           )}
                           {inv.qbSyncStatus === "FAILED" && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void postAction({
-                                  action: "retry",
-                                  invoiceId: inv.id,
-                                  type: "QBO_SYNC",
-                                })
-                              }
-                              className="text-xs font-semibold text-rose-700"
-                            >
-                              Retry QB
-                            </button>
+                            <>
+                              <span
+                                className="mx-2 h-5 w-px shrink-0 bg-gray-300"
+                                aria-hidden
+                              />
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void postAction({
+                                    action: "retry",
+                                    invoiceId: inv.id,
+                                    type: "QBO_SYNC",
+                                  })
+                                }
+                                className="inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-50 whitespace-nowrap"
+                              >
+                                Retry QB
+                              </button>
+                            </>
                           )}
                           {inv.dropboxSyncStatus === "FAILED" && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void postAction({
-                                  action: "retry",
-                                  invoiceId: inv.id,
-                                  type: "DROPBOX_SYNC",
-                                })
-                              }
-                              className="text-xs font-semibold text-rose-700"
-                            >
-                              Retry Dropbox
-                            </button>
+                            <>
+                              <span
+                                className="mx-2 h-5 w-px shrink-0 bg-gray-300"
+                                aria-hidden
+                              />
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void postAction({
+                                    action: "retry",
+                                    invoiceId: inv.id,
+                                    type: "DROPBOX_SYNC",
+                                  })
+                                }
+                                className="inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-50 whitespace-nowrap"
+                              >
+                                Retry Dropbox
+                              </button>
+                            </>
                           )}
+                          <span
+                            className="mx-2 h-5 w-px shrink-0 bg-gray-300"
+                            aria-hidden
+                          />
+                          <button
+                            type="button"
+                            disabled={busyId === inv.id}
+                            onClick={() => {
+                              if (
+                                !confirm(
+                                  `Delete invoice ${inv.invoiceNumber}?\n\nThis permanently removes it from Billing. This cannot be undone.`
+                                )
+                              ) {
+                                return;
+                              }
+                              void postAction({
+                                action: "delete_invoice",
+                                invoiceId: inv.id,
+                              });
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-50 disabled:opacity-40"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Delete
+                          </button>
                         </div>
                       </td>
                     </tr>

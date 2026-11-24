@@ -386,7 +386,11 @@ function reservationPassengerRows(d: ReservationEmailData): string {
   if (d.childSeatCount && d.childSeatCount > 0) {
     r += emailDataRow("Child seats", `${d.childSeatCount}${d.childSeatType ? ` (${d.childSeatType})` : ""}`);
   }
-  r += emailDataRow("Email", `mailto:${d.email}`, { link: true });
+  if (d.email.includes(",")) {
+    r += emailDataRow("Email", d.email);
+  } else {
+    r += emailDataRow("Email", `mailto:${d.email}`, { link: true });
+  }
   r += emailDataRow("Phone", d.phone);
   return r;
 }
@@ -394,11 +398,6 @@ function reservationPassengerRows(d: ReservationEmailData): string {
 function reservationTripRows(d: ReservationEmailData): string {
   let r = "";
   r += emailDataRow("Booking Mode", d.bookingMode === "hourly" ? "Hourly" : "Distance Based");
-  if (d.bookingMode !== "hourly") {
-    const transferTypeDisplay = d.transferType === "oneWay" ? "One Way" : d.transferType === "return" ? "Return" : "Return (New Ride)";
-    r += emailDataRow("Transfer Type", transferTypeDisplay);
-  }
-  if (d.serviceType) r += emailDataRow("Service", d.serviceType);
   r += emailDataRow("Vehicle", d.vehicle);
   r += emailDataRow("Date & time", d.formattedDateTime);
   if (d.bookingMode === "hourly" && d.hourlyDuration) {
@@ -416,9 +415,10 @@ function reservationTripRows(d: ReservationEmailData): string {
   }
   if (d.distance) r += emailDataRow("Distance", d.distance);
   if (d.duration) r += emailDataRow("Est. Travel Time", d.duration);
-  r += emailDataRow("407 ETR", d.etr407 ? "Yes" : "No");
-  r += emailDataRow("Meet & Greet", d.meetGreet ? "Yes" : "No");
-  r += emailDataRow("Bouquet of Flowers", d.bouquetFlowers ? "Yes" : "No");
+  // Only show optional add-ons when selected (Yes) — omit "No" rows
+  if (d.etr407) r += emailDataRow("407 ETR", "Yes");
+  if (d.meetGreet) r += emailDataRow("Meet & Greet", "Yes");
+  if (d.bouquetFlowers) r += emailDataRow("Bouquet of Flowers", "Yes");
   return r;
 }
 

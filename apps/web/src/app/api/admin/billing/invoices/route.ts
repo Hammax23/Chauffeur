@@ -245,5 +245,50 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true });
   }
 
+  if (action === "delete_invoice") {
+    const invoiceId = String(body.invoiceId || "").trim();
+    if (!invoiceId) {
+      return NextResponse.json({ success: false, error: "invoiceId required" }, { status: 400 });
+    }
+    const inv = await prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        bookingId: true,
+        source: true,
+        total: true,
+      },
+    });
+    if (!inv) {
+      return NextResponse.json({ success: false, error: "Invoice not found" }, { status: 404 });
+    }
+    await prisma.invoice.delete({ where: { id: invoiceId } });
+    try {
+      await prisma.billingAuditLog.create({
+        data: {
+          actor: gate.auth.actor,
+          adminId: gate.auth.adminId || null,
+          action: "INVOICE_DELETED",
+          invoiceId: null,
+          bookingId: inv.bookingId,
+          metaJson: JSON.stringify({
+            deletedInvoiceId: inv.id,
+            invoiceNumber: inv.invoiceNumber,
+            source: inv.source,
+            total: inv.total,
+          }),
+        },
+      });
+    } catch (e) {
+      console.error("[billing] delete audit", e);
+    }
+    return NextResponse.json({
+      success: true,
+      deletedId: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+    });
+  }
+
   return NextResponse.json({ success: false, error: "Unknown action" }, { status: 400 });
 }

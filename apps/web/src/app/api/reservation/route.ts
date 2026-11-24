@@ -16,7 +16,11 @@ import {
 } from "@/lib/reservation-pricing";
 import { getPricingConfig } from "@/lib/get-pricing-config";
 import { createReservationPaymentLink } from "@/lib/reservation-payment-link";
-import { isEmailConfigured, sendTransactionalEmail } from "@/lib/email-delivery";
+import {
+  isEmailConfigured,
+  parseEmailList,
+  sendTransactionalEmail,
+} from "@/lib/email-delivery";
 import prisma from "@/lib/prisma";
 
 const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -62,7 +66,9 @@ export async function POST(request: NextRequest) {
     // Sanitize all inputs
     const firstName = sanitizeInput(body.firstName);
     const lastName = sanitizeInput(body.lastName);
-    const email = sanitizeInput(body.email);
+    // Custom Reservation / staff may pass multiple emails (comma/semicolon): customer + assistant.
+    const emailRecipients = parseEmailList(sanitizeInput(body.email));
+    const email = emailRecipients[0] || "";
     const phone = sanitizeInput(body.phone);
 
     // Block public web bookings when the matching app customer has unpaid balance.
@@ -134,7 +140,17 @@ export async function POST(request: NextRequest) {
     const checkoutPaymentMethod =
       sanitizeInput(body.paymentMethod) === "cash" ? "cash" : "card";
 
-    if (!firstName || !lastName || !email || !phone || !pickupLocation || !serviceDate || !serviceTime || !vehicle) {
+    if (
+      !firstName ||
+      !lastName ||
+      !email ||
+      emailRecipients.length === 0 ||
+      !phone ||
+      !pickupLocation ||
+      !serviceDate ||
+      !serviceTime ||
+      !vehicle
+    ) {
       return NextResponse.json({ error: "Please fill in all required fields" }, { status: 400 });
     }
 
@@ -301,10 +317,13 @@ export async function POST(request: NextRequest) {
 
     const currentDate = new Date().toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" });
 
+    const emailDisplay =
+      emailRecipients.length > 1 ? emailRecipients.join(", ") : email;
+
     const reservationEmailData = {
       bookingId,
       fullName,
-      email,
+      email: emailDisplay,
       phone: fullPhone,
       passengers,
       bookingMode,
@@ -386,7 +405,7 @@ export async function POST(request: NextRequest) {
       status: "PENDING",
       firstName,
       lastName,
-      email,
+      email: emailDisplay,
       phone: fullPhone,
       serviceType,
       bookingMode,
@@ -460,7 +479,7 @@ export async function POST(request: NextRequest) {
       }
 
       const adminSent = await sendTransactionalEmail({
-        to: process.env.CONTACT_EMAIL,
+        to: process.env.CONTACT_EMAIL!,
         replyTo: email,
         subject: `New booking ${bookingId} - ${fullName} - ${vehicle} - ${formattedDateTime}`,
         html: adminEmailHtml,
@@ -476,8 +495,9 @@ export async function POST(request: NextRequest) {
         logLabel: "reservation-admin",
       });
 
+      // Customer + optional assistant / extra contacts (Custom Reservation multi-email).
       const userSent = await sendTransactionalEmail({
-        to: email,
+        to: emailRecipients,
         subject: `Booking ${bookingId} - Your reservation is confirmed - SARJ Worldwide`,
         html: userEmailHtml,
         logLabel: "reservation-user",
