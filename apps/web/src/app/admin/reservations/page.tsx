@@ -681,8 +681,24 @@ export default function ReservationsPage() {
                       />
                     </div>
                     {/* Booking ID */}
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-sm font-bold text-[#C9A063]">{r.bookingId}</span>
+                      <button
+                        type="button"
+                        title="Copy booking ID"
+                        aria-label={`Copy ${r.bookingId}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void copyToClipboard(r.bookingId, `id-${r.bookingId}`);
+                        }}
+                        className="inline-flex items-center justify-center p-1 rounded-md text-gray-400 hover:text-[#8B6914] hover:bg-[#C9A063]/15 transition-colors"
+                      >
+                        {copiedUrl === `id-${r.bookingId}` ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
                       {isParcel ? (
                         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase bg-[#C9A063]/15 text-[#8B6914] border border-[#C9A063]/35">
                           Parcel

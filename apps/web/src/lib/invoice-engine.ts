@@ -698,9 +698,54 @@ export async function issueStandaloneInvoice(
   }
 
   const bookingId = String(input.bookingId || "").trim() || makeManualBookingId();
+  let reservationId = String(input.reservationId || "").trim() || null;
+  if (reservationId) {
+    const linked = await prisma.reservation.findUnique({
+      where: { id: reservationId },
+      select: { id: true, bookingId: true },
+    });
+    if (!linked) reservationId = null;
+  } else if (bookingId && !bookingId.startsWith("MAN-")) {
+    // Loaded from booking id — attach Reservation when it exists.
+    const linked = await prisma.reservation.findUnique({
+      where: { bookingId },
+      select: { id: true },
+    });
+    if (linked) reservationId = linked.id;
+  }
+
+  // Avoid duplicate open invoices for the same booking.
+  if (bookingId) {
+    const existingOpen = await prisma.invoice.findFirst({
+      where: {
+        bookingId,
+        kind: "STANDARD",
+        revision: 0,
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, invoiceNumber: true, emailStatus: true, snapshotJson: true },
+    });
+    if (existingOpen) {
+      let paid = false;
+      try {
+        const snap = JSON.parse(existingOpen.snapshotJson) as { paymentStatus?: string };
+        paid = String(snap.paymentStatus || "").toUpperCase() === "PAID";
+      } catch {
+        /* ignore */
+      }
+      if (!paid) {
+        return {
+          ok: false as const,
+          error: `Invoice ${existingOpen.invoiceNumber} already exists for ${bookingId} (unpaid). Collect payment on that invoice or delete it first.`,
+        };
+      }
+    }
+  }
+
   const snapshot = buildStandaloneSnapshot({
     ...input,
     bookingId,
+    reservationId,
     customerName,
     customerEmail,
   });
@@ -723,9 +768,9 @@ export async function issueStandaloneInvoice(
       invoiceNumber,
       kind: "STANDARD",
       status: "ISSUED",
-      reservationId: null,
+      reservationId,
       bookingId,
-      source: "MANUAL",
+      source: reservationId ? "RESERVATION" : "MANUAL",
       revision: 0,
       snapshotJson: JSON.stringify(snapshot),
       subtotal: snapshot.subtotal,
@@ -755,10 +800,12 @@ export async function issueStandaloneInvoice(
     invoiceId: row.id,
     bookingId,
     meta: {
-      source: "MANUAL",
+      source: reservationId ? "RESERVATION" : "MANUAL",
+      reservationId,
       lineCount: rawLines.length,
       alreadyPaid,
       deferDelivery,
+      gratuity: snapshot.gratuity,
     },
   });
 
@@ -767,83 +814,157 @@ export async function issueStandaloneInvoice(
     invoiceId: row.id,
     invoiceNumber: row.invoiceNumber,
     bookingId,
+    reservationId,
     total: snapshot.total,
     alreadyPaid,
     deferDelivery,
   };
 }
 
-/** Manual cash / unpaid → issue STANDARD once marked paid by assistant workflow. */
+/**
+ * Issue / ensure STANDARD invoice for an existing reservation.
+ * - Already PAID booking → invoice + email immediately.
+ * - Unpaid / cash / pay-later → invoice created with email HELD until Stripe payment
+ *   (same collect flow as Create manual invoice: payment link + enter card).
+ */
 export async function issueManualInvoiceForReservation(
-  reservationId: string,
+  reservationIdOrBookingId: string,
   opts: { actor: string; adminId?: string | null }
 ) {
-  const r = await prisma.reservation.findUnique({ where: { id: reservationId } });
-  if (!r) return { ok: false as const, error: "Reservation not found" };
+  const key = String(reservationIdOrBookingId || "").trim();
+  if (!key) return { ok: false as const, error: "Reservation id or booking id required" };
 
-  // Allow manual issue for PAID or explicitly cash-complete flows.
-  const result = await ensureStandardInvoiceForReservation(reservationId, {
-    actor: opts.actor,
-  });
-  if (!result) {
-    // Force issue even if not PAID (cash receipt) by temporarily treating as paid snapshot
-    const source = r as unknown as ReservationInvoiceSource;
-    const snapshot = buildStandardFareSnapshot(
-      { ...source, paymentStatus: source.paymentStatus || "CASH" },
-      { kind: "STANDARD", revision: 0 }
-    );
-    const existing = await prisma.invoice.findFirst({
-      where: { reservationId, kind: "STANDARD", revision: 0 },
+  // Accept either Prisma cuid OR public bookingId (e.g. SARJ-…).
+  const r =
+    (await prisma.reservation.findUnique({ where: { id: key } })) ||
+    (await prisma.reservation.findUnique({ where: { bookingId: key } }));
+  if (!r) {
+    return {
+      ok: false as const,
+      error: "Reservation not found — use booking id (SARJ-…) or reservation id",
+    };
+  }
+  const reservationId = r.id;
+  const bookingPaid = String(r.paymentStatus || "").toUpperCase() === "PAID";
+
+  // Paid bookings: issue + deliver email now.
+  if (bookingPaid) {
+    const result = await ensureStandardInvoiceForReservation(reservationId, {
+      actor: opts.actor,
     });
-    if (existing) {
-      return { ok: true as const, invoiceId: existing.id, invoiceNumber: existing.invoiceNumber };
+    if (!result) {
+      return { ok: false as const, error: "Could not issue invoice for paid reservation" };
     }
-    const invoiceNumber = await prisma.$transaction(async (tx) =>
-      allocateInvoiceNumber(tx as any)
-    );
-    const row = await prisma.invoice.create({
-      data: {
-        invoiceNumber,
-        kind: "STANDARD",
-        status: "ISSUED",
-        reservationId,
-        bookingId: r.bookingId,
-        source: "RESERVATION",
-        revision: 0,
-        snapshotJson: JSON.stringify(snapshot),
-        subtotal: snapshot.subtotal,
-        discountAmount: snapshot.discountAmount,
-        hst: snapshot.hst,
-        gratuity: snapshot.gratuity,
-        total: snapshot.total,
-        customerName: snapshot.customer.name,
-        customerEmail: snapshot.customer.email,
-        customerPhone: snapshot.customer.phone || null,
-        createdByActor: opts.actor,
-      },
-    });
-    await enqueueJobs(row.id, ["EMAIL", "QBO_SYNC", "DROPBOX_SYNC"]);
     await writeBillingAudit({
       actor: opts.actor,
       adminId: opts.adminId,
-      action: "MANUAL_INVOICE_ISSUED",
-      invoiceId: row.id,
+      action: "MANUAL_INVOICE_ENSURE",
+      invoiceId: result.invoiceId,
       bookingId: r.bookingId,
     });
-    void processInvoiceJobs(row.id).catch(() => {});
-    return { ok: true as const, invoiceId: row.id, invoiceNumber: row.invoiceNumber };
+    void processInvoiceJobs(result.invoiceId).catch(() => {});
+    return {
+      ok: true as const,
+      invoiceId: result.invoiceId,
+      invoiceNumber: result.invoiceNumber,
+      bookingId: r.bookingId,
+      total: r.total,
+      deferDelivery: false as const,
+    };
   }
+
+  // Unpaid: never email until card/payment link succeeds.
+  const existing = await prisma.invoice.findFirst({
+    where: { reservationId, kind: "STANDARD", revision: 0 },
+  });
+  if (existing) {
+    let snapPaid = false;
+    try {
+      const snap = JSON.parse(existing.snapshotJson) as { paymentStatus?: string };
+      snapPaid = String(snap.paymentStatus || "").toUpperCase() === "PAID";
+    } catch {
+      /* ignore */
+    }
+    if (!snapPaid) {
+      // Hold / re-hold email until Stripe pay — but don't wipe DONE (already emailed once).
+      if (
+        existing.emailStatus !== "SKIPPED" &&
+        existing.emailStatus !== "DONE"
+      ) {
+        await prisma.invoice.update({
+          where: { id: existing.id },
+          data: {
+            emailStatus: "SKIPPED",
+            qbSyncStatus: "SKIPPED",
+            dropboxSyncStatus: "SKIPPED",
+          },
+        });
+      }
+      return {
+        ok: true as const,
+        invoiceId: existing.id,
+        invoiceNumber: existing.invoiceNumber,
+        bookingId: r.bookingId,
+        total: existing.total,
+        deferDelivery: true as const,
+      };
+    }
+    return {
+      ok: true as const,
+      invoiceId: existing.id,
+      invoiceNumber: existing.invoiceNumber,
+      bookingId: r.bookingId,
+      total: existing.total,
+      deferDelivery: false as const,
+    };
+  }
+
+  const source = r as unknown as ReservationInvoiceSource;
+  const snapshot = buildStandardFareSnapshot(
+    { ...source, paymentStatus: "UNPAID" },
+    { kind: "STANDARD", revision: 0 }
+  );
+  const invoiceNumber = await prisma.$transaction(async (tx) =>
+    allocateInvoiceNumber(tx as any)
+  );
+  const row = await prisma.invoice.create({
+    data: {
+      invoiceNumber,
+      kind: "STANDARD",
+      status: "ISSUED",
+      reservationId,
+      bookingId: r.bookingId,
+      source: "RESERVATION",
+      revision: 0,
+      snapshotJson: JSON.stringify(snapshot),
+      subtotal: snapshot.subtotal,
+      discountAmount: snapshot.discountAmount,
+      hst: snapshot.hst,
+      gratuity: snapshot.gratuity,
+      total: snapshot.total,
+      customerName: snapshot.customer.name,
+      customerEmail: snapshot.customer.email,
+      customerPhone: snapshot.customer.phone || null,
+      createdByActor: opts.actor,
+      emailStatus: "SKIPPED",
+      qbSyncStatus: "SKIPPED",
+      dropboxSyncStatus: "SKIPPED",
+    },
+  });
   await writeBillingAudit({
     actor: opts.actor,
     adminId: opts.adminId,
-    action: "MANUAL_INVOICE_ENSURE",
-    invoiceId: result.invoiceId,
+    action: "RESERVATION_INVOICE_HELD_FOR_PAYMENT",
+    invoiceId: row.id,
     bookingId: r.bookingId,
+    meta: { deferDelivery: true },
   });
-  void processInvoiceJobs(result.invoiceId).catch(() => {});
   return {
     ok: true as const,
-    invoiceId: result.invoiceId,
-    invoiceNumber: result.invoiceNumber,
+    invoiceId: row.id,
+    invoiceNumber: row.invoiceNumber,
+    bookingId: r.bookingId,
+    total: row.total,
+    deferDelivery: true as const,
   };
 }

@@ -227,6 +227,8 @@ export function buildCreditNoteSnapshot(
 
 export type StandaloneInvoiceInput = {
   bookingId: string;
+  /** When loaded from an existing booking — links Invoice → Reservation. */
+  reservationId?: string | null;
   customerName: string;
   customerEmail: string;
   customerPhone?: string;
@@ -242,10 +244,12 @@ export type StandaloneInvoiceInput = {
   paymentMethodLabel?: string;
   alreadyPaid?: boolean;
   lines: { label: string; amount: number }[];
+  /** Pre-tax extras already in `lines`. Gratuity is after HST (not taxed again). */
+  gratuity?: number;
   hstRate?: number;
 };
 
-/** Manual / walk-in invoice — no reservation. Line amounts are pre-tax. */
+/** Manual / walk-in invoice — line amounts are pre-tax; optional gratuity after HST. */
 export function buildStandaloneSnapshot(
   input: StandaloneInvoiceInput
 ): InvoiceFareSnapshot {
@@ -263,7 +267,8 @@ export function buildStandaloneSnapshot(
 
   const subtotal = roundMoney(lines.reduce((s, l) => s + l.amount, 0));
   const hst = roundMoney(subtotal * hstRate);
-  const total = roundMoney(subtotal + hst);
+  const gratuity = roundMoney(Math.max(0, Number(input.gratuity) || 0));
+  const total = roundMoney(subtotal + hst + gratuity);
 
   const stops = String(input.stops || "")
     .split(/[|\n]/)
@@ -272,13 +277,14 @@ export function buildStandaloneSnapshot(
 
   const paid = Boolean(input.alreadyPaid);
   const method = String(input.paymentMethodLabel || "").trim() || "Manual / external";
+  const reservationId = String(input.reservationId || "").trim() || null;
 
   return {
     version: 1,
     issuedAt: new Date().toISOString(),
     currency: "CAD",
     bookingId: input.bookingId,
-    reservationId: null,
+    reservationId,
     kind: "STANDARD",
     revision: 0,
     customer: {
@@ -301,11 +307,14 @@ export function buildStandaloneSnapshot(
       ...(hst > 0
         ? [{ key: "hst", label: `HST (${(hstRate * 100).toFixed(0)}%)`, amount: hst }]
         : []),
+      ...(gratuity > 0
+        ? [{ key: "gratuity", label: "Admin, Fuel & Grat", amount: gratuity }]
+        : []),
     ],
     subtotal,
     discountAmount: 0,
     hst,
-    gratuity: 0,
+    gratuity,
     total,
     paymentStatus: paid ? "PAID" : "MANUAL",
     paymentMethodLabel: method,

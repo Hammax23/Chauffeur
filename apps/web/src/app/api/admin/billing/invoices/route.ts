@@ -14,6 +14,11 @@ import {
   markManualInvoicePaidAndDeliver,
 } from "@/lib/manual-invoice-payment";
 import type { InvoiceJobType } from "@/lib/invoice-types";
+import {
+  AIRPORT_PICKUP_FEE,
+  BOUQUET_CHARGE,
+  MEET_GREET_CHARGE,
+} from "@/lib/reservation-pricing";
 
 /** GET — list invoices for Billing panel (assistant-safe fields only). */
 export async function GET(req: NextRequest) {
@@ -157,8 +162,18 @@ export async function POST(req: NextRequest) {
     // Credit card: never email until Stripe payment succeeds.
     const alreadyPaid = isCardCollect ? false : Boolean(body.alreadyPaid);
 
+    const bookingIdRaw =
+      typeof body.bookingId === "string" ? body.bookingId.trim() : "";
+
+    const reservationIdRaw =
+      typeof body.reservationId === "string" ? body.reservationId.trim() : "";
+    const gratuityRaw =
+      body.gratuity === "" || body.gratuity == null ? 0 : Number(body.gratuity);
+
     const result = await issueStandaloneInvoice(
       {
+        bookingId: bookingIdRaw || undefined,
+        reservationId: reservationIdRaw || undefined,
         customerName: String(body.customerName || ""),
         customerEmail: String(body.customerEmail || ""),
         customerPhone: typeof body.customerPhone === "string" ? body.customerPhone : "",
@@ -175,6 +190,7 @@ export async function POST(req: NextRequest) {
             : Number(body.passengers),
         paymentMethodLabel,
         alreadyPaid,
+        gratuity: Number.isFinite(gratuityRaw) ? Math.max(0, gratuityRaw) : 0,
         lines,
       },
       { actor: gate.auth.actor, adminId: gate.auth.adminId }
@@ -243,6 +259,155 @@ export async function POST(req: NextRequest) {
   if (action === "process_jobs") {
     await processInvoiceJobs();
     return NextResponse.json({ success: true });
+  }
+
+  if (action === "load_reservation") {
+    const key = String(body.bookingId || body.reservationId || "").trim();
+    if (!key) {
+      return NextResponse.json(
+        { success: false, error: "Booking id required (e.g. SARJ-…)" },
+        { status: 400 }
+      );
+    }
+    const r =
+      (await prisma.reservation.findUnique({ where: { bookingId: key } })) ||
+      (await prisma.reservation.findUnique({ where: { id: key } }));
+    if (!r) {
+      return NextResponse.json(
+        { success: false, error: "Reservation not found" },
+        { status: 404 }
+      );
+    }
+
+    const st = String(r.serviceType || "");
+    let serviceTypeValue = "Point-to-Point transportation";
+    if (/parcel/i.test(st)) serviceTypeValue = "Parcel Delivery";
+    else if (/hourly/i.test(st)) serviceTypeValue = "Hourly ride";
+
+    const stops = String(r.stops || "")
+      .split(/[|\n]/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join(" | ");
+
+    const lines: { label: string; amount: number }[] = [];
+    const ride = Number(r.rideFare) || 0;
+    const stopCh = Number(r.stopCharge) || 0;
+    const childCh = Number(r.childSeatCharge) || 0;
+    const sub = Number(r.subtotal) || 0;
+    const discount = Number(r.discountAmount) || 0;
+    const gratuity = Number(r.gratuity) || 0;
+    const notes = String(r.specialRequirements || "");
+
+    if (ride > 0) lines.push({ label: "Ride fare", amount: Math.round(ride * 100) / 100 });
+    if (stopCh > 0) lines.push({ label: "Stops", amount: Math.round(stopCh * 100) / 100 });
+    if (childCh > 0) {
+      lines.push({ label: "Child seat(s)", amount: Math.round(childCh * 100) / 100 });
+    }
+    if (/Meet\s*&\s*Greet:\s*Yes/i.test(notes)) {
+      lines.push({ label: "Meet & Greet", amount: MEET_GREET_CHARGE });
+    }
+    if (/Bouquet of Flowers:\s*Yes/i.test(notes)) {
+      lines.push({ label: "Bouquet of Flowers", amount: BOUQUET_CHARGE });
+    }
+    const airportMatch = notes.match(
+      /Airport pickup fee[^:]*:\s*\$?\s*([\d.]+)/i
+    );
+    if (airportMatch) {
+      const amt = Number(airportMatch[1]);
+      lines.push({
+        label: "Airport pickup fee (GTAA)",
+        amount: Number.isFinite(amt) && amt > 0 ? Math.round(amt * 100) / 100 : AIRPORT_PICKUP_FEE,
+      });
+    } else if (/Airport pickup fee/i.test(notes)) {
+      lines.push({ label: "Airport pickup fee (GTAA)", amount: AIRPORT_PICKUP_FEE });
+    }
+
+    const explained = Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100;
+    // Prefer booking pre-tax subtotal when itemized extras don't match (promo / custom).
+    if (
+      discount > 0 &&
+      Math.abs(explained - discount - sub) <= 0.05 &&
+      sub > 0
+    ) {
+      lines.push({
+        label: "Discount",
+        amount: -Math.round(discount * 100) / 100,
+      });
+    } else if (sub > 0 && Math.abs(explained - sub) > 0.05) {
+      lines.length = 0;
+      lines.push({ label: "Trip charges", amount: Math.round(sub * 100) / 100 });
+    } else if (!lines.length && sub > 0) {
+      lines.push({ label: "Ride fare", amount: Math.round(sub * 100) / 100 });
+    }
+
+    // Normalize for HTML date/time inputs
+    const rawDate = String(r.serviceDate || "").trim();
+    const serviceDate = /^\d{4}-\d{2}-\d{2}/.test(rawDate)
+      ? rawDate.slice(0, 10)
+      : rawDate;
+    const rawTime = String(r.serviceTime || "").trim();
+    const timeMatch = rawTime.match(/^(\d{1,2}):(\d{2})/);
+    const serviceTime = timeMatch
+      ? `${timeMatch[1].padStart(2, "0")}:${timeMatch[2]}`
+      : rawTime;
+
+    const existingInvoice = await prisma.invoice.findFirst({
+      where: { bookingId: r.bookingId, kind: "STANDARD", revision: 0 },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        emailStatus: true,
+        total: true,
+        snapshotJson: true,
+      },
+    });
+    let existingPaid = false;
+    if (existingInvoice) {
+      try {
+        const snap = JSON.parse(existingInvoice.snapshotJson) as {
+          paymentStatus?: string;
+        };
+        existingPaid =
+          String(snap.paymentStatus || "").toUpperCase() === "PAID";
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const name = `${r.firstName || ""} ${r.lastName || ""}`.trim();
+    return NextResponse.json({
+      success: true,
+      reservation: {
+        id: r.id,
+        bookingId: r.bookingId,
+        customerName: name || "Guest",
+        // Keep full multi-email string — delivery parses the list.
+        customerEmail: String(r.email || "").trim(),
+        customerPhone: r.phone || "",
+        serviceType: serviceTypeValue,
+        vehicle: r.vehicle || "",
+        serviceDate,
+        serviceTime,
+        pickupLocation: r.pickupLocation || "",
+        dropoffLocation: r.dropoffLocation || "",
+        stops,
+        passengers: String(r.passengers || 1),
+        paymentStatus: r.paymentStatus || "",
+        gratuity: Math.round(Math.max(0, gratuity) * 100) / 100,
+        lines,
+        existingInvoice: existingInvoice
+          ? {
+              id: existingInvoice.id,
+              invoiceNumber: existingInvoice.invoiceNumber,
+              emailStatus: existingInvoice.emailStatus,
+              total: existingInvoice.total,
+              paid: existingPaid,
+            }
+          : null,
+      },
+    });
   }
 
   if (action === "delete_invoice") {

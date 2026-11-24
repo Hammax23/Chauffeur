@@ -136,18 +136,20 @@ export async function verifyManualInvoicePaymentIntent(opts: {
   return { ok: true, paymentIntentId: pi.id, amount: pi.amount / 100 };
 }
 
-/** True when this manual invoice must not email until Stripe marks it paid. */
+/** True when invoice email must wait until Stripe marks it paid. */
 export function manualInvoiceEmailHeld(invoice: {
   source: string;
   emailStatus: string;
   snapshotJson: string;
 }): boolean {
-  if (invoice.source !== "MANUAL") return false;
   const snapshot = parseSnap(invoice.snapshotJson);
   if (isPaidSnapshot(snapshot)) return false;
   if (invoice.emailStatus === "SKIPPED") return true;
-  const method = String(snapshot?.paymentMethodLabel || "");
-  return /^credit\s*card$/i.test(method);
+  if (invoice.source === "MANUAL") {
+    const method = String(snapshot?.paymentMethodLabel || "");
+    return /^credit\s*card$/i.test(method);
+  }
+  return false;
 }
 
 /** After Stripe payment succeeds — update snapshot + deliver email/QB/Dropbox once. */
@@ -166,14 +168,17 @@ export async function markManualInvoicePaidAndDeliver(opts: {
       : null) ||
     (opts.bookingId
       ? await prisma.invoice.findFirst({
-          where: { bookingId: opts.bookingId, source: "MANUAL" },
+          where: {
+            bookingId: opts.bookingId,
+            source: { in: ["MANUAL", "RESERVATION"] },
+          },
           orderBy: { createdAt: "desc" },
         })
       : null);
 
   if (!invoice) return { ok: false, error: "Invoice not found" };
-  if (invoice.source !== "MANUAL") {
-    return { ok: false, error: "Not a manual invoice" };
+  if (invoice.source !== "MANUAL" && invoice.source !== "RESERVATION") {
+    return { ok: false, error: "Unsupported invoice source" };
   }
 
   const snapshot = parseSnap(invoice.snapshotJson);
@@ -221,13 +226,28 @@ export async function markManualInvoicePaidAndDeliver(opts: {
       },
     });
 
+    // Keep linked reservation in sync when collecting pay-later / cash booking card.
+    if (invoice.reservationId) {
+      try {
+        await prisma.reservation.update({
+          where: { id: invoice.reservationId },
+          data: {
+            paymentStatus: "PAID",
+            stripePaymentIntentId: verifiedPiId || undefined,
+          },
+        });
+      } catch (e) {
+        console.error("[manual-invoice-payment] reservation PAID sync", e);
+      }
+    }
+
     await writeAudit({
       actor: opts.actor,
       adminId: opts.adminId,
-      action: "MANUAL_INVOICE_MARKED_PAID",
+      action: "INVOICE_MARKED_PAID_AFTER_COLLECT",
       invoiceId: invoice.id,
       bookingId: invoice.bookingId,
-      meta: { paymentIntentId: verifiedPiId },
+      meta: { paymentIntentId: verifiedPiId, source: invoice.source },
     });
   }
 
@@ -248,8 +268,8 @@ export async function createManualInvoicePaymentLink(opts: {
   adminId?: string | null;
 }): Promise<{ url: string; sessionId: string; amount: number }> {
   const inv = await prisma.invoice.findUnique({ where: { id: opts.invoiceId } });
-  if (!inv || inv.source !== "MANUAL") {
-    throw new Error("Manual invoice not found");
+  if (!inv || (inv.source !== "MANUAL" && inv.source !== "RESERVATION")) {
+    throw new Error("Invoice not found");
   }
   const amount = Number(inv.total) || 0;
   if (amount < 0.5) throw new Error("Total must be at least $0.50");
@@ -266,7 +286,7 @@ export async function createManualInvoicePaymentLink(opts: {
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     payment_method_types: ["card"],
-    customer_email: inv.customerEmail || undefined,
+    customer_email: inv.customerEmail?.split(",")[0]?.trim() || undefined,
     line_items: [
       {
         quantity: 1,
@@ -302,10 +322,10 @@ export async function createManualInvoicePaymentLink(opts: {
   await writeAudit({
     actor: opts.actor,
     adminId: opts.adminId,
-    action: "MANUAL_INVOICE_PAYMENT_LINK_CREATED",
+    action: "INVOICE_PAYMENT_LINK_CREATED",
     invoiceId: inv.id,
     bookingId: inv.bookingId,
-    meta: { sessionId: session.id },
+    meta: { sessionId: session.id, source: inv.source },
   });
 
   return { url: session.url, sessionId: session.id, amount };
@@ -317,8 +337,8 @@ export async function createManualInvoicePaymentIntent(opts: {
   adminId?: string | null;
 }): Promise<{ clientSecret: string; paymentIntentId: string; amount: number }> {
   const inv = await prisma.invoice.findUnique({ where: { id: opts.invoiceId } });
-  if (!inv || inv.source !== "MANUAL") {
-    throw new Error("Manual invoice not found");
+  if (!inv || (inv.source !== "MANUAL" && inv.source !== "RESERVATION")) {
+    throw new Error("Invoice not found");
   }
   const amount = Number(inv.total) || 0;
   if (amount < 0.5) throw new Error("Total must be at least $0.50");
@@ -403,7 +423,10 @@ export async function confirmManualInvoiceCheckoutSession(opts: {
       : null) ||
     (bookingId
       ? await prisma.invoice.findFirst({
-          where: { bookingId, source: "MANUAL" },
+          where: {
+            bookingId,
+            source: { in: ["MANUAL", "RESERVATION"] },
+          },
           orderBy: { createdAt: "desc" },
         })
       : null);

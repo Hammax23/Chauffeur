@@ -132,6 +132,11 @@ export default function AdminBillingPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [manualReservationId, setManualReservationId] = useState("");
+  const [loadedBookingId, setLoadedBookingId] = useState<string | null>(null);
+  const [loadedReservationId, setLoadedReservationId] = useState<string | null>(
+    null
+  );
+  const [manualGratuity, setManualGratuity] = useState("");
   const [standalone, setStandalone] = useState(emptyStandalone);
   const [manualLines, setManualLines] = useState<ManualLine[]>([
     { label: "Ride fare", amount: "" },
@@ -139,6 +144,8 @@ export default function AdminBillingPage() {
   const [fleetVehicles, setFleetVehicles] = useState<FleetVehicle[]>(fleetData);
   const [pendingCard, setPendingCard] = useState<PendingCardCollect | null>(null);
   const isCardCollect = /^credit\s*card$/i.test(standalone.paymentMethodLabel);
+
+  const vehicleInFleet = fleetVehicles.some((v) => v.name === standalone.vehicle);
 
   useEffect(() => {
     fetch("/api/fleet")
@@ -193,15 +200,178 @@ export default function AdminBillingPage() {
       const json = await res.json();
       if (!json.success) {
         setMessage(json.error || "Action failed");
-      } else {
-        setMessage("Done");
-        await load();
+        return;
       }
+
+      setMessage("Done");
+      await load();
     } catch {
       setMessage("Network error");
     } finally {
       setBusyId(null);
     }
+  }
+
+  async function loadReservationIntoForm() {
+    const key = manualReservationId.trim();
+    if (!key) return;
+    setBusyId("load_reservation");
+    setMessage("");
+    setPendingCard(null);
+    try {
+      const res = await fetch("/api/admin/billing/invoices", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "load_reservation", bookingId: key }),
+      });
+      const json = await res.json();
+      if (!json.success || !json.reservation) {
+        setMessage(json.error || "Reservation not found");
+        return;
+      }
+      const r = json.reservation as {
+        id: string;
+        bookingId: string;
+        customerName: string;
+        customerEmail: string;
+        customerPhone: string;
+        serviceType: string;
+        vehicle: string;
+        serviceDate: string;
+        serviceTime: string;
+        pickupLocation: string;
+        dropoffLocation: string;
+        stops: string;
+        passengers: string;
+        paymentStatus: string;
+        gratuity?: number;
+        lines: { label: string; amount: number }[];
+        existingInvoice?: {
+          id: string;
+          invoiceNumber: string;
+          emailStatus: string;
+          total: number;
+          paid: boolean;
+        } | null;
+      };
+
+      // Unpaid invoice already exists — resume collect instead of creating a duplicate.
+      if (r.existingInvoice && !r.existingInvoice.paid) {
+        setLoadedBookingId(r.bookingId);
+        setLoadedReservationId(r.id);
+        setMessage(
+          `${r.existingInvoice.invoiceNumber} already exists for ${r.bookingId} (unpaid). Opening collect payment…`
+        );
+        await beginPaymentCollect({
+          invoiceId: r.existingInvoice.id,
+          invoiceNumber: r.existingInvoice.invoiceNumber,
+          bookingId: r.bookingId,
+          total: Number(r.existingInvoice.total),
+        });
+        return;
+      }
+
+      setLoadedBookingId(r.bookingId);
+      setLoadedReservationId(r.id);
+      setStandalone({
+        customerName: r.customerName,
+        customerEmail: r.customerEmail,
+        customerPhone: r.customerPhone,
+        serviceType: r.serviceType || "Point-to-Point transportation",
+        vehicle: r.vehicle,
+        serviceDate: r.serviceDate,
+        serviceTime: r.serviceTime,
+        pickupLocation: r.pickupLocation,
+        dropoffLocation: r.dropoffLocation,
+        stops: r.stops,
+        passengers: r.passengers || "1",
+        paymentMethodLabel: "Credit card",
+        alreadyPaid: false,
+      });
+      setManualLines(
+        r.lines?.length
+          ? r.lines.map((l) => ({
+              label: l.label,
+              amount: String(l.amount),
+            }))
+          : [{ label: "Ride fare", amount: "" }]
+      );
+      setManualGratuity(
+        r.gratuity && r.gratuity > 0 ? String(r.gratuity) : ""
+      );
+      const paidNote =
+        String(r.paymentStatus || "").toUpperCase() === "PAID"
+          ? " (booking already marked PAID — review carefully)"
+          : "";
+      const priorNote = r.existingInvoice?.paid
+        ? ` Prior invoice ${r.existingInvoice.invoiceNumber} is paid.`
+        : "";
+      setMessage(
+        `Loaded ${r.bookingId} into Create manual invoice — review & Create & collect payment.${paidNote}${priorNote}`
+      );
+      document.getElementById("create-manual-invoice")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    } catch {
+      setMessage("Network error loading reservation");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function beginPaymentCollect(opts: {
+    invoiceId: string;
+    invoiceNumber: string;
+    bookingId: string;
+    total: number;
+  }) {
+    setPendingCard(null);
+    const [linkRes, piRes] = await Promise.all([
+      fetch("/api/admin/billing/invoices", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create_payment_link",
+          invoiceId: opts.invoiceId,
+          returnBaseUrl: window.location.origin,
+        }),
+      }),
+      fetch("/api/admin/billing/invoices", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create_payment_intent",
+          invoiceId: opts.invoiceId,
+        }),
+      }),
+    ]);
+    const linkJson = await linkRes.json();
+    const piJson = await piRes.json();
+    if (!linkJson.success || !piJson.success) {
+      setMessage(
+        linkJson.error ||
+          piJson.error ||
+          "Invoice created but payment setup failed — retry from the invoice list."
+      );
+      await load();
+      return;
+    }
+    setPendingCard({
+      invoiceId: opts.invoiceId,
+      invoiceNumber: opts.invoiceNumber,
+      bookingId: opts.bookingId,
+      total: opts.total,
+      paymentUrl: String(linkJson.url),
+      clientSecret: String(piJson.clientSecret),
+    });
+    setMessage(
+      `${opts.invoiceNumber} ready — collect payment below. No customer email until paid.`
+    );
+    await load();
   }
 
   async function connect(provider: "QUICKBOOKS" | "DROPBOX") {
@@ -243,7 +413,18 @@ export default function AdminBillingPage() {
     return s + (Number.isFinite(n) ? n : 0);
   }, 0);
   const manualHst = Math.round(manualSubtotal * 0.13 * 100) / 100;
-  const manualTotal = Math.round((manualSubtotal + manualHst) * 100) / 100;
+  const manualGratNum = Math.max(0, Number(manualGratuity) || 0);
+  const manualTotal =
+    Math.round((manualSubtotal + manualHst + manualGratNum) * 100) / 100;
+
+  function clearManualForm() {
+    setStandalone(emptyStandalone());
+    setManualLines([{ label: "Ride fare", amount: "" }]);
+    setManualGratuity("");
+    setLoadedBookingId(null);
+    setLoadedReservationId(null);
+    setManualReservationId("");
+  }
 
   async function issueStandalone() {
     setBusyId("issue_standalone");
@@ -260,10 +441,13 @@ export default function AdminBillingPage() {
       const payload = {
         action: "issue_standalone",
         ...standalone,
+        ...(loadedBookingId ? { bookingId: loadedBookingId } : {}),
+        ...(loadedReservationId ? { reservationId: loadedReservationId } : {}),
         alreadyPaid: isCardCollect ? false : standalone.alreadyPaid,
         passengers: standalone.passengers.trim()
           ? Number(standalone.passengers)
           : undefined,
+        gratuity: manualGratNum > 0 ? manualGratNum : 0,
         lines,
       };
 
@@ -280,59 +464,19 @@ export default function AdminBillingPage() {
       }
 
       if (json.deferDelivery) {
-        const invoiceId = String(json.invoiceId);
-        const [linkRes, piRes] = await Promise.all([
-          fetch("/api/admin/billing/invoices", {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: "create_payment_link",
-              invoiceId,
-              returnBaseUrl: window.location.origin,
-            }),
-          }),
-          fetch("/api/admin/billing/invoices", {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: "create_payment_intent",
-              invoiceId,
-            }),
-          }),
-        ]);
-        const linkJson = await linkRes.json();
-        const piJson = await piRes.json();
-        if (!linkJson.success || !piJson.success) {
-          setMessage(
-            linkJson.error ||
-              piJson.error ||
-              "Invoice created but payment setup failed — open invoice and retry."
-          );
-          await load();
-          return;
-        }
-        setPendingCard({
-          invoiceId,
+        await beginPaymentCollect({
+          invoiceId: String(json.invoiceId),
           invoiceNumber: String(json.invoiceNumber),
           bookingId: String(json.bookingId),
           total: Number(json.total),
-          paymentUrl: String(linkJson.url),
-          clientSecret: String(piJson.clientSecret),
         });
-        setMessage(
-          `${json.invoiceNumber} created — collect payment below. No customer email until paid.`
-        );
-        await load();
         return;
       }
 
       setMessage(
         `Issued ${json.invoiceNumber} · ${json.bookingId} · $${Number(json.total).toFixed(2)} · email sent`
       );
-      setStandalone(emptyStandalone());
-      setManualLines([{ label: "Ride fare", amount: "" }]);
+      clearManualForm();
       await load();
     } catch {
       setMessage("Network error");
@@ -363,8 +507,7 @@ export default function AdminBillingPage() {
           `Payment OK · ${pendingCard.invoiceNumber} · invoice email sending to customer`
         );
         setPendingCard(null);
-        setStandalone(emptyStandalone());
-        setManualLines([{ label: "Ride fare", amount: "" }]);
+        clearManualForm();
         await load();
       }
     } catch {
@@ -508,16 +651,53 @@ export default function AdminBillingPage() {
           </div>
         </section>
 
-        {/* Standalone manual invoice (no reservation) */}
-        <section className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/80">
-            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-              Create manual invoice
-            </h2>
-            <p className="text-xs text-gray-500 mt-1">
-              Walk-in / phone billing — no reservation. Amounts are pre-tax; HST 13% is added
-              automatically.
-            </p>
+        {/* Standalone manual invoice (+ optional load from booking) */}
+        <section
+          id="create-manual-invoice"
+          className="rounded-2xl border border-gray-200 bg-white overflow-hidden"
+        >
+          <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/80 space-y-3">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
+                Create manual invoice
+              </h2>
+              <p className="text-xs text-gray-500 mt-1">
+                Walk-in / phone, or load an existing booking below. Amounts are pre-tax; HST
+                13% is added automatically. Credit card → email only after payment.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-500 mb-1">
+                  Load from reservation (booking id)
+                </label>
+                <input
+                  value={manualReservationId}
+                  onChange={(e) => setManualReservationId(e.target.value)}
+                  placeholder="SARJ-MWTJ66FC575"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white"
+                />
+              </div>
+              <button
+                type="button"
+                disabled={
+                  !manualReservationId.trim() || busyId === "load_reservation"
+                }
+                onClick={() => void loadReservationIntoForm()}
+                className="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-900 text-white disabled:opacity-40 whitespace-nowrap"
+              >
+                {busyId === "load_reservation"
+                  ? "Loading…"
+                  : "Load into form"}
+              </button>
+            </div>
+            {loadedBookingId && (
+              <p className="text-[11px] font-semibold text-[#8B6914]">
+                Form filled from {loadedBookingId}
+                {loadedReservationId ? " (linked)" : ""} — review, then Create &amp;
+                collect payment.
+              </p>
+            )}
           </div>
 
           <div className="p-5 space-y-6">
@@ -579,6 +759,13 @@ export default function AdminBillingPage() {
                     }
                     className={fieldClass}
                   >
+                    {!MANUAL_SERVICE_TYPES.some(
+                      (t) => t.value === standalone.serviceType
+                    ) && standalone.serviceType ? (
+                      <option value={standalone.serviceType}>
+                        {standalone.serviceType}
+                      </option>
+                    ) : null}
                     {MANUAL_SERVICE_TYPES.map((t) => (
                       <option key={t.value} value={t.value}>
                         {t.label}
@@ -596,6 +783,11 @@ export default function AdminBillingPage() {
                     className={fieldClass}
                   >
                     <option value="">Select vehicle…</option>
+                    {!vehicleInFleet && standalone.vehicle ? (
+                      <option value={standalone.vehicle}>
+                        {standalone.vehicle} (from booking)
+                      </option>
+                    ) : null}
                     {fleetVehicles.map((v) => (
                       <option key={v.id} value={v.name}>
                         {v.name}
@@ -760,6 +952,19 @@ export default function AdminBillingPage() {
                     </button>
                   </div>
                 ))}
+                <div className="grid sm:grid-cols-[1fr_7.5rem] gap-2 items-center pt-1">
+                  <label className="text-sm text-gray-600">
+                    Admin, Fuel &amp; Grat{" "}
+                    <span className="text-xs text-gray-400">(after HST, not taxed)</span>
+                  </label>
+                  <input
+                    value={manualGratuity}
+                    onChange={(e) => setManualGratuity(e.target.value)}
+                    placeholder="0.00"
+                    inputMode="decimal"
+                    className={`${fieldClass} tabular-nums text-right`}
+                  />
+                </div>
                 <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-1 pt-2 border-t border-gray-200 text-sm">
                   <span className="text-gray-500">
                     Subtotal{" "}
@@ -773,6 +978,14 @@ export default function AdminBillingPage() {
                       ${manualHst.toFixed(2)}
                     </strong>
                   </span>
+                  {manualGratNum > 0 ? (
+                    <span className="text-gray-500">
+                      Grat{" "}
+                      <strong className="text-gray-900 tabular-nums">
+                        ${manualGratNum.toFixed(2)}
+                      </strong>
+                    </span>
+                  ) : null}
                   <span className="text-gray-900 font-semibold">
                     Total{" "}
                     <strong className="tabular-nums text-base">${manualTotal.toFixed(2)}</strong>
@@ -841,97 +1054,70 @@ export default function AdminBillingPage() {
               </div>
             </div>
 
-            {pendingCard && (
-              <div className="rounded-xl border border-[#C9A063]/40 bg-[#C9A063]/5 p-4 space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">
-                      Collect payment · {pendingCard.invoiceNumber}
-                    </p>
-                    <p className="text-xs text-gray-600 mt-0.5">
-                      {pendingCard.bookingId} · ${pendingCard.total.toFixed(2)} CAD — no
-                      customer email until paid
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="text-xs font-semibold text-gray-600 hover:underline"
-                    onClick={() => setPendingCard(null)}
-                  >
-                    Dismiss
-                  </button>
-                </div>
+          </div>
+        </section>
 
-                <div className="space-y-2">
-                  <label className={labelClass}>Payment link (WhatsApp / email)</label>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      readOnly
-                      value={pendingCard.paymentUrl}
-                      className={`${fieldClass} font-mono text-xs`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void copyPaymentLink()}
-                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-gray-200 bg-white hover:bg-gray-50"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                      Copy
-                    </button>
-                    <a
-                      href={pendingCard.paymentUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-gray-200 bg-white hover:bg-gray-50"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      Open
-                    </a>
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-[#C9A063]/20">
-                  <p className="text-xs text-gray-600 mb-3">
-                    Or enter the card here (phone / WhatsApp) — Stripe secure form
-                  </p>
-                  <AdminInvoiceCardPay
-                    clientSecret={pendingCard.clientSecret}
-                    onSuccess={(pi) => void onCardPaid(pi)}
-                    onError={(err) => setMessage(err)}
-                  />
-                </div>
+        {pendingCard && (
+          <section className="rounded-2xl border border-[#C9A063]/40 bg-[#C9A063]/5 p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">
+                  Collect payment · {pendingCard.invoiceNumber}
+                </p>
+                <p className="text-xs text-gray-600 mt-0.5">
+                  {pendingCard.bookingId} · ${pendingCard.total.toFixed(2)} CAD — no
+                  customer invoice email until paid
+                </p>
               </div>
-            )}
-          </div>
-        </section>
+              <button
+                type="button"
+                className="text-xs font-semibold text-gray-600 hover:underline"
+                onClick={() => setPendingCard(null)}
+              >
+                Dismiss
+              </button>
+            </div>
 
-        {/* Issue from existing reservation */}
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 flex flex-col sm:flex-row gap-3 sm:items-end">
-          <div className="flex-1">
-            <label className="block text-xs font-medium text-gray-500 mb-1">
-              Issue / ensure invoice for reservation id (cash etc.)
-            </label>
-            <input
-              value={manualReservationId}
-              onChange={(e) => setManualReservationId(e.target.value)}
-              placeholder="Reservation cuid…"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-            />
-          </div>
-          <button
-            type="button"
-            disabled={!manualReservationId.trim() || busyId === "issue"}
-            onClick={() =>
-              void postAction({
-                action: "issue_manual",
-                reservationId: manualReservationId.trim(),
-              })
-            }
-            className="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-900 text-white disabled:opacity-40"
-          >
-            Issue from reservation
-          </button>
-        </section>
+            <div className="space-y-2">
+              <label className={labelClass}>Payment link (WhatsApp / email)</label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  readOnly
+                  value={pendingCard.paymentUrl}
+                  className={`${fieldClass} font-mono text-xs`}
+                />
+                <button
+                  type="button"
+                  onClick={() => void copyPaymentLink()}
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-gray-200 bg-white hover:bg-gray-50"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  Copy
+                </button>
+                <a
+                  href={pendingCard.paymentUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-gray-200 bg-white hover:bg-gray-50"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Open
+                </a>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-[#C9A063]/20">
+              <p className="text-xs text-gray-600 mb-3">
+                Or enter the card here (phone / WhatsApp) — Stripe secure form
+              </p>
+              <AdminInvoiceCardPay
+                clientSecret={pendingCard.clientSecret}
+                onSuccess={(pi) => void onCardPaid(pi)}
+                onError={(err) => setMessage(err)}
+              />
+            </div>
+          </section>
+        )}
 
         {/* Search + table */}
         <section className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
@@ -1031,9 +1217,21 @@ export default function AdminBillingPage() {
                               Resend
                             </button>
                           ) : (
-                            <span className="text-[10px] font-semibold text-amber-800 px-1 whitespace-nowrap">
-                              Held
-                            </span>
+                            <button
+                              type="button"
+                              disabled={busyId === inv.id || Boolean(pendingCard)}
+                              onClick={() =>
+                                void beginPaymentCollect({
+                                  invoiceId: inv.id,
+                                  invoiceNumber: inv.invoiceNumber,
+                                  bookingId: inv.bookingId,
+                                  total: Number(inv.total),
+                                })
+                              }
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-900 ring-1 ring-amber-200 hover:bg-amber-100 disabled:opacity-40 whitespace-nowrap"
+                            >
+                              Collect
+                            </button>
                           )}
                           {inv.emailStatus === "FAILED" && (
                             <>
