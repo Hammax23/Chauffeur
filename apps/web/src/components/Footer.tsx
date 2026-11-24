@@ -161,7 +161,8 @@ const Footer = () => {
             </h3>
             <div className="flex items-center gap-2.5">
               <a
-                href="https://facebook.com"
+                href="https://www.facebook.com/SarjWorldwide"
+                aria-label="Facebook"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group relative w-9 h-9 rounded-full border border-white/20 hover:border-[#C9A063]/60 bg-white/5 hover:bg-[#C9A063]/10 backdrop-blur-sm flex items-center justify-center transition-all duration-300 hover:scale-110 shadow-lg shadow-black/20 hover:shadow-[#C9A063]/20"
@@ -170,7 +171,8 @@ const Footer = () => {
                 <Facebook className="w-[18px] h-[18px] text-white/80 group-hover:text-[#C9A063] transition-colors duration-300 relative z-10" strokeWidth={1.5} fill="currentColor" />
               </a>
               <a
-                href="https://instagram.com"
+                href="https://www.instagram.com/sarjchauffeur"
+                aria-label="Instagram"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group relative w-9 h-9 rounded-full border border-white/20 hover:border-[#C9A063]/60 bg-white/5 hover:bg-[#C9A063]/10 backdrop-blur-sm flex items-center justify-center transition-all duration-300 hover:scale-110 shadow-lg shadow-black/20 hover:shadow-[#C9A063]/20"
@@ -180,6 +182,7 @@ const Footer = () => {
               </a>
               <a
                 href="https://linkedin.com"
+                aria-label="LinkedIn"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group relative w-9 h-9 rounded-full border border-white/20 hover:border-[#C9A063]/60 bg-white/5 hover:bg-[#C9A063]/10 backdrop-blur-sm flex items-center justify-center transition-all duration-300 hover:scale-110 shadow-lg shadow-black/20 hover:shadow-[#C9A063]/20"

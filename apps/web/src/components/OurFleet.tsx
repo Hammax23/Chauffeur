@@ -2,6 +2,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Users, Briefcase, ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
+import { fleetDisplayName } from "@/data/fleet";
 
 interface FleetVehicle {
   id: string;
@@ -114,7 +115,7 @@ const OurFleet = () => {
                 >
                   {/* Card Header */}
                   <div className="p-6 pb-4">
-                    <h3 className="text-lg font-bold text-gray-900 mb-2">{vehicle.name}</h3>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">{fleetDisplayName(vehicle.name)}</h3>
                     <p className="text-sm text-gray-500 leading-relaxed min-h-[40px]">
                       {vehicle.description}
                     </p>
@@ -125,7 +126,7 @@ const OurFleet = () => {
                     <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-md overflow-hidden aspect-[4/3]">
                       <img
                         src={vehicle.imageUrl}
-                        alt={vehicle.name}
+                        alt={fleetDisplayName(vehicle.name)}
                         className="w-full h-full object-cover mix-blend-multiply"
                       />
                     </div>

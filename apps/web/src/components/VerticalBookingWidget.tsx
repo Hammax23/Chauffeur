@@ -102,7 +102,7 @@ export default function VerticalBookingWidget() {
               type="button"
               onClick={handleGetMyLocation}
               disabled={locating}
-              className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#C9A063] hover:text-[#B8935A] disabled:opacity-60 transition-colors"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#7A5A22] hover:text-[#5E4418] disabled:opacity-60 transition-colors"
             >
               {locating ? <Loader2 className="w-3 h-3 animate-spin" /> : <LocateFixed className="w-3 h-3" />}
               {locating ? "Locating..." : "Get my location"}

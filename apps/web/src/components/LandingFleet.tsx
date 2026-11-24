@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Briefcase, Droplets, Users, Wifi } from "lucide-react";
-import { fleetData } from "@/data/fleet";
+import { ArrowLeft, ArrowRight, Briefcase, Users } from "lucide-react";
+import { fleetData, fleetDisplayName as displayName } from "@/data/fleet";
 
 interface Vehicle {
   id: string;
@@ -16,8 +16,23 @@ interface Vehicle {
   category?: string;
 }
 
+export interface LandingFleetVehicle {
+  id: string;
+  name: string;
+  description: string;
+  image: string;
+  seating: string;
+  luggage: string;
+  category?: string;
+}
+
 // Shown first (in this order); every other vehicle follows in the carousel.
 const FEATURED_IDS = ["cadillac-xts", "chevrolet-suburban", "cadillac-escalade"];
+
+/** Landing-page wording for vehicles whose seating / luggage should read differently than the fleet data. */
+const CAPACITY_OVERRIDES: Record<string, { seating: string; luggage: string }> = {
+  "sprinter-van": { seating: "14 maximum, 14 comfortable", luggage: "14 large" },
+};
 
 const BADGES: Record<string, string> = {
   Sedan: "Luxury sedan",
@@ -25,27 +40,28 @@ const BADGES: Record<string, string> = {
   Van: "Luxury van",
   Executive: "Executive",
   Coach: "Coach",
+  Limo: "Limousine",
 };
 
-const num = (s: string, fallback: number) => parseInt(s.match(/\d+/)?.[0] ?? "", 10) || fallback;
-
-export default function LandingFleet() {
+export default function LandingFleet({ vehicles: custom }: { vehicles?: LandingFleetVehicle[] }) {
+  const [active, setActive] = useState(0);
   const [vehicles, setVehicles] = useState<Vehicle[]>(fleetData as Vehicle[]);
 
   useEffect(() => {
+    if (custom) return;
     fetch("/api/fleet")
       .then((r) => r.json())
       .then((d) => {
         if (d.success && Array.isArray(d.vehicles) && d.vehicles.length) setVehicles(d.vehicles);
       })
       .catch(() => {});
-  }, []);
+  }, [custom]);
 
   const rank = (id: string) => {
     const i = FEATURED_IDS.indexOf(id);
     return i === -1 ? FEATURED_IDS.length : i;
   };
-  const cards = [...vehicles].sort((x, y) => rank(x.id) - rank(y.id));
+  const cards: Vehicle[] = custom ? custom.map((c) => ({ ...c, price: 0 })) : [...vehicles].sort((x, y) => rank(x.id) - rank(y.id));
 
   const scrollByCard = (e: React.MouseEvent<HTMLButtonElement>, dir: 1 | -1) => {
     const el = e.currentTarget.parentElement?.querySelector<HTMLDivElement>("[data-fleet-track]");
@@ -69,6 +85,8 @@ export default function LandingFleet() {
         </div>
 
         <div className="relative">
+          {!custom && (
+            <>
           <button
             type="button"
             onClick={(e) => scrollByCard(e, -1)}
@@ -86,17 +104,22 @@ export default function LandingFleet() {
             <ArrowRight className="h-5 w-5" />
           </button>
 
+            </>
+          )}
+
         <div
           data-fleet-track
-          className="flex snap-x snap-mandatory gap-6 overflow-x-auto scroll-smooth px-1 pb-8 pt-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          onScroll={custom ? (e) => { const el = e.currentTarget; const card = el.querySelector("article"); if (card) setActive(Math.round(el.scrollLeft / (card.getBoundingClientRect().width + 16))); } : undefined}
+          className={custom ? "flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth px-1 pb-4 pt-3 [-ms-overflow-style:none] [scrollbar-width:none] md:grid md:grid-cols-3 md:gap-6 md:overflow-visible md:pb-8 [&::-webkit-scrollbar]:hidden" : "flex snap-x snap-mandatory gap-6 overflow-x-auto scroll-smooth px-1 pb-8 pt-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"}
         >
           {cards.map((v) => {
             const badge = BADGES[v.category ?? ""] ?? "Luxury";
-            const guests = num(v.seating, 3);
+            const seating = CAPACITY_OVERRIDES[v.id]?.seating ?? v.seating;
+            const luggage = CAPACITY_OVERRIDES[v.id]?.luggage ?? v.luggage;
             return (
               <article
                 key={v.id}
-                className="group flex w-full shrink-0 snap-start flex-col items-center rounded-2xl md:w-[calc((100%-3rem)/3)] border border-gray-200 bg-white p-5 text-center transition duration-300 hover:-translate-y-1 hover:border-[#C9A063]/60 hover:shadow-xl"
+                className={`group flex w-full flex-col items-center rounded-2xl border border-gray-200 bg-white p-5 text-center transition duration-300 hover:-translate-y-1 hover:border-[#C9A063]/60 hover:shadow-xl ${custom ? "shrink-0 snap-center md:shrink" : "shrink-0 snap-start md:w-[calc((100%-3rem)/3)]"}`}
               >
                 <div className="relative flex h-52 w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-b from-gray-50 to-gray-100">
                   <span className="absolute left-3 top-3 z-10 rounded-full bg-black px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white">
@@ -105,55 +128,67 @@ export default function LandingFleet() {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={v.image}
-                    alt={v.name}
+                    alt={displayName(v.name)}
                     className={`transition duration-500 group-hover:scale-105 ${
-                      /\.png(\?|$)/i.test(v.image) ? "max-h-44 w-full object-contain" : "absolute inset-0 h-full w-full object-cover"
+                      /\.(png|webp)(\?|$)/i.test(v.image) ? "max-h-44 w-full object-contain" : "absolute inset-0 h-full w-full object-cover"
                     }`}
                   />
                 </div>
 
-                <h3 className="mt-5 text-lg font-bold text-gray-950">{v.name}</h3>
-                <p className="mt-1 text-xs font-semibold text-[#B8935A]">Best for 1–{guests} guests</p>
-                <p className="mt-3 flex-1 text-sm font-light leading-6 text-gray-600">{v.description}</p>
+                <h3 className="mt-5 w-full text-left text-lg font-bold text-gray-950">{displayName(v.name)}</h3>
+                <p className="mt-2 w-full flex-1 text-left text-sm font-light leading-6 text-gray-600">{v.description}</p>
 
-                <div className="mt-5 w-full space-y-2.5 border-t border-gray-100 pt-4 text-left">
-                  <div className="flex items-start gap-2">
-                    <Users className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" strokeWidth={2} />
-                    <p className="text-[12px] leading-snug text-gray-700">
-                      <span className="font-semibold text-[#3B6EA5]">Seating Capacity:</span>{" "}
-                      {v.seating || "—"}
-                    </p>
+                <div className="mt-5 w-full space-y-3 text-left">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#C9A063]/10">
+                      <Users className="h-4 w-4 text-[#C9A063]" strokeWidth={2} />
+                    </span>
+                    <div>
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-[#6B5636]">Seating</span>
+                      <p className="text-sm font-medium text-gray-700">{seating}</p>
+                    </div>
                   </div>
-                  <div className="flex items-start gap-2">
-                    <Briefcase className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" strokeWidth={2} />
-                    <p className="text-[12px] leading-snug text-gray-700">
-                      <span className="font-semibold text-[#3B6EA5]">Luggage Capacity:</span>{" "}
-                      {v.luggage || "—"}
-                    </p>
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#C9A063]/10">
+                      <Briefcase className="h-4 w-4 text-[#C9A063]" strokeWidth={2} />
+                    </span>
+                    <div>
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-[#6B5636]">Luggage</span>
+                      <p className="text-sm font-medium text-gray-700">{luggage}</p>
+                    </div>
                   </div>
-                  <ul className="flex flex-wrap gap-x-4 gap-y-2 pt-1 text-xs text-gray-500">
-                    <li className="flex items-center gap-1.5">
-                      <Wifi className="h-3.5 w-3.5 text-[#C9A063]" />
-                      Wi-Fi
-                    </li>
-                    <li className="flex items-center gap-1.5">
-                      <Droplets className="h-3.5 w-3.5 text-[#C9A063]" />
-                      Water
-                    </li>
-                  </ul>
                 </div>
 
                 <Link
-                  href={`/reservation?mode=distance&vehicleId=${encodeURIComponent(v.id)}`}
+                  href={custom ? "/quote" : `/reservation?mode=distance&vehicleId=${encodeURIComponent(v.id)}`}
                   className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-black py-3.5 text-[11px] font-bold uppercase tracking-[0.16em] text-white transition hover:bg-[#C9A063] hover:text-black"
                 >
-                  Book now
+                  {custom ? "Get a quote" : "Book now"}
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </article>
             );
           })}
         </div>
+        {custom && (
+          <div className="mb-4 flex items-center justify-center gap-1 md:hidden">
+            {cards.map((v, i) => (
+              <button
+                key={v.id}
+                type="button"
+                aria-label={`Go to vehicle ${i + 1}`}
+                onClick={(e) => {
+                  const track = e.currentTarget.closest("section")?.querySelector<HTMLDivElement>("[data-fleet-track]");
+                  const card = track?.querySelector("article");
+                  if (track && card) track.scrollTo({ left: i * (card.getBoundingClientRect().width + 16), behavior: "smooth" });
+                }}
+                className="flex h-6 items-center justify-center px-1"
+              >
+                <span className={`block h-2 rounded-full transition-all duration-300 ${i === active ? "w-6 bg-[#C9A063]" : "w-2 bg-gray-300"}`} />
+              </button>
+            ))}
+          </div>
+        )}
         </div>
       </div>
     </section>

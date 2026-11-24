@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { getPublicFleet } from "@/lib/get-fleet";
+import { fleetDisplayName } from "@/data/fleet";
 import { Users, Briefcase, ArrowRight } from "lucide-react";
 import TopNav from "@/components/TopNav";
 import Navbar from "@/components/Navbar";
@@ -83,7 +84,7 @@ export default async function FleetPage() {
                 <div className="relative aspect-[4/3] overflow-hidden bg-gray-100 flex items-center justify-center">
                   <Image
                     src={vehicle.image}
-                    alt={vehicle.name}
+                    alt={fleetDisplayName(vehicle.name)}
                     fill
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                     className="object-contain transition-transform duration-500 group-hover:scale-105"
@@ -96,7 +97,7 @@ export default async function FleetPage() {
 
                 <div className="p-5 sm:p-6">
                   <h2 className="text-gray-900 font-bold text-lg sm:text-xl mb-2 tracking-tight group-hover:text-[#C9A063] transition-colors">
-                    {vehicle.name}
+                    {fleetDisplayName(vehicle.name)}
                   </h2>
                   <p className="text-gray-600 text-[14px] sm:text-[15px] leading-relaxed font-light mb-4">
                     {vehicle.description}
@@ -108,7 +109,7 @@ export default async function FleetPage() {
                         <Users className="w-4 h-4 text-[#C9A063]" strokeWidth={2} />
                       </div>
                       <div>
-                        <span className="text-[11px] font-semibold text-[#8B7355] uppercase tracking-wide">Seating</span>
+                        <span className="text-[11px] font-semibold text-[#6B5636] uppercase tracking-wide">Seating</span>
                         <p className="text-[13px] sm:text-[14px] font-medium text-gray-700">{vehicle.seating}</p>
                       </div>
                     </div>
@@ -117,7 +118,7 @@ export default async function FleetPage() {
                         <Briefcase className="w-4 h-4 text-[#C9A063]" strokeWidth={2} />
                       </div>
                       <div>
-                        <span className="text-[11px] font-semibold text-[#8B7355] uppercase tracking-wide">Luggage</span>
+                        <span className="text-[11px] font-semibold text-[#6B5636] uppercase tracking-wide">Luggage</span>
                         <p className="text-[13px] sm:text-[14px] font-medium text-gray-700">{vehicle.luggage}</p>
                       </div>
                     </div>

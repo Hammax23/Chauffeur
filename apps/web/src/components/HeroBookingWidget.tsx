@@ -142,7 +142,7 @@ export default function HeroBookingWidget() {
                     type="button"
                     onClick={handleGetMyLocation}
                     disabled={locating}
-                    className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold text-[#C9A063] hover:text-[#B8935A] disabled:opacity-60 transition-colors whitespace-nowrap"
+                    className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold text-[#7A5A22] hover:text-[#5E4418] disabled:opacity-60 transition-colors whitespace-nowrap"
                     title="Use your current location"
                   >
                     {locating ? (

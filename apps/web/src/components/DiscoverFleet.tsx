@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Users, Briefcase } from "lucide-react";
+import { fleetDisplayName } from "@/data/fleet";
 
 interface FleetVehicle {
   id: string;
@@ -266,8 +267,8 @@ const DiscoverFleet = () => {
                   <span className="text-gray-900 text-lg font-bold block leading-tight tracking-tight">
                     {vehicle.category}
                   </span>
-                  <span className="text-gray-500 text-sm font-medium mt-0.5 block truncate">
-                    {vehicle.name}
+                  <span className="text-gray-500 text-sm font-medium mt-0.5 block">
+                    {fleetDisplayName(vehicle.name)}
                   </span>
                 </div>
 
@@ -276,7 +277,7 @@ const DiscoverFleet = () => {
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={vehicle.imageUrl}
-                      alt={vehicle.name}
+                      alt={fleetDisplayName(vehicle.name)}
                       className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
                       draggable={false}
                     />
@@ -289,7 +290,7 @@ const DiscoverFleet = () => {
                       <Users className="w-4 h-4 text-[#C9A063]" strokeWidth={2} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8B7355]">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#6B5636]">
                         Seating Capacity
                       </p>
                       <p className="mt-0.5 text-[13px] font-medium text-gray-800 leading-snug">
@@ -302,7 +303,7 @@ const DiscoverFleet = () => {
                       <Briefcase className="w-4 h-4 text-[#C9A063]" strokeWidth={2} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8B7355]">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#6B5636]">
                         Luggage Capacity
                       </p>
                       <p className="mt-0.5 text-[13px] font-medium text-gray-800 leading-snug">

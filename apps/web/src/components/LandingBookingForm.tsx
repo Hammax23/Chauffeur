@@ -122,7 +122,7 @@ export default function LandingBookingForm({ pickupPlaceholder = "Enter pickup l
                   type="button"
                   onClick={handleGetMyLocation}
                   disabled={locating}
-                  className="inline-flex items-center gap-1 whitespace-nowrap text-[10px] font-semibold text-[#C9A063] transition-colors hover:text-[#B8935A] disabled:opacity-60 sm:text-[11px]"
+                  className="inline-flex items-center gap-1 whitespace-nowrap text-[10px] font-semibold text-[#7A5A22] transition-colors hover:text-[#5E4418] disabled:opacity-60 sm:text-[11px]"
                   title="Use your current location"
                 >
                   {locating ? <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2.5} /> : <LocateFixed className="h-3 w-3" strokeWidth={2.5} />}

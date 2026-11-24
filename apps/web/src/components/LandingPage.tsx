@@ -19,7 +19,8 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { GoogleMapsProvider } from "@/components/GoogleMapsProvider";
 import LandingBookingForm from "@/components/LandingBookingForm";
-import LandingFleet from "@/components/LandingFleet";
+import LandingFleet, { type LandingFleetVehicle } from "@/components/LandingFleet";
+import LandingComparison, { type LandingComparisonContent } from "@/components/LandingComparison";
 import { HeroRating, ReviewsSection } from "@/components/LandingReviews";
 
 export type LandingPageContent = {
@@ -37,6 +38,9 @@ export type LandingPageContent = {
   routesIntro: string;
   routesFrom: string;
   routes: { from?: string; to: string; km: string; time: string }[];
+  comparison?: LandingComparisonContent;
+  /** Replaces the default fleet carousel with these vehicles (e.g. limo-only pages). */
+  fleetVehicles?: LandingFleetVehicle[];
 };
 
 const PHONE_DISPLAY = "+1 (416) 893-5779";
@@ -176,7 +180,9 @@ export default function LandingPage({ content }: { content: LandingPageContent }
           </div>
         </section>
 
-        <LandingFleet />
+        <LandingFleet vehicles={content.fleetVehicles} />
+
+        {content.comparison && <LandingComparison content={content.comparison} />}
 
         {/* Popular routes */}
         <section className="relative overflow-hidden bg-black py-20 sm:py-28">
@@ -287,6 +293,11 @@ export default function LandingPage({ content }: { content: LandingPageContent }
                 <Link href="/terms-of-service" className="transition hover:text-[#C9A063]">Terms &amp; Conditions</Link>
               </p>
             </div>
+          </div>
+          <div className="mx-auto max-w-[1200px] px-6 pb-8 sm:px-8 lg:px-12">
+            <p className="border-t border-white/10 pt-6 text-center text-xs leading-relaxed text-white/50">
+              *Travel times are estimates and may be longer depending on your pickup location, traffic and road conditions
+            </p>
           </div>
         </footer>
 

@@ -80,8 +80,11 @@ const Navbar = () => {
             </Link>
 
             <button
+              type="button"
               className="lg:hidden text-white"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
+              aria-label={isMenuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={isMenuOpen}
             >
               {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>

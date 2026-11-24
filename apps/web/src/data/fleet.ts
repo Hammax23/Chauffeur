@@ -176,3 +176,6 @@ export const RESERVATION_HIDE_HOURLY_RATE_IDS = new Set([
   "cadillac-escalade",
   "sprinter-van",
 ]);
+
+/** Public pages show the Yukon XL as plain "GMC Yukon". Display only; ids and booking data are unchanged. */
+export const fleetDisplayName = (name: string) => name.replace(/\bYukon XL\b/i, "Yukon");

@@ -1115,7 +1115,7 @@ function ReservationPageContent() {
                               type="button"
                               onClick={handleGetMyLocation}
                               disabled={locating}
-                              className="inline-flex items-center gap-1.5 min-h-11 px-2.5 rounded-md text-[12px] font-semibold text-[#C9A063] hover:text-[#B8935A] hover:bg-[#C9A063]/10 disabled:opacity-60 transition-colors whitespace-nowrap"
+                              className="inline-flex items-center gap-1.5 min-h-11 px-2.5 rounded-md text-[12px] font-semibold text-[#7A5A22] hover:text-[#5E4418] hover:bg-[#C9A063]/10 disabled:opacity-60 transition-colors whitespace-nowrap"
                               title="Use your current location"
                             >
                               {locating ? (
@@ -2527,6 +2527,9 @@ function ReservationPageContent() {
           </div>
         </div>
       ) : null}
+
+      {/* On phones the sticky Continue / Pay strip owns the bottom edge, so hide the floating chat button here */}
+      <style>{`@media (max-width:639px){[data-floating-contact]{display:none !important}}`}</style>
 
       {/* Mobile sticky fare + Continue / Pay (enterprise checkout strip) */}
       {currentStep < 4 && !tipModalOpen && !placesOpen ? (

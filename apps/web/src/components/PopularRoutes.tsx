@@ -103,7 +103,7 @@ export default function PopularRoutes({
                 </div>
 
                 <div className="mt-auto pt-2.5 border-t border-gray-100 flex items-center justify-between">
-                  <span className="text-[#8B7355] text-[11px] sm:text-xs font-semibold group-hover:text-[#C9A063] transition-colors">
+                  <span className="text-[#6B5636] text-[11px] sm:text-xs font-semibold group-hover:text-[#C9A063] transition-colors">
                     Book Ride
                   </span>
                   <span className="w-7 h-7 rounded-full bg-[#C9A063]/10 flex items-center justify-center group-hover:bg-[#C9A063] transition-colors duration-300">
