@@ -398,7 +398,7 @@ model Invoice {
   invoiceNumber           String       @unique
   /// STANDARD | REVISION | SUPPLEMENT | CREDIT_NOTE
   kind                    String       @default("STANDARD")
-  /// ISSUED | EMAILED | PARTIALLY_CREDITED | CREDITED | VOID
+  /// DRAFT | ISSUED | EMAILED | PARTIALLY_CREDITED | CREDITED | VOID
   status                  String       @default("ISSUED")
   /// Null for standalone manual invoices (no reservation).
   reservationId           String?

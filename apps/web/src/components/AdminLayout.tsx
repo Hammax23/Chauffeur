@@ -96,6 +96,12 @@ const NAV: NavEntry[] = [
         icon: FileText,
         roles: ["OWNER", "BILLING_ASSISTANT"],
       },
+      {
+        href: "/admin/billing",
+        label: "Billing & Invoices",
+        icon: Receipt,
+        roles: ["OWNER", "BILLING_ASSISTANT"],
+      },
     ],
   },
   {
@@ -157,13 +163,6 @@ const NAV: NavEntry[] = [
     label: "Support Tickets",
     icon: MessageSquareText,
     roles: ["OWNER"],
-  },
-  {
-    type: "link",
-    href: "/admin/billing",
-    label: "Billing & Invoices",
-    icon: Receipt,
-    roles: ["OWNER", "BILLING_ASSISTANT"],
   },
   {
     type: "group",

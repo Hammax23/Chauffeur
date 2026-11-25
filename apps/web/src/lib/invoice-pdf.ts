@@ -285,6 +285,27 @@ export async function buildInvoicePdfBuffer(opts: {
     if (trip?.passengers && trip.passengers > 0) {
       tripRows.push({ label: "Passengers", value: String(trip.passengers) });
     }
+    if (trip?.childSeats && trip.childSeats > 0) {
+      tripRows.push({
+        label: "Child seats",
+        value: [String(trip.childSeats), trip.childSeatType]
+          .filter(Boolean)
+          .join(" · "),
+      });
+    }
+    if (trip?.distance) tripRows.push({ label: "Distance", value: trip.distance });
+    if (trip?.duration) tripRows.push({ label: "Duration", value: trip.duration });
+    if (trip?.etr407) tripRows.push({ label: "407 ETR", value: trip.etr407 });
+    if (trip?.airline || trip?.flightNumber) {
+      tripRows.push({
+        label: "Flight",
+        value: [trip.airline, trip.flightNumber].filter(Boolean).join(" · "),
+      });
+    }
+    if (trip?.flightNote) tripRows.push({ label: "Flight note", value: trip.flightNote });
+    if (trip?.specialRequirements) {
+      tripRows.push({ label: "Notes", value: trip.specialRequirements });
+    }
 
     if (tripRows.length > 0) {
       doc

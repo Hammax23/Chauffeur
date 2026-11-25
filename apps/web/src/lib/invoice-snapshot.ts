@@ -2,7 +2,8 @@ import "server-only";
 import type { InvoiceFareSnapshot, InvoiceKind, InvoiceLineItem } from "@/lib/invoice-types";
 import { roundMoney } from "@/lib/invoice-types";
 import { getBillingCompany } from "@/lib/billing-company";
-import { HST_RATE } from "@/lib/reservation-pricing";
+import { HST_RATE, applyGratuityThenHst } from "@/lib/reservation-pricing";
+import { humanSpecialRequirements } from "@/lib/special-requirements";
 
 export type ReservationInvoiceSource = {
   id: string;
@@ -32,6 +33,14 @@ export type ReservationInvoiceSource = {
   cardLast4?: string | null;
   cardType?: string | null;
   specialRequirements?: string | null;
+  airline?: string | null;
+  flightNumber?: string | null;
+  flightNote?: string | null;
+  childSeats?: number | null;
+  childSeatType?: string | null;
+  etr407?: string | null;
+  distance?: string | null;
+  duration?: string | null;
 };
 
 function paymentMethodLabel(r: ReservationInvoiceSource): string {
@@ -122,6 +131,16 @@ export function buildStandardFareSnapshot(
       dropoffLocation: r.dropoffLocation || "",
       stops: parseStops(r.stops),
       passengers: Number(r.passengers) || 1,
+      airline: String(r.airline || "").trim() || undefined,
+      flightNumber: String(r.flightNumber || "").trim() || undefined,
+      flightNote: String(r.flightNote || "").trim() || undefined,
+      childSeats: Math.max(0, Number(r.childSeats) || 0) || undefined,
+      childSeatType: String(r.childSeatType || "").trim() || undefined,
+      etr407: String(r.etr407 || "").trim() || undefined,
+      distance: String(r.distance || "").trim() || undefined,
+      duration: String(r.duration || "").trim() || undefined,
+      specialRequirements:
+        humanSpecialRequirements(r.specialRequirements) || undefined,
     },
     lines,
     subtotal,
@@ -241,15 +260,30 @@ export type StandaloneInvoiceInput = {
   /** Pipe-separated or free text; split on | or newlines */
   stops?: string;
   passengers?: number;
+  airline?: string;
+  flightNumber?: string;
+  flightNote?: string;
+  childSeats?: number;
+  childSeatType?: string;
+  etr407?: string;
+  distance?: string;
+  duration?: string;
+  specialRequirements?: string;
   paymentMethodLabel?: string;
   alreadyPaid?: boolean;
   lines: { label: string; amount: number }[];
-  /** Pre-tax extras already in `lines`. Gratuity is after HST (not taxed again). */
+  /**
+   * Admin, Fuel & Grat — same order as live reservation:
+   * subtotal → grat (% or flat) → HST on (subtotal + grat) → total.
+   * Pass a flat CAD amount (from auto-calc or staff edit).
+   */
   gratuity?: number;
+  /** When set (and gratuity omitted/0), compute grat from this percent of subtotal. */
+  gratuityPercent?: number;
   hstRate?: number;
 };
 
-/** Manual / walk-in invoice — line amounts are pre-tax; optional gratuity after HST. */
+/** Manual / walk-in invoice — same tax order as reservation booking. */
 export function buildStandaloneSnapshot(
   input: StandaloneInvoiceInput
 ): InvoiceFareSnapshot {
@@ -266,9 +300,33 @@ export function buildStandaloneSnapshot(
     .filter((l) => Number.isFinite(l.amount) && Math.abs(l.amount) > 0.0001);
 
   const subtotal = roundMoney(lines.reduce((s, l) => s + l.amount, 0));
-  const hst = roundMoney(subtotal * hstRate);
-  const gratuity = roundMoney(Math.max(0, Number(input.gratuity) || 0));
-  const total = roundMoney(subtotal + hst + gratuity);
+  const flatGrat = Math.max(0, Number(input.gratuity) || 0);
+  let gratuity: number;
+  let hst: number;
+  let total: number;
+  if (flatGrat > 0.0001) {
+    // Flat grat from auto-calc / staff — HST on (subtotal + grat) like reservation.
+    gratuity = roundMoney(flatGrat);
+    const taxable = roundMoney(subtotal + gratuity);
+    hst = roundMoney(taxable * hstRate);
+    total = roundMoney(taxable + hst);
+  } else if (
+    typeof input.gratuityPercent === "number" &&
+    input.gratuityPercent > 0
+  ) {
+    const computed = applyGratuityThenHst(
+      subtotal,
+      input.gratuityPercent,
+      hstRate
+    );
+    gratuity = roundMoney(computed.gratuity);
+    hst = roundMoney(computed.hst);
+    total = roundMoney(computed.total);
+  } else {
+    gratuity = 0;
+    hst = roundMoney(subtotal * hstRate);
+    total = roundMoney(subtotal + hst);
+  }
 
   const stops = String(input.stops || "")
     .split(/[|\n]/)
@@ -301,6 +359,16 @@ export function buildStandaloneSnapshot(
       dropoffLocation: String(input.dropoffLocation || "").trim(),
       stops,
       passengers: Math.max(0, Math.floor(Number(input.passengers) || 0)),
+      airline: String(input.airline || "").trim() || undefined,
+      flightNumber: String(input.flightNumber || "").trim() || undefined,
+      flightNote: String(input.flightNote || "").trim() || undefined,
+      childSeats: Math.max(0, Math.floor(Number(input.childSeats) || 0)) || undefined,
+      childSeatType: String(input.childSeatType || "").trim() || undefined,
+      etr407: String(input.etr407 || "").trim() || undefined,
+      distance: String(input.distance || "").trim() || undefined,
+      duration: String(input.duration || "").trim() || undefined,
+      specialRequirements:
+        humanSpecialRequirements(input.specialRequirements) || undefined,
     },
     lines: [
       ...lines,

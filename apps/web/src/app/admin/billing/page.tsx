@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type InputHTMLAttributes,
+} from "react";
 import {
   FileText,
   RefreshCw,
@@ -9,12 +17,40 @@ import {
   Unlink,
   AlertTriangle,
   Copy,
+  CopyPlus,
   ExternalLink,
   Trash2,
+  MapPin,
+  Car,
+  Clock,
+  Users,
+  Pencil,
+  X,
 } from "lucide-react";
 import { fleetData, type FleetVehicle } from "@/data/fleet";
 import { PARCEL_SERVICE_TYPE } from "@/lib/parcel";
 import AdminInvoiceCardPay from "@/components/AdminInvoiceCardPay";
+import PlacesAutocomplete from "@/components/PlacesAutocomplete";
+import { GoogleMapsProvider } from "@/components/GoogleMapsProvider";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import {
+  APP_DEFAULT_GRATUITY_PERCENT,
+  APP_GRATUITY_PERCENTS,
+  APP_HOURLY_DURATIONS,
+  APP_MIN_HOURLY_HOURS,
+  applyGratuityThenHst,
+  BASE_DISTANCE_KM,
+  EXTRA_KM_RATE,
+  HST_RATE,
+  STOP_CHARGE,
+  CHILD_SEAT_CHARGE,
+  MEET_GREET_CHARGE,
+  BOUQUET_CHARGE,
+  AIRPORT_PICKUP_FEE,
+  calculateReservationPricing,
+  type VehiclePricing,
+} from "@/lib/reservation-pricing";
 
 const MANUAL_SERVICE_TYPES = [
   { value: "Point-to-Point transportation", label: "Distance" },
@@ -42,8 +78,13 @@ type PendingCardCollect = {
 };
 
 const fieldClass =
-  "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#C9A063]/40 focus:border-[#C9A063]";
-const labelClass = "block text-xs font-semibold text-gray-600 mb-1.5";
+  "w-full min-h-11 rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#C9A063]/25 focus:border-[#C9A063]";
+const labelClass =
+  "block text-[11px] sm:text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5";
+const goldLabelClass =
+  "text-[11px] sm:text-[12px] font-semibold text-[#C9A063] uppercase tracking-wider";
+const sectionEyebrow =
+  "text-[11px] sm:text-[12px] font-semibold tracking-[0.12em] uppercase text-[#C9A063] mb-0.5";
 
 const emptyStandalone = () => ({
   customerName: "",
@@ -57,6 +98,15 @@ const emptyStandalone = () => ({
   dropoffLocation: "",
   stops: "",
   passengers: "1",
+  childSeats: "0",
+  childSeatType: "",
+  etr407: "No",
+  airline: "",
+  flightNumber: "",
+  flightNote: "",
+  distance: "",
+  duration: "",
+  specialRequirements: "",
   paymentMethodLabel: "Credit card",
   alreadyPaid: false,
 });
@@ -72,6 +122,153 @@ function splitEmails(raw: string | null | undefined): string[] {
 function joinEmails(emails: string[]): string {
   return emails.map((e) => e.trim()).filter(Boolean).join(", ");
 }
+
+function parseDistanceMeters(raw: string | null | undefined): number {
+  const t = String(raw || "").trim().toLowerCase();
+  if (!t) return 0;
+  const km = t.match(/([\d.]+)\s*km/);
+  if (km) return Math.round(Number(km[1]) * 1000);
+  const mOnly = t.match(/^([\d.]+)\s*m(?:eters?)?$/);
+  if (mOnly) return Math.round(Number(mOnly[1]));
+  const n = Number(t.replace(/,/g, ""));
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  // Bare numbers: treat small as km, large as meters.
+  return n < 500 ? Math.round(n * 1000) : Math.round(n);
+}
+
+function findFleetVehicle(
+  list: FleetVehicle[],
+  vehicleLabelOrId: string
+): FleetVehicle | undefined {
+  const key = vehicleLabelOrId.trim().toLowerCase();
+  if (!key) return undefined;
+  return (
+    list.find((v) => v.id === vehicleLabelOrId) ||
+    list.find((v) => v.name.toLowerCase() === key) ||
+    list.find((v) => (v.dropdownName || "").toLowerCase() === key) ||
+    list.find((v) => v.name.toLowerCase().includes(key)) ||
+    list.find((v) => (v.dropdownName || "").toLowerCase().includes(key))
+  );
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/** Match Custom Reservation: en-CA date + en-US 12h time. */
+function formatServiceFields(date: Date): { serviceDate: string; serviceTime: string } {
+  return {
+    serviceDate: date.toLocaleDateString("en-CA"),
+    serviceTime: date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }),
+  };
+}
+
+function parseServiceDateTime(
+  dateStr: string,
+  timeStr: string
+): Date | null {
+  const d = String(dateStr || "").trim();
+  const t = String(timeStr || "").trim();
+  if (!d) return null;
+
+  let hours = 0;
+  let mins = 0;
+  const ampm = t.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)$/i);
+  if (ampm) {
+    hours = Number(ampm[1]);
+    mins = Number(ampm[2]);
+    const ap = ampm[3].toUpperCase();
+    if (ap === "PM" && hours < 12) hours += 12;
+    if (ap === "AM" && hours === 12) hours = 0;
+  } else {
+    const m24 = t.match(/^(\d{1,2}):(\d{2})/);
+    if (m24) {
+      hours = Number(m24[1]);
+      mins = Number(m24[2]);
+    }
+  }
+
+  const datePart = /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(0, 10) : d;
+  // Parse as local wall time (avoid UTC shift from Date.parse ISO).
+  const [y, mo, day] = datePart.split("-").map(Number);
+  if (!y || !mo || !day) return null;
+  const dt = new Date(y, mo - 1, day, hours, mins, 0, 0);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+/** Loose typing for admin — calendar still works; typing also accepted. */
+function parseLooseDateTime(raw: string): Date | null {
+  const s = String(raw || "").trim().replace(/\s+/g, " ");
+  if (!s) return null;
+
+  // Already split fields style: keep using dedicated parser when possible.
+  const native = Date.parse(s);
+  if (!Number.isNaN(native)) {
+    const d = new Date(native);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+
+  // dd/mm/yyyy [h:mm am/pm]
+  const dmy = s.match(
+    /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})(?:\s+(\d{1,2}):(\d{2})\s*(AM|PM)?)?$/i
+  );
+  if (dmy) {
+    const day = Number(dmy[1]);
+    const mo = Number(dmy[2]);
+    const y = Number(dmy[3]);
+    let h = Number(dmy[4] || 0);
+    const mi = Number(dmy[5] || 0);
+    const ap = (dmy[6] || "").toUpperCase();
+    if (ap === "PM" && h < 12) h += 12;
+    if (ap === "AM" && h === 12) h = 0;
+    const dt = new Date(y, mo - 1, day, h, mi, 0, 0);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+
+  // yyyy-mm-dd [HH:mm]
+  const iso = s.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2})(?:\s*(AM|PM))?)?$/i
+  );
+  if (iso) {
+    let h = Number(iso[4] || 0);
+    const mi = Number(iso[5] || 0);
+    const ap = (iso[6] || "").toUpperCase();
+    if (ap === "PM" && h < 12) h += 12;
+    if (ap === "AM" && h === 12) h = 0;
+    const dt = new Date(
+      Number(iso[1]),
+      Number(iso[2]) - 1,
+      Number(iso[3]),
+      h,
+      mi,
+      0,
+      0
+    );
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+
+  return null;
+}
+
+const BillingDateTimeInput = forwardRef<
+  HTMLInputElement,
+  InputHTMLAttributes<HTMLInputElement>
+>(function BillingDateTimeInput(props, ref) {
+  return (
+    <input
+      {...props}
+      ref={ref}
+      type="text"
+      inputMode="text"
+      autoComplete="off"
+      spellCheck={false}
+    />
+  );
+});
 
 type InvoiceRow = {
   id: string;
@@ -92,6 +289,9 @@ type InvoiceRow = {
   emailedAt: string | null;
   resendCount: number;
   createdAt: string;
+  paid?: boolean;
+  paymentHeld?: boolean;
+  isDraft?: boolean;
 };
 
 type ManualLine = { label: string; amount: string };
@@ -125,7 +325,7 @@ function badge(status: string) {
       ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
       : s === "FAILED"
         ? "bg-rose-50 text-rose-800 ring-rose-200"
-        : s === "SKIPPED"
+        : s === "SKIPPED" || s === "DRAFT"
           ? "bg-slate-50 text-slate-600 ring-slate-200"
           : "bg-amber-50 text-amber-900 ring-amber-200";
   return (
@@ -155,9 +355,37 @@ export default function AdminBillingPage() {
   ]);
   const [fleetVehicles, setFleetVehicles] = useState<FleetVehicle[]>(fleetData);
   const [pendingCard, setPendingCard] = useState<PendingCardCollect | null>(null);
+  const [vehicleId, setVehicleId] = useState("");
+  const [distanceMeters, setDistanceMeters] = useState(0);
+  const [hourlyDuration, setHourlyDuration] = useState(APP_MIN_HOURLY_HOURS);
+  const [fareManual, setFareManual] = useState(false);
+  const [routeBusy, setRouteBusy] = useState(false);
+  const [pickupDateTime, setPickupDateTime] = useState<Date | null>(null);
+  const [gratuityPercent, setGratuityPercent] = useState(APP_DEFAULT_GRATUITY_PERCENT);
+  const [tipModalOpen, setTipModalOpen] = useState(false);
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
+  const [editingDraftNumber, setEditingDraftNumber] = useState<string | null>(
+    null
+  );
+  const [pricingDefaults, setPricingDefaults] = useState({
+    baseDistanceKm: BASE_DISTANCE_KM,
+    extraKmRate: EXTRA_KM_RATE,
+    stop: STOP_CHARGE,
+    childSeat: CHILD_SEAT_CHARGE,
+    meetGreet: MEET_GREET_CHARGE,
+    bouquet: BOUQUET_CHARGE,
+    hstRate: HST_RATE,
+    airportPickup: AIRPORT_PICKUP_FEE,
+  });
   const isCardCollect = /^credit\s*card$/i.test(standalone.paymentMethodLabel);
+  const isHourly = standalone.serviceType === "Hourly ride";
+  const directionsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const vehicleInFleet = fleetVehicles.some((v) => v.name === standalone.vehicle);
+  const selectedFleetVehicle = useMemo(
+    () =>
+      findFleetVehicle(fleetVehicles, vehicleId || standalone.vehicle) || null,
+    [fleetVehicles, vehicleId, standalone.vehicle]
+  );
 
   useEffect(() => {
     fetch("/api/fleet")
@@ -170,7 +398,197 @@ export default function AdminBillingPage() {
       .catch(() => {
         /* keep static fleetData fallback */
       });
+    fetch("/api/pricing-config")
+      .then((r) => r.json())
+      .then((data: { success?: boolean; charges?: Record<string, number> }) => {
+        if (!data?.success || !data.charges) return;
+        const c = data.charges;
+        setPricingDefaults((prev) => ({
+          baseDistanceKm: Number(c.baseDistanceKm) || prev.baseDistanceKm,
+          extraKmRate: Number(c.extraKmRate) || prev.extraKmRate,
+          stop: Number(c.stop) || prev.stop,
+          childSeat: Number(c.childSeat) || prev.childSeat,
+          meetGreet: Number(c.meetGreet) || prev.meetGreet,
+          bouquet: Number(c.bouquet) || prev.bouquet,
+          hstRate: Number(c.hstRate) || prev.hstRate,
+          airportPickup: Number(c.airportPickup) || prev.airportPickup,
+        }));
+      })
+      .catch(() => {});
   }, []);
+
+  const applyReservationFare = useCallback(() => {
+    const vehicle = findFleetVehicle(
+      fleetVehicles,
+      vehicleId || standalone.vehicle
+    );
+    if (!vehicle) return false;
+
+    const fleetPricing: VehiclePricing[] = fleetVehicles.map((v) => ({
+      id: v.id,
+      hourlyRate: v.price,
+      basePrice: v.basePrice ?? v.price,
+      pricePerKm: v.pricePerKm,
+      baseDistanceKm: v.baseDistanceKm,
+      extraKmRate: v.extraKmRate ?? v.pricePerKm,
+    }));
+
+    const stopCount = String(standalone.stops || "")
+      .split(/[|\n]/)
+      .map((s) => s.trim())
+      .filter(Boolean).length;
+
+    const pricing = calculateReservationPricing(
+      {
+        vehicleId: vehicle.id,
+        bookingMode: isHourly ? "hourly" : "distance",
+        distanceMeters: isHourly ? undefined : distanceMeters,
+        hourlyDuration: isHourly ? hourlyDuration : undefined,
+        stopCount,
+        childSeatCount: Math.max(0, Math.floor(Number(standalone.childSeats) || 0)),
+        meetGreet: /Meet\s*&\s*Greet:\s*Yes/i.test(
+          standalone.specialRequirements || ""
+        ),
+        bouquetFlowers: /Bouquet of Flowers:\s*Yes/i.test(
+          standalone.specialRequirements || ""
+        ),
+        pickupLocation: standalone.pickupLocation,
+        gratuityPercent,
+      },
+      fleetPricing,
+      {
+        stop: pricingDefaults.stop,
+        childSeat: pricingDefaults.childSeat,
+        meetGreet: pricingDefaults.meetGreet,
+        bouquet: pricingDefaults.bouquet,
+        hstRate: pricingDefaults.hstRate,
+        baseDistanceKm: pricingDefaults.baseDistanceKm,
+        extraKmRate: pricingDefaults.extraKmRate,
+        airportPickup: pricingDefaults.airportPickup,
+      }
+    );
+    if (!pricing || pricing.rideFare <= 0) return false;
+
+    const nextLines: ManualLine[] = [
+      { label: "Ride fare", amount: round2(pricing.rideFare).toFixed(2) },
+    ];
+    if (pricing.stopCharge > 0) {
+      nextLines.push({
+        label: "Stops",
+        amount: round2(pricing.stopCharge).toFixed(2),
+      });
+    }
+    if (pricing.childSeatCharge > 0) {
+      nextLines.push({
+        label: "Child seat(s)",
+        amount: round2(pricing.childSeatCharge).toFixed(2),
+      });
+    }
+    if (pricing.meetGreetCharge > 0) {
+      nextLines.push({
+        label: "Meet & Greet",
+        amount: round2(pricing.meetGreetCharge).toFixed(2),
+      });
+    }
+    if (pricing.bouquetCharge > 0) {
+      nextLines.push({
+        label: "Bouquet of Flowers",
+        amount: round2(pricing.bouquetCharge).toFixed(2),
+      });
+    }
+    if (pricing.airportPickupFee > 0) {
+      nextLines.push({
+        label: "Airport pickup fee (GTAA)",
+        amount: round2(pricing.airportPickupFee).toFixed(2),
+      });
+    }
+    setManualLines(nextLines);
+    setManualGratuity(round2(pricing.gratuity).toFixed(2));
+    return true;
+  }, [
+    fleetVehicles,
+    vehicleId,
+    standalone.vehicle,
+    standalone.stops,
+    standalone.childSeats,
+    standalone.specialRequirements,
+    standalone.pickupLocation,
+    isHourly,
+    distanceMeters,
+    hourlyDuration,
+    pricingDefaults,
+    gratuityPercent,
+  ]);
+
+  // Auto route distance when pickup / drop-off / stops change (distance & parcel).
+  useEffect(() => {
+    if (isHourly) return;
+    const origin = standalone.pickupLocation.trim();
+    const destination = standalone.dropoffLocation.trim();
+    if (origin.length < 5 || destination.length < 5) return;
+
+    if (directionsTimer.current) clearTimeout(directionsTimer.current);
+    directionsTimer.current = setTimeout(() => {
+      const waypoints = String(standalone.stops || "")
+        .split(/[|\n]/)
+        .map((s) => s.trim())
+        .filter((s) => s.length >= 3);
+      setRouteBusy(true);
+      fetch("/api/places/directions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          origin,
+          destination,
+          waypoints: waypoints.length ? waypoints : undefined,
+        }),
+      })
+        .then((r) => r.json())
+        .then(
+          (data: {
+            success?: boolean;
+            distanceMeters?: number | null;
+            distanceText?: string;
+            durationText?: string;
+          }) => {
+            if (!data?.success || !data.distanceMeters) return;
+            setDistanceMeters(Number(data.distanceMeters) || 0);
+            setStandalone((s) => ({
+              ...s,
+              distance: data.distanceText || s.distance,
+              duration: data.durationText || s.duration,
+            }));
+            setFareManual(false);
+          }
+        )
+        .catch(() => {})
+        .finally(() => setRouteBusy(false));
+    }, 550);
+
+    return () => {
+      if (directionsTimer.current) clearTimeout(directionsTimer.current);
+    };
+  }, [
+    isHourly,
+    standalone.pickupLocation,
+    standalone.dropoffLocation,
+    standalone.stops,
+  ]);
+
+  // Recalc fare like Custom Reservation when vehicle / distance / hours change.
+  useEffect(() => {
+    if (fareManual) return;
+    if (!selectedFleetVehicle) return;
+    if (!isHourly && distanceMeters <= 0) return;
+    applyReservationFare();
+  }, [
+    fareManual,
+    selectedFleetVehicle,
+    isHourly,
+    distanceMeters,
+    hourlyDuration,
+    applyReservationFare,
+  ]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -245,6 +663,7 @@ export default function AdminBillingPage() {
       const r = json.reservation as {
         id: string;
         bookingId: string;
+        status?: string;
         customerName: string;
         customerEmail: string;
         customerPhone: string;
@@ -256,8 +675,18 @@ export default function AdminBillingPage() {
         dropoffLocation: string;
         stops: string;
         passengers: string;
+        childSeats?: string;
+        childSeatType?: string;
+        etr407?: string;
+        airline?: string;
+        flightNumber?: string;
+        flightNote?: string;
+        distance?: string;
+        duration?: string;
+        specialRequirements?: string;
         paymentStatus: string;
         gratuity?: number;
+        bookingTotal?: number;
         lines: { label: string; amount: number }[];
         existingInvoice?: {
           id: string;
@@ -268,24 +697,17 @@ export default function AdminBillingPage() {
         } | null;
       };
 
-      // Unpaid invoice already exists — resume collect instead of creating a duplicate.
-      if (r.existingInvoice && !r.existingInvoice.paid) {
-        setLoadedBookingId(r.bookingId);
-        setLoadedReservationId(r.id);
-        setMessage(
-          `${r.existingInvoice.invoiceNumber} already exists for ${r.bookingId} (unpaid). Opening collect payment…`
-        );
-        await beginPaymentCollect({
-          invoiceId: r.existingInvoice.id,
-          invoiceNumber: r.existingInvoice.invoiceNumber,
-          bookingId: r.bookingId,
-          total: Number(r.existingInvoice.total),
-        });
-        return;
-      }
-
+      // Always fill the form from the reservation (never skip the form).
+      // Loading a booking starts a new issue path — don't keep an unrelated draft id.
+      setEditingDraftId(null);
+      setEditingDraftNumber(null);
       setLoadedBookingId(r.bookingId);
       setLoadedReservationId(r.id);
+      const matched = findFleetVehicle(fleetVehicles, r.vehicle || "");
+      setVehicleId(matched?.id || "");
+      setDistanceMeters(parseDistanceMeters(r.distance));
+      setFareManual(true); // keep booking’s stored fare until staff changes vehicle/route
+      setPickupDateTime(parseServiceDateTime(r.serviceDate, r.serviceTime));
       setStandalone({
         customerName: r.customerName,
         customerEmails: splitEmails(r.customerEmail),
@@ -298,6 +720,15 @@ export default function AdminBillingPage() {
         dropoffLocation: r.dropoffLocation,
         stops: r.stops,
         passengers: r.passengers || "1",
+        childSeats: r.childSeats || "0",
+        childSeatType: r.childSeatType || "",
+        etr407: r.etr407 || "No",
+        airline: r.airline || "",
+        flightNumber: r.flightNumber || "",
+        flightNote: r.flightNote || "",
+        distance: r.distance || "",
+        duration: r.duration || "",
+        specialRequirements: r.specialRequirements || "",
         paymentMethodLabel: "Credit card",
         alreadyPaid: false,
       });
@@ -312,15 +743,58 @@ export default function AdminBillingPage() {
       setManualGratuity(
         r.gratuity && r.gratuity > 0 ? String(r.gratuity) : ""
       );
+      // Infer tip % from booking when possible (default 18).
+      if (r.gratuity && r.gratuity > 0 && r.lines?.length) {
+        const sub = r.lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
+        if (sub > 0) {
+          const pct = Math.round((r.gratuity / sub) * 100);
+          const nearest =
+            APP_GRATUITY_PERCENTS.find((p) => Math.abs(p - pct) <= 1) ||
+            (pct >= APP_DEFAULT_GRATUITY_PERCENT ? pct : APP_DEFAULT_GRATUITY_PERCENT);
+          setGratuityPercent(
+            Math.min(100, Math.max(APP_DEFAULT_GRATUITY_PERCENT, nearest))
+          );
+        } else {
+          setGratuityPercent(APP_DEFAULT_GRATUITY_PERCENT);
+        }
+      } else {
+        setGratuityPercent(APP_DEFAULT_GRATUITY_PERCENT);
+      }
+
+      const unpaidExisting =
+        r.existingInvoice && !r.existingInvoice.paid ? r.existingInvoice : null;
       const paidNote =
         String(r.paymentStatus || "").toUpperCase() === "PAID"
           ? " (booking already marked PAID — review carefully)"
           : "";
-      const priorNote = r.existingInvoice?.paid
+      const priorPaidNote = r.existingInvoice?.paid
         ? ` Prior invoice ${r.existingInvoice.invoiceNumber} is paid.`
         : "";
+      const totalHint =
+        r.bookingTotal && r.bookingTotal > 0
+          ? ` Booking total $${r.bookingTotal.toFixed(2)}.`
+          : "";
+
+      if (unpaidExisting) {
+        // Form is filled for review; resume collect on the existing invoice for THIS booking only.
+        setMessage(
+          `Loaded ${r.bookingId} — form filled. Unpaid ${unpaidExisting.invoiceNumber} ($${Number(unpaidExisting.total).toFixed(2)}) already exists for this booking — collect below (or delete it from the list to re-issue).${paidNote}${totalHint}`
+        );
+        document.getElementById("create-manual-invoice")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+        await beginPaymentCollect({
+          invoiceId: unpaidExisting.id,
+          invoiceNumber: unpaidExisting.invoiceNumber,
+          bookingId: r.bookingId,
+          total: Number(unpaidExisting.total),
+        });
+        return;
+      }
+
       setMessage(
-        `Loaded ${r.bookingId} into Create manual invoice — review & Create & collect payment.${paidNote}${priorNote}`
+        `Loaded ${r.bookingId} into Create manual invoice — review & Create & collect payment.${paidNote}${priorPaidNote}${totalHint}`
       );
       document.getElementById("create-manual-invoice")?.scrollIntoView({
         behavior: "smooth",
@@ -424,10 +898,20 @@ export default function AdminBillingPage() {
     const n = Number(l.amount);
     return s + (Number.isFinite(n) ? n : 0);
   }, 0);
-  const manualHst = Math.round(manualSubtotal * 0.13 * 100) / 100;
   const manualGratNum = Math.max(0, Number(manualGratuity) || 0);
-  const manualTotal =
-    Math.round((manualSubtotal + manualHst + manualGratNum) * 100) / 100;
+  const manualTax =
+    manualGratNum > 0.0001
+      ? (() => {
+          const taxable = round2(manualSubtotal + manualGratNum);
+          const hst = round2(taxable * (pricingDefaults.hstRate || HST_RATE));
+          return { hst, total: round2(taxable + hst) };
+        })()
+      : (() => {
+          const hst = round2(manualSubtotal * (pricingDefaults.hstRate || HST_RATE));
+          return { hst, total: round2(manualSubtotal + hst) };
+        })();
+  const manualHst = manualTax.hst;
+  const manualTotal = manualTax.total;
 
   function clearManualForm() {
     setStandalone(emptyStandalone());
@@ -436,6 +920,64 @@ export default function AdminBillingPage() {
     setLoadedBookingId(null);
     setLoadedReservationId(null);
     setManualReservationId("");
+    setVehicleId("");
+    setDistanceMeters(0);
+    setHourlyDuration(APP_MIN_HOURLY_HOURS);
+    setFareManual(false);
+    setPickupDateTime(null);
+    setGratuityPercent(APP_DEFAULT_GRATUITY_PERCENT);
+    setTipModalOpen(false);
+    setEditingDraftId(null);
+    setEditingDraftNumber(null);
+  }
+
+  function buildStandalonePayload() {
+    const lines = manualLines
+      .map((l) => ({
+        label: l.label.trim(),
+        amount: Number(l.amount),
+      }))
+      .filter((l) => l.label && Number.isFinite(l.amount) && Math.abs(l.amount) > 0.0001);
+
+    const customerEmail = joinEmails(standalone.customerEmails);
+    const { customerEmails: _emails, ...standaloneRest } = standalone;
+    return {
+      ...standaloneRest,
+      customerEmail,
+      ...(loadedBookingId ? { bookingId: loadedBookingId } : {}),
+      ...(loadedReservationId ? { reservationId: loadedReservationId } : {}),
+      ...(editingDraftId ? { draftId: editingDraftId } : {}),
+      alreadyPaid: isCardCollect ? false : standalone.alreadyPaid,
+      passengers: standalone.passengers.trim()
+        ? Number(standalone.passengers)
+        : undefined,
+      childSeats: Number(standalone.childSeats) || 0,
+      gratuity: manualGratNum > 0 ? manualGratNum : 0,
+      lines,
+    };
+  }
+
+  function applyGratuityPercent(pct: number) {
+    const next = Math.max(APP_DEFAULT_GRATUITY_PERCENT, Math.round(pct));
+    setGratuityPercent(next);
+    setTipModalOpen(false);
+    // Recompute flat CAD grat from current pre-tax lines (same as reservation).
+    const sub = manualLines.reduce((s, l) => {
+      const n = Number(l.amount);
+      return s + (Number.isFinite(n) ? n : 0);
+    }, 0);
+    if (sub > 0) {
+      const computed = applyGratuityThenHst(
+        sub,
+        next,
+        pricingDefaults.hstRate || HST_RATE
+      );
+      setManualGratuity(round2(computed.gratuity).toFixed(2));
+    }
+    // If vehicle/route known, also refresh ride lines at the new tip %.
+    if (!fareManual && selectedFleetVehicle) {
+      setFareManual(false);
+    }
   }
 
   async function issueStandalone() {
@@ -443,40 +985,23 @@ export default function AdminBillingPage() {
     setMessage("");
     setPendingCard(null);
     try {
-      const lines = manualLines
-        .map((l) => ({
-          label: l.label.trim(),
-          amount: Number(l.amount),
-        }))
-        .filter((l) => l.label && Number.isFinite(l.amount) && Math.abs(l.amount) > 0.0001);
-
-      const customerEmail = joinEmails(standalone.customerEmails);
-      if (!customerEmail.includes("@")) {
+      const payload = buildStandalonePayload();
+      if (!String(payload.customerEmail || "").includes("@")) {
         setMessage("Add at least one valid customer email");
         setBusyId(null);
         return;
       }
-
-      const { customerEmails: _emails, ...standaloneRest } = standalone;
-      const payload = {
-        action: "issue_standalone",
-        ...standaloneRest,
-        customerEmail,
-        ...(loadedBookingId ? { bookingId: loadedBookingId } : {}),
-        ...(loadedReservationId ? { reservationId: loadedReservationId } : {}),
-        alreadyPaid: isCardCollect ? false : standalone.alreadyPaid,
-        passengers: standalone.passengers.trim()
-          ? Number(standalone.passengers)
-          : undefined,
-        gratuity: manualGratNum > 0 ? manualGratNum : 0,
-        lines,
-      };
+      if (!payload.lines.length) {
+        setMessage("Add at least one line item with an amount");
+        setBusyId(null);
+        return;
+      }
 
       const res = await fetch("/api/admin/billing/invoices", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ action: "issue_standalone", ...payload }),
       });
       const json = await res.json();
       if (!json.success) {
@@ -485,6 +1010,9 @@ export default function AdminBillingPage() {
       }
 
       if (json.deferDelivery) {
+        setEditingDraftId(null);
+        setEditingDraftNumber(null);
+        await load();
         await beginPaymentCollect({
           invoiceId: String(json.invoiceId),
           invoiceNumber: String(json.invoiceNumber),
@@ -499,6 +1027,229 @@ export default function AdminBillingPage() {
       );
       clearManualForm();
       await load();
+    } catch {
+      setMessage("Network error");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function saveDraft() {
+    setBusyId("save_draft");
+    setMessage("");
+    try {
+      const payload = buildStandalonePayload();
+      if (!String(payload.customerName || "").trim()) {
+        setMessage("Customer name is required to save a draft");
+        setBusyId(null);
+        return;
+      }
+      if (!payload.lines.length) {
+        setMessage("Add at least one line item with an amount");
+        setBusyId(null);
+        return;
+      }
+
+      const res = await fetch("/api/admin/billing/invoices", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save_draft", ...payload }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setMessage(json.error || "Failed to save draft");
+        return;
+      }
+
+      setEditingDraftId(String(json.invoiceId));
+      setEditingDraftNumber(String(json.invoiceNumber));
+      setLoadedBookingId(String(json.bookingId));
+      setMessage(
+        `Draft saved · ${json.invoiceNumber} · ${json.bookingId} · $${Number(json.total).toFixed(2)} (no email)`
+      );
+      await load();
+    } catch {
+      setMessage("Network error");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function loadInvoiceIntoForm(invoiceId: string, opts?: { asNewDraft?: boolean }) {
+    setBusyId(`load_invoice_${invoiceId}`);
+    setMessage("");
+    setPendingCard(null);
+    try {
+      const res = await fetch("/api/admin/billing/invoices", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "load_invoice", invoiceId }),
+      });
+      const json = await res.json();
+      if (!json.success || !json.invoice) {
+        setMessage(json.error || "Could not load invoice");
+        return;
+      }
+      const inv = json.invoice as {
+        id: string;
+        invoiceNumber: string;
+        bookingId: string;
+        reservationId: string | null;
+        isDraft: boolean;
+        customerName: string;
+        customerEmail: string;
+        customerPhone: string;
+        serviceType: string;
+        vehicle: string;
+        serviceDate: string;
+        serviceTime: string;
+        pickupLocation: string;
+        dropoffLocation: string;
+        stops: string;
+        passengers: string;
+        childSeats: string;
+        childSeatType: string;
+        etr407: string;
+        airline: string;
+        flightNumber: string;
+        flightNote: string;
+        distance: string;
+        duration: string;
+        specialRequirements: string;
+        paymentMethodLabel: string;
+        gratuity: number;
+        lines: { label: string; amount: number }[];
+      };
+
+      const payMethod =
+        MANUAL_PAYMENT_METHODS.find(
+          (m) => m.toLowerCase() === String(inv.paymentMethodLabel || "").toLowerCase()
+        ) ||
+        (String(inv.paymentMethodLabel || "").trim() || "Credit card");
+
+      setStandalone({
+        ...emptyStandalone(),
+        customerName: inv.customerName || "",
+        customerEmails: splitEmails(inv.customerEmail),
+        customerPhone: inv.customerPhone || "",
+        serviceType: inv.serviceType || "Point-to-Point transportation",
+        vehicle: inv.vehicle || "",
+        serviceDate: inv.serviceDate || "",
+        serviceTime: inv.serviceTime || "",
+        pickupLocation: inv.pickupLocation || "",
+        dropoffLocation: inv.dropoffLocation || "",
+        stops: inv.stops || "",
+        passengers: inv.passengers || "1",
+        childSeats: inv.childSeats || "0",
+        childSeatType: inv.childSeatType || "",
+        etr407: inv.etr407 || "No",
+        airline: inv.airline || "",
+        flightNumber: inv.flightNumber || "",
+        flightNote: inv.flightNote || "",
+        distance: inv.distance || "",
+        duration: inv.duration || "",
+        specialRequirements: inv.specialRequirements || "",
+        paymentMethodLabel: payMethod,
+        alreadyPaid: !/^credit\s*card$/i.test(payMethod),
+      });
+
+      const lines =
+        Array.isArray(inv.lines) && inv.lines.length
+          ? inv.lines.map((l) => ({
+              label: l.label,
+              amount: Number.isFinite(l.amount) ? String(l.amount) : "",
+            }))
+          : [{ label: "Ride fare", amount: "" }];
+      setManualLines(lines);
+      setManualGratuity(
+        inv.gratuity > 0 ? round2(inv.gratuity).toFixed(2) : ""
+      );
+
+      const lineSub = lines.reduce((s, l) => {
+        const n = Number(l.amount);
+        return s + (Number.isFinite(n) ? n : 0);
+      }, 0);
+      if (lineSub > 0 && inv.gratuity > 0) {
+        const pct = Math.round((inv.gratuity / lineSub) * 100);
+        setGratuityPercent(
+          APP_GRATUITY_PERCENTS.includes(pct as (typeof APP_GRATUITY_PERCENTS)[number])
+            ? pct
+            : Math.max(APP_DEFAULT_GRATUITY_PERCENT, pct || APP_DEFAULT_GRATUITY_PERCENT)
+        );
+      } else {
+        setGratuityPercent(APP_DEFAULT_GRATUITY_PERCENT);
+      }
+
+      const fleetMatch = findFleetVehicle(fleetVehicles, inv.vehicle || "");
+      setVehicleId(fleetMatch?.id || "");
+      setDistanceMeters(parseDistanceMeters(inv.distance));
+      if (/hourly/i.test(inv.serviceType || "")) {
+        const hrs = Number(String(inv.duration || "").match(/([\d.]+)/)?.[1]);
+        if (Number.isFinite(hrs) && hrs > 0) {
+          setHourlyDuration(Math.max(APP_MIN_HOURLY_HOURS, Math.round(hrs)));
+        }
+      }
+      setFareManual(true);
+      setPickupDateTime(parseServiceDateTime(inv.serviceDate, inv.serviceTime));
+
+      if (opts?.asNewDraft) {
+        // Duplicate already created a new DRAFT — keep editing that new id.
+        setEditingDraftId(inv.id);
+        setEditingDraftNumber(inv.invoiceNumber);
+        setLoadedBookingId(inv.bookingId);
+        setLoadedReservationId(null);
+      } else if (inv.isDraft) {
+        setEditingDraftId(inv.id);
+        setEditingDraftNumber(inv.invoiceNumber);
+        setLoadedBookingId(inv.bookingId);
+        setLoadedReservationId(inv.reservationId || null);
+      } else {
+        // Loading a issued invoice for reference — do not overwrite it; treat as new form copy.
+        setEditingDraftId(null);
+        setEditingDraftNumber(null);
+        setLoadedBookingId(null);
+        setLoadedReservationId(null);
+      }
+
+      setMessage(
+        inv.isDraft || opts?.asNewDraft
+          ? `Editing draft ${inv.invoiceNumber} — Save draft or Create & collect when ready`
+          : `Copied ${inv.invoiceNumber} into form — Save as Draft or Create & collect (new invoice)`
+      );
+
+      document
+        .getElementById("create-manual-invoice")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch {
+      setMessage("Network error");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function duplicateInvoice(invoiceId: string) {
+    setBusyId(`dup_${invoiceId}`);
+    setMessage("");
+    setPendingCard(null);
+    try {
+      const res = await fetch("/api/admin/billing/invoices", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "duplicate_invoice", invoiceId }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setMessage(json.error || "Duplicate failed");
+        return;
+      }
+      setMessage(
+        `Duplicated ${json.fromInvoiceNumber} → draft ${json.invoiceNumber}`
+      );
+      await load();
+      await loadInvoiceIntoForm(String(json.invoiceId), { asNewDraft: true });
     } catch {
       setMessage("Network error");
     } finally {
@@ -549,6 +1300,7 @@ export default function AdminBillingPage() {
   }
 
   return (
+    <GoogleMapsProvider>
       <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div>
@@ -557,7 +1309,8 @@ export default function AdminBillingPage() {
               Billing &amp; Invoices
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              Canonical SARJ tax invoices. Amounts are frozen — staff cannot edit line items.
+              Walk-in or load a booking. Manual entry uses the same vehicle fare as
+              Custom Reservation.
             </p>
           </div>
           <button
@@ -673,460 +1426,793 @@ export default function AdminBillingPage() {
         </section>
 
         {/* Standalone manual invoice (+ optional load from booking) */}
-        <section
-          id="create-manual-invoice"
-          className="rounded-2xl border border-gray-200 bg-white overflow-hidden"
-        >
-          <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/80 space-y-3">
-            <div>
-              <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-                Create manual invoice
-              </h2>
-              <p className="text-xs text-gray-500 mt-1">
-                Walk-in / phone, or load an existing booking below. Amounts are pre-tax; HST
-                13% is added automatically. Credit card → email only after payment.
-              </p>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
-              <div className="flex-1">
-                <label className="block text-xs font-medium text-gray-500 mb-1">
-                  Load from reservation (booking id)
-                </label>
-                <input
-                  value={manualReservationId}
-                  onChange={(e) => setManualReservationId(e.target.value)}
-                  placeholder="SARJ-MWTJ66FC575"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white"
-                />
+        <section id="create-manual-invoice" className="space-y-4">
+          <div className="rounded-2xl border border-gray-200/80 bg-white shadow-sm overflow-hidden">
+            <div className="px-4 sm:px-5 pt-4 sm:pt-5 pb-4 border-b border-gray-100 space-y-4">
+              <div>
+                <p className={sectionEyebrow}>Billing</p>
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 tracking-tight">
+                  Create manual invoice
+                </h2>
+                <p className="text-[12px] text-gray-500 mt-0.5">
+                  Fill fields yourself or load a booking. Save as Draft anytime. Duplicate
+                  from the list. Credit card → email only after payment.
+                </p>
               </div>
-              <button
-                type="button"
-                disabled={
-                  !manualReservationId.trim() || busyId === "load_reservation"
-                }
-                onClick={() => void loadReservationIntoForm()}
-                className="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-900 text-white disabled:opacity-40 whitespace-nowrap"
-              >
-                {busyId === "load_reservation"
-                  ? "Loading…"
-                  : "Load into form"}
-              </button>
-            </div>
-            {loadedBookingId && (
-              <p className="text-[11px] font-semibold text-[#8B6914]">
-                Form filled from {loadedBookingId}
-                {loadedReservationId ? " (linked)" : ""} — review, then Create &amp;
-                collect payment.
-              </p>
-            )}
-          </div>
 
-          <div className="p-5 space-y-6">
-            {/* 1. Customer */}
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-[#8B6914] uppercase tracking-wider">
-                1 · Customer
-              </h3>
-              <div className="grid sm:grid-cols-3 gap-3">
-                <div>
-                  <label className={labelClass}>Full name *</label>
+              <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-3 sm:p-3.5">
+                <label className={labelClass}>Load from reservation</label>
+                <div className="flex flex-col sm:flex-row gap-2">
                   <input
-                    value={standalone.customerName}
-                    onChange={(e) =>
-                      setStandalone((s) => ({ ...s, customerName: e.target.value }))
-                    }
-                    placeholder="Guest name"
-                    className={fieldClass}
+                    value={manualReservationId}
+                    onChange={(e) => setManualReservationId(e.target.value)}
+                    placeholder="SARJ-MWTJ66FC575"
+                    className={`${fieldClass} flex-1 font-mono text-[13px]`}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void loadReservationIntoForm();
+                      }
+                    }}
                   />
-                </div>
-                <div className="sm:col-span-1">
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <label className="block text-xs font-semibold text-gray-600">
-                      Email *{" "}
-                      <span className="font-normal text-gray-400">
-                        (all get invoice when paid)
-                      </span>
-                    </label>
-                    {standalone.customerEmails.length < 5 && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setStandalone((s) => ({
-                            ...s,
-                            customerEmails: [...s.customerEmails, ""],
-                          }))
-                        }
-                        className="text-[11px] font-semibold text-[#8B6914] hover:underline whitespace-nowrap"
-                      >
-                        + Add email
-                      </button>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    {standalone.customerEmails.map((value, idx) => (
-                      <div key={idx} className="flex gap-2 items-center">
-                        <input
-                          type="email"
-                          autoComplete={idx === 0 ? "email" : "off"}
-                          value={value}
-                          onChange={(e) => {
-                            const next = e.target.value;
-                            setStandalone((s) => ({
-                              ...s,
-                              customerEmails: s.customerEmails.map((em, i) =>
-                                i === idx ? next : em
-                              ),
-                            }));
-                          }}
-                          placeholder={
-                            idx === 0 ? "guest@email.com" : "assistant@email.com"
-                          }
-                          className={fieldClass}
-                        />
-                        {standalone.customerEmails.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setStandalone((s) => ({
-                                ...s,
-                                customerEmails: s.customerEmails.filter(
-                                  (_, i) => i !== idx
-                                ),
-                              }))
-                            }
-                            className="text-xs font-semibold text-rose-700 shrink-0"
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className={labelClass}>Phone</label>
-                  <input
-                    value={standalone.customerPhone}
-                    onChange={(e) =>
-                      setStandalone((s) => ({ ...s, customerPhone: e.target.value }))
+                  <button
+                    type="button"
+                    disabled={
+                      !manualReservationId.trim() || busyId === "load_reservation"
                     }
-                    placeholder="(416) 000-0000"
-                    className={fieldClass}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* 2. Trip */}
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-[#8B6914] uppercase tracking-wider">
-                2 · Trip details
-              </h3>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <div>
-                  <label className={labelClass}>Service type</label>
-                  <select
-                    value={standalone.serviceType}
-                    onChange={(e) =>
-                      setStandalone((s) => ({ ...s, serviceType: e.target.value }))
-                    }
-                    className={fieldClass}
+                    onClick={() => void loadReservationIntoForm()}
+                    className="px-4 min-h-11 rounded-lg text-sm font-semibold bg-gray-900 text-white disabled:opacity-40 whitespace-nowrap"
                   >
-                    {!MANUAL_SERVICE_TYPES.some(
-                      (t) => t.value === standalone.serviceType
-                    ) && standalone.serviceType ? (
-                      <option value={standalone.serviceType}>
-                        {standalone.serviceType}
-                      </option>
-                    ) : null}
-                    {MANUAL_SERVICE_TYPES.map((t) => (
-                      <option key={t.value} value={t.value}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
+                    {busyId === "load_reservation" ? "Loading…" : "Load into form"}
+                  </button>
                 </div>
-                <div>
-                  <label className={labelClass}>Vehicle</label>
-                  <select
-                    value={standalone.vehicle}
-                    onChange={(e) =>
-                      setStandalone((s) => ({ ...s, vehicle: e.target.value }))
-                    }
-                    className={fieldClass}
-                  >
-                    <option value="">Select vehicle…</option>
-                    {!vehicleInFleet && standalone.vehicle ? (
-                      <option value={standalone.vehicle}>
-                        {standalone.vehicle} (from booking)
-                      </option>
-                    ) : null}
-                    {fleetVehicles.map((v) => (
-                      <option key={v.id} value={v.name}>
-                        {v.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>Date</label>
-                  <input
-                    type="date"
-                    value={standalone.serviceDate}
-                    onChange={(e) =>
-                      setStandalone((s) => ({ ...s, serviceDate: e.target.value }))
-                    }
-                    className={fieldClass}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Time</label>
-                  <input
-                    type="time"
-                    value={standalone.serviceTime}
-                    onChange={(e) =>
-                      setStandalone((s) => ({ ...s, serviceTime: e.target.value }))
-                    }
-                    className={fieldClass}
-                  />
-                </div>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>Pickup</label>
-                  <input
-                    value={standalone.pickupLocation}
-                    onChange={(e) =>
-                      setStandalone((s) => ({ ...s, pickupLocation: e.target.value }))
-                    }
-                    placeholder="Pickup address"
-                    className={fieldClass}
-                  />
-                </div>
-                {standalone.serviceType !== "Hourly ride" && (
-                  <div>
-                    <label className={labelClass}>Drop-off</label>
-                    <input
-                      value={standalone.dropoffLocation}
-                      onChange={(e) =>
-                        setStandalone((s) => ({ ...s, dropoffLocation: e.target.value }))
-                      }
-                      placeholder="Drop-off address"
-                      className={fieldClass}
-                    />
-                  </div>
-                )}
-                {standalone.serviceType === "Hourly ride" && (
-                  <div>
-                    <label className={labelClass}>Passengers</label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={standalone.passengers}
-                      onChange={(e) =>
-                        setStandalone((s) => ({ ...s, passengers: e.target.value }))
-                      }
-                      className={fieldClass}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {standalone.serviceType !== "Hourly ride" && (
-                <div className="grid sm:grid-cols-3 gap-3">
-                  <div className="sm:col-span-2">
-                    <label className={labelClass}>Stops (optional)</label>
-                    <input
-                      value={standalone.stops}
-                      onChange={(e) =>
-                        setStandalone((s) => ({ ...s, stops: e.target.value }))
-                      }
-                      placeholder="Stop 1 | Stop 2"
-                      className={fieldClass}
-                    />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Passengers</label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={standalone.passengers}
-                      onChange={(e) =>
-                        setStandalone((s) => ({ ...s, passengers: e.target.value }))
-                      }
-                      className={fieldClass}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* 3. Charges */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="text-xs font-bold text-[#8B6914] uppercase tracking-wider">
-                  3 · Charges (before tax)
-                </h3>
-                <button
-                  type="button"
-                  disabled={manualLines.length >= 20}
-                  onClick={() => setManualLines((rows) => [...rows, emptyManualLine()])}
-                  className="text-xs font-semibold text-[#8B6914] hover:underline disabled:opacity-40"
-                >
-                  + Add line
-                </button>
-              </div>
-              <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-3 space-y-2">
-                <div className="hidden sm:grid grid-cols-[1fr_7.5rem_4rem] gap-2 px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                  <span>Description</span>
-                  <span className="text-right">Amount CAD</span>
-                  <span />
-                </div>
-                {manualLines.map((line, idx) => (
-                  <div
-                    key={idx}
-                    className="grid grid-cols-1 sm:grid-cols-[1fr_7.5rem_4rem] gap-2 items-center"
-                  >
-                    <input
-                      value={line.label}
-                      onChange={(e) =>
-                        setManualLines((rows) =>
-                          rows.map((r, i) =>
-                            i === idx ? { ...r, label: e.target.value } : r
-                          )
-                        )
-                      }
-                      placeholder="e.g. Ride fare"
-                      className={fieldClass}
-                    />
-                    <input
-                      value={line.amount}
-                      onChange={(e) =>
-                        setManualLines((rows) =>
-                          rows.map((r, i) =>
-                            i === idx ? { ...r, amount: e.target.value } : r
-                          )
-                        )
-                      }
-                      placeholder="0.00"
-                      inputMode="decimal"
-                      className={`${fieldClass} tabular-nums text-right`}
-                    />
+                {(editingDraftId || loadedBookingId) && (
+                  <div className="mt-3 rounded-lg border border-[#C9A063]/30 bg-[#C9A063]/8 px-3 py-2 text-[12px] text-[#5c4a1f] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <p>
+                      {editingDraftId ? (
+                        <>
+                          Editing draft{" "}
+                          <span className="font-semibold text-[#8B6914]">
+                            {editingDraftNumber || editingDraftId}
+                          </span>
+                          {loadedBookingId ? ` · ${loadedBookingId}` : ""} — Save draft
+                          or Create &amp; collect when ready.
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-semibold text-[#8B6914]">
+                            {loadedBookingId}
+                          </span>
+                          {loadedReservationId ? " · linked to reservation" : ""} —
+                          review all fields, then collect payment.
+                        </>
+                      )}
+                    </p>
                     <button
                       type="button"
-                      disabled={manualLines.length <= 1}
-                      onClick={() =>
-                        setManualLines((rows) => rows.filter((_, i) => i !== idx))
-                      }
-                      className="text-xs text-rose-700 font-semibold disabled:opacity-30 py-2"
+                      onClick={() => {
+                        clearManualForm();
+                        setPendingCard(null);
+                        setMessage("Form cleared");
+                      }}
+                      className="text-[11px] font-semibold text-[#8B6914] hover:underline whitespace-nowrap shrink-0"
                     >
-                      Remove
+                      Clear form
                     </button>
                   </div>
-                ))}
-                <div className="grid sm:grid-cols-[1fr_7.5rem] gap-2 items-center pt-1">
-                  <label className="text-sm text-gray-600">
-                    Admin, Fuel &amp; Grat{" "}
-                    <span className="text-xs text-gray-400">(after HST, not taxed)</span>
-                  </label>
-                  <input
-                    value={manualGratuity}
-                    onChange={(e) => setManualGratuity(e.target.value)}
-                    placeholder="0.00"
-                    inputMode="decimal"
-                    className={`${fieldClass} tabular-nums text-right`}
-                  />
-                </div>
-                <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-1 pt-2 border-t border-gray-200 text-sm">
-                  <span className="text-gray-500">
-                    Subtotal{" "}
-                    <strong className="text-gray-900 tabular-nums">
-                      ${manualSubtotal.toFixed(2)}
-                    </strong>
-                  </span>
-                  <span className="text-gray-500">
-                    HST{" "}
-                    <strong className="text-gray-900 tabular-nums">
-                      ${manualHst.toFixed(2)}
-                    </strong>
-                  </span>
-                  {manualGratNum > 0 ? (
-                    <span className="text-gray-500">
-                      Grat{" "}
-                      <strong className="text-gray-900 tabular-nums">
-                        ${manualGratNum.toFixed(2)}
-                      </strong>
-                    </span>
-                  ) : null}
-                  <span className="text-gray-900 font-semibold">
-                    Total{" "}
-                    <strong className="tabular-nums text-base">${manualTotal.toFixed(2)}</strong>
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* 4. Payment */}
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-[#8B6914] uppercase tracking-wider">
-                4 · Payment
-              </h3>
-              <p className="text-xs text-gray-500">
-                Credit card: create invoice → payment link / enter card. Customer gets the
-                invoice email only after payment succeeds.
-              </p>
-              <div className="grid sm:grid-cols-[1fr_auto_auto] gap-3 items-end">
-                <div>
-                  <label className={labelClass}>Payment method</label>
-                  <select
-                    value={standalone.paymentMethodLabel}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      const card = /^credit\s*card$/i.test(v);
-                      setStandalone((s) => ({
-                        ...s,
-                        paymentMethodLabel: v,
-                        alreadyPaid: card ? false : s.alreadyPaid || true,
-                      }));
-                    }}
-                    className={fieldClass}
-                  >
-                    {MANUAL_PAYMENT_METHODS.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {!isCardCollect && (
-                  <label className="inline-flex items-center gap-2 text-sm text-gray-800 h-[38px] px-1">
-                    <input
-                      type="checkbox"
-                      checked={standalone.alreadyPaid}
-                      onChange={(e) =>
-                        setStandalone((s) => ({ ...s, alreadyPaid: e.target.checked }))
-                      }
-                      className="rounded border-gray-300"
-                    />
-                    Already paid
-                  </label>
                 )}
-                <button
-                  type="button"
-                  disabled={busyId === "issue_standalone" || Boolean(pendingCard)}
-                  onClick={() => void issueStandalone()}
-                  className="px-5 py-2.5 rounded-lg text-sm font-semibold bg-[#C9A063] text-black disabled:opacity-40 whitespace-nowrap"
-                >
-                  {busyId === "issue_standalone"
-                    ? "Creating…"
-                    : isCardCollect
-                      ? "Create & collect payment"
-                      : "Issue invoice"}
-                </button>
               </div>
             </div>
 
+            <div className="p-4 sm:p-5">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 lg:items-start">
+                <div className="lg:col-span-2 space-y-4">
+                  {/* Customer */}
+                  <div className="rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="px-3.5 sm:px-4 pt-3.5 pb-2 bg-white">
+                      <p className={sectionEyebrow}>Guest</p>
+                      <h3 className="text-sm sm:text-base font-semibold text-gray-900">
+                        Customer
+                      </h3>
+                    </div>
+                    <div className="px-3.5 sm:px-4 pb-3.5 space-y-3">
+                      <div className="grid sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className={labelClass}>Full name *</label>
+                          <input
+                            value={standalone.customerName}
+                            onChange={(e) =>
+                              setStandalone((s) => ({
+                                ...s,
+                                customerName: e.target.value,
+                              }))
+                            }
+                            placeholder="Guest name"
+                            className={fieldClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>Phone</label>
+                          <input
+                            value={standalone.customerPhone}
+                            onChange={(e) =>
+                              setStandalone((s) => ({
+                                ...s,
+                                customerPhone: e.target.value,
+                              }))
+                            }
+                            placeholder="(416) 000-0000"
+                            className={fieldClass}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <label className={labelClass + " !mb-0"}>
+                            Email *{" "}
+                            <span className="normal-case tracking-normal font-normal text-gray-400">
+                              — all get invoice when paid
+                            </span>
+                          </label>
+                          {standalone.customerEmails.length < 5 && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setStandalone((s) => ({
+                                  ...s,
+                                  customerEmails: [...s.customerEmails, ""],
+                                }))
+                              }
+                              className="text-[11px] font-semibold text-[#8B6914] hover:underline"
+                            >
+                              + Add email
+                            </button>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          {standalone.customerEmails.map((value, idx) => (
+                            <div key={idx} className="flex gap-2 items-center">
+                              <input
+                                type="email"
+                                autoComplete={idx === 0 ? "email" : "off"}
+                                value={value}
+                                onChange={(e) => {
+                                  const next = e.target.value;
+                                  setStandalone((s) => ({
+                                    ...s,
+                                    customerEmails: s.customerEmails.map((em, i) =>
+                                      i === idx ? next : em
+                                    ),
+                                  }));
+                                }}
+                                placeholder={
+                                  idx === 0
+                                    ? "guest@email.com"
+                                    : "assistant@email.com"
+                                }
+                                className={fieldClass}
+                              />
+                              {standalone.customerEmails.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setStandalone((s) => ({
+                                      ...s,
+                                      customerEmails: s.customerEmails.filter(
+                                        (_, i) => i !== idx
+                                      ),
+                                    }))
+                                  }
+                                  className="text-xs font-semibold text-rose-700 shrink-0"
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Trip */}
+                  <div className="rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="px-3.5 sm:px-4 pt-3.5 pb-2 bg-white">
+                      <p className={sectionEyebrow}>Trip</p>
+                      <h3 className="text-sm sm:text-base font-semibold text-gray-900">
+                        Ride details
+                      </h3>
+                    </div>
+                    <div className="px-3.5 sm:px-4 pb-3.5 space-y-3">
+                      <div
+                        className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-gray-100 border border-gray-200/70"
+                        role="tablist"
+                        aria-label="Service type"
+                      >
+                        {MANUAL_SERVICE_TYPES.map((t) => {
+                          const active = standalone.serviceType === t.value;
+                          return (
+                            <button
+                              key={t.value}
+                              type="button"
+                              role="tab"
+                              aria-selected={active}
+                              onClick={() => {
+                                setFareManual(false);
+                                setStandalone((s) => ({
+                                  ...s,
+                                  serviceType: t.value,
+                                }));
+                              }}
+                              className={`min-h-11 px-1.5 sm:px-2 py-2 rounded-lg text-[11px] sm:text-[12px] font-semibold tracking-wide transition-all ${
+                                active
+                                  ? "bg-gray-900 text-white shadow-sm"
+                                  : "text-gray-600 hover:text-gray-900"
+                              }`}
+                            >
+                              {t.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {!MANUAL_SERVICE_TYPES.some(
+                        (t) => t.value === standalone.serviceType
+                      ) && standalone.serviceType ? (
+                        <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5">
+                          Loaded service:{" "}
+                          <strong>{standalone.serviceType}</strong> — pick Distance /
+                          Hourly / Parcel above if you need to change it.
+                        </p>
+                      ) : null}
+
+                      <div className="rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+                        <div className="px-3 py-2.5 bg-white">
+                          <div className="flex items-center gap-2 mb-1">
+                            <MapPin
+                              className="w-3.5 h-3.5 text-[#C9A063] shrink-0"
+                              strokeWidth={2}
+                            />
+                            <label className={goldLabelClass}>Pickup</label>
+                          </div>
+                          <PlacesAutocomplete
+                            value={standalone.pickupLocation}
+                            onChange={(val) => {
+                              setFareManual(false);
+                              setStandalone((s) => ({
+                                ...s,
+                                pickupLocation: val,
+                              }));
+                            }}
+                            placeholder="Pickup address"
+                            className={fieldClass}
+                          />
+                        </div>
+                        {!isHourly && (
+                          <div className="px-3 py-2.5 bg-white">
+                            <div className="flex items-center gap-2 mb-1">
+                              <MapPin
+                                className="w-3.5 h-3.5 text-rose-500 shrink-0"
+                                strokeWidth={2}
+                              />
+                              <label className={goldLabelClass}>Drop-off</label>
+                            </div>
+                            <PlacesAutocomplete
+                              value={standalone.dropoffLocation}
+                              onChange={(val) => {
+                                setFareManual(false);
+                                setStandalone((s) => ({
+                                  ...s,
+                                  dropoffLocation: val,
+                                }));
+                              }}
+                              placeholder="Drop-off address"
+                              className={fieldClass}
+                            />
+                          </div>
+                        )}
+                        {!isHourly && (
+                          <div className="px-3 py-2.5 bg-white">
+                            <label className={labelClass}>Stops (optional)</label>
+                            <input
+                              value={standalone.stops}
+                              onChange={(e) => {
+                                setFareManual(false);
+                                setStandalone((s) => ({
+                                  ...s,
+                                  stops: e.target.value,
+                                }));
+                              }}
+                              placeholder="Stop 1 | Stop 2"
+                              className={fieldClass}
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className={labelClass}>Pick-up date &amp; time</label>
+                          <div className="relative reservation-datepicker">
+                            <DatePicker
+                              selected={pickupDateTime}
+                              onChange={(date: Date | null) => {
+                                // Ignore null mid-typing (incomplete parse) so staff can type freely.
+                                if (!date) return;
+                                setPickupDateTime(date);
+                                setStandalone((s) => ({
+                                  ...s,
+                                  ...formatServiceFields(date),
+                                }));
+                              }}
+                              onChangeRaw={(e) => {
+                                const raw = (e.target as HTMLInputElement).value;
+                                if (!raw.trim()) {
+                                  setPickupDateTime(null);
+                                  setStandalone((s) => ({
+                                    ...s,
+                                    serviceDate: "",
+                                    serviceTime: "",
+                                  }));
+                                }
+                              }}
+                              customInput={
+                                <BillingDateTimeInput
+                                  className={fieldClass + " pr-9"}
+                                  onBlur={(e) => {
+                                    const parsed = parseLooseDateTime(e.target.value);
+                                    if (!parsed) return;
+                                    setPickupDateTime(parsed);
+                                    setStandalone((s) => ({
+                                      ...s,
+                                      ...formatServiceFields(parsed),
+                                    }));
+                                  }}
+                                />
+                              }
+                              showTimeSelect
+                              timeIntervals={15}
+                              timeCaption="Time"
+                              dateFormat={[
+                                "MMM d, yyyy  h:mm aa",
+                                "MMM d, yyyy h:mm aa",
+                                "MM/dd/yyyy h:mm aa",
+                                "dd/MM/yyyy h:mm aa",
+                                "yyyy-MM-dd h:mm aa",
+                                "yyyy-MM-dd HH:mm",
+                              ]}
+                              timeFormat="h:mm aa"
+                              minTime={new Date(new Date().setHours(0, 0, 0, 0))}
+                              maxTime={new Date(new Date().setHours(23, 45, 0, 0))}
+                              placeholderText="Type or select date & time"
+                              withPortal
+                            />
+                            <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none">
+                              <Clock
+                                className="w-3.5 h-3.5 text-gray-400"
+                                strokeWidth={1.75}
+                              />
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-gray-400 mt-1">
+                            Type e.g. Nov 26, 2026 7:30 PM — or pick from calendar
+                          </p>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <Car className="w-3.5 h-3.5 text-gray-400" />
+                            <label className={labelClass + " !mb-0"}>Vehicle</label>
+                          </div>
+                          <select
+                            value={vehicleId || selectedFleetVehicle?.id || ""}
+                            onChange={(e) => {
+                              const id = e.target.value;
+                              const v = findFleetVehicle(fleetVehicles, id);
+                              setVehicleId(id);
+                              setFareManual(false);
+                              setStandalone((s) => ({
+                                ...s,
+                                vehicle: v?.name || v?.dropdownName || "",
+                              }));
+                            }}
+                            className={fieldClass}
+                          >
+                            <option value="">Select vehicle…</option>
+                            {!selectedFleetVehicle && standalone.vehicle ? (
+                              <option value="">
+                                {standalone.vehicle} (from booking — pick fleet match)
+                              </option>
+                            ) : null}
+                            {fleetVehicles.map((v) => (
+                              <option key={v.id} value={v.id}>
+                                {v.dropdownName || v.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        {isHourly ? (
+                          <div>
+                            <label className={labelClass}>Hours</label>
+                            <select
+                              value={hourlyDuration}
+                              onChange={(e) => {
+                                setFareManual(false);
+                                setHourlyDuration(Number(e.target.value) || APP_MIN_HOURLY_HOURS);
+                              }}
+                              className={fieldClass}
+                            >
+                              {APP_HOURLY_DURATIONS.map((h) => (
+                                <option key={h} value={h}>
+                                  {h} hour{h === 1 ? "" : "s"}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <Users className="w-3.5 h-3.5 text-gray-400" />
+                              <label className={labelClass + " !mb-0"}>
+                                Passengers
+                              </label>
+                            </div>
+                            <input
+                              type="number"
+                              min={1}
+                              value={standalone.passengers}
+                              onChange={(e) =>
+                                setStandalone((s) => ({
+                                  ...s,
+                                  passengers: e.target.value,
+                                }))
+                              }
+                              className={fieldClass}
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {isHourly && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <Users className="w-3.5 h-3.5 text-gray-400" />
+                            <label className={labelClass + " !mb-0"}>
+                              Passengers
+                            </label>
+                          </div>
+                          <input
+                            type="number"
+                            min={1}
+                            value={standalone.passengers}
+                            onChange={(e) =>
+                              setStandalone((s) => ({
+                                ...s,
+                                passengers: e.target.value,
+                              }))
+                            }
+                            className={fieldClass}
+                          />
+                        </div>
+                      )}
+
+                      <div className="grid sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className={labelClass}>
+                            Distance{" "}
+                            {routeBusy ? (
+                              <span className="normal-case tracking-normal font-normal text-[#8B6914]">
+                                · routing…
+                              </span>
+                            ) : null}
+                          </label>
+                          <input
+                            value={standalone.distance}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setFareManual(false);
+                              setDistanceMeters(parseDistanceMeters(val));
+                              setStandalone((s) => ({ ...s, distance: val }));
+                            }}
+                            placeholder="Auto from route, or e.g. 24.5 km"
+                            className={fieldClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>Duration</label>
+                          <input
+                            value={standalone.duration}
+                            onChange={(e) =>
+                              setStandalone((s) => ({
+                                ...s,
+                                duration: e.target.value,
+                              }))
+                            }
+                            placeholder="Auto from route"
+                            className={fieldClass}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payment method (mobile also in sidebar CTA) */}
+                  <div className="rounded-xl border border-gray-200 overflow-hidden lg:hidden">
+                    <div className="px-3.5 sm:px-4 pt-3.5 pb-2">
+                      <p className={sectionEyebrow}>Payment</p>
+                      <h3 className="text-sm font-semibold text-gray-900">
+                        How they pay
+                      </h3>
+                    </div>
+                    <div className="px-3.5 sm:px-4 pb-3.5 space-y-3">
+                      <select
+                        value={standalone.paymentMethodLabel}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          const card = /^credit\s*card$/i.test(v);
+                          setStandalone((s) => ({
+                            ...s,
+                            paymentMethodLabel: v,
+                            alreadyPaid: card ? false : s.alreadyPaid || true,
+                          }));
+                        }}
+                        className={fieldClass}
+                      >
+                        {MANUAL_PAYMENT_METHODS.map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                      </select>
+                      {!isCardCollect && (
+                        <label className="inline-flex items-center gap-2 text-sm text-gray-800">
+                          <input
+                            type="checkbox"
+                            checked={standalone.alreadyPaid}
+                            onChange={(e) =>
+                              setStandalone((s) => ({
+                                ...s,
+                                alreadyPaid: e.target.checked,
+                              }))
+                            }
+                            className="rounded border-gray-300"
+                          />
+                          Already paid
+                        </label>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Summary / charges rail */}
+                <aside className="lg:sticky lg:top-20 space-y-3">
+                  <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                    <div className="px-3.5 sm:px-4 pt-3.5 pb-2 border-b border-gray-100">
+                      <p className={sectionEyebrow}>Fare</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-sm sm:text-base font-semibold text-gray-900">
+                          Charges
+                        </h3>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFareManual(false);
+                              const ok = applyReservationFare();
+                              setMessage(
+                                ok
+                                  ? "Fare recalculated from vehicle + route (same as reservation)."
+                                  : "Need vehicle + distance (or hourly hours) to calculate fare."
+                              );
+                            }}
+                            className="text-[11px] font-semibold text-[#8B6914] hover:underline"
+                          >
+                            Recalc
+                          </button>
+                          <button
+                            type="button"
+                            disabled={manualLines.length >= 20}
+                            onClick={() => {
+                              setFareManual(true);
+                              setManualLines((rows) => [...rows, emptyManualLine()]);
+                            }}
+                            className="text-[11px] font-semibold text-[#8B6914] hover:underline disabled:opacity-40"
+                          >
+                            + Add line
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        Same pricing as Custom Reservation · pick vehicle + route
+                        {fareManual ? " · manual edit on" : ""}
+                      </p>
+                    </div>
+                    <div className="p-3.5 sm:p-4 space-y-2.5">
+                      {manualLines.map((line, idx) => (
+                        <div key={idx} className="space-y-1.5">
+                          <input
+                            value={line.label}
+                            onChange={(e) => {
+                              setFareManual(true);
+                              setManualLines((rows) =>
+                                rows.map((row, i) =>
+                                  i === idx
+                                    ? { ...row, label: e.target.value }
+                                    : row
+                                )
+                              );
+                            }}
+                            placeholder="e.g. Ride fare"
+                            className={fieldClass}
+                          />
+                          <div className="flex gap-2 items-center">
+                            <input
+                              value={line.amount}
+                              onChange={(e) => {
+                                setFareManual(true);
+                                setManualLines((rows) =>
+                                  rows.map((row, i) =>
+                                    i === idx
+                                      ? { ...row, amount: e.target.value }
+                                      : row
+                                  )
+                                );
+                              }}
+                              placeholder="0.00"
+                              inputMode="decimal"
+                              className={`${fieldClass} tabular-nums text-right`}
+                            />
+                            <button
+                              type="button"
+                              disabled={manualLines.length <= 1}
+                              onClick={() => {
+                                setFareManual(true);
+                                setManualLines((rows) =>
+                                  rows.filter((_, i) => i !== idx)
+                                );
+                              }}
+                              className="text-xs text-rose-700 font-semibold disabled:opacity-30 shrink-0 px-1"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+
+                      <div className="pt-1 border-t border-gray-100 space-y-1.5">
+                        <label className={labelClass}>Admin, Fuel &amp; Grat</label>
+                        <button
+                          type="button"
+                          onClick={() => setTipModalOpen(true)}
+                          className="w-full flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-[#f8fafc] px-3 py-3 text-left hover:border-[#C9A063]/50 transition-colors"
+                        >
+                          <div>
+                            <div className="text-[13px] font-semibold text-gray-900">
+                              Admin, Fuel &amp; Grat
+                            </div>
+                            <div className="text-[12px] text-gray-500">
+                              {gratuityPercent}%
+                              {manualGratNum > 0
+                                ? ` · $${manualGratNum.toFixed(2)}`
+                                : ""}
+                            </div>
+                          </div>
+                          <span className="text-gray-400 text-sm">›</span>
+                        </button>
+                      </div>
+
+                      <div className="rounded-lg bg-gray-50 border border-gray-100 divide-y divide-gray-100 text-sm">
+                        <div className="flex justify-between px-3 py-2 text-gray-600">
+                          <span>Subtotal</span>
+                          <span className="tabular-nums font-medium text-gray-900">
+                            ${manualSubtotal.toFixed(2)}
+                          </span>
+                        </div>
+                        {manualGratNum > 0 ? (
+                          <div className="flex justify-between px-3 py-2 text-gray-600">
+                            <span>Grat</span>
+                            <span className="tabular-nums font-medium text-gray-900">
+                              ${manualGratNum.toFixed(2)}
+                            </span>
+                          </div>
+                        ) : null}
+                        <div className="flex justify-between px-3 py-2 text-gray-600">
+                          <span>HST (13%)</span>
+                          <span className="tabular-nums font-medium text-gray-900">
+                            ${manualHst.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between px-3 py-2.5 font-semibold text-gray-900">
+                          <span>Total</span>
+                          <span className="tabular-nums text-base text-[#8B6914]">
+                            ${manualTotal.toFixed(2)} CAD
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="hidden lg:block space-y-2 pt-1">
+                        <label className={labelClass}>Payment method</label>
+                        <select
+                          value={standalone.paymentMethodLabel}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            const card = /^credit\s*card$/i.test(v);
+                            setStandalone((s) => ({
+                              ...s,
+                              paymentMethodLabel: v,
+                              alreadyPaid: card ? false : s.alreadyPaid || true,
+                            }));
+                          }}
+                          className={fieldClass}
+                        >
+                          {MANUAL_PAYMENT_METHODS.map((m) => (
+                            <option key={m} value={m}>
+                              {m}
+                            </option>
+                          ))}
+                        </select>
+                        {!isCardCollect && (
+                          <label className="inline-flex items-center gap-2 text-sm text-gray-800">
+                            <input
+                              type="checkbox"
+                              checked={standalone.alreadyPaid}
+                              onChange={(e) =>
+                                setStandalone((s) => ({
+                                  ...s,
+                                  alreadyPaid: e.target.checked,
+                                }))
+                              }
+                              className="rounded border-gray-300"
+                            />
+                            Already paid
+                          </label>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          disabled={
+                            busyId === "save_draft" ||
+                            busyId === "issue_standalone" ||
+                            Boolean(pendingCard)
+                          }
+                          onClick={() => void saveDraft()}
+                          className="w-full min-h-11 rounded-lg text-sm font-semibold border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 disabled:opacity-40"
+                        >
+                          {busyId === "save_draft"
+                            ? "Saving…"
+                            : editingDraftId
+                              ? "Update draft"
+                              : "Save as Draft"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={
+                            busyId === "issue_standalone" ||
+                            busyId === "save_draft" ||
+                            Boolean(pendingCard)
+                          }
+                          onClick={() => void issueStandalone()}
+                          className="w-full min-h-11 rounded-lg text-sm font-semibold bg-gradient-to-b from-[#D4AF6E] to-[#C9A063] text-[#1a1a1a] shadow-sm disabled:opacity-40"
+                        >
+                          {busyId === "issue_standalone"
+                            ? "Creating…"
+                            : isCardCollect
+                              ? editingDraftId
+                                ? "Issue & collect"
+                                : "Create & collect payment"
+                              : "Issue invoice"}
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-gray-500 text-center leading-snug">
+                        {isCardCollect
+                          ? "Draft = no email. Collect = email only after Stripe succeeds."
+                          : "Draft = no email. Issue sends invoice email (if already paid)."}
+                      </p>
+                    </div>
+                  </div>
+                </aside>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -1242,6 +2328,12 @@ export default function AdminBillingPage() {
                       <td className="px-4 py-3">
                         <div className="font-semibold text-gray-900 flex items-center gap-2 flex-wrap">
                           {inv.invoiceNumber}
+                          {(inv.isDraft ||
+                            String(inv.status || "").toUpperCase() === "DRAFT") && (
+                            <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide bg-amber-50 text-amber-900 ring-1 ring-amber-200">
+                              DRAFT
+                            </span>
+                          )}
                           {(inv.source || "").toUpperCase() === "MANUAL" && (
                             <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide bg-slate-100 text-slate-700 ring-1 ring-slate-200">
                               MANUAL
@@ -1259,7 +2351,12 @@ export default function AdminBillingPage() {
                       <td className="px-4 py-3 tabular-nums font-medium">
                         ${Number(inv.total).toFixed(2)}
                       </td>
-                      <td className="px-4 py-3">{badge(inv.emailStatus)}</td>
+                      <td className="px-4 py-3">
+                        {inv.isDraft ||
+                        String(inv.status || "").toUpperCase() === "DRAFT"
+                          ? badge("DRAFT")
+                          : badge(inv.emailStatus)}
+                      </td>
                       <td className="px-4 py-3">{badge(inv.qbSyncStatus)}</td>
                       <td className="px-4 py-3">{badge(inv.dropboxSyncStatus)}</td>
                       <td className="px-4 py-3">
@@ -1277,19 +2374,21 @@ export default function AdminBillingPage() {
                             className="mx-2 h-5 w-px shrink-0 bg-gray-300"
                             aria-hidden
                           />
-                          {inv.emailStatus !== "SKIPPED" ? (
+                          {inv.isDraft ||
+                          String(inv.status || "").toUpperCase() === "DRAFT" ? (
                             <button
                               type="button"
-                              disabled={busyId === inv.id}
-                              onClick={() =>
-                                void postAction({ action: "resend", invoiceId: inv.id })
+                              disabled={
+                                busyId === `load_invoice_${inv.id}` ||
+                                Boolean(pendingCard)
                               }
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 disabled:opacity-40"
+                              onClick={() => void loadInvoiceIntoForm(inv.id)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-white text-gray-800 ring-1 ring-gray-200 hover:bg-gray-50 disabled:opacity-40 whitespace-nowrap"
                             >
-                              <Send className="w-3 h-3" />
-                              Resend
+                              <Pencil className="w-3 h-3" />
+                              Edit
                             </button>
-                          ) : (
+                          ) : inv.paymentHeld ? (
                             <button
                               type="button"
                               disabled={busyId === inv.id || Boolean(pendingCard)}
@@ -1305,8 +2404,44 @@ export default function AdminBillingPage() {
                             >
                               Collect
                             </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={busyId === inv.id}
+                              onClick={() =>
+                                void postAction({ action: "resend", invoiceId: inv.id })
+                              }
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 disabled:opacity-40"
+                            >
+                              <Send className="w-3 h-3" />
+                              Resend
+                            </button>
                           )}
-                          {inv.emailStatus === "FAILED" && (
+                          {inv.kind === "STANDARD" && (
+                            <>
+                              <span
+                                className="mx-2 h-5 w-px shrink-0 bg-gray-300"
+                                aria-hidden
+                              />
+                              <button
+                                type="button"
+                                disabled={
+                                  busyId === `dup_${inv.id}` ||
+                                  busyId === `load_invoice_${inv.id}` ||
+                                  Boolean(pendingCard)
+                                }
+                                onClick={() => void duplicateInvoice(inv.id)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 disabled:opacity-40 whitespace-nowrap"
+                              >
+                                <CopyPlus className="w-3 h-3" />
+                                Duplicate
+                              </button>
+                            </>
+                          )}
+                          {inv.emailStatus === "FAILED" &&
+                            !inv.paymentHeld &&
+                            !inv.isDraft &&
+                            String(inv.status || "").toUpperCase() !== "DRAFT" && (
                             <>
                               <span
                                 className="mx-2 h-5 w-px shrink-0 bg-gray-300"
@@ -1404,5 +2539,55 @@ export default function AdminBillingPage() {
           </div>
         </section>
       </div>
+
+      {tipModalOpen ? (
+        <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/45"
+            aria-label="Close"
+            onClick={() => setTipModalOpen(false)}
+          />
+          <div className="relative z-[81] w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-2xl px-5 pt-3 pb-6 shadow-xl">
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-300 sm:hidden" />
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-[22px] font-bold text-gray-900">
+                Admin, Fuel &amp; Grat
+              </h3>
+              <button
+                type="button"
+                onClick={() => setTipModalOpen(false)}
+                className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-[13px] text-gray-500 mb-4">
+              Administration Fuel and Gratuity. You can increase it to 20% or 25%.
+            </p>
+            <div className="grid grid-cols-3 gap-2.5">
+              {APP_GRATUITY_PERCENTS.map((pct) => {
+                const selected = gratuityPercent === pct;
+                return (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => applyGratuityPercent(pct)}
+                    className={`min-h-[72px] rounded-2xl border-2 text-[22px] font-bold ${
+                      selected
+                        ? "bg-gray-900 border-gray-900 text-white"
+                        : "bg-[#f8fafc] border-gray-200 text-gray-900"
+                    }`}
+                  >
+                    {pct}%
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </GoogleMapsProvider>
   );
 }

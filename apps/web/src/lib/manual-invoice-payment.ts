@@ -144,10 +144,14 @@ export function manualInvoiceEmailHeld(invoice: {
 }): boolean {
   const snapshot = parseSnap(invoice.snapshotJson);
   if (isPaidSnapshot(snapshot)) return false;
+  // Explicit hold from create / collect flow (walk-in OR loaded booking).
   if (invoice.emailStatus === "SKIPPED") return true;
-  if (invoice.source === "MANUAL") {
+  const src = String(invoice.source || "").toUpperCase();
+  // Walk-in MANUAL + load-from-booking RESERVATION — Stripe "Credit card" collect only.
+  // Do not hold cash/e-Transfer invoices that intentionally email immediately.
+  if (src === "MANUAL" || src === "RESERVATION") {
     const method = String(snapshot?.paymentMethodLabel || "");
-    return /^credit\s*card$/i.test(method);
+    if (/^credit\s*card$/i.test(method)) return true;
   }
   return false;
 }
@@ -271,6 +275,9 @@ export async function createManualInvoicePaymentLink(opts: {
   if (!inv || (inv.source !== "MANUAL" && inv.source !== "RESERVATION")) {
     throw new Error("Invoice not found");
   }
+  if (String(inv.status || "").toUpperCase() === "DRAFT") {
+    throw new Error("Issue the draft before collecting payment");
+  }
   const amount = Number(inv.total) || 0;
   if (amount < 0.5) throw new Error("Total must be at least $0.50");
 
@@ -339,6 +346,9 @@ export async function createManualInvoicePaymentIntent(opts: {
   const inv = await prisma.invoice.findUnique({ where: { id: opts.invoiceId } });
   if (!inv || (inv.source !== "MANUAL" && inv.source !== "RESERVATION")) {
     throw new Error("Invoice not found");
+  }
+  if (String(inv.status || "").toUpperCase() === "DRAFT") {
+    throw new Error("Issue the draft before collecting payment");
   }
   const amount = Number(inv.total) || 0;
   if (amount < 0.5) throw new Error("Total must be at least $0.50");

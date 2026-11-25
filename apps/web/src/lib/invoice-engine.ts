@@ -388,11 +388,17 @@ async function runEmailJob(invoiceId: string): Promise<void> {
   if (!isEmailConfigured()) {
     throw new Error("Email provider not configured");
   }
-  // Defense: never send held manual card invoices even if a job was queued early.
-  if (inv.source === "MANUAL") {
-    const { manualInvoiceEmailHeld } = await import("@/lib/manual-invoice-payment");
-    if (manualInvoiceEmailHeld(inv)) {
-      throw new Error("Manual invoice email held until payment succeeds");
+  if (String(inv.status || "").toUpperCase() === "DRAFT") {
+    throw new Error("Draft invoice email held until issued");
+  }
+  // Defense: never send held card / collect invoices (MANUAL or loaded RESERVATION).
+  {
+    const src = String(inv.source || "").toUpperCase();
+    if (src === "MANUAL" || src === "RESERVATION") {
+      const { manualInvoiceEmailHeld } = await import("@/lib/manual-invoice-payment");
+      if (manualInvoiceEmailHeld(inv)) {
+        throw new Error("Manual invoice email held until payment succeeds");
+      }
     }
   }
   const { buffer } = await ensurePdf(invoiceId);
@@ -451,14 +457,24 @@ export async function resendInvoiceEmail(opts: {
     return { ok: false, error: "Resend limit reached for this invoice" };
   }
 
-  // Manual card invoices: never email until Stripe marks snapshot PAID.
-  if (inv.source === "MANUAL") {
-    const { manualInvoiceEmailHeld } = await import("@/lib/manual-invoice-payment");
-    if (manualInvoiceEmailHeld(inv)) {
-      return {
-        ok: false,
-        error: "Payment not complete — invoice email is held until card payment succeeds",
-      };
+  if (String(inv.status || "").toUpperCase() === "DRAFT") {
+    return {
+      ok: false,
+      error: "Draft invoices cannot be emailed — issue or collect payment first",
+    };
+  }
+  // Card / collect invoices: never email until Stripe marks snapshot PAID.
+  {
+    const src = String(inv.source || "").toUpperCase();
+    if (src === "MANUAL" || src === "RESERVATION") {
+      const { manualInvoiceEmailHeld } = await import("@/lib/manual-invoice-payment");
+      if (manualInvoiceEmailHeld(inv)) {
+        return {
+          ok: false,
+          error:
+            "Payment not complete — invoice email is held until card payment succeeds",
+        };
+      }
     }
   }
 
@@ -617,6 +633,17 @@ export async function processInvoiceJobs(
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[invoice-engine] job failed", job.type, job.id, msg);
+      const heldUntilPay = /held until payment/i.test(msg);
+      // Don't flip SKIPPED → FAILED when email is intentionally held for collect.
+      if (heldUntilPay && job.type === "EMAIL") {
+        await markJob(job.id, "FAILED", msg.slice(0, 500));
+        await prisma.invoice.update({
+          where: { id: job.invoiceId },
+          data: { emailStatus: "SKIPPED" },
+        });
+        failed += 1;
+        continue;
+      }
       await markJob(job.id, "FAILED", msg.slice(0, 500));
       failed += 1;
       if (job.type === "EMAIL") {
@@ -682,22 +709,50 @@ function makeManualBookingId(): string {
   return `MAN-${stamp}${suffix}`;
 }
 
-/** Walk-in / phone billing — no Reservation row required. */
-export async function issueStandaloneInvoice(
-  input: Omit<StandaloneInvoiceInput, "bookingId"> & { bookingId?: string },
-  opts: { actor: string; adminId?: string | null }
+type StandaloneIssueInput = Omit<StandaloneInvoiceInput, "bookingId"> & {
+  bookingId?: string;
+  /** When set, upgrade this DRAFT to ISSUED instead of creating a new row. */
+  draftId?: string;
+};
+
+async function resolveStandaloneLinks(input: {
+  bookingId?: string;
+  reservationId?: string | null;
+}) {
+  const bookingId = String(input.bookingId || "").trim() || makeManualBookingId();
+  let reservationId = String(input.reservationId || "").trim() || null;
+  if (reservationId) {
+    const linked = await prisma.reservation.findUnique({
+      where: { id: reservationId },
+      select: { id: true },
+    });
+    if (!linked) reservationId = null;
+  } else if (bookingId && !bookingId.startsWith("MAN-")) {
+    const linked = await prisma.reservation.findUnique({
+      where: { bookingId },
+      select: { id: true },
+    });
+    if (linked) reservationId = linked.id;
+  }
+  return { bookingId, reservationId };
+}
+
+function validateStandaloneInput(
+  input: StandaloneIssueInput,
+  opts?: { allowEmptyEmail?: boolean }
 ) {
   const customerName = String(input.customerName || "").trim();
   const emailList = parseEmailList(input.customerEmail);
   if (!customerName) return { ok: false as const, error: "Customer name is required" };
-  if (!emailList.length) {
+  if (!opts?.allowEmptyEmail && !emailList.length) {
     return {
       ok: false as const,
       error: "At least one valid customer email is required",
     };
   }
-  // Store joined list — delivery parses and sends to every address.
-  const customerEmail = emailList.join(", ");
+  const customerEmail = emailList.length
+    ? emailList.join(", ")
+    : String(input.customerEmail || "").trim().toLowerCase();
   const rawLines = Array.isArray(input.lines) ? input.lines : [];
   if (!rawLines.length) {
     return { ok: false as const, error: "Add at least one line item" };
@@ -705,39 +760,261 @@ export async function issueStandaloneInvoice(
   if (rawLines.length > 20) {
     return { ok: false as const, error: "Maximum 20 line items" };
   }
+  return { ok: true as const, customerName, customerEmail, rawLines };
+}
 
-  const bookingId = String(input.bookingId || "").trim() || makeManualBookingId();
-  let reservationId = String(input.reservationId || "").trim() || null;
-  if (reservationId) {
-    const linked = await prisma.reservation.findUnique({
-      where: { id: reservationId },
-      select: { id: true, bookingId: true },
+/** Save / update manual invoice as DRAFT — no email, no Stripe collect. */
+export async function saveStandaloneDraft(
+  input: StandaloneIssueInput,
+  opts: { actor: string; adminId?: string | null }
+) {
+  const validated = validateStandaloneInput(input, { allowEmptyEmail: true });
+  if (!validated.ok) return validated;
+  const { customerName, customerEmail, rawLines } = validated;
+
+  // Draft still needs a reachable email before issue; allow empty only if placeholder.
+  const emailForSnap =
+    customerEmail && customerEmail.includes("@")
+      ? customerEmail
+      : "draft@placeholder.local";
+
+  const draftId = String(input.draftId || "").trim() || null;
+  let existingDraft: {
+    id: string;
+    invoiceNumber: string;
+    status: string;
+  } | null = null;
+  if (draftId) {
+    existingDraft = await prisma.invoice.findUnique({
+      where: { id: draftId },
+      select: { id: true, invoiceNumber: true, status: true },
     });
-    if (!linked) reservationId = null;
-  } else if (bookingId && !bookingId.startsWith("MAN-")) {
-    // Loaded from booking id — attach Reservation when it exists.
-    const linked = await prisma.reservation.findUnique({
-      where: { bookingId },
-      select: { id: true },
-    });
-    if (linked) reservationId = linked.id;
+    if (!existingDraft || existingDraft.status !== "DRAFT") {
+      return { ok: false as const, error: "Draft not found (or already issued)" };
+    }
   }
 
-  // Avoid duplicate open invoices for the same booking.
+  const { bookingId, reservationId } = await resolveStandaloneLinks(input);
+  const snapshot = buildStandaloneSnapshot({
+    ...input,
+    bookingId,
+    reservationId,
+    customerName,
+    customerEmail: emailForSnap,
+  });
+  if (!snapshot.lines.some((l) => l.key.startsWith("line_"))) {
+    return { ok: false as const, error: "Line amounts must be non-zero" };
+  }
+
+  const money = {
+    snapshotJson: JSON.stringify(snapshot),
+    subtotal: snapshot.subtotal,
+    discountAmount: snapshot.discountAmount,
+    hst: snapshot.hst,
+    gratuity: snapshot.gratuity,
+    total: snapshot.total,
+    customerName: snapshot.customer.name,
+    customerEmail:
+      emailForSnap === "draft@placeholder.local" ? "" : snapshot.customer.email,
+    customerPhone: snapshot.customer.phone || null,
+    reservationId,
+    bookingId,
+    source: reservationId ? "RESERVATION" : "MANUAL",
+  };
+
+  let row: { id: string; invoiceNumber: string; bookingId: string; total: number };
+  if (existingDraft) {
+    row = await prisma.invoice.update({
+      where: { id: existingDraft.id },
+      data: {
+        ...money,
+        status: "DRAFT",
+        emailStatus: "SKIPPED",
+        qbSyncStatus: "SKIPPED",
+        dropboxSyncStatus: "SKIPPED",
+      },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        bookingId: true,
+        total: true,
+      },
+    });
+  } else {
+    const invoiceNumber = await prisma.$transaction(async (tx) =>
+      allocateInvoiceNumber(tx as any)
+    );
+    row = await prisma.invoice.create({
+      data: {
+        invoiceNumber,
+        kind: "STANDARD",
+        status: "DRAFT",
+        revision: 0,
+        createdByActor: opts.actor,
+        emailStatus: "SKIPPED",
+        qbSyncStatus: "SKIPPED",
+        dropboxSyncStatus: "SKIPPED",
+        ...money,
+      },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        bookingId: true,
+        total: true,
+      },
+    });
+  }
+
+  await writeBillingAudit({
+    actor: opts.actor,
+    adminId: opts.adminId,
+    action: existingDraft ? "MANUAL_INVOICE_DRAFT_UPDATED" : "MANUAL_INVOICE_DRAFT_SAVED",
+    invoiceId: row.id,
+    bookingId: row.bookingId,
+    meta: { lineCount: rawLines.length, total: row.total },
+  });
+
+  return {
+    ok: true as const,
+    invoiceId: row.id,
+    invoiceNumber: row.invoiceNumber,
+    bookingId: row.bookingId,
+    total: row.total,
+    isDraft: true as const,
+  };
+}
+
+/** Duplicate any STANDARD invoice into a new DRAFT (new number, new MAN- booking id). */
+export async function duplicateInvoiceAsDraft(
+  invoiceId: string,
+  opts: { actor: string; adminId?: string | null }
+) {
+  const id = String(invoiceId || "").trim();
+  if (!id) return { ok: false as const, error: "invoiceId required" };
+  const src = await prisma.invoice.findUnique({ where: { id } });
+  if (!src) return { ok: false as const, error: "Invoice not found" };
+  if (src.kind !== "STANDARD") {
+    return { ok: false as const, error: "Only STANDARD invoices can be duplicated" };
+  }
+
+  let snapshot: InvoiceFareSnapshot | null = null;
+  try {
+    snapshot = JSON.parse(src.snapshotJson) as InvoiceFareSnapshot;
+  } catch {
+    return { ok: false as const, error: "Invalid invoice snapshot" };
+  }
+  if (!snapshot) return { ok: false as const, error: "Invalid invoice snapshot" };
+
+  const bookingId = makeManualBookingId();
+  const nextSnap: InvoiceFareSnapshot = {
+    ...snapshot,
+    bookingId,
+    reservationId: null,
+    issuedAt: new Date().toISOString(),
+    paymentStatus: "MANUAL",
+    stripePaymentIntentId: null,
+    cardLast4: null,
+    cardType: null,
+  };
+
+  const invoiceNumber = await prisma.$transaction(async (tx) =>
+    allocateInvoiceNumber(tx as any)
+  );
+
+  const row = await prisma.invoice.create({
+    data: {
+      invoiceNumber,
+      kind: "STANDARD",
+      status: "DRAFT",
+      reservationId: null,
+      bookingId,
+      source: "MANUAL",
+      revision: 0,
+      snapshotJson: JSON.stringify(nextSnap),
+      subtotal: src.subtotal,
+      discountAmount: src.discountAmount,
+      hst: src.hst,
+      gratuity: src.gratuity,
+      total: src.total,
+      customerName: src.customerName,
+      customerEmail: src.customerEmail,
+      customerPhone: src.customerPhone,
+      createdByActor: opts.actor,
+      emailStatus: "SKIPPED",
+      qbSyncStatus: "SKIPPED",
+      dropboxSyncStatus: "SKIPPED",
+    },
+  });
+
+  await writeBillingAudit({
+    actor: opts.actor,
+    adminId: opts.adminId,
+    action: "MANUAL_INVOICE_DUPLICATED",
+    invoiceId: row.id,
+    bookingId,
+    meta: {
+      fromInvoiceId: src.id,
+      fromInvoiceNumber: src.invoiceNumber,
+    },
+  });
+
+  return {
+    ok: true as const,
+    invoiceId: row.id,
+    invoiceNumber: row.invoiceNumber,
+    bookingId: row.bookingId,
+    total: row.total,
+    fromInvoiceNumber: src.invoiceNumber,
+    isDraft: true as const,
+  };
+}
+
+/** Walk-in / phone billing — no Reservation row required. */
+export async function issueStandaloneInvoice(
+  input: StandaloneIssueInput,
+  opts: { actor: string; adminId?: string | null }
+) {
+  const validated = validateStandaloneInput(input);
+  if (!validated.ok) return validated;
+  const { customerName, customerEmail, rawLines } = validated;
+
+  const draftId = String(input.draftId || "").trim() || null;
+  let draftRow: { id: string; invoiceNumber: string; status: string } | null =
+    null;
+  if (draftId) {
+    draftRow = await prisma.invoice.findUnique({
+      where: { id: draftId },
+      select: { id: true, invoiceNumber: true, status: true },
+    });
+    if (!draftRow || draftRow.status !== "DRAFT") {
+      return {
+        ok: false as const,
+        error: "Draft not found (or already issued) — clear form and try again",
+      };
+    }
+  }
+
+  const { bookingId, reservationId } = await resolveStandaloneLinks(input);
+
+  // Avoid duplicate open issued invoices for the same booking (ignore drafts + self).
   if (bookingId) {
     const existingOpen = await prisma.invoice.findFirst({
       where: {
         bookingId,
         kind: "STANDARD",
         revision: 0,
+        status: { not: "DRAFT" },
+        ...(draftRow ? { id: { not: draftRow.id } } : {}),
       },
       orderBy: { createdAt: "desc" },
-      select: { id: true, invoiceNumber: true, emailStatus: true, snapshotJson: true },
+      select: { id: true, invoiceNumber: true, snapshotJson: true },
     });
     if (existingOpen) {
       let paid = false;
       try {
-        const snap = JSON.parse(existingOpen.snapshotJson) as { paymentStatus?: string };
+        const snap = JSON.parse(existingOpen.snapshotJson) as {
+          paymentStatus?: string;
+        };
         paid = String(snap.paymentStatus || "").toUpperCase() === "PAID";
       } catch {
         /* ignore */
@@ -762,40 +1039,50 @@ export async function issueStandaloneInvoice(
     return { ok: false as const, error: "Line amounts must be non-zero" };
   }
 
-  const invoiceNumber = await prisma.$transaction(async (tx) =>
-    allocateInvoiceNumber(tx as any)
-  );
-
   const alreadyPaid = Boolean(input.alreadyPaid);
   const method = String(input.paymentMethodLabel || "").trim();
   // Credit card / Stripe collect: hold email + sync until payment succeeds.
   // Cash/e-Transfer with alreadyPaid still emails immediately.
   const deferDelivery = !alreadyPaid && /^credit\s*card$/i.test(method);
 
-  const row = await prisma.invoice.create({
-    data: {
-      invoiceNumber,
-      kind: "STANDARD",
-      status: "ISSUED",
-      reservationId,
-      bookingId,
-      source: reservationId ? "RESERVATION" : "MANUAL",
-      revision: 0,
-      snapshotJson: JSON.stringify(snapshot),
-      subtotal: snapshot.subtotal,
-      discountAmount: snapshot.discountAmount,
-      hst: snapshot.hst,
-      gratuity: snapshot.gratuity,
-      total: snapshot.total,
-      customerName: snapshot.customer.name,
-      customerEmail: snapshot.customer.email,
-      customerPhone: snapshot.customer.phone || null,
-      createdByActor: opts.actor,
-      emailStatus: deferDelivery ? "SKIPPED" : "PENDING",
-      qbSyncStatus: deferDelivery ? "SKIPPED" : "PENDING",
-      dropboxSyncStatus: deferDelivery ? "SKIPPED" : "PENDING",
-    },
-  });
+  const dataCore = {
+    kind: "STANDARD" as const,
+    status: "ISSUED" as const,
+    reservationId,
+    bookingId,
+    source: reservationId ? "RESERVATION" : "MANUAL",
+    revision: 0,
+    snapshotJson: JSON.stringify(snapshot),
+    subtotal: snapshot.subtotal,
+    discountAmount: snapshot.discountAmount,
+    hst: snapshot.hst,
+    gratuity: snapshot.gratuity,
+    total: snapshot.total,
+    customerName: snapshot.customer.name,
+    customerEmail: snapshot.customer.email,
+    customerPhone: snapshot.customer.phone || null,
+    createdByActor: opts.actor,
+    emailStatus: deferDelivery ? "SKIPPED" : "PENDING",
+    qbSyncStatus: deferDelivery ? "SKIPPED" : "PENDING",
+    dropboxSyncStatus: deferDelivery ? "SKIPPED" : "PENDING",
+    pdfUrl: null,
+    pdfStorageKey: null,
+    stripePaymentIntentId: null,
+  };
+
+  const row = draftRow
+    ? await prisma.invoice.update({
+        where: { id: draftRow.id },
+        data: dataCore,
+      })
+    : await prisma.invoice.create({
+        data: {
+          ...dataCore,
+          invoiceNumber: await prisma.$transaction(async (tx) =>
+            allocateInvoiceNumber(tx as any)
+          ),
+        },
+      });
 
   if (!deferDelivery) {
     await enqueueJobs(row.id, ["EMAIL", "QBO_SYNC", "DROPBOX_SYNC"]);
@@ -805,7 +1092,9 @@ export async function issueStandaloneInvoice(
   await writeBillingAudit({
     actor: opts.actor,
     adminId: opts.adminId,
-    action: "MANUAL_STANDALONE_INVOICE_ISSUED",
+    action: draftRow
+      ? "MANUAL_DRAFT_ISSUED"
+      : "MANUAL_STANDALONE_INVOICE_ISSUED",
     invoiceId: row.id,
     bookingId,
     meta: {
@@ -815,6 +1104,7 @@ export async function issueStandaloneInvoice(
       alreadyPaid,
       deferDelivery,
       gratuity: snapshot.gratuity,
+      fromDraft: Boolean(draftRow),
     },
   });
 

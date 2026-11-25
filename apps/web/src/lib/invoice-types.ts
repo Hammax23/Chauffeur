@@ -1,5 +1,6 @@
 export type InvoiceKind = "STANDARD" | "REVISION" | "SUPPLEMENT" | "CREDIT_NOTE";
 export type InvoiceStatus =
+  | "DRAFT"
   | "ISSUED"
   | "EMAILED"
   | "PARTIALLY_CREDITED"
@@ -38,6 +39,16 @@ export type InvoiceFareSnapshot = {
     dropoffLocation: string;
     stops: string[];
     passengers: number;
+    /** Optional extras — present on loaded bookings / richer manual invoices. */
+    airline?: string;
+    flightNumber?: string;
+    flightNote?: string;
+    childSeats?: number;
+    childSeatType?: string;
+    etr407?: string;
+    distance?: string;
+    duration?: string;
+    specialRequirements?: string;
   };
   lines: InvoiceLineItem[];
   subtotal: number;
