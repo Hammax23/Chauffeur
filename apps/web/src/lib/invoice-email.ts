@@ -6,6 +6,7 @@ import { escapeHtml } from "@/lib/email-delivery";
 import type { InvoiceFareSnapshot } from "@/lib/invoice-types";
 import {
   buildInvoiceDisplayLines,
+  discountLabel,
   displayBrandName,
   formatInvoicePhone,
   formatIssueDateShort,
@@ -80,22 +81,22 @@ export function buildInvoiceEmailHtml(input: InvoiceEmailInput): string {
       ? `Paid ${issued}`
       : `Due ${issued}`;
 
+  // Display order: Subtotal → Grat → Discount → HST → Total
   const totalsRows = [
     `<tr>
       <td style="padding:4px 0;color:${MUTED};font-size:13px;">Subtotal</td>
       <td style="padding:4px 0;text-align:right;color:${TEXT};font-size:13px;">${e(moneyCadSigned(snapshot.subtotal))}</td>
     </tr>`,
-    snapshot.discountAmount > 0
-      ? `<tr>
-      <td style="padding:4px 0;color:${MUTED};font-size:13px;">Discount</td>
-      <td style="padding:4px 0;text-align:right;color:${TEXT};font-size:13px;">−${e(moneyCad(snapshot.discountAmount))}</td>
-    </tr>`
-      : "",
-    // Tax order matches reservation: subtotal → Admin/Grat & Fuel → HST → total
     snapshot.gratuity > 0
       ? `<tr>
       <td style="padding:4px 0;color:${MUTED};font-size:13px;">${e(gratFuelLabel(snapshot))}</td>
       <td style="padding:4px 0;text-align:right;color:${TEXT};font-size:13px;">${e(moneyCad(snapshot.gratuity))}</td>
+    </tr>`
+      : "",
+    snapshot.discountAmount > 0
+      ? `<tr>
+      <td style="padding:4px 0;color:${MUTED};font-size:13px;">${e(discountLabel(snapshot))}</td>
+      <td style="padding:4px 0;text-align:right;color:${TEXT};font-size:13px;">${e(moneyCadSigned(-Math.abs(snapshot.discountAmount)))}</td>
     </tr>`
       : "",
     snapshot.hst !== 0

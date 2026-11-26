@@ -75,7 +75,8 @@ export function moneyCad(n: number): string {
 
 export function moneyCadSigned(n: number): string {
   const v = roundMoney(n);
-  if (v < 0) return `−$${Math.abs(v).toFixed(2)}`;
+  // ASCII hyphen — Unicode minus (U+2212) renders as " in some email clients.
+  if (v < 0) return `-$${Math.abs(v).toFixed(2)}`;
   return `$${v.toFixed(2)}`;
 }
 
@@ -107,6 +108,23 @@ export function gratFuelLabel(snapshot: InvoiceFareSnapshot): string {
     if (pct >= 1 && pct <= 40) return `Grat & Fuel (${pct}%)`;
   }
   return "Admin, Fuel & Grat";
+}
+
+/** Email / PDF discount row label — prefers stored %, else derives from amount. */
+export function discountLabel(snapshot: InvoiceFareSnapshot): string {
+  const amount = roundMoney(snapshot.discountAmount || 0);
+  if (amount <= 0) return "Discount";
+  const stored = Number(snapshot.discountPercent);
+  if (Number.isFinite(stored) && stored > 0) {
+    const pct = Math.round(stored * 100) / 100;
+    return `Discount (${pct}%)`;
+  }
+  const sub = roundMoney(snapshot.subtotal || 0);
+  if (sub > 0) {
+    const derived = Math.round((amount / sub) * 100);
+    if (derived >= 1 && derived <= 100) return `Discount (${derived}%)`;
+  }
+  return "Discount";
 }
 
 export function tripItemDescription(snapshot: InvoiceFareSnapshot): string {

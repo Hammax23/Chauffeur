@@ -281,17 +281,22 @@ export type StandaloneInvoiceInput = {
   alreadyPaid?: boolean;
   lines: { label: string; amount: number }[];
   /**
-   * Admin, Fuel & Grat — same order as live reservation:
-   * subtotal → grat (% or flat) → HST on (subtotal + grat) → total.
+   * Admin, Fuel & Grat — same order as live reservation + promo:
+   * subtotal → discount → grat (on pre-discount subtotal) →
+   * HST on (subtotal − discount + grat) → total.
    * Pass a flat CAD amount (from auto-calc or staff edit).
    */
   gratuity?: number;
   /** When set (and gratuity omitted/0), compute grat from this percent of subtotal. */
   gratuityPercent?: number;
+  /** CAD discount — capped at subtotal (matches promo applyDiscountToPricing). */
+  discountAmount?: number;
+  /** Staff-entered percent (0–100). When set without amount, amount is computed. */
+  discountPercent?: number;
   hstRate?: number;
 };
 
-/** Manual / walk-in invoice — same tax order as reservation booking. */
+/** Manual / walk-in invoice — same tax order as reservation booking + promo. */
 export function buildStandaloneSnapshot(
   input: StandaloneInvoiceInput
 ): InvoiceFareSnapshot {
@@ -308,32 +313,50 @@ export function buildStandaloneSnapshot(
     .filter((l) => Number.isFinite(l.amount) && Math.abs(l.amount) > 0.0001);
 
   const subtotal = roundMoney(lines.reduce((s, l) => s + l.amount, 0));
+  // Prefer percent (staff entry); fall back to flat CAD. Cap at subtotal.
+  const discountPercentRaw = Number(input.discountPercent);
+  const discountPercent =
+    Number.isFinite(discountPercentRaw) && discountPercentRaw > 0
+      ? Math.min(100, Math.max(0, Math.round(discountPercentRaw * 100) / 100))
+      : 0;
+  let discountAmount = 0;
+  if (discountPercent > 0 && subtotal > 0) {
+    discountAmount = roundMoney(Math.min(subtotal, (subtotal * discountPercent) / 100));
+  } else {
+    discountAmount = roundMoney(
+      Math.min(Math.max(0, Number(input.discountAmount) || 0), Math.max(0, subtotal))
+    );
+  }
+  const afterDiscount = roundMoney(Math.max(0, subtotal - discountAmount));
   const flatGrat = Math.max(0, Number(input.gratuity) || 0);
   let gratuity: number;
   let hst: number;
   let total: number;
   if (flatGrat > 0.0001) {
-    // Flat grat from auto-calc / staff — HST on (subtotal + grat) like reservation.
+    // Flat grat from auto-calc / staff — grat stays on pre-discount subtotal;
+    // HST on (discounted subtotal + grat), same as promo.
     gratuity = roundMoney(flatGrat);
-    const taxable = roundMoney(subtotal + gratuity);
+    const taxable = roundMoney(afterDiscount + gratuity);
     hst = roundMoney(taxable * hstRate);
     total = roundMoney(taxable + hst);
   } else if (
     typeof input.gratuityPercent === "number" &&
     input.gratuityPercent > 0
   ) {
+    // Grat % of original subtotal; then re-apply discount before HST.
     const computed = applyGratuityThenHst(
       subtotal,
       input.gratuityPercent,
       hstRate
     );
     gratuity = roundMoney(computed.gratuity);
-    hst = roundMoney(computed.hst);
-    total = roundMoney(computed.total);
+    const taxable = roundMoney(afterDiscount + gratuity);
+    hst = roundMoney(taxable * hstRate);
+    total = roundMoney(taxable + hst);
   } else {
     gratuity = 0;
-    hst = roundMoney(subtotal * hstRate);
-    total = roundMoney(subtotal + hst);
+    hst = roundMoney(afterDiscount * hstRate);
+    total = roundMoney(afterDiscount + hst);
   }
 
   const stops = String(input.stops || "")
@@ -387,6 +410,9 @@ export function buildStandaloneSnapshot(
     },
     lines: [
       ...lines,
+      ...(discountAmount > 0
+        ? [{ key: "discount", label: "Discount", amount: -discountAmount }]
+        : []),
       ...(hst > 0
         ? [{ key: "hst", label: `HST (${(hstRate * 100).toFixed(0)}%)`, amount: hst }]
         : []),
@@ -395,7 +421,8 @@ export function buildStandaloneSnapshot(
         : []),
     ],
     subtotal,
-    discountAmount: 0,
+    discountAmount,
+    ...(discountAmount > 0 && discountPercent > 0 ? { discountPercent } : {}),
     hst,
     gratuity,
     total,

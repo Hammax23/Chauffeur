@@ -237,6 +237,14 @@ function parseStandaloneBody(body: Record<string, unknown>) {
     typeof body.draftId === "string" ? body.draftId.trim() : "";
   const gratuityRaw =
     body.gratuity === "" || body.gratuity == null ? 0 : Number(body.gratuity);
+  const discountRaw =
+    body.discountAmount === "" || body.discountAmount == null
+      ? 0
+      : Number(body.discountAmount);
+  const discountPercentRaw =
+    body.discountPercent === "" || body.discountPercent == null
+      ? 0
+      : Number(body.discountPercent);
 
   return {
     bookingId: bookingIdRaw || undefined,
@@ -278,6 +286,10 @@ function parseStandaloneBody(body: Record<string, unknown>) {
     paymentMethodLabel,
     alreadyPaid,
     gratuity: Number.isFinite(gratuityRaw) ? Math.max(0, gratuityRaw) : 0,
+    discountAmount: Number.isFinite(discountRaw) ? Math.max(0, discountRaw) : 0,
+    discountPercent: Number.isFinite(discountPercentRaw)
+      ? Math.min(100, Math.max(0, discountPercentRaw))
+      : 0,
     lines,
   };
 }
@@ -298,7 +310,13 @@ function snapshotToFormPayload(
     ? snap.trip.stops.filter(Boolean).join(" | ")
     : "";
   const lines = (snap.lines || [])
-    .filter((l) => String(l.key || "").startsWith("line_"))
+    .filter((l) => {
+      const key = String(l.key || "");
+      if (!key.startsWith("line_")) return false;
+      // Discount lives in discountAmount — never as an editable fare line.
+      if (/^discount$/i.test(String(l.label || "").trim())) return false;
+      return true;
+    })
     .map((l) => ({
       label: String(l.label || "").trim() || "Line",
       amount: Math.round((Number(l.amount) || 0) * 100) / 100,
@@ -371,6 +389,20 @@ function snapshotToFormPayload(
     ),
     paymentMethodLabel: String(snap.paymentMethodLabel || "Credit card").trim() || "Credit card",
     gratuity: Math.round(Math.max(0, Number(snap.gratuity) || 0) * 100) / 100,
+    discountAmount:
+      Math.round(Math.max(0, Number(snap.discountAmount) || 0) * 100) / 100,
+    discountPercent: (() => {
+      const stored = Number(snap.discountPercent);
+      if (Number.isFinite(stored) && stored > 0) {
+        return Math.min(100, Math.round(stored * 100) / 100);
+      }
+      const sub = Number(snap.subtotal) || 0;
+      const amt = Number(snap.discountAmount) || 0;
+      if (sub > 0 && amt > 0) {
+        return Math.min(100, Math.round((amt / sub) * 10000) / 100);
+      }
+      return 0;
+    })(),
     lines: lines.length ? lines : [{ label: "Ride fare", amount: 0 }],
   };
 }
@@ -630,17 +662,9 @@ export async function POST(req: NextRequest) {
     }
 
     const explained = Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100;
-    // Prefer booking pre-tax subtotal when itemized extras don't match (promo / custom).
-    if (
-      discount > 0 &&
-      Math.abs(explained - discount - sub) <= 0.05 &&
-      sub > 0
-    ) {
-      lines.push({
-        label: "Discount",
-        amount: -Math.round(discount * 100) / 100,
-      });
-    } else if (sub > 0 && Math.abs(explained - sub) > 0.05) {
+    // Prefer booking pre-tax subtotal when itemized extras don't match.
+    // Discount is a separate field (not a negative line) so totals match promo math.
+    if (sub > 0 && Math.abs(explained - sub) > 0.05) {
       lines.length = 0;
       lines.push({ label: "Trip charges", amount: Math.round(sub * 100) / 100 });
     } else if (!lines.length && sub > 0) {

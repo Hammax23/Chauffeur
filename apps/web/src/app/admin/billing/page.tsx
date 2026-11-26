@@ -95,6 +95,8 @@ const emptyStandalone = () => ({
   pickupPhone: "",
   waitingTime: "",
   waitingCharge: "",
+  /** Discount percent 0–100 — CAD amount derived from subtotal. */
+  discountPercent: "",
   serviceType: "Point-to-Point transportation",
   vehicle: "",
   serviceDate: "",
@@ -371,6 +373,10 @@ const emptyManualLine = (): ManualLine => ({ label: "", amount: "" });
 
 function isWaitingTimeLine(label: string): boolean {
   return /^waiting\s*time/i.test(String(label || "").trim());
+}
+
+function isDiscountLine(label: string): boolean {
+  return /^discount$/i.test(String(label || "").trim());
 }
 
 function waitingTimeLineLabel(waitingTime: string): string {
@@ -885,6 +891,7 @@ export default function AdminBillingPage() {
         specialRequirements?: string;
         paymentStatus: string;
         gratuity?: number;
+        discountAmount?: number;
         bookingTotal?: number;
         lines: { label: string; amount: number }[];
         existingInvoice?: {
@@ -916,6 +923,16 @@ export default function AdminBillingPage() {
         pickupPhone: "",
         waitingTime: "",
         waitingCharge: "",
+        discountPercent: (() => {
+          const amt = Number(r.discountAmount) || 0;
+          if (amt <= 0) return "";
+          const sub = (r.lines || [])
+            .filter((l) => !isDiscountLine(l.label))
+            .reduce((s, l) => s + (Number(l.amount) || 0), 0);
+          if (sub <= 0) return "";
+          const pct = Math.round((amt / sub) * 10000) / 100;
+          return pct > 0 ? String(pct) : "";
+        })(),
         serviceType: r.serviceType || "Point-to-Point transportation",
         vehicle: r.vehicle,
         serviceDate: r.serviceDate,
@@ -938,10 +955,12 @@ export default function AdminBillingPage() {
       });
       setManualLines(
         r.lines?.length
-          ? r.lines.map((l) => ({
-              label: l.label,
-              amount: String(l.amount),
-            }))
+          ? r.lines
+              .filter((l) => !isDiscountLine(l.label))
+              .map((l) => ({
+                label: l.label,
+                amount: String(l.amount),
+              }))
           : [{ label: "Ride fare", amount: "" }]
       );
       setManualGratuity(
@@ -1099,20 +1118,32 @@ export default function AdminBillingPage() {
   const isOwner = integrations?.role === "OWNER";
 
   const manualSubtotal = manualLines.reduce((s, l) => {
+    if (isDiscountLine(l.label)) return s;
     const n = Number(l.amount);
     return s + (Number.isFinite(n) ? n : 0);
   }, 0);
+  // Percent → CAD (capped 0–100%, amount capped at subtotal).
+  const manualDiscountPercent = Math.min(
+    100,
+    Math.max(0, Number(standalone.discountPercent) || 0)
+  );
+  const manualDiscount =
+    manualDiscountPercent > 0 && manualSubtotal > 0
+      ? round2(Math.min(manualSubtotal, (manualSubtotal * manualDiscountPercent) / 100))
+      : 0;
+  const manualAfterDiscount = round2(Math.max(0, manualSubtotal - manualDiscount));
   const manualGratNum = Math.max(0, Number(manualGratuity) || 0);
+  // Grat stays on pre-discount subtotal; HST on (afterDiscount + grat).
   const manualTax =
     manualGratNum > 0.0001
       ? (() => {
-          const taxable = round2(manualSubtotal + manualGratNum);
+          const taxable = round2(manualAfterDiscount + manualGratNum);
           const hst = round2(taxable * (pricingDefaults.hstRate || HST_RATE));
           return { hst, total: round2(taxable + hst) };
         })()
       : (() => {
-          const hst = round2(manualSubtotal * (pricingDefaults.hstRate || HST_RATE));
-          return { hst, total: round2(manualSubtotal + hst) };
+          const hst = round2(manualAfterDiscount * (pricingDefaults.hstRate || HST_RATE));
+          return { hst, total: round2(manualAfterDiscount + hst) };
         })();
   const manualHst = manualTax.hst;
   const manualTotal = manualTax.total;
@@ -1148,10 +1179,21 @@ export default function AdminBillingPage() {
         label: l.label.trim(),
         amount: Number(l.amount),
       }))
-      .filter((l) => l.label && Number.isFinite(l.amount) && Math.abs(l.amount) > 0.0001);
+      .filter(
+        (l) =>
+          l.label &&
+          !isDiscountLine(l.label) &&
+          Number.isFinite(l.amount) &&
+          Math.abs(l.amount) > 0.0001
+      );
 
     const customerEmail = joinEmails(standalone.customerEmails);
-    const { customerEmails: _emails, ...standaloneRest } = standalone;
+    const {
+      customerEmails: _emails,
+      discountPercent: _discountPercent,
+      waitingCharge: _waitingCharge,
+      ...standaloneRest
+    } = standalone;
     return {
       ...standaloneRest,
       customerEmail,
@@ -1164,6 +1206,8 @@ export default function AdminBillingPage() {
         : undefined,
       childSeats: Number(standalone.childSeats) || 0,
       gratuity: manualGratNum > 0 ? manualGratNum : 0,
+      discountPercent: manualDiscountPercent > 0 ? manualDiscountPercent : 0,
+      discountAmount: manualDiscount > 0 ? manualDiscount : 0,
       lines,
     };
   }
@@ -1334,6 +1378,8 @@ export default function AdminBillingPage() {
         specialRequirements: string;
         paymentMethodLabel: string;
         gratuity: number;
+        discountAmount?: number;
+        discountPercent?: number;
         lines: { label: string; amount: number }[];
       };
 
@@ -1361,6 +1407,18 @@ export default function AdminBillingPage() {
             ? String(waitLine.amount)
             : "";
         })(),
+        discountPercent: (() => {
+          const stored = Number(inv.discountPercent) || 0;
+          if (stored > 0) return String(Math.min(100, stored));
+          const amt = Number(inv.discountAmount) || 0;
+          if (amt <= 0) return "";
+          const sub = (inv.lines || [])
+            .filter((l) => !isDiscountLine(l.label))
+            .reduce((s, l) => s + (Number(l.amount) || 0), 0);
+          if (sub <= 0) return "";
+          const pct = Math.round((amt / sub) * 10000) / 100;
+          return pct > 0 ? String(pct) : "";
+        })(),
         serviceType: inv.serviceType || "Point-to-Point transportation",
         vehicle: inv.vehicle || "",
         serviceDate: inv.serviceDate || "",
@@ -1384,10 +1442,12 @@ export default function AdminBillingPage() {
 
       const lines =
         Array.isArray(inv.lines) && inv.lines.length
-          ? inv.lines.map((l) => ({
-              label: l.label,
-              amount: Number.isFinite(l.amount) ? String(l.amount) : "",
-            }))
+          ? inv.lines
+              .filter((l) => !isDiscountLine(l.label))
+              .map((l) => ({
+                label: l.label,
+                amount: Number.isFinite(l.amount) ? String(l.amount) : "",
+              }))
           : [{ label: "Ride fare", amount: "" }];
       setManualLines(lines);
       setManualGratuity(
@@ -1528,7 +1588,7 @@ export default function AdminBillingPage() {
 
   return (
     <GoogleMapsProvider>
-      <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
+      <div className="p-4 sm:p-6 lg:p-8 w-full max-w-[1600px] mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900 tracking-tight flex items-center gap-2">
@@ -2341,6 +2401,30 @@ export default function AdminBillingPage() {
                       </div>
 
                       <div>
+                        <label className={labelClass}>Discount (%)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step="0.01"
+                          value={standalone.discountPercent}
+                          onChange={(e) =>
+                            setStandalone((s) => ({
+                              ...s,
+                              discountPercent: e.target.value,
+                            }))
+                          }
+                          placeholder="e.g. 10"
+                          className={fieldClass}
+                        />
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          {manualDiscount > 0
+                            ? `= −$${manualDiscount.toFixed(2)} CAD before HST`
+                            : "Percent of subtotal — subtracted before HST"}
+                        </p>
+                      </div>
+
+                      <div>
                         <label className={labelClass}>Flight number</label>
                         <input
                           value={standalone.flightNumber}
@@ -2551,6 +2635,19 @@ export default function AdminBillingPage() {
                             <span>Grat</span>
                             <span className="tabular-nums font-medium text-gray-900">
                               ${manualGratNum.toFixed(2)}
+                            </span>
+                          </div>
+                        ) : null}
+                        {manualDiscount > 0 ? (
+                          <div className="flex justify-between px-3 py-2 text-gray-600">
+                            <span>
+                              Discount
+                              {manualDiscountPercent > 0
+                                ? ` (${manualDiscountPercent}%)`
+                                : ""}
+                            </span>
+                            <span className="tabular-nums font-medium text-rose-700">
+                              -${manualDiscount.toFixed(2)}
                             </span>
                           </div>
                         ) : null}
@@ -2822,40 +2919,38 @@ export default function AdminBillingPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+          <div className="w-full">
+            <table className="w-full table-fixed text-sm">
+              <thead className="bg-gray-50 text-left text-[11px] uppercase tracking-wide text-gray-500">
                 <tr>
-                  <th className="px-4 py-3">Invoice</th>
-                  <th className="px-4 py-3 whitespace-nowrap">Date</th>
-                  <th className="px-4 py-3">Customer</th>
-                  <th className="px-4 py-3">Total</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Email</th>
-                  <th className="px-4 py-3">QB</th>
-                  <th className="px-4 py-3">Dropbox</th>
-                  <th className="px-4 py-3">Actions</th>
+                  <th className="px-4 py-3 w-[16%]">Invoice</th>
+                  <th className="px-4 py-3 w-[11%]">Date</th>
+                  <th className="px-4 py-3 w-[16%]">Customer</th>
+                  <th className="px-4 py-3 w-[7%]">Total</th>
+                  <th className="px-4 py-3 w-[8%]">Status</th>
+                  <th className="px-4 py-3 w-[11%]">Sync</th>
+                  <th className="px-4 py-3 w-[31%]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
                       Loading…
                     </td>
                   </tr>
                 ) : invoices.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
                       No invoices yet
                     </td>
                   </tr>
                 ) : (
                   invoices.map((inv) => (
-                    <tr key={inv.id} className="hover:bg-gray-50/80">
+                    <tr key={inv.id} className="hover:bg-gray-50/80 align-top">
                       <td className="px-4 py-3">
-                        <div className="font-semibold text-gray-900 flex items-center gap-2 flex-wrap">
-                          {inv.invoiceNumber}
+                        <div className="font-semibold text-gray-900 flex items-center gap-1.5 flex-wrap break-words">
+                          <span className="break-all">{inv.invoiceNumber}</span>
                           {(inv.isDraft ||
                             String(inv.status || "").toUpperCase() === "DRAFT") && (
                             <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide bg-amber-50 text-amber-900 ring-1 ring-amber-200">
@@ -2868,18 +2963,18 @@ export default function AdminBillingPage() {
                             </span>
                           )}
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {inv.bookingId} · {inv.kind}
+                        <div className="text-xs text-gray-500 break-all mt-0.5">
+                          {inv.bookingId}
                         </div>
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="px-4 py-3">
                         {(() => {
                           const { date, time } = formatInvoiceCreatedAt(
                             inv.createdAt
                           );
                           return (
                             <>
-                              <div className="text-gray-900 font-medium tabular-nums">
+                              <div className="text-gray-900 font-medium tabular-nums leading-snug">
                                 {date}
                               </div>
                               {time ? (
@@ -2892,36 +2987,56 @@ export default function AdminBillingPage() {
                         })()}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="text-gray-900">{inv.customerName}</div>
-                        <div className="text-xs text-gray-500">{inv.customerEmail}</div>
+                        <div className="text-gray-900 font-medium truncate" title={inv.customerName}>
+                          {inv.customerName}
+                        </div>
+                        <div
+                          className="text-xs text-gray-500 truncate"
+                          title={inv.customerEmail}
+                        >
+                          {inv.customerEmail}
+                        </div>
                       </td>
-                      <td className="px-4 py-3 tabular-nums font-medium">
+                      <td className="px-4 py-3 tabular-nums font-semibold text-gray-900">
                         ${Number(inv.total).toFixed(2)}
                       </td>
                       <td className="px-4 py-3">{paymentStatusBadge(inv)}</td>
                       <td className="px-4 py-3">
-                        {inv.isDraft ||
-                        String(inv.status || "").toUpperCase() === "DRAFT"
-                          ? badge("DRAFT")
-                          : badge(inv.emailStatus)}
+                        <div className="flex flex-col gap-1 items-start">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-semibold text-gray-400 w-7">
+                              Em
+                            </span>
+                            {inv.isDraft ||
+                            String(inv.status || "").toUpperCase() === "DRAFT"
+                              ? badge("DRAFT")
+                              : badge(inv.emailStatus)}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-semibold text-gray-400 w-7">
+                              QB
+                            </span>
+                            {badge(inv.qbSyncStatus)}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-semibold text-gray-400 w-7">
+                              DB
+                            </span>
+                            {badge(inv.dropboxSyncStatus)}
+                          </div>
+                        </div>
                       </td>
-                      <td className="px-4 py-3">{badge(inv.qbSyncStatus)}</td>
-                      <td className="px-4 py-3">{badge(inv.dropboxSyncStatus)}</td>
                       <td className="px-4 py-3">
-                        <div className="flex flex-nowrap items-center gap-0">
+                        <div className="flex flex-nowrap items-center gap-1.5 whitespace-nowrap">
                           <a
                             href={`/api/admin/billing/invoices/${encodeURIComponent(inv.id)}/pdf`}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-[#C9A063]/15 text-[#8B6914] ring-1 ring-[#C9A063]/35 hover:bg-[#C9A063]/25"
+                            className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-[#C9A063]/15 text-[#8B6914] ring-1 ring-[#C9A063]/35 hover:bg-[#C9A063]/25"
                           >
                             <FileText className="w-3 h-3" />
                             PDF
                           </a>
-                          <span
-                            className="mx-2 h-5 w-px shrink-0 bg-gray-300"
-                            aria-hidden
-                          />
                           {inv.isDraft ||
                           String(inv.status || "").toUpperCase() === "DRAFT" ? (
                             <button
@@ -2931,7 +3046,7 @@ export default function AdminBillingPage() {
                                 Boolean(pendingCard)
                               }
                               onClick={() => void loadInvoiceIntoForm(inv.id)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-white text-gray-800 ring-1 ring-gray-200 hover:bg-gray-50 disabled:opacity-40 whitespace-nowrap"
+                              className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-white text-gray-800 ring-1 ring-gray-200 hover:bg-gray-50 disabled:opacity-40"
                             >
                               <Pencil className="w-3 h-3" />
                               Edit
@@ -2948,7 +3063,7 @@ export default function AdminBillingPage() {
                                   total: Number(inv.total),
                                 })
                               }
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-900 ring-1 ring-amber-200 hover:bg-amber-100 disabled:opacity-40 whitespace-nowrap"
+                              className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-900 ring-1 ring-amber-200 hover:bg-amber-100 disabled:opacity-40"
                             >
                               Collect
                             </button>
@@ -2959,42 +3074,31 @@ export default function AdminBillingPage() {
                               onClick={() =>
                                 void postAction({ action: "resend", invoiceId: inv.id })
                               }
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 disabled:opacity-40"
+                              className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 disabled:opacity-40"
                             >
                               <Send className="w-3 h-3" />
                               Resend
                             </button>
                           )}
                           {inv.kind === "STANDARD" && (
-                            <>
-                              <span
-                                className="mx-2 h-5 w-px shrink-0 bg-gray-300"
-                                aria-hidden
-                              />
-                              <button
-                                type="button"
-                                disabled={
-                                  busyId === `dup_${inv.id}` ||
-                                  busyId === `load_invoice_${inv.id}` ||
-                                  Boolean(pendingCard)
-                                }
-                                onClick={() => void duplicateInvoice(inv.id)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 disabled:opacity-40 whitespace-nowrap"
-                              >
-                                <CopyPlus className="w-3 h-3" />
-                                Duplicate
-                              </button>
-                            </>
+                            <button
+                              type="button"
+                              disabled={
+                                busyId === `dup_${inv.id}` ||
+                                busyId === `load_invoice_${inv.id}` ||
+                                Boolean(pendingCard)
+                              }
+                              onClick={() => void duplicateInvoice(inv.id)}
+                              className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 disabled:opacity-40"
+                            >
+                              <CopyPlus className="w-3 h-3" />
+                              Duplicate
+                            </button>
                           )}
                           {inv.emailStatus === "FAILED" &&
                             !inv.paymentHeld &&
                             !inv.isDraft &&
                             String(inv.status || "").toUpperCase() !== "DRAFT" && (
-                            <>
-                              <span
-                                className="mx-2 h-5 w-px shrink-0 bg-gray-300"
-                                aria-hidden
-                              />
                               <button
                                 type="button"
                                 onClick={() =>
@@ -3004,58 +3108,41 @@ export default function AdminBillingPage() {
                                     type: "EMAIL",
                                   })
                                 }
-                                className="inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-50 whitespace-nowrap"
+                                className="inline-flex shrink-0 items-center px-2.5 py-1.5 rounded-md text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-50"
                               >
                                 Retry email
                               </button>
-                            </>
-                          )}
+                            )}
                           {inv.qbSyncStatus === "FAILED" && (
-                            <>
-                              <span
-                                className="mx-2 h-5 w-px shrink-0 bg-gray-300"
-                                aria-hidden
-                              />
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void postAction({
-                                    action: "retry",
-                                    invoiceId: inv.id,
-                                    type: "QBO_SYNC",
-                                  })
-                                }
-                                className="inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-50 whitespace-nowrap"
-                              >
-                                Retry QB
-                              </button>
-                            </>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void postAction({
+                                  action: "retry",
+                                  invoiceId: inv.id,
+                                  type: "QBO_SYNC",
+                                })
+                              }
+                              className="inline-flex shrink-0 items-center px-2.5 py-1.5 rounded-md text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-50"
+                            >
+                              Retry QB
+                            </button>
                           )}
                           {inv.dropboxSyncStatus === "FAILED" && (
-                            <>
-                              <span
-                                className="mx-2 h-5 w-px shrink-0 bg-gray-300"
-                                aria-hidden
-                              />
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void postAction({
-                                    action: "retry",
-                                    invoiceId: inv.id,
-                                    type: "DROPBOX_SYNC",
-                                  })
-                                }
-                                className="inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-50 whitespace-nowrap"
-                              >
-                                Retry Dropbox
-                              </button>
-                            </>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void postAction({
+                                  action: "retry",
+                                  invoiceId: inv.id,
+                                  type: "DROPBOX_SYNC",
+                                })
+                              }
+                              className="inline-flex shrink-0 items-center px-2.5 py-1.5 rounded-md text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-50"
+                            >
+                              Retry Dropbox
+                            </button>
                           )}
-                          <span
-                            className="mx-2 h-5 w-px shrink-0 bg-gray-300"
-                            aria-hidden
-                          />
                           <button
                             type="button"
                             disabled={busyId === inv.id}
@@ -3072,7 +3159,7 @@ export default function AdminBillingPage() {
                                 invoiceId: inv.id,
                               });
                             }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-50 disabled:opacity-40"
+                            className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-50 disabled:opacity-40"
                           >
                             <Trash2 className="w-3 h-3" />
                             Delete

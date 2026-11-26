@@ -6,6 +6,7 @@ import type { InvoiceFareSnapshot } from "@/lib/invoice-types";
 import { roundMoney } from "@/lib/invoice-types";
 import {
   buildInvoiceDisplayLines,
+  discountLabel,
   displayBrandName,
   formatInvoicePhone,
   formatIssueDateLong,
@@ -442,13 +443,16 @@ export async function buildInvoicePdfBuffer(opts: {
       y += bold ? 20 : 14;
     };
 
+    // Display order: Subtotal → Grat → Discount → HST → Total
     addTotalRow("Subtotal", moneyCadSigned(snapshot.subtotal));
-    if (snapshot.discountAmount > 0) {
-      addTotalRow("Discount", `−${moneyCad(snapshot.discountAmount)}`);
-    }
-    // Tax order matches reservation: subtotal → Admin/Grat & Fuel → HST → total
     if (snapshot.gratuity > 0) {
       addTotalRow(gratFuelLabel(snapshot), moneyCad(snapshot.gratuity));
+    }
+    if (snapshot.discountAmount > 0) {
+      addTotalRow(
+        discountLabel(snapshot),
+        moneyCadSigned(-Math.abs(snapshot.discountAmount))
+      );
     }
     if (roundMoney(snapshot.hst) !== 0) {
       addTotalRow("HST", moneyCadSigned(snapshot.hst));

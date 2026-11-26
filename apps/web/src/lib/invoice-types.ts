@@ -58,6 +58,8 @@ export type InvoiceFareSnapshot = {
   lines: InvoiceLineItem[];
   subtotal: number;
   discountAmount: number;
+  /** When set, email/PDF can show Discount (X%). */
+  discountPercent?: number;
   hst: number;
   gratuity: number;
   total: number;
