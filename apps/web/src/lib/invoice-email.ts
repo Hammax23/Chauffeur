@@ -11,6 +11,8 @@ import {
   formatIssueDateShort,
   gratFuelLabel,
   invoiceLogoUrl,
+  displayServiceTypeLabel,
+  isMeaningfulTripDetail,
   isSnapshotPaid,
   moneyCad,
   moneyCadSigned,
@@ -89,16 +91,17 @@ export function buildInvoiceEmailHtml(input: InvoiceEmailInput): string {
       <td style="padding:4px 0;text-align:right;color:${TEXT};font-size:13px;">−${e(moneyCad(snapshot.discountAmount))}</td>
     </tr>`
       : "",
-    snapshot.hst !== 0
-      ? `<tr>
-      <td style="padding:4px 0;color:${MUTED};font-size:13px;">HST</td>
-      <td style="padding:4px 0;text-align:right;color:${TEXT};font-size:13px;">${e(moneyCadSigned(snapshot.hst))}</td>
-    </tr>`
-      : "",
+    // Tax order matches reservation: subtotal → Admin/Grat & Fuel → HST → total
     snapshot.gratuity > 0
       ? `<tr>
       <td style="padding:4px 0;color:${MUTED};font-size:13px;">${e(gratFuelLabel(snapshot))}</td>
       <td style="padding:4px 0;text-align:right;color:${TEXT};font-size:13px;">${e(moneyCad(snapshot.gratuity))}</td>
+    </tr>`
+      : "",
+    snapshot.hst !== 0
+      ? `<tr>
+      <td style="padding:4px 0;color:${MUTED};font-size:13px;">HST</td>
+      <td style="padding:4px 0;text-align:right;color:${TEXT};font-size:13px;">${e(moneyCadSigned(snapshot.hst))}</td>
     </tr>`
       : "",
     `<tr>
@@ -132,6 +135,76 @@ export function buildInvoiceEmailHtml(input: InvoiceEmailInput): string {
   const copyNote = isCopy
     ? " This message is a requested copy of your document."
     : "";
+
+  const trip = snapshot.trip;
+  const tripRows: { label: string; value: string }[] = [];
+  if (trip?.serviceType) {
+    tripRows.push({
+      label: "Service",
+      value: displayServiceTypeLabel(trip.serviceType),
+    });
+  }
+  if (trip?.vehicle) tripRows.push({ label: "Vehicle", value: trip.vehicle });
+  if (trip?.serviceDate || trip?.serviceTime) {
+    tripRows.push({
+      label: "Date / time",
+      value: [trip.serviceDate, trip.serviceTime].filter(Boolean).join(" · "),
+    });
+  }
+  if (trip?.pickupLocation) {
+    tripRows.push({ label: "Pickup", value: trip.pickupLocation });
+  }
+  if (trip?.dropoffLocation) {
+    tripRows.push({ label: "Drop-off", value: trip.dropoffLocation });
+  }
+  if (trip?.stops?.length) {
+    tripRows.push({ label: "Stops", value: trip.stops.join(" → ") });
+  }
+  if (trip?.passengers && trip.passengers > 0) {
+    tripRows.push({ label: "Passengers", value: String(trip.passengers) });
+  }
+  if (trip?.distance) tripRows.push({ label: "Distance", value: trip.distance });
+  if (trip?.duration) tripRows.push({ label: "Duration", value: trip.duration });
+  if (isMeaningfulTripDetail(trip?.etr407)) {
+    tripRows.push({ label: "407 ETR", value: String(trip.etr407).trim() });
+  }
+  {
+    const flight = [trip?.airline, trip?.flightNumber]
+      .map((v) => String(v || "").trim())
+      .filter((v) => isMeaningfulTripDetail(v))
+      .join(" · ");
+    if (flight) tripRows.push({ label: "Flight number", value: flight });
+  }
+  if (isMeaningfulTripDetail(trip?.specialRequirements)) {
+    tripRows.push({
+      label: "Special Details",
+      value: String(trip.specialRequirements).trim(),
+    });
+  }
+
+  const tripBlock =
+    tripRows.length > 0
+      ? `<tr>
+          <td style="padding:0 32px;">
+            <div style="height:1px;background:${BORDER};line-height:1px;font-size:0;">&nbsp;</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:18px 32px 8px 32px;">
+            <p style="margin:0 0 10px 0;color:${MUTED};font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;">Trip / service</p>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+              ${tripRows
+                .map(
+                  (row) => `<tr>
+                <td style="padding:5px 12px 5px 0;color:${MUTED};font-size:12px;vertical-align:top;width:120px;white-space:nowrap;">${e(row.label)}</td>
+                <td style="padding:5px 0;color:${TEXT};font-size:13px;line-height:1.45;vertical-align:top;">${e(row.value).replace(/\n/g, "<br>")}</td>
+              </tr>`
+                )
+                .join("")}
+            </table>
+          </td>
+        </tr>`
+      : "";
 
   const finePrint = isCredit
     ? `<p style="margin:0 0 20px 0;color:${MUTED};font-size:11px;line-height:1.55;">This credit note adjusts a previously issued SARJ tax invoice. Booking <strong style="color:#475569;">${e(bookingId)}</strong>. The PDF attached is your official record.${copyNote}</p>`
@@ -239,6 +312,8 @@ export function buildInvoiceEmailHtml(input: InvoiceEmailInput): string {
             </table>
           </td>
         </tr>
+
+        ${tripBlock}
 
         <tr>
           <td style="padding:0 32px;">

@@ -11,6 +11,8 @@ import {
   formatIssueDateLong,
   gratFuelLabel,
   invoiceLogoUrl,
+  displayServiceTypeLabel,
+  isMeaningfulTripDetail,
   isSnapshotPaid,
   moneyCad,
   moneyCadSigned,
@@ -269,7 +271,12 @@ export async function buildInvoicePdfBuffer(opts: {
     // Optional trip / service block (reservation invoices + filled manual fields)
     const trip = snapshot.trip;
     const tripRows: { label: string; value: string }[] = [];
-    if (trip?.serviceType) tripRows.push({ label: "Service", value: trip.serviceType });
+    if (trip?.serviceType) {
+      tripRows.push({
+        label: "Service",
+        value: displayServiceTypeLabel(trip.serviceType),
+      });
+    }
     if (trip?.vehicle) tripRows.push({ label: "Vehicle", value: trip.vehicle });
     if (trip?.serviceDate || trip?.serviceTime) {
       tripRows.push({
@@ -295,16 +302,24 @@ export async function buildInvoicePdfBuffer(opts: {
     }
     if (trip?.distance) tripRows.push({ label: "Distance", value: trip.distance });
     if (trip?.duration) tripRows.push({ label: "Duration", value: trip.duration });
-    if (trip?.etr407) tripRows.push({ label: "407 ETR", value: trip.etr407 });
-    if (trip?.airline || trip?.flightNumber) {
-      tripRows.push({
-        label: "Flight",
-        value: [trip.airline, trip.flightNumber].filter(Boolean).join(" · "),
-      });
+    if (isMeaningfulTripDetail(trip?.etr407)) {
+      tripRows.push({ label: "407 ETR", value: String(trip.etr407).trim() });
     }
-    if (trip?.flightNote) tripRows.push({ label: "Flight note", value: trip.flightNote });
-    if (trip?.specialRequirements) {
-      tripRows.push({ label: "Notes", value: trip.specialRequirements });
+    {
+      const flight = [trip?.airline, trip?.flightNumber]
+        .map((v) => String(v || "").trim())
+        .filter((v) => isMeaningfulTripDetail(v))
+        .join(" · ");
+      if (flight) tripRows.push({ label: "Flight number", value: flight });
+    }
+    if (isMeaningfulTripDetail(trip?.flightNote)) {
+      tripRows.push({ label: "Flight note", value: String(trip.flightNote).trim() });
+    }
+    if (isMeaningfulTripDetail(trip?.specialRequirements)) {
+      tripRows.push({
+        label: "Special Details",
+        value: String(trip.specialRequirements).trim(),
+      });
     }
 
     if (tripRows.length > 0) {
@@ -413,11 +428,12 @@ export async function buildInvoicePdfBuffer(opts: {
     if (snapshot.discountAmount > 0) {
       addTotalRow("Discount", `−${moneyCad(snapshot.discountAmount)}`);
     }
-    if (roundMoney(snapshot.hst) !== 0) {
-      addTotalRow("HST", moneyCadSigned(snapshot.hst));
-    }
+    // Tax order matches reservation: subtotal → Admin/Grat & Fuel → HST → total
     if (snapshot.gratuity > 0) {
       addTotalRow(gratFuelLabel(snapshot), moneyCad(snapshot.gratuity));
+    }
+    if (roundMoney(snapshot.hst) !== 0) {
+      addTotalRow("HST", moneyCadSigned(snapshot.hst));
     }
 
     doc
@@ -471,13 +487,6 @@ export async function buildInvoicePdfBuffer(opts: {
       align: "center",
       lineBreak: false,
     });
-    y += 12;
-    doc.text(
-      "Amounts are frozen at issue time and are not editable by staff.",
-      leftX,
-      y,
-      { width: pageWidth, align: "center", lineBreak: false }
-    );
 
     doc.end();
   });

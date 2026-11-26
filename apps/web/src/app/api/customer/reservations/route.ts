@@ -452,6 +452,7 @@ export async function POST(req: NextRequest) {
           cardLast4: resolvedCardLast4,
           paymentStatus,
           isLongDistance,
+          bookingSource: "APP",
         },
       });
 
@@ -595,6 +596,7 @@ export async function POST(req: NextRequest) {
         cardLast4: null,
         paymentStatus: "PENDING",
         isLongDistance,
+        bookingSource: "APP",
       },
     });
 

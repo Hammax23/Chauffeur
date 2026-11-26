@@ -83,6 +83,18 @@ export function displayBrandName(legalName: string): string {
   return legalName.includes("SARJ") ? "SARJ Chauffeur" : legalName;
 }
 
+/** Manual form tabs: Distance / Hourly / Parcel (not internal long labels). */
+export function displayServiceTypeLabel(
+  serviceType: string | null | undefined
+): string {
+  const raw = String(serviceType || "").trim();
+  if (!raw) return "";
+  if (/parcel/i.test(raw)) return "Parcel";
+  if (/hourly/i.test(raw)) return "Hourly";
+  if (/point|distance|p2p|point-to-point/i.test(raw)) return "Distance";
+  return raw;
+}
+
 export function isSnapshotPaid(snapshot: InvoiceFareSnapshot): boolean {
   const ps = String(snapshot.paymentStatus || "").toUpperCase();
   return ps === "PAID" || ps.includes("PAID");
@@ -102,7 +114,7 @@ export function tripItemDescription(snapshot: InvoiceFareSnapshot): string {
   const parts: string[] = [];
   parts.push(formatServiceLongDate(t.serviceDate, t.serviceTime));
   if (t.vehicle) parts.push(t.vehicle);
-  if (t.serviceType) parts.push(t.serviceType);
+  if (t.serviceType) parts.push(displayServiceTypeLabel(t.serviceType));
   if (snapshot.customer.name) parts.push(snapshot.customer.name);
   if (t.pickupLocation) parts.push(`P/U: ${t.pickupLocation}`);
   if (t.stops?.length) parts.push(`Stops: ${t.stops.join("; ")}`);
@@ -218,4 +230,28 @@ export function buildInvoiceDisplayLines(
   }
 
   return lines;
+}
+
+/**
+ * Optional trip extras for email/PDF — hide empty / default "No" values
+ * (e.g. 407 ETR: No should not appear).
+ */
+export function isMeaningfulTripDetail(
+  value: string | number | null | undefined
+): boolean {
+  const raw = String(value ?? "").trim();
+  if (!raw) return false;
+  const lower = raw.toLowerCase();
+  if (
+    lower === "no" ||
+    lower === "n" ||
+    lower === "n/a" ||
+    lower === "na" ||
+    lower === "none" ||
+    lower === "false" ||
+    lower === "0"
+  ) {
+    return false;
+  }
+  return true;
 }

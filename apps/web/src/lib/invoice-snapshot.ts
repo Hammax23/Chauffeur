@@ -136,7 +136,11 @@ export function buildStandardFareSnapshot(
       flightNote: String(r.flightNote || "").trim() || undefined,
       childSeats: Math.max(0, Number(r.childSeats) || 0) || undefined,
       childSeatType: String(r.childSeatType || "").trim() || undefined,
-      etr407: String(r.etr407 || "").trim() || undefined,
+      etr407: (() => {
+        const v = String(r.etr407 || "").trim();
+        if (!v || /^no$/i.test(v) || /^n\/?a$/i.test(v)) return undefined;
+        return v;
+      })(),
       distance: String(r.distance || "").trim() || undefined,
       duration: String(r.duration || "").trim() || undefined,
       specialRequirements:
@@ -364,7 +368,11 @@ export function buildStandaloneSnapshot(
       flightNote: String(input.flightNote || "").trim() || undefined,
       childSeats: Math.max(0, Math.floor(Number(input.childSeats) || 0)) || undefined,
       childSeatType: String(input.childSeatType || "").trim() || undefined,
-      etr407: String(input.etr407 || "").trim() || undefined,
+      etr407: (() => {
+        const v = String(input.etr407 || "").trim();
+        if (!v || /^no$/i.test(v) || /^n\/?a$/i.test(v)) return undefined;
+        return v;
+      })(),
       distance: String(input.distance || "").trim() || undefined,
       duration: String(input.duration || "").trim() || undefined,
       specialRequirements:

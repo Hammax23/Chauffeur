@@ -62,6 +62,10 @@ model Reservation {
   stripePaymentMethodId   String?
   /// Captured PaymentIntent id (pi_…) for refunds / audits.
   stripePaymentIntentId   String?
+  /// Latest Stripe Checkout session (cs_…) for Custom / pay-later recovery.
+  stripeCheckoutSessionId String?
+  /// Last shareable Checkout URL (may expire — regenerate via admin if needed).
+  stripeCheckoutUrl       String?
   cardType                String?
   cardLast4               String?
   paymentStatus           String?              @default("PENDING")
@@ -86,6 +90,8 @@ model Reservation {
   rejectedDriverIds       String?
   /// How this booking was dispatched: "app" | "web"
   assignmentChannel       String?
+  /// Who created the booking: CUSTOM (admin Custom Reservation) | WEB (website) | APP (mobile).
+  bookingSource           String?
   customerId              String?
   assignedDriverId        String?
   /// Soft-hide from customer History (record kept for admin / billing / disputes).

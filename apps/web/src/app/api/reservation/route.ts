@@ -450,6 +450,7 @@ export async function POST(request: NextRequest) {
       cardLast4: resolvedCardLast4,
       paymentStatus,
       routeDistanceValue: routeDistanceValue > 0 ? routeDistanceValue : undefined,
+      bookingSource: wantsSkipTurnstile ? "CUSTOM" : "WEB",
     });
 
     const { maybeBroadcastNewReservation } = await import("@/lib/live-auto");

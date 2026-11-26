@@ -101,14 +101,28 @@ export async function POST(req: NextRequest) {
           ? session.customer.id
           : reservation.stripeCustomerId;
 
+    const piId =
+      typeof session.payment_intent === "string"
+        ? session.payment_intent
+        : paymentIntent && "id" in paymentIntent
+          ? paymentIntent.id
+          : null;
+
     const updated = await prisma.reservation.update({
       where: { bookingId },
       data: {
         paymentStatus: "PAID",
         stripeCustomerId: stripeCustomerId || undefined,
         stripePaymentMethodId: stripePaymentMethodId || undefined,
+        stripePaymentIntentId: piId || reservation.stripePaymentIntentId || undefined,
         cardLast4: card?.last4 || reservation.cardLast4 || undefined,
         cardType: card?.brand || reservation.cardType || undefined,
+        // Paid — stop showing shareable Checkout URL in admin.
+        stripeCheckoutUrl: null,
+        stripeCheckoutSessionId:
+          typeof session.id === "string"
+            ? session.id
+            : reservation.stripeCheckoutSessionId || undefined,
       },
       select: {
         bookingId: true,

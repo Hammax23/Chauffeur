@@ -62,6 +62,8 @@ export interface ReservationData {
   isLongDistance?: boolean;
   /** Route distance in meters (Google) — used when isLongDistance not explicit. */
   routeDistanceValue?: number;
+  /** CUSTOM = admin Custom Reservation; WEB = website; APP = mobile. */
+  bookingSource?: "CUSTOM" | "WEB" | "APP" | string;
 }
 
 // Driver interface for API compatibility
@@ -209,6 +211,9 @@ export async function addReservation(data: ReservationData) {
       cardLast4: data.cardLast4,
       paymentStatus: data.paymentStatus || "PENDING",
       isLongDistance,
+      ...(data.bookingSource
+        ? { bookingSource: String(data.bookingSource).trim().toUpperCase() }
+        : {}),
       ...(linkedCustomer ? { customerId: linkedCustomer.id } : {}),
     },
   });

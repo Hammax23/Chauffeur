@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import DriverTripTimingPanel from "@/components/DriverTripTimingPanel";
 import { isParcelServiceType, parseParcelRequirements } from "@/lib/parcel";
+import { displayServiceTypeLabel } from "@/lib/invoice-format";
 
 const STATUS_OPTIONS = [
   "ALL",
@@ -85,6 +86,9 @@ interface Reservation {
   trackLink: string;
   stripeCustomerId?: string;
   stripePaymentMethodId?: string;
+  stripePaymentIntentId?: string | null;
+  stripeCheckoutSessionId?: string | null;
+  stripeCheckoutUrl?: string | null;
   cardType?: string;
   cardLast4?: string;
   paymentStatus?: string;
@@ -95,6 +99,8 @@ interface Reservation {
   rejectedDriverIds?: string | null;
   /** How booking was dispatched: "app" | "web" */
   assignmentChannel?: string | null;
+  /** CUSTOM | WEB | APP — who created the booking (admin-only display). */
+  bookingSource?: string | null;
   /** ISO — trip timer starts when driver reaches On The Way */
   driverOnTheWayAt?: string | null;
   /** JSON [{ start, end? }] mid-trip Stop → Continue */
@@ -155,6 +161,12 @@ export default function ReservationsPage() {
   >([]);
   const [chatMeta, setChatMeta] = useState<{ canSend: boolean; status: string } | null>(null);
   const [policyBusyId, setPolicyBusyId] = useState<string | null>(null);
+  const [payLinkBusyId, setPayLinkBusyId] = useState<string | null>(null);
+  const [payLinkMessage, setPayLinkMessage] = useState<{
+    id: string;
+    ok: boolean;
+    text: string;
+  } | null>(null);
 
   const runMgOps = async (
     bookingId: string,
@@ -198,6 +210,58 @@ export default function ReservationsPage() {
       setPolicyBusyId(null);
     }
   };
+
+  async function generateOrRefreshPaymentLink(bookingId: string) {
+    setPayLinkBusyId(bookingId);
+    setPayLinkMessage(null);
+    try {
+      const res = await fetch("/api/admin/reservations/checkout", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingId,
+          returnBaseUrl:
+            typeof window !== "undefined" ? window.location.origin : undefined,
+        }),
+      });
+      const json = await res.json();
+      if (!json.success || !json.url) {
+        setPayLinkMessage({
+          id: bookingId,
+          ok: false,
+          text: json.error || "Could not create payment link",
+        });
+        return;
+      }
+      const url = String(json.url);
+      const sessionId = String(json.sessionId || "");
+      setReservations((rows) =>
+        rows.map((row) =>
+          row.bookingId === bookingId
+            ? {
+                ...row,
+                stripeCheckoutUrl: url,
+                stripeCheckoutSessionId: sessionId || row.stripeCheckoutSessionId,
+              }
+            : row
+        )
+      );
+      setPayLinkMessage({
+        id: bookingId,
+        ok: true,
+        text: "Payment link ready — copy or open below",
+      });
+    } catch {
+      setPayLinkMessage({
+        id: bookingId,
+        ok: false,
+        text: "Network error creating payment link",
+      });
+    } finally {
+      setPayLinkBusyId(null);
+    }
+  }
 
   const copyToClipboard = async (url: string, type: string) => {
     try {
@@ -704,6 +768,36 @@ export default function ReservationsPage() {
                           Parcel
                         </span>
                       ) : null}
+                      {(() => {
+                        const src = String(r.bookingSource || "")
+                          .trim()
+                          .toUpperCase();
+                        if (src === "CUSTOM") {
+                          return (
+                            <span
+                              title="Created via Custom Reservation (admin)"
+                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase bg-violet-50 text-violet-800 border border-violet-200"
+                            >
+                              Custom
+                            </span>
+                          );
+                        }
+                        if (src === "WEB" || src === "APP" || src === "CLIENT") {
+                          return (
+                            <span
+                              title={
+                                src === "APP"
+                                  ? "Booked by client in the app"
+                                  : "Booked by client on the website"
+                              }
+                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase bg-sky-50 text-sky-800 border border-sky-200"
+                            >
+                              Client
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
                       {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                     </div>
 
@@ -856,7 +950,30 @@ export default function ReservationsPage() {
                         <div className="space-y-2">
                           <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Trip Details</h4>
                           <div className="text-sm text-gray-700 space-y-1">
-                            {r.serviceType && <p><span className="text-gray-500">Service:</span> {r.serviceType}</p>}
+                            {r.serviceType && (
+                              <p>
+                                <span className="text-gray-500">Service:</span>{" "}
+                                {displayServiceTypeLabel(r.serviceType)}
+                              </p>
+                            )}
+                            {(() => {
+                              const src = String(r.bookingSource || "")
+                                .trim()
+                                .toUpperCase();
+                              if (!src) return null;
+                              const label =
+                                src === "CUSTOM"
+                                  ? "Custom Reservation"
+                                  : src === "APP"
+                                    ? "Client (app)"
+                                    : "Client (website)";
+                              return (
+                                <p>
+                                  <span className="text-gray-500">Booked via:</span>{" "}
+                                  {label}
+                                </p>
+                              );
+                            })()}
                             {!isParcel && <p><span className="text-gray-500">Passengers:</span> {r.passengers}</p>}
                             {!isParcel && r.childSeats > 0 && <p><span className="text-gray-500">Child Seats:</span> {r.childSeats} {r.childSeatType ? `(${r.childSeatType})` : ""}</p>}
                             {isParcel && parcelInfo?.recipientName ? (
@@ -966,10 +1083,10 @@ export default function ReservationsPage() {
                           <p className="text-sm text-gray-700">{r.dateSubmitted}</p>
                         </div>
 
-                        {/* Payment Info */}
+                        {/* Payment Info — admin/billing only (this page is staff-gated) */}
                         <div className="space-y-2">
                           <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Payment</h4>
-                          <div className="text-sm text-gray-700 space-y-1">
+                          <div className="text-sm text-gray-700 space-y-1.5">
                             {r.cardType === "Cash on Delivery" ? (
                               <p className="flex items-center gap-2 text-amber-700">
                                 <span className="font-medium">Cash on Delivery</span>
@@ -990,6 +1107,119 @@ export default function ReservationsPage() {
                                 Status: {r.paymentStatus.replace(/_/g, " ")}
                               </p>
                             )}
+                            {(() => {
+                              const ps = String(r.paymentStatus || "")
+                                .trim()
+                                .toUpperCase();
+                              const unpaid =
+                                ps !== "PAID" &&
+                                ps !== "CANCELLED" &&
+                                ps !== "CANCELED";
+                              const totalOk = Number(r.total) >= 0.5;
+                              if (!unpaid || !totalOk) return null;
+
+                              const payUrl = String(r.stripeCheckoutUrl || "").trim();
+                              const busy = payLinkBusyId === r.bookingId;
+                              const msg =
+                                payLinkMessage?.id === r.bookingId
+                                  ? payLinkMessage
+                                  : null;
+
+                              return (
+                                <div
+                                  className="mt-2 rounded-lg border border-amber-200 bg-amber-50/70 p-2.5 space-y-2"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <p className="text-[11px] font-semibold text-amber-900 uppercase tracking-wide">
+                                    Stripe payment link
+                                  </p>
+                                  {payUrl ? (
+                                    <>
+                                      <input
+                                        readOnly
+                                        value={payUrl}
+                                        className="w-full rounded-md border border-amber-200 bg-white px-2 py-1.5 text-[11px] font-mono text-gray-700"
+                                      />
+                                      <div className="flex flex-wrap gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            void copyToClipboard(
+                                              payUrl,
+                                              `pay-${r.bookingId}`
+                                            )
+                                          }
+                                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-semibold bg-white text-gray-800 ring-1 ring-gray-200 hover:bg-gray-50"
+                                        >
+                                          {copiedUrl === `pay-${r.bookingId}` ? (
+                                            <Check className="w-3 h-3 text-emerald-600" />
+                                          ) : (
+                                            <Copy className="w-3 h-3" />
+                                          )}
+                                          Copy
+                                        </button>
+                                        <a
+                                          href={payUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-semibold bg-white text-gray-800 ring-1 ring-gray-200 hover:bg-gray-50"
+                                        >
+                                          <ExternalLink className="w-3 h-3" />
+                                          Open
+                                        </a>
+                                        <button
+                                          type="button"
+                                          disabled={busy}
+                                          onClick={() =>
+                                            void generateOrRefreshPaymentLink(
+                                              r.bookingId
+                                            )
+                                          }
+                                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-semibold bg-[#C9A063]/20 text-[#8B6914] ring-1 ring-[#C9A063]/40 hover:bg-[#C9A063]/30 disabled:opacity-40"
+                                        >
+                                          {busy ? (
+                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                          ) : null}
+                                          Refresh link
+                                        </button>
+                                      </div>
+                                      <p className="text-[10px] text-amber-800/80">
+                                        Link may expire — use Refresh if Open fails.
+                                      </p>
+                                    </>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      disabled={busy}
+                                      onClick={() =>
+                                        void generateOrRefreshPaymentLink(
+                                          r.bookingId
+                                        )
+                                      }
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-40"
+                                    >
+                                      {busy ? (
+                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                      ) : (
+                                        <DollarSign className="w-3 h-3" />
+                                      )}
+                                      {busy
+                                        ? "Creating…"
+                                        : "Generate payment link"}
+                                    </button>
+                                  )}
+                                  {msg ? (
+                                    <p
+                                      className={`text-[11px] ${
+                                        msg.ok ? "text-emerald-700" : "text-rose-700"
+                                      }`}
+                                    >
+                                      {msg.text}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>

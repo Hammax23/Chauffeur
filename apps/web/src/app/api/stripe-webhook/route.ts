@@ -65,7 +65,11 @@ export async function POST(request: NextRequest) {
               String(before?.paymentStatus || "").toUpperCase() === "PAID";
             await prisma.reservation.update({
               where: { bookingId },
-              data: { paymentStatus: "PAID" },
+              data: {
+                paymentStatus: "PAID",
+                stripeCheckoutUrl: null,
+                stripeCheckoutSessionId: session.id || undefined,
+              },
             });
             console.log(`Reservation ${bookingId} marked PAID via checkout.session.completed`);
             if (!wasPaid) {
@@ -118,7 +122,11 @@ export async function POST(request: NextRequest) {
               String(before?.paymentStatus || "").toUpperCase() === "PAID";
             await prisma.reservation.update({
               where: { bookingId },
-              data: { paymentStatus: "PAID" },
+              data: {
+                paymentStatus: "PAID",
+                stripePaymentIntentId: paymentIntent.id,
+                stripeCheckoutUrl: null,
+              },
             });
             if (!wasPaid) {
               void import("@/lib/customer-push")

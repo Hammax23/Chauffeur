@@ -25,6 +25,7 @@ import {
   Clock,
   Users,
   Pencil,
+  Plus,
   X,
 } from "lucide-react";
 import { fleetData, type FleetVehicle } from "@/data/fleet";
@@ -100,7 +101,7 @@ const emptyStandalone = () => ({
   passengers: "1",
   childSeats: "0",
   childSeatType: "",
-  etr407: "No",
+  etr407: "",
   airline: "",
   flightNumber: "",
   flightNote: "",
@@ -122,6 +123,19 @@ function splitEmails(raw: string | null | undefined): string[] {
 function joinEmails(emails: string[]): string {
   return emails.map((e) => e.trim()).filter(Boolean).join(", ");
 }
+
+function splitStops(raw: string | null | undefined): string[] {
+  return String(raw || "")
+    .split(/[|\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function joinStops(rows: string[]): string {
+  return rows.map((s) => s.trim()).filter(Boolean).join(" | ");
+}
+
+const MAX_MANUAL_STOPS = 10;
 
 function parseDistanceMeters(raw: string | null | undefined): number {
   const t = String(raw || "").trim().toLowerCase();
@@ -165,6 +179,59 @@ function formatServiceFields(date: Date): { serviceDate: string; serviceTime: st
       hour12: true,
     }),
   };
+}
+
+function formatServiceTimeOnly(date: Date): string {
+  return date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+/** Parse typed time like "5:37 PM", "17:37", "5:37pm". */
+function parseTimeOnly(
+  timeStr: string
+): { hours: number; mins: number } | null {
+  const t = String(timeStr || "").trim().replace(/\s+/g, " ");
+  if (!t) return null;
+
+  const ampm = t.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)$/i);
+  if (ampm) {
+    let hours = Number(ampm[1]);
+    const mins = Number(ampm[2]);
+    if (!Number.isFinite(hours) || !Number.isFinite(mins) || mins > 59) return null;
+    const ap = ampm[3].toUpperCase();
+    if (ap === "PM" && hours < 12) hours += 12;
+    if (ap === "AM" && hours === 12) hours = 0;
+    if (hours < 0 || hours > 23) return null;
+    return { hours, mins };
+  }
+
+  const m24 = t.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (m24) {
+    const hours = Number(m24[1]);
+    const mins = Number(m24[2]);
+    if (
+      !Number.isFinite(hours) ||
+      !Number.isFinite(mins) ||
+      hours > 23 ||
+      mins > 59
+    ) {
+      return null;
+    }
+    return { hours, mins };
+  }
+
+  return null;
+}
+
+function applyTimeToDate(base: Date, timeStr: string): Date | null {
+  const parsed = parseTimeOnly(timeStr);
+  if (!parsed) return null;
+  const next = new Date(base);
+  next.setHours(parsed.hours, parsed.mins, 0, 0);
+  return Number.isNaN(next.getTime()) ? null : next;
 }
 
 function parseServiceDateTime(
@@ -367,6 +434,7 @@ export default function AdminBillingPage() {
   const [editingDraftNumber, setEditingDraftNumber] = useState<string | null>(
     null
   );
+  const [stopRows, setStopRows] = useState<string[]>([]);
   const [pricingDefaults, setPricingDefaults] = useState({
     baseDistanceKm: BASE_DISTANCE_KM,
     extraKmRate: EXTRA_KM_RATE,
@@ -708,6 +776,7 @@ export default function AdminBillingPage() {
       setDistanceMeters(parseDistanceMeters(r.distance));
       setFareManual(true); // keep booking’s stored fare until staff changes vehicle/route
       setPickupDateTime(parseServiceDateTime(r.serviceDate, r.serviceTime));
+      setStopRows(splitStops(r.stops));
       setStandalone({
         customerName: r.customerName,
         customerEmails: splitEmails(r.customerEmail),
@@ -718,11 +787,11 @@ export default function AdminBillingPage() {
         serviceTime: r.serviceTime,
         pickupLocation: r.pickupLocation,
         dropoffLocation: r.dropoffLocation,
-        stops: r.stops,
+        stops: joinStops(splitStops(r.stops)),
         passengers: r.passengers || "1",
         childSeats: r.childSeats || "0",
         childSeatType: r.childSeatType || "",
-        etr407: r.etr407 || "No",
+        etr407: r.etr407 || "",
         airline: r.airline || "",
         flightNumber: r.flightNumber || "",
         flightNote: r.flightNote || "",
@@ -929,6 +998,13 @@ export default function AdminBillingPage() {
     setTipModalOpen(false);
     setEditingDraftId(null);
     setEditingDraftNumber(null);
+    setStopRows([]);
+  }
+
+  function syncStops(next: string[]) {
+    setStopRows(next);
+    setFareManual(false);
+    setStandalone((s) => ({ ...s, stops: joinStops(next) }));
   }
 
   function buildStandalonePayload() {
@@ -1129,6 +1205,8 @@ export default function AdminBillingPage() {
         ) ||
         (String(inv.paymentMethodLabel || "").trim() || "Credit card");
 
+      const loadedStops = splitStops(inv.stops);
+      setStopRows(loadedStops);
       setStandalone({
         ...emptyStandalone(),
         customerName: inv.customerName || "",
@@ -1140,11 +1218,11 @@ export default function AdminBillingPage() {
         serviceTime: inv.serviceTime || "",
         pickupLocation: inv.pickupLocation || "",
         dropoffLocation: inv.dropoffLocation || "",
-        stops: inv.stops || "",
+        stops: joinStops(loadedStops),
         passengers: inv.passengers || "1",
         childSeats: inv.childSeats || "0",
         childSeatType: inv.childSeatType || "",
-        etr407: inv.etr407 || "No",
+        etr407: inv.etr407 || "",
         airline: inv.airline || "",
         flightNumber: inv.flightNumber || "",
         flightNote: inv.flightNote || "",
@@ -1711,20 +1789,64 @@ export default function AdminBillingPage() {
                           </div>
                         )}
                         {!isHourly && (
-                          <div className="px-3 py-2.5 bg-white">
-                            <label className={labelClass}>Stops (optional)</label>
-                            <input
-                              value={standalone.stops}
-                              onChange={(e) => {
-                                setFareManual(false);
-                                setStandalone((s) => ({
-                                  ...s,
-                                  stops: e.target.value,
-                                }));
-                              }}
-                              placeholder="Stop 1 | Stop 2"
-                              className={fieldClass}
-                            />
+                          <div className="px-3 py-2.5 bg-white space-y-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <label className={`${labelClass} !mb-0`}>
+                                Stops (optional)
+                              </label>
+                              <button
+                                type="button"
+                                disabled={stopRows.length >= MAX_MANUAL_STOPS}
+                                onClick={() => {
+                                  if (stopRows.length >= MAX_MANUAL_STOPS) return;
+                                  syncStops([...stopRows, ""]);
+                                }}
+                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#8B6914] hover:underline disabled:opacity-40 disabled:no-underline"
+                              >
+                                <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+                                Add stop
+                              </button>
+                            </div>
+                            {stopRows.length === 0 ? (
+                              <p className="text-[11px] text-gray-400">
+                                No stops — tap Add stop for Google address suggestions.
+                              </p>
+                            ) : (
+                              stopRows.map((stop, index) => (
+                                <div key={`stop-${index}`} className="space-y-1">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                                      Stop {index + 1}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        syncStops(
+                                          stopRows.filter((_, i) => i !== index)
+                                        )
+                                      }
+                                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 hover:underline"
+                                      aria-label={`Remove stop ${index + 1}`}
+                                    >
+                                      <X className="w-3 h-3" />
+                                      Remove
+                                    </button>
+                                  </div>
+                                  <div className="relative">
+                                    <PlacesAutocomplete
+                                      value={stop}
+                                      onChange={(val) => {
+                                        const next = [...stopRows];
+                                        next[index] = val;
+                                        syncStops(next);
+                                      }}
+                                      placeholder={`Stop ${index + 1} address`}
+                                      className={fieldClass}
+                                    />
+                                  </div>
+                                </div>
+                              ))
+                            )}
                           </div>
                         )}
                       </div>
@@ -1745,8 +1867,8 @@ export default function AdminBillingPage() {
                                 }));
                               }}
                               onChangeRaw={(e) => {
-                                const raw = (e.target as HTMLInputElement).value;
-                                if (!raw.trim()) {
+                                const raw = (e.target as HTMLInputElement)?.value;
+                                if (!raw?.trim()) {
                                   setPickupDateTime(null);
                                   setStandalone((s) => ({
                                     ...s,
@@ -1794,8 +1916,57 @@ export default function AdminBillingPage() {
                             </div>
                           </div>
                           <p className="text-[10px] text-gray-400 mt-1">
-                            Type e.g. Nov 26, 2026 7:30 PM — or pick from calendar
+                            Pick date &amp; time from calendar, or type below
                           </p>
+                          {pickupDateTime ? (
+                            <div className="mt-2.5">
+                              <label className={labelClass}>Time</label>
+                              <input
+                                type="text"
+                                inputMode="text"
+                                autoComplete="off"
+                                spellCheck={false}
+                                value={standalone.serviceTime}
+                                onChange={(e) => {
+                                  const raw = e.target.value;
+                                  setStandalone((s) => ({
+                                    ...s,
+                                    serviceTime: raw,
+                                  }));
+                                }}
+                                onBlur={(e) => {
+                                  if (!pickupDateTime) return;
+                                  const next = applyTimeToDate(
+                                    pickupDateTime,
+                                    e.target.value
+                                  );
+                                  if (!next) {
+                                    // Invalid type — snap back to last good time.
+                                    setStandalone((s) => ({
+                                      ...s,
+                                      serviceTime: formatServiceTimeOnly(pickupDateTime),
+                                    }));
+                                    return;
+                                  }
+                                  setPickupDateTime(next);
+                                  setStandalone((s) => ({
+                                    ...s,
+                                    ...formatServiceFields(next),
+                                  }));
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key !== "Enter") return;
+                                  e.preventDefault();
+                                  (e.target as HTMLInputElement).blur();
+                                }}
+                                placeholder="e.g. 5:37 PM"
+                                className={fieldClass}
+                              />
+                              <p className="text-[10px] text-gray-400 mt-1">
+                                Type any time (not only 15‑min slots), e.g. 5:37 PM
+                              </p>
+                            </div>
+                          ) : null}
                         </div>
                         <div>
                           <div className="flex items-center gap-2 mb-1.5">
@@ -1930,6 +2101,38 @@ export default function AdminBillingPage() {
                             className={fieldClass}
                           />
                         </div>
+                      </div>
+
+                      <div>
+                        <label className={labelClass}>Flight number</label>
+                        <input
+                          value={standalone.flightNumber}
+                          onChange={(e) =>
+                            setStandalone((s) => ({
+                              ...s,
+                              flightNumber: e.target.value,
+                            }))
+                          }
+                          placeholder="e.g. AC123"
+                          className={fieldClass}
+                          autoComplete="off"
+                        />
+                      </div>
+
+                      <div>
+                        <label className={labelClass}>Special Details</label>
+                        <textarea
+                          value={standalone.specialRequirements}
+                          onChange={(e) =>
+                            setStandalone((s) => ({
+                              ...s,
+                              specialRequirements: e.target.value,
+                            }))
+                          }
+                          placeholder="Notes for driver / billing (optional)"
+                          rows={3}
+                          className={`${fieldClass} min-h-[5.5rem] resize-y`}
+                        />
                       </div>
                     </div>
                   </div>

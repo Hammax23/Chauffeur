@@ -1,6 +1,36 @@
 import Stripe from "stripe";
+import prisma from "@/lib/prisma";
 
 const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
+
+/** Save Checkout session + URL on the reservation so staff can reopen/copy later. */
+export async function persistReservationCheckoutLink(opts: {
+  bookingId: string;
+  sessionId: string;
+  url: string;
+}): Promise<void> {
+  const bookingId = String(opts.bookingId || "").trim();
+  const sessionId = String(opts.sessionId || "").trim();
+  const url = String(opts.url || "").trim();
+  if (!bookingId || !sessionId || !url) return;
+  await prisma.reservation.update({
+    where: { bookingId },
+    data: {
+      stripeCheckoutSessionId: sessionId,
+      stripeCheckoutUrl: url,
+    },
+  });
+}
+
+/** After paid — drop shareable URL (session id kept for audit). */
+export async function clearReservationCheckoutUrl(bookingId: string): Promise<void> {
+  const id = String(bookingId || "").trim();
+  if (!id) return;
+  await prisma.reservation.update({
+    where: { bookingId: id },
+    data: { stripeCheckoutUrl: null },
+  });
+}
 
 export function safeReturnBase(raw?: unknown): string {
   const fallback = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(
@@ -78,6 +108,16 @@ export async function createReservationPaymentLink(
 
   if (!session.url) {
     throw new Error("Stripe did not return a checkout URL");
+  }
+
+  try {
+    await persistReservationCheckoutLink({
+      bookingId,
+      sessionId: session.id,
+      url: session.url,
+    });
+  } catch (e) {
+    console.error("[reservation-payment-link] persist checkout failed:", e);
   }
 
   return { url: session.url, sessionId: session.id, amount };
