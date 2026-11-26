@@ -255,6 +255,10 @@ export type StandaloneInvoiceInput = {
   customerName: string;
   customerEmail: string;
   customerPhone?: string;
+  /** Passenger being picked up (if different from billing customer / assistant). */
+  pickupName?: string;
+  pickupPhone?: string;
+  waitingTime?: string;
   serviceType?: string;
   vehicle?: string;
   serviceDate?: string;
@@ -377,6 +381,9 @@ export function buildStandaloneSnapshot(
       duration: String(input.duration || "").trim() || undefined,
       specialRequirements:
         humanSpecialRequirements(input.specialRequirements) || undefined,
+      pickupName: String(input.pickupName || "").trim() || undefined,
+      pickupPhone: String(input.pickupPhone || "").trim() || undefined,
+      waitingTime: String(input.waitingTime || "").trim() || undefined,
     },
     lines: [
       ...lines,

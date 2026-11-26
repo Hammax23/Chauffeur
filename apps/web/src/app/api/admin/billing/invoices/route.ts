@@ -24,6 +24,57 @@ import {
 } from "@/lib/reservation-pricing";
 import { humanSpecialRequirements } from "@/lib/special-requirements";
 
+const BILLING_TZ = "America/Toronto";
+
+/** Offset (ms) of `timeZone` relative to UTC at instant `date`. */
+function timeZoneOffsetMs(date: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const map: Record<string, string> = {};
+  for (const p of parts) {
+    if (p.type !== "literal") map[p.type] = p.value;
+  }
+  const asUtc = Date.UTC(
+    Number(map.year),
+    Number(map.month) - 1,
+    Number(map.day),
+    Number(map.hour),
+    Number(map.minute),
+    Number(map.second)
+  );
+  return asUtc - date.getTime();
+}
+
+/** YYYY-MM-DD → UTC Date for that wall-clock time in America/Toronto. */
+function torontoWallToUtc(
+  ymd: string,
+  hour: number,
+  minute: number,
+  second: number,
+  ms: number
+): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || "").trim());
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (!y || mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  const guess = new Date(Date.UTC(y, mo - 1, d, hour, minute, second, ms));
+  const off1 = timeZoneOffsetMs(guess, BILLING_TZ);
+  let utc = new Date(Date.UTC(y, mo - 1, d, hour, minute, second, ms) - off1);
+  const off2 = timeZoneOffsetMs(utc, BILLING_TZ);
+  utc = new Date(Date.UTC(y, mo - 1, d, hour, minute, second, ms) - off2);
+  return utc;
+}
+
 /** GET — list invoices for Billing panel (assistant-safe fields only). */
 export async function GET(req: NextRequest) {
   const gate = await requireBillingAdmin(req);
@@ -32,7 +83,22 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const q = (url.searchParams.get("q") || "").trim();
   const sync = (url.searchParams.get("sync") || "").trim().toUpperCase();
-  const take = Math.min(100, Math.max(1, Number(url.searchParams.get("take") || 50)));
+  let fromYmd = (url.searchParams.get("from") || "").trim();
+  let toYmd = (url.searchParams.get("to") || "").trim();
+  // Single-sided date = that calendar day only (not open-ended).
+  if (fromYmd && !toYmd) toYmd = fromYmd;
+  if (toYmd && !fromYmd) fromYmd = toYmd;
+  // Invalid range: swap so filter never returns empty by accident.
+  if (fromYmd && toYmd && fromYmd > toYmd) {
+    const tmp = fromYmd;
+    fromYmd = toYmd;
+    toYmd = tmp;
+  }
+  const dateFiltered = Boolean(fromYmd || toYmd);
+  const take = Math.min(
+    dateFiltered ? 300 : 100,
+    Math.max(1, Number(url.searchParams.get("take") || (dateFiltered ? 200 : 50)))
+  );
 
   const where: Record<string, unknown> = {};
   if (q) {
@@ -51,7 +117,21 @@ export async function GET(req: NextRequest) {
     ];
   }
 
-  const [invoices, failedCount] = await Promise.all([
+  // Date filter: inclusive calendar days in America/Toronto (business TZ).
+  const createdAt: { gte?: Date; lte?: Date } = {};
+  if (fromYmd) {
+    const start = torontoWallToUtc(fromYmd, 0, 0, 0, 0);
+    if (start) createdAt.gte = start;
+  }
+  if (toYmd) {
+    const end = torontoWallToUtc(toYmd, 23, 59, 59, 999);
+    if (end) createdAt.lte = end;
+  }
+  if (createdAt.gte || createdAt.lte) {
+    where.createdAt = createdAt;
+  }
+
+  const [invoices, failedCount, matchedCount] = await Promise.all([
     prisma.invoice.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -87,12 +167,18 @@ export async function GET(req: NextRequest) {
         ],
       },
     }),
+    prisma.invoice.count({ where }),
   ]);
 
   return NextResponse.json({
     success: true,
     role: gate.auth.role,
     failedCount,
+    matchedCount,
+    from: fromYmd || null,
+    to: toYmd || null,
+    take,
+    truncated: matchedCount > invoices.length,
     invoices: invoices.map((i) => {
       const isDraft = String(i.status || "").toUpperCase() === "DRAFT";
       let paid = false;
@@ -159,6 +245,9 @@ function parseStandaloneBody(body: Record<string, unknown>) {
     customerName: String(body.customerName || ""),
     customerEmail: String(body.customerEmail || ""),
     customerPhone: typeof body.customerPhone === "string" ? body.customerPhone : "",
+    pickupName: typeof body.pickupName === "string" ? body.pickupName : "",
+    pickupPhone: typeof body.pickupPhone === "string" ? body.pickupPhone : "",
+    waitingTime: typeof body.waitingTime === "string" ? body.waitingTime : "",
     serviceType: typeof body.serviceType === "string" ? body.serviceType : "",
     vehicle: typeof body.vehicle === "string" ? body.vehicle : "",
     serviceDate: typeof body.serviceDate === "string" ? body.serviceDate : "",
@@ -258,6 +347,9 @@ function snapshotToFormPayload(
     customerName: String(snap.customer?.name || "").trim(),
     customerEmail: placeholder ? "" : email,
     customerPhone: String(snap.customer?.phone || "").trim(),
+    pickupName: String(snap.trip?.pickupName || "").trim(),
+    pickupPhone: String(snap.trip?.pickupPhone || "").trim(),
+    waitingTime: String(snap.trip?.waitingTime || "").trim(),
     serviceType,
     vehicle: String(snap.trip?.vehicle || "").trim(),
     serviceDate,

@@ -91,6 +91,10 @@ const emptyStandalone = () => ({
   customerName: "",
   customerEmails: [""] as string[],
   customerPhone: "",
+  pickupName: "",
+  pickupPhone: "",
+  waitingTime: "",
+  waitingCharge: "",
   serviceType: "Point-to-Point transportation",
   vehicle: "",
   serviceDate: "",
@@ -365,6 +369,35 @@ type ManualLine = { label: string; amount: string };
 
 const emptyManualLine = (): ManualLine => ({ label: "", amount: "" });
 
+function isWaitingTimeLine(label: string): boolean {
+  return /^waiting\s*time/i.test(String(label || "").trim());
+}
+
+function waitingTimeLineLabel(waitingTime: string): string {
+  const t = String(waitingTime || "").trim();
+  return t ? `Waiting time (${t})` : "Waiting time";
+}
+
+/** Keep / update / remove the Waiting time charge line without wiping other lines. */
+function withWaitingChargeLine(
+  rows: ManualLine[],
+  waitingTime: string,
+  waitingCharge: string
+): ManualLine[] {
+  const without = rows.filter((l) => !isWaitingTimeLine(l.label));
+  const amt = Number(waitingCharge);
+  if (!Number.isFinite(amt) || Math.abs(amt) < 0.0001) {
+    return without.length ? without : [{ label: "Ride fare", amount: "" }];
+  }
+  return [
+    ...without,
+    {
+      label: waitingTimeLineLabel(waitingTime),
+      amount: round2(amt).toFixed(2),
+    },
+  ];
+}
+
 type Integrations = {
   role: string;
   encryptionConfigured: boolean;
@@ -402,11 +435,80 @@ function badge(status: string) {
   );
 }
 
+/** List payment badge: Draft | Paid | Unpaid (from snapshot paid flag). */
+function paymentStatusBadge(inv: {
+  paid?: boolean;
+  isDraft?: boolean;
+  status?: string;
+}) {
+  const draft =
+    inv.isDraft || String(inv.status || "").toUpperCase() === "DRAFT";
+  if (draft) {
+    return (
+      <span className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-semibold ring-1 bg-amber-50 text-amber-900 ring-amber-200">
+        DRAFT
+      </span>
+    );
+  }
+  if (inv.paid) {
+    return (
+      <span className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-semibold ring-1 bg-emerald-50 text-emerald-800 ring-emerald-200">
+        PAID
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-semibold ring-1 bg-rose-50 text-rose-800 ring-rose-200">
+      UNPAID
+    </span>
+  );
+}
+
+/** Invoice list date — Toronto local wall time from ISO createdAt. */
+function formatInvoiceCreatedAt(iso: string | null | undefined): {
+  date: string;
+  time: string;
+} {
+  const raw = String(iso || "").trim();
+  if (!raw) return { date: "—", time: "" };
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return { date: "—", time: "" };
+  try {
+    return {
+      date: new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Toronto",
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      }).format(d),
+      time: new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Toronto",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      }).format(d),
+    };
+  } catch {
+    return {
+      date: d.toLocaleDateString("en-CA"),
+      time: d.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      }),
+    };
+  }
+}
+
 export default function AdminBillingPage() {
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [failedCount, setFailedCount] = useState(0);
   const [integrations, setIntegrations] = useState<Integrations | null>(null);
   const [q, setQ] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [matchedCount, setMatchedCount] = useState(0);
+  const [listTruncated, setListTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
@@ -570,7 +672,13 @@ export default function AdminBillingPage() {
         amount: round2(pricing.airportPickupFee).toFixed(2),
       });
     }
-    setManualLines(nextLines);
+    setManualLines(
+      withWaitingChargeLine(
+        nextLines,
+        standalone.waitingTime,
+        standalone.waitingCharge
+      )
+    );
     setManualGratuity(round2(pricing.gratuity).toFixed(2));
     return true;
   }, [
@@ -581,6 +689,8 @@ export default function AdminBillingPage() {
     standalone.childSeats,
     standalone.specialRequirements,
     standalone.pickupLocation,
+    standalone.waitingTime,
+    standalone.waitingCharge,
     isHourly,
     distanceMeters,
     hourlyDuration,
@@ -661,8 +771,23 @@ export default function AdminBillingPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const params = new URLSearchParams();
+      if (q.trim()) params.set("q", q.trim());
+      // Normalize: one date filled → that day only; from>to → swap.
+      let from = dateFrom.trim();
+      let to = dateTo.trim();
+      if (from && !to) to = from;
+      if (to && !from) from = to;
+      if (from && to && from > to) {
+        const tmp = from;
+        from = to;
+        to = tmp;
+      }
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      const qs = params.toString();
       const [invRes, intRes] = await Promise.all([
-        fetch(`/api/admin/billing/invoices?q=${encodeURIComponent(q)}`, {
+        fetch(`/api/admin/billing/invoices${qs ? `?${qs}` : ""}`, {
           credentials: "include",
         }),
         fetch("/api/admin/billing/integrations", { credentials: "include" }),
@@ -672,6 +797,12 @@ export default function AdminBillingPage() {
       if (invJson.success) {
         setInvoices(invJson.invoices || []);
         setFailedCount(invJson.failedCount || 0);
+        setMatchedCount(
+          typeof invJson.matchedCount === "number"
+            ? invJson.matchedCount
+            : (invJson.invoices || []).length
+        );
+        setListTruncated(Boolean(invJson.truncated));
       }
       if (intJson.success) setIntegrations(intJson);
     } catch {
@@ -679,7 +810,7 @@ export default function AdminBillingPage() {
     } finally {
       setLoading(false);
     }
-  }, [q]);
+  }, [q, dateFrom, dateTo]);
 
   useEffect(() => {
     void load();
@@ -781,6 +912,10 @@ export default function AdminBillingPage() {
         customerName: r.customerName,
         customerEmails: splitEmails(r.customerEmail),
         customerPhone: r.customerPhone,
+        pickupName: "",
+        pickupPhone: "",
+        waitingTime: "",
+        waitingCharge: "",
         serviceType: r.serviceType || "Point-to-Point transportation",
         vehicle: r.vehicle,
         serviceDate: r.serviceDate,
@@ -1177,6 +1312,9 @@ export default function AdminBillingPage() {
         customerName: string;
         customerEmail: string;
         customerPhone: string;
+        pickupName?: string;
+        pickupPhone?: string;
+        waitingTime?: string;
         serviceType: string;
         vehicle: string;
         serviceDate: string;
@@ -1212,6 +1350,17 @@ export default function AdminBillingPage() {
         customerName: inv.customerName || "",
         customerEmails: splitEmails(inv.customerEmail),
         customerPhone: inv.customerPhone || "",
+        pickupName: inv.pickupName || "",
+        pickupPhone: inv.pickupPhone || "",
+        waitingTime: inv.waitingTime || "",
+        waitingCharge: (() => {
+          const waitLine = (inv.lines || []).find((l) =>
+            isWaitingTimeLine(l.label)
+          );
+          return waitLine && Number(waitLine.amount) > 0
+            ? String(waitLine.amount)
+            : "";
+        })(),
         serviceType: inv.serviceType || "Point-to-Point transportation",
         vehicle: inv.vehicle || "",
         serviceDate: inv.serviceDate || "",
@@ -1690,6 +1839,43 @@ export default function AdminBillingPage() {
                           ))}
                         </div>
                       </div>
+                      <div className="pt-1">
+                        <p className="text-[11px] text-gray-500 mb-2">
+                          Pickup guest — if assistant booked but you pick up someone else
+                        </p>
+                        <div className="grid sm:grid-cols-2 gap-2.5">
+                          <div>
+                            <label className={labelClass}>Pickup name</label>
+                            <input
+                              value={standalone.pickupName}
+                              onChange={(e) =>
+                                setStandalone((s) => ({
+                                  ...s,
+                                  pickupName: e.target.value,
+                                }))
+                              }
+                              placeholder="Passenger at pickup"
+                              className={fieldClass}
+                              autoComplete="off"
+                            />
+                          </div>
+                          <div>
+                            <label className={labelClass}>Pickup phone</label>
+                            <input
+                              value={standalone.pickupPhone}
+                              onChange={(e) =>
+                                setStandalone((s) => ({
+                                  ...s,
+                                  pickupPhone: e.target.value,
+                                }))
+                              }
+                              placeholder="(416) 000-0000"
+                              className={fieldClass}
+                              autoComplete="off"
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -2103,6 +2289,57 @@ export default function AdminBillingPage() {
                         </div>
                       </div>
 
+                      <div className="grid sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className={labelClass}>Waiting time</label>
+                          <input
+                            value={standalone.waitingTime}
+                            onChange={(e) => {
+                              const waitingTime = e.target.value;
+                              setStandalone((s) => ({ ...s, waitingTime }));
+                              setManualLines((rows) =>
+                                withWaitingChargeLine(
+                                  rows,
+                                  waitingTime,
+                                  standalone.waitingCharge
+                                )
+                              );
+                            }}
+                            placeholder="e.g. 15 min"
+                            className={fieldClass}
+                            autoComplete="off"
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>
+                            Waiting charges ($)
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={standalone.waitingCharge}
+                            onChange={(e) => {
+                              const waitingCharge = e.target.value;
+                              setStandalone((s) => ({ ...s, waitingCharge }));
+                              setFareManual(true);
+                              setManualLines((rows) =>
+                                withWaitingChargeLine(
+                                  rows,
+                                  standalone.waitingTime,
+                                  waitingCharge
+                                )
+                              );
+                            }}
+                            placeholder="0.00"
+                            className={fieldClass}
+                          />
+                          <p className="text-[10px] text-gray-400 mt-1">
+                            Admin / billing sets the amount — adds a fare line
+                          </p>
+                        </div>
+                      </div>
+
                       <div>
                         <label className={labelClass}>Flight number</label>
                         <input
@@ -2483,20 +2720,106 @@ export default function AdminBillingPage() {
 
         {/* Search + table */}
         <section className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
-          <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search booking, invoice #, email…"
-              className="w-full sm:max-w-sm rounded-lg border border-gray-200 px-3 py-2 text-sm"
-            />
-            <button
-              type="button"
-              onClick={() => void postAction({ action: "process_jobs" })}
-              className="text-xs font-semibold text-[#8B6914] hover:underline"
-            >
-              Process pending jobs now
-            </button>
+          <div className="p-4 border-b border-gray-100 space-y-3">
+            <div className="flex flex-col lg:flex-row gap-2 lg:items-end lg:justify-between">
+              <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:items-end flex-1">
+                <div className="w-full sm:max-w-xs">
+                  <label className={labelClass}>Search</label>
+                  <input
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="Booking, invoice #, email…"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>From date</label>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    max={dateTo || undefined}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm min-h-[40px]"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>To date</label>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    min={dateFrom || undefined}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm min-h-[40px]"
+                  />
+                </div>
+                {(dateFrom || dateTo) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDateFrom("");
+                      setDateTo("");
+                    }}
+                    className="text-xs font-semibold text-gray-600 hover:underline px-1 py-2"
+                  >
+                    Clear dates
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => void postAction({ action: "process_jobs" })}
+                className="text-xs font-semibold text-[#8B6914] hover:underline shrink-0"
+              >
+                Process pending jobs now
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-gray-600">
+              <span>
+                Showing{" "}
+                <span className="font-semibold text-gray-900">
+                  {invoices.length}
+                </span>
+                {matchedCount > invoices.length || listTruncated ? (
+                  <>
+                    {" "}
+                    of{" "}
+                    <span className="font-semibold text-gray-900">
+                      {matchedCount}
+                    </span>
+                  </>
+                ) : null}{" "}
+                invoice{matchedCount === 1 ? "" : "s"}
+                {dateFrom || dateTo ? (
+                  <>
+                    {" "}
+                    ·{" "}
+                    <span className="font-medium text-[#8B6914]">
+                      {(() => {
+                        let from = dateFrom;
+                        let to = dateTo;
+                        if (from && !to) to = from;
+                        if (to && !from) from = to;
+                        if (from && to && from > to) {
+                          const tmp = from;
+                          from = to;
+                          to = tmp;
+                        }
+                        if (from && to && from === to) return from;
+                        return [from || "…", to || "…"].join(" → ");
+                      })()}
+                    </span>
+                    <span className="text-gray-400"> (Toronto)</span>
+                  </>
+                ) : null}
+              </span>
+              {listTruncated ? (
+                <span className="text-amber-800">
+                  {dateFrom || dateTo
+                    ? "List capped — narrow the date range to see every invoice."
+                    : "Showing latest only — pick a date (or range) for a full count."}
+                </span>
+              ) : null}
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -2504,8 +2827,10 @@ export default function AdminBillingPage() {
               <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
                 <tr>
                   <th className="px-4 py-3">Invoice</th>
+                  <th className="px-4 py-3 whitespace-nowrap">Date</th>
                   <th className="px-4 py-3">Customer</th>
                   <th className="px-4 py-3">Total</th>
+                  <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">QB</th>
                   <th className="px-4 py-3">Dropbox</th>
@@ -2515,13 +2840,13 @@ export default function AdminBillingPage() {
               <tbody className="divide-y divide-gray-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
                       Loading…
                     </td>
                   </tr>
                 ) : invoices.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
                       No invoices yet
                     </td>
                   </tr>
@@ -2547,6 +2872,25 @@ export default function AdminBillingPage() {
                           {inv.bookingId} · {inv.kind}
                         </div>
                       </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {(() => {
+                          const { date, time } = formatInvoiceCreatedAt(
+                            inv.createdAt
+                          );
+                          return (
+                            <>
+                              <div className="text-gray-900 font-medium tabular-nums">
+                                {date}
+                              </div>
+                              {time ? (
+                                <div className="text-xs text-gray-500 tabular-nums">
+                                  {time}
+                                </div>
+                              ) : null}
+                            </>
+                          );
+                        })()}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="text-gray-900">{inv.customerName}</div>
                         <div className="text-xs text-gray-500">{inv.customerEmail}</div>
@@ -2554,6 +2898,7 @@ export default function AdminBillingPage() {
                       <td className="px-4 py-3 tabular-nums font-medium">
                         ${Number(inv.total).toFixed(2)}
                       </td>
+                      <td className="px-4 py-3">{paymentStatusBadge(inv)}</td>
                       <td className="px-4 py-3">
                         {inv.isDraft ||
                         String(inv.status || "").toUpperCase() === "DRAFT"

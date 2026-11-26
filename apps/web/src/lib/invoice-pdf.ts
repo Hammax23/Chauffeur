@@ -277,6 +277,24 @@ export async function buildInvoicePdfBuffer(opts: {
         value: displayServiceTypeLabel(trip.serviceType),
       });
     }
+    if (isMeaningfulTripDetail(trip?.pickupName)) {
+      tripRows.push({
+        label: "Pickup name",
+        value: String(trip.pickupName).trim(),
+      });
+    }
+    if (isMeaningfulTripDetail(trip?.pickupPhone)) {
+      tripRows.push({
+        label: "Pickup phone",
+        value: String(trip.pickupPhone).trim(),
+      });
+    }
+    if (isMeaningfulTripDetail(trip?.waitingTime)) {
+      tripRows.push({
+        label: "Waiting time",
+        value: String(trip.waitingTime).trim(),
+      });
+    }
     if (trip?.vehicle) tripRows.push({ label: "Vehicle", value: trip.vehicle });
     if (trip?.serviceDate || trip?.serviceTime) {
       tripRows.push({

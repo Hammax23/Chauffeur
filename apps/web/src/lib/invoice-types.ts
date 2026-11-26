@@ -49,6 +49,11 @@ export type InvoiceFareSnapshot = {
     distance?: string;
     duration?: string;
     specialRequirements?: string;
+    /** Passenger at curb — when booker/assistant differs from pickup guest. */
+    pickupName?: string;
+    pickupPhone?: string;
+    /** Staff-entered wait (e.g. "15 min") — charge is a separate line item. */
+    waitingTime?: string;
   };
   lines: InvoiceLineItem[];
   subtotal: number;
